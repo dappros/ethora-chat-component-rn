@@ -1,0 +1,63 @@
+{
+  "name": "@ethora/chat-component",
+  "version": "1.0.0",
+  "scripts": {
+    "android": "react-native run-android",
+    "ios": "react-native run-ios",
+    "lint": "eslint .",
+    "start": "react-native start",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "^2.1.0",
+    "@reduxjs/toolkit": "^2.5.0",
+    "@xmpp/client": "^0.13.1",
+    "axios": "^1.7.9",
+    "js-sha256": "^0.11.0",
+    "react": "18.3.1",
+    "react-native": "0.76.5",
+    "react-native-reanimated": "^3.16.5",
+    "react-qr-code": "^2.0.15",
+    "react-redux": "^9.2.0",
+    "styled-components": "^6.1.13"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "@babel/preset-env": "^7.25.3",
+    "@babel/runtime": "^7.25.0",
+    "@react-native-community/cli": "15.0.1",
+    "@react-native-community/cli-platform-android": "15.0.1",
+    "@react-native-community/cli-platform-ios": "15.0.1",
+    "@react-native/babel-preset": "0.76.5",
+    "@react-native/eslint-config": "0.76.5",
+    "@react-native/metro-config": "0.76.5",
+    "@react-native/typescript-config": "0.76.5",
+    "@types/react": "^18.2.6",
+    "@types/react-test-renderer": "^18.0.0",
+    "babel-jest": "^29.6.3",
+    "eslint": "^8.19.0",
+    "jest": "^29.6.3",
+    "prettier": "2.8.8",
+    "react-test-renderer": "18.3.1",
+    "typescript": "5.0.4"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "directories": {
+    "lib": "lib"
+  },
+  "author": "Ethora",
+  "license": "AGPL",
+  "keywords": [
+    "chat",
+    "messaging",
+    "react",
+    "react-component",
+    "messenger",
+    "reactjs",
+    "web3",
+    "xmpp",
+    "ethora"
+  ]
+}

@@ -1,0 +1,92 @@
+# macOS
+.DS_Store
+
+# Xcode
+build/
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata/
+*.xccheckout
+*.moved-aside
+DerivedData/
+*.hmap
+*.ipa
+*.xcuserstate
+
+# Android
+android/.gradle/
+android/app/build/
+android/app/.cxx/
+android/build/
+android/.idea/
+android/local.properties
+android/*.iml
+android/gradle/
+android/gradle-wrapper.jar
+*.log
+*.hprof
+*.keystore
+!debug.keystore
+android/.gradle/**/*
+
+# IntelliJ
+.idea/
+*.iml
+
+# Node.js
+node_modules/**/*
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# Metro
+.metro-health-check*
+react-native-debugger-pid
+
+# Logs
+logs/
+*.log
+*.log.*
+
+# Testing
+coverage/
+.nyc_output/
+*.lcov
+
+# Temporary files
+.temp/
+.tmp/
+*.tmp
+*.bak
+*.seed
+*.swp
+*.lock
+
+# Fastlane
+**/fastlane/report.xml
+**/fastlane/Preview.html
+**/fastlane/screenshots/
+**/fastlane/test_output/
+
+# Bundles
+*.jsbundle
+
+# Metro
+/ios/build/
+android/.externalNativeBuild/
+
+# Build artifacts
+android/app/*.apk
+android/app/*.aab
+android/app/**/*.so
+
+# Package manager
+package-lock.json
+.pnpm-debug.log*
+.yarn/*
