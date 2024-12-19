@@ -1,7 +1,9 @@
-# macOS
+# OSX
+#
 .DS_Store
 
 # Xcode
+#
 build/
 *.pbxuser
 !default.pbxuser
@@ -11,79 +13,62 @@ build/
 !default.mode2v3
 *.perspectivev3
 !default.perspectivev3
-xcuserdata/
+xcuserdata
 *.xccheckout
 *.moved-aside
-DerivedData/
+DerivedData
 *.hmap
 *.ipa
 *.xcuserstate
+**/.xcode.env.local
 
-# Android
-android/app/build/
-android/app/.cxx/
-android/build/
-android/.idea/
-android/local.properties
-android/*.iml
-android/gradle-wrapper.jar
-*.log
+# Android/IntelliJ
+#
+build/
+.idea
+.gradle
+local.properties
+*.iml
 *.hprof
+.cxx/
 *.keystore
 !debug.keystore
 
-# IntelliJ
-.idea/
-*.iml
-
-# Node.js
-node_modules/**/*
+# node.js
+#
 node_modules/
-npm-debug.log*
-yarn-error.log*
+npm-debug.log
+yarn-error.log
 
-# Metro
-.metro-health-check*
-react-native-debugger-pid
+# fastlane
+#
+# It is recommended to not store the screenshots in the git repo. Instead, use fastlane to re-generate the
+# screenshots whenever they are needed.
+# For more information about the recommended setup visit:
+# https://docs.fastlane.tools/best-practices/source-control/
 
-# Logs
-logs/
-*.log
-*.log.*
-
-# Testing
-coverage/
-.nyc_output/
-*.lcov
-
-# Temporary files
-.temp/
-.tmp/
-*.tmp
-*.bak
-*.seed
-*.swp
-*.lock
-
-# Fastlane
 **/fastlane/report.xml
 **/fastlane/Preview.html
-**/fastlane/screenshots/
-**/fastlane/test_output/
+**/fastlane/screenshots
+**/fastlane/test_output
 
-# Bundles
+# Bundle artifact
 *.jsbundle
 
-# Metro
-/ios/build/
-android/.externalNativeBuild/
+# Ruby / CocoaPods
+**/Pods/
+/vendor/bundle/
 
-# Build artifacts
-android/app/*.apk
-android/app/*.aab
-android/app/**/*.so
+# Temporary files created by Metro to check the health of the file watcher
+.metro-health-check*
 
-# Package manager
-package-lock.json
-.pnpm-debug.log*
+# testing
+/coverage
+
+# Yarn
 .yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
