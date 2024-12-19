@@ -20,20 +20,17 @@ DerivedData/
 *.xcuserstate
 
 # Android
-android/.gradle/
 android/app/build/
 android/app/.cxx/
 android/build/
 android/.idea/
 android/local.properties
 android/*.iml
-android/gradle/
 android/gradle-wrapper.jar
 *.log
 *.hprof
 *.keystore
 !debug.keystore
-android/.gradle/**/*
 
 # IntelliJ
 .idea/
