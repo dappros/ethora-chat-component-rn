@@ -1,14 +1,15 @@
-import {FC} from 'react';
-import {IMessage} from '../../types/types';
-import {styled} from 'styled-components';
+import { FC } from "react";
+import { IMessage } from "../../types/types";
+import { styled } from "styled-components/native";
+import { Text } from "react-native";
 
-export const StyledMessageReply = styled.View<{isUser: boolean}>`
-  background-color: ${props => (props.isUser ? '#ffffff' : '#E7EDF9')};
+export const StyledMessageReply = styled.TouchableOpacity<{ isUser: boolean }>`
+  background-color: ${(props) => (props.isUser ? "#ffffff" : "#E7EDF9")};
   padding: 8px 16px;
   font-size: 14px;
   border-radius: 4px;
-  border-left: ${props => (props.isUser ? '4px solid #0052CD' : '')};
-  border-right: ${props => (!props.isUser ? '4px solid #0052CD' : '')};
+  border-left: ${(props) => (props.isUser ? "4px solid #0052CD" : "")};
+  border-right: ${(props) => (!props.isUser ? "4px solid #0052CD" : "")};
   overflow: hidden;
   text-overflow: ellipsis;
   cursor: pointer;
@@ -26,8 +27,8 @@ export const MessageReply: FC<MessageReplyProps> = ({
   handleReplyMessage,
 }) => {
   return (
-    <StyledMessageReply onClick={handleReplyMessage} isUser={isUser}>
-      <span>{text}</span>
+    <StyledMessageReply onPress={handleReplyMessage} isUser={isUser}>
+      <Text>{text}</Text>
     </StyledMessageReply>
   );
 };

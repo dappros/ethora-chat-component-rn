@@ -1,20 +1,20 @@
-import React, {useMemo} from 'react';
-import styled from 'styled-components/native';
+import React, { useMemo } from "react";
+import styled from "styled-components/native";
 
 interface AvatarProps {
-  username?: string;
+  username?: string | null;
   firstName?: string;
   lastName?: string;
   style?: object;
 }
 
-const backgroundColors = ['#f44336', '#2196f3', '#4caf50', '#ff9800'];
+const backgroundColors = ["#f44336", "#2196f3", "#4caf50", "#ff9800"];
 
-const AvatarCircle = styled.View<{bgColor: string}>`
+const AvatarCircle = styled.View<{ bgColor: string }>`
   width: 40px;
   height: 40px;
   border-radius: 20px;
-  background-color: ${({bgColor}) => bgColor};
+  background-color: ${({ bgColor }) => bgColor};
   align-items: center;
   justify-content: center;
   shadow-color: rgba(0, 0, 0, 0.2);
@@ -24,10 +24,10 @@ const AvatarCircle = styled.View<{bgColor: string}>`
   elevation: 4;
 `;
 
-const AvatarText = styled.Text<{textColor: string}>`
+const AvatarText = styled.Text<{ textColor: string }>`
   font-size: 16px;
   font-weight: bold;
-  color: ${({textColor}) => textColor};
+  color: ${({ textColor }) => textColor};
 `;
 
 export const Avatar: React.FC<AvatarProps> = ({
@@ -40,12 +40,12 @@ export const Avatar: React.FC<AvatarProps> = ({
     if (firstName && lastName) {
       return `${firstName[0]}${lastName[0]}`.toUpperCase();
     } else if (username) {
-      const names = username.split(' ');
+      const names = username.split(" ");
       return names.length > 1
         ? `${names[0][0]}${names[1][0]}`.toUpperCase()
         : `${names[0][0]}`.toUpperCase();
     }
-    return '??';
+    return "??";
   };
 
   const randomColor = useMemo(() => {
@@ -54,8 +54,8 @@ export const Avatar: React.FC<AvatarProps> = ({
   }, []);
 
   const getTextColor = (bgColor: string) => {
-    const lightColors = ['#4caf50', '#ff9800'];
-    return lightColors.includes(bgColor) ? '#000' : '#fff';
+    const lightColors = ["#4caf50", "#ff9800"];
+    return lightColors.includes(bgColor) ? "#000" : "#fff";
   };
 
   const initials = getInitials();

@@ -1,7 +1,8 @@
-import {FC, useMemo} from 'react';
-import {IReply, IUser} from '../../types/types';
-import {Avatar} from './Avatar';
-import {styled} from 'styled-components';
+import { FC, useMemo } from "react";
+import { IReply, IUser } from "../../types/types";
+import { Avatar } from "./Avatar";
+import { styled } from "styled-components/native";
+import { Text, View } from "react-native";
 
 interface BottomReplyContainerProps {
   isUser: boolean;
@@ -9,13 +10,13 @@ interface BottomReplyContainerProps {
   onClick: () => void;
 }
 
-const ReplyContainer = styled.button<{isUser: boolean}>`
+const ReplyContainer = styled.TouchableOpacity<{ isUser: boolean }>`
   position: absolute;
   box-shadow: 0px 0px 8px 0px rgba(185, 198, 199, 1);
   background-color: #ffffff;
   bottom: -24px;
-  left: ${props => !props.isUser && '50px'};
-  right: ${props => props.isUser && '10px'};
+  left: ${(props) => !props.isUser && "50px"};
+  right: ${(props) => props.isUser && "10px"};
   font-size: 14px;
   padding: 4px 8px 4px 16px;
   border-radius: 20px;
@@ -65,30 +66,30 @@ export const BottomReplyContainer: FC<BottomReplyContainerProps> = ({
 }) => {
   const uniqueUsers: IUser[] = useMemo(() => {
     return Object.values(
-      reply.reduce((acc, item) => {
+      reply.reduce<Record<string, IUser>>((acc, item) => {
         if (!acc[item.user.id]) {
           acc[item.user.id] = {
             ...item.user,
           };
         }
         return acc;
-      }, {}),
+      }, {})
     );
   }, [reply]);
 
   return (
-    <ReplyContainer onClick={onClick} isUser={isUser}>
-      <View style={{display: 'flex'}}>
-        {uniqueUsers.slice(0, 3).map(item => (
+    <ReplyContainer onPress={onClick} isUser={isUser}>
+      <View style={{ display: "flex" }}>
+        {uniqueUsers.slice(0, 3).map((item) => (
           <AvatarCircle>
             <Avatar
               key={item.id}
               username={item.name}
               style={{
-                height: '100%',
-                width: '100%',
-                border: 'solid 1px #F0F0F0',
-                fontSize: '11px',
+                height: "100%",
+                width: "100%",
+                border: "solid 1px #F0F0F0",
+                fontSize: "11px",
               }}
             />
           </AvatarCircle>
@@ -99,9 +100,9 @@ export const BottomReplyContainer: FC<BottomReplyContainerProps> = ({
           </AvatarCircle>
         )}
       </View>
-      <span>
-        {reply.length} {reply.length > 1 ? 'replies' : 'reply'}
-      </span>
+      <Text>
+        {reply.length} {reply.length > 1 ? "replies" : "reply"}
+      </Text>
     </ReplyContainer>
   );
 };
