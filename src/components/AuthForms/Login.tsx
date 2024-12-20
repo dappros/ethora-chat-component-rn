@@ -9,7 +9,7 @@ import {
   loginEmail,
   loginSocial,
   registerSocial,
-  signInWithGoogle,
+  // signInWithGoogle,
 } from "../../networking/api-requests/auth.api";
 import { useDispatch } from "react-redux";
 import { useLocalStorage } from "../../hooks/useLocalStorage";
@@ -74,64 +74,64 @@ const LoginForm: React.FC<LoginFormProps> = ({ config }) => {
     setIsLoading(false);
   }, [email, password, dispatch]);
 
-  const handleGoogleLogin = async () => {
-    setIsLoading(true);
+  // const handleGoogleLogin = async () => {
+  //   setIsLoading(true);
 
-    const loginType = "google";
+  //   const loginType = "google";
 
-    try {
-      const res = await signInWithGoogle();
+  //   try {
+  //     const res = await signInWithGoogle();
 
-      const emailExist = await checkEmailExist(
-        res.user?.providerData[0].email || ""
-      );
+  //     const emailExist = await checkEmailExist(
+  //       res.user?.providerData[0].email || ""
+  //     );
 
-      if (!emailExist.data.success) {
-        try {
-          await registerSocial(
-            res.idToken || "",
-            res.credential?.accessToken || "",
-            "",
-            loginType
-          );
-          const loginRes = await loginSocial(
-            res.idToken || "",
-            res.credential?.accessToken || "",
-            loginType
-          );
-          console.log("google log after register res", loginRes);
+  //     if (!emailExist.data.success) {
+  //       try {
+  //         await registerSocial(
+  //           res.idToken || "",
+  //           res.credential?.accessToken || "",
+  //           "",
+  //           loginType
+  //         );
+  //         const loginRes = await loginSocial(
+  //           res.idToken || "",
+  //           res.credential?.accessToken || "",
+  //           loginType
+  //         );
+  //         console.log("google log after register res", loginRes);
 
-          const user = {
-            ...loginRes.data.user,
-            token: loginRes.data.token,
-            refreshToken: loginRes.data.refreshToken,
-          };
-          dispatch(setUser(user));
-          useLocalStorage(localStorageConstants.ETHORA_USER).set(user);
-        } catch (error) {
-          console.log("error registering user viag google");
-        }
-      }
-      if (res.idToken && res.credential && res.credential.accessToken) {
-        const loginRes = await loginSocial(
-          res.idToken,
-          res.credential.accessToken,
-          loginType
-        );
-        console.log("google log res", loginRes);
-        const user = {
-          ...loginRes.data.user,
-          token: loginRes.data.token,
-          refreshToken: loginRes.data.refreshToken,
-        };
-        dispatch(setUser(user));
-        useLocalStorage(localStorageConstants.ETHORA_USER).set(user);
-      }
-    } catch (error) {
-      console.log(error);
-    }
-    setIsLoading(false);
-  };
+  //         const user = {
+  //           ...loginRes.data.user,
+  //           token: loginRes.data.token,
+  //           refreshToken: loginRes.data.refreshToken,
+  //         };
+  //         dispatch(setUser(user));
+  //         useLocalStorage(localStorageConstants.ETHORA_USER).set(user);
+  //       } catch (error) {
+  //         console.log("error registering user viag google");
+  //       }
+  //     }
+  //     if (res.idToken && res.credential && res.credential.accessToken) {
+  //       const loginRes = await loginSocial(
+  //         res.idToken,
+  //         res.credential.accessToken,
+  //         loginType
+  //       );
+  //       console.log("google log res", loginRes);
+  //       const user = {
+  //         ...loginRes.data.user,
+  //         token: loginRes.data.token,
+  //         refreshToken: loginRes.data.refreshToken,
+  //       };
+  //       dispatch(setUser(user));
+  //       useLocalStorage(localStorageConstants.ETHORA_USER).set(user);
+  //     }
+  //   } catch (error) {
+  //     console.log(error);
+  //   }
+  //   setIsLoading(false);
+  // };
 
   const handleSubmit = () => {
     const { emailError, passwordError } = validateForm();
@@ -211,7 +211,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ config }) => {
           <>
             <Delimiter>or</Delimiter>
             <Button
-              onPress={handleGoogleLogin}
+              // onPress={handleGoogleLogin}
               text={<>Login with Google</>}
               EndIcon={<GoogleIcon style={{ height: 24 }} />}
               disabled={isLoading}

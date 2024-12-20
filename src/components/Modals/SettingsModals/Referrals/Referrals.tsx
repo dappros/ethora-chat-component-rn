@@ -20,8 +20,8 @@ import InputWithLabel from "../../../styled/StyledInput";
 import { StyledInput } from "../../../styled/StyledInputComponents/StyledInputComponents";
 import { useSelector } from "react-redux";
 import { RootState } from "../../../../roomStore";
-import { Text } from "react-native";
-import { View } from "react-native-reanimated/lib/typescript/Animated";
+import { View, Text } from "react-native";
+import Animated from "react-native-reanimated";
 
 interface ReferralsModalProps {
   handleCloseModal: any;
@@ -40,7 +40,7 @@ const ReferralsModal: React.FC<ReferralsModalProps> = ({
       />
       <CenterContainer>
         <ReferalsIcon />
-        <View>
+        <Animated.View>
           <SharedSettingsStyledLabel>Gift friends 25</SharedSettingsStyledLabel>
           <SendCoinIcon style={{ width: 24, height: 24 }} />
           <SharedSettingsStyledLabel>and receive 25</SharedSettingsStyledLabel>
@@ -49,7 +49,7 @@ const ReferralsModal: React.FC<ReferralsModalProps> = ({
           <SharedSettingsStyledLabel>
             Send friends invite with your personal invitation code.
           </SharedSettingsStyledLabel>
-        </View>
+        </Animated.View>
         <SharedSettingsColumnContainer style={{ width: "100%" }}>
           <SharedSettingsStyledLabel>
             Your invitation code

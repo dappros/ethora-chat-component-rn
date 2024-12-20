@@ -1,6 +1,6 @@
 import styled from "styled-components/native";
 
-export const ContextMenu = styled.View`
+export const ContextMenu = styled.Pressable`
   position: absolute;
   z-index: 1000;
   background-color: white;
@@ -23,7 +23,7 @@ export const MenuItem = styled.Pressable`
   align-items: center;
 `;
 
-export const Overlay = styled.View`
+export const Overlay = styled.Pressable`
   position: absolute;
   top: 0;
   left: 0;

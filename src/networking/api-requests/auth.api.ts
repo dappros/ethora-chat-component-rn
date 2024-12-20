@@ -1,11 +1,11 @@
 import {User} from '../../types/types';
 
-import {
-  getAuth,
-  GoogleAuthProvider,
-  signInWithPopup,
-  User as FirebaseUser,
-} from 'firebase/auth';
+// import {
+//   getAuth,
+//   GoogleAuthProvider,
+//   signInWithPopup,
+//   User as FirebaseUser,
+// } from 'firebase/auth';
 
 import http from '../apiClient';
 import {store} from '../../roomStore';
@@ -89,26 +89,26 @@ export async function loginViaJwt(clientToken: string): Promise<User> {
   return user;
 }
 
-export const signInWithGoogle = async () => {
-  const auth = getAuth(app);
-  const googleProvider = new GoogleAuthProvider();
-  googleProvider.addScope('https://www.googleapis.com/auth/userinfo.email');
-  googleProvider.addScope('https://www.googleapis.com/auth/userinfo.profile');
-  try {
-    const res = await signInWithPopup(auth, googleProvider);
-    const user = res.user as FirebaseUser;
-    const idToken = await auth?.currentUser?.getIdToken();
-    const credential = GoogleAuthProvider.credentialFromResult(res);
-    return {
-      user,
-      idToken,
-      credential,
-    };
-  } catch (error) {
-    console.error(error);
-    return {};
-  }
-};
+// export const signInWithGoogle = async () => {
+//   const auth = getAuth(app);
+//   const googleProvider = new GoogleAuthProvider();
+//   googleProvider.addScope('https://www.googleapis.com/auth/userinfo.email');
+//   googleProvider.addScope('https://www.googleapis.com/auth/userinfo.profile');
+//   try {
+//     const res = await signInWithPopup(auth, googleProvider);
+//     const user = res.user as FirebaseUser;
+//     const idToken = await auth?.currentUser?.getIdToken();
+//     const credential = GoogleAuthProvider.credentialFromResult(res);
+//     return {
+//       user,
+//       idToken,
+//       credential,
+//     };
+//   } catch (error) {
+//     console.error(error);
+//     return {};
+//   }
+// };
 
 export function uploadFile(formData: FormData) {
   const token = store.getState().chatSettingStore.user.token;

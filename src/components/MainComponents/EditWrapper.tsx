@@ -1,7 +1,7 @@
 import React, { FC } from "react";
 import { EditIcon } from "../../assets/icons";
 import { styled } from "styled-components/native";
-import { View } from "react-native";
+import { Text, View } from "react-native";
 
 export const EditContainer = styled.View`
   background-color: #0052cd0d;
@@ -16,7 +16,7 @@ export const EditInfoBox = styled.View`
   align-items: center;
 `;
 
-export const EditTitle = styled.View`
+export const EditTitle = styled.Text`
   margin: 0px;
   color: rgb(140, 140, 140);
   text-align: start;
@@ -24,7 +24,7 @@ export const EditTitle = styled.View`
   padding-bottom: 4px;
 `;
 
-export const EditText = styled.View`
+export const EditText = styled.Text`
   margin: 0px;
   font-size: 16px;
   text-align: start;
@@ -67,7 +67,7 @@ export const EditWrapper: FC<EditWrapperProps> = ({ text, onClose }) => {
         }}
         onClick={onClose}
       >
-        &times;
+        <Text>&times;</Text>
       </button>
     </EditContainer>
   );

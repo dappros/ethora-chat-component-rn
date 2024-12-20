@@ -7,7 +7,7 @@ interface SystemMessageProps {
   colors?: { primary?: string; secondary?: string };
 }
 
-export const CustomSystemMessageText = styled.View<{
+export const CustomSystemMessageText = styled.Text<{
   primary?: string;
   secondary?: string;
 }>`

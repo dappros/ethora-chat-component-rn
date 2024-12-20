@@ -54,6 +54,9 @@ const CircleCurrent = styled.View`
   border: 1px solid #f0f0f0;
   border-radius: 50%;
   background-color: #ffffff;
+`;
+
+const CircleCurrentText = styled.Text`
   color: #8c8c8c;
   font-size: 11px;
   font-weight: 100;
@@ -98,7 +101,9 @@ export const BottomReplyContainer: FC<BottomReplyContainerProps> = ({
         ))}
         {uniqueUsers.length > 3 && (
           <AvatarCircle>
-            <CircleCurrent>+{uniqueUsers.length - 3}</CircleCurrent>
+            <CircleCurrent>
+              <CircleCurrentText>+{uniqueUsers.length - 3}</CircleCurrentText>
+            </CircleCurrent>
           </AvatarCircle>
         )}
       </View>

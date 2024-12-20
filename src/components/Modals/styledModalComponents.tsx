@@ -52,7 +52,7 @@ export const ModalTitle = styled.Text`
   font-weight: 400;
 `;
 
-export const ModalDescription = styled.View`
+export const ModalDescription = styled.Text`
   font-size: 14px;
   margin: 0;
   font-weight: 400;
@@ -122,13 +122,13 @@ export const UserInfo = styled.View`
   align-items: center;
 `;
 
-export const UserName = styled.View`
+export const UserName = styled.Text`
   color: #141414;
   font-size: 24px;
   font-weight: 400;
 `;
 
-export const UserStatus = styled.View`
+export const UserStatus = styled.Text`
   color: #8c8c8c;
   font-size: 16px;
   font-weight: 400;

@@ -163,7 +163,7 @@ export const StyledLoaderWrapper = styled.View`
   align-items: center;
 `;
 
-export const OrDelimiter = styled.View`
+export const OrDelimiter = styled.Text`
   width: 100%;
   align-items: center;
   justify-content: center;
@@ -196,4 +196,15 @@ export const Wrapper = styled.View<{bgColor: string; size?: number}>`
   display: flex;
   align-items: center;
   justify-content: center;
+`;
+
+export const CustomSystemMessage = styled.View`
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  background-color: transparent;
+  gap: 16px;
+  margin: 8px;
 `;

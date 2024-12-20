@@ -88,13 +88,15 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
             <ChatContainerHeaderLabel>
               {currentRoom?.title}
             </ChatContainerHeaderLabel>
-            <ChatContainerHeaderLabel style={styles.subLabel}>
+            <View>
               {composing ? (
                 <Composing usersTyping={currentRoom?.composingList} />
               ) : (
-                `${currentRoom?.usersCnt} users`
+                <ChatContainerHeaderLabel style={styles.subLabel}>
+                  `${currentRoom?.usersCnt} users`
+                </ChatContainerHeaderLabel>
               )}
-            </ChatContainerHeaderLabel>
+            </View>
           </ChatContainerHeaderInfo>
         </ChatContainerHeaderBoxInfo>
       </View>

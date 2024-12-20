@@ -1,42 +1,42 @@
-import React, {forwardRef, useRef, useState} from 'react';
+import React, { forwardRef, useRef, useState } from "react";
 import {
   View,
   Text,
   Image,
   TouchableOpacity,
   TouchableWithoutFeedback,
-} from 'react-native';
-import {useDispatch, useSelector} from 'react-redux';
-import {RootState} from '../../roomStore';
-import {Avatar} from './Avatar';
-import MessageInteractions from './MessageInteractions';
-import {BottomReplyContainer} from './BottomReplyContainer';
-import {MessageReply} from './MessageReply';
-import {DeletedMessage} from './DeletedMessage';
+} from "react-native";
+import { useDispatch, useSelector } from "react-redux";
+import { RootState } from "../../roomStore";
+import { Avatar } from "./Avatar";
+import MessageInteractions from "./MessageInteractions";
+import { BottomReplyContainer } from "./BottomReplyContainer";
+import { MessageReply } from "./MessageReply";
+import { DeletedMessage } from "./DeletedMessage";
 import {
   setActiveModal,
   setDeleteModal,
   setSelectedUser,
-} from '../../roomStore/chatSettingsSlice';
-import {MODAL_TYPES} from '../../helpers/constants/MODAL_TYPES';
-import {setActiveMessage, setEditAction} from '../../roomStore/roomsSlice';
-import styled from 'styled-components/native';
-import {IUser, MessageProps} from '../../types/types';
+} from "../../roomStore/chatSettingsSlice";
+import { MODAL_TYPES } from "../../helpers/constants/MODAL_TYPES";
+import { setActiveMessage, setEditAction } from "../../roomStore/roomsSlice";
+import styled from "styled-components/native";
+import { IUser, MessageProps } from "../../types/types";
 
-const CustomMessageContainer = styled.View`
+const CustomMessageContainer = styled.View<{ isUser: boolean }>`
   flex-direction: row;
   padding: 10px;
   align-items: flex-start;
-  justify-content: ${({isUser}: {isUser: boolean}) =>
-    isUser ? 'flex-end' : 'flex-start'};
+  justify-content: ${({ isUser }: { isUser: boolean }) =>
+    isUser ? "flex-end" : "flex-start"};
 `;
 
-const CustomMessageBubble = styled.View<{isUser: boolean; deleted: boolean}>`
+const CustomMessageBubble = styled.View<{ isUser: boolean; deleted: boolean }>`
   max-width: 70%;
   padding: 10px;
   border-radius: 10px;
-  background-color: ${({isUser, deleted}) =>
-    deleted ? '#f5f5f5' : isUser ? '#d1e7ff' : '#fff'};
+  background-color: ${({ isUser, deleted }) =>
+    deleted ? "#f5f5f5" : isUser ? "#d1e7ff" : "#fff"};
 `;
 
 const CustomMessageText = styled.Text`
@@ -54,9 +54,9 @@ const CustomMessagePhotoContainer = styled.TouchableOpacity`
   margin-right: 10px;
 `;
 
-const CustomUserName = styled.Text<{color: string}>`
+const CustomUserName = styled.Text<{ color: string }>`
   font-size: 14px;
-  color: ${({color}) => color || '#333'};
+  color: ${({ color }) => color || "#333"};
 `;
 
 const CustomMessageTimestamp = styled.Text`
@@ -67,10 +67,10 @@ const CustomMessageTimestamp = styled.Text`
 `;
 
 const Message: React.FC<MessageProps> = forwardRef<any, MessageProps>(
-  ({message, isUser, isReply}, ref) => {
+  ({ message, isUser, isReply }, ref) => {
     const dispatch = useDispatch();
     const config = useSelector(
-      (state: RootState) => state.chatSettingStore.config,
+      (state: RootState) => state.chatSettingStore.config
     );
 
     const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -81,17 +81,17 @@ const Message: React.FC<MessageProps> = forwardRef<any, MessageProps>(
     };
 
     const handleReplyMessage = () => {
-      dispatch(setEditAction({isEdit: false}));
+      dispatch(setEditAction({ isEdit: false }));
 
       if (!isReply && message.mainMessage) {
         const messageCore = JSON.parse(message.mainMessage);
         return dispatch(
-          setActiveMessage({id: messageCore.id, chatJID: messageCore.roomJid}),
+          setActiveMessage({ id: messageCore.id, chatJID: messageCore.roomJid })
         );
       }
 
       return dispatch(
-        setActiveMessage({id: message.id, chatJID: message.roomJid}),
+        setActiveMessage({ id: message.id, chatJID: message.roomJid })
       );
     };
 
@@ -101,7 +101,7 @@ const Message: React.FC<MessageProps> = forwardRef<any, MessageProps>(
           isDeleteModal: true,
           roomJid: message.roomJid,
           messageId: message.id,
-        }),
+        })
       );
     };
 
@@ -112,7 +112,7 @@ const Message: React.FC<MessageProps> = forwardRef<any, MessageProps>(
           roomJid: message.roomJid,
           messageId: message.id,
           text: message.body,
-        }),
+        })
       );
     };
 
@@ -120,9 +120,10 @@ const Message: React.FC<MessageProps> = forwardRef<any, MessageProps>(
       <CustomMessageContainer isUser={isUser} ref={ref}>
         {!isUser && (
           <CustomMessagePhotoContainer
-            onPress={() => handleUserAvatarClick(message.user)}>
+            onPress={() => handleUserAvatarClick(message.user)}
+          >
             {message.user?.profileImage ? (
-              <CustomMessagePhoto source={{uri: message.user.profileImage}} />
+              <CustomMessagePhoto source={{ uri: message.user.profileImage }} />
             ) : (
               <Avatar username={message.user.name} />
             )}
@@ -148,17 +149,17 @@ const Message: React.FC<MessageProps> = forwardRef<any, MessageProps>(
               <CustomMessageText>{message.body}</CustomMessageText>
             )}
             <CustomMessageTimestamp>
-              {message?.pending && 'sending...'}
+              {message?.pending && "sending..."}
               {new Date(message.date).toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
+                hour: "2-digit",
+                minute: "2-digit",
               })}
             </CustomMessageTimestamp>
           </CustomMessageBubble>
         </TouchableWithoutFeedback>
       </CustomMessageContainer>
     );
-  },
+  }
 );
 
-export {Message};
+export { Message };

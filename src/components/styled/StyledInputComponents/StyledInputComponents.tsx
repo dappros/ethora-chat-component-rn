@@ -42,7 +42,7 @@ export const HiddenFileInput = styled.View`
   display: none;
 `;
 
-export const Timer = styled.View`
+export const Timer = styled.Text`
   justify-content: center;
   align-items: center;
   margin-left: 10px;
