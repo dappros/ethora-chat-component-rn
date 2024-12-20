@@ -1,5 +1,5 @@
-import React, {useState} from 'react';
-import styled from 'styled-components';
+import React, { useState } from "react";
+import styled from "styled-components/native";
 
 interface DropdownProps {
   sortFunction: (value: string) => void;
@@ -62,7 +62,7 @@ const DropdownMenu: React.FC<DropdownProps> = ({
       </DropdownButton>
       {isOpen && (
         <DropdownList>
-          {values.map(value => (
+          {values.map((value) => (
             <DropdownItem key={value} onClick={() => handleItemClick(value)}>
               {value}
             </DropdownItem>

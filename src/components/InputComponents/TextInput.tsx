@@ -1,8 +1,8 @@
-import React, { useCallback } from 'react';
-import { SendIcon } from '../../assets/icons';
-import { IConfig } from '../../types/types';
-import Button from '../styled/Button';
-import { MessageInput } from '../styled/StyledInputComponents/StyledInputComponents';
+import React, { useCallback } from "react";
+import { SendIcon } from "../../assets/icons";
+import { IConfig } from "../../types/types";
+import Button from "../styled/Button";
+import { MessageInput } from "../styled/StyledInputComponents/StyledInputComponents";
 
 interface TextInputProps {
   message: string;
@@ -24,15 +24,15 @@ const TextInput: React.FC<TextInputProps> = ({
   onBlur,
 }) => {
   const handleInputChange = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      setMessage(event.target.value);
+    (text: string) => {
+      setMessage(text);
     },
     [setMessage]
   );
 
   const handleKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLInputElement>) => {
-      if (event.key === 'Enter' && message) {
+    (event: { nativeEvent: { key: string } }) => {
+      if (event.nativeEvent.key === "Enter" && message) {
         handleSendClick();
       }
     },
@@ -45,18 +45,18 @@ const TextInput: React.FC<TextInputProps> = ({
         color={config?.colors?.primary}
         placeholder="Type message"
         value={message}
-        onChange={handleInputChange}
-        onKeyDown={handleKeyDown}
+        onChangeText={handleInputChange}
+        onSubmitEditing={handleSendClick}
         onFocus={onFocus}
         onBlur={onBlur}
-        disabled={isLoading}
+        editable={isLoading}
       />
       <Button
-        onClick={handleSendClick}
-        EndIcon={<SendIcon color={!message ? '#D4D4D8' : '#fff'} />}
+        onPress={handleSendClick}
+        EndIcon={<SendIcon color={!message ? "#D4D4D8" : "#fff"} />}
         style={{
-          borderRadius: '100px',
-          backgroundColor: !message ? 'transparent' : config?.colors?.primary,
+          borderRadius: 100,
+          backgroundColor: !message ? "transparent" : config?.colors?.primary,
         }}
       />
     </>

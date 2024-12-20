@@ -1,28 +1,28 @@
-import React, {useState, useEffect, useCallback} from 'react';
-import {ChatContainer, NonRoomChat} from '../styled/StyledComponents';
-import {useDispatch} from 'react-redux';
-import MessageList from './MessageList';
-import SendInput from '../styled/SendInput';
+import React, { useState, useEffect, useCallback } from "react";
+import { ChatContainer, NonRoomChat } from "../styled/StyledComponents";
+import { useDispatch } from "react-redux";
+import MessageList from "./MessageList";
+import SendInput from "../styled/SendInput";
 import {
   deleteRoomMessage,
   setEditAction,
   setLastViewedTimestamp,
-} from '../../roomStore/roomsSlice';
-import Loader from '../styled/Loader';
-import {useXmppClient} from '../../context/xmppProvider.tsx';
-import ChatHeader from './ChatHeader.tsx';
-import NoMessagesPlaceholder from './NoMessagesPlaceholder.tsx';
-import NewChatModal from '../Modals/NewChatModal/NewChatModal.tsx';
-import {EditWrapper} from './EditWrapper.tsx';
-import {NoSelectedChatIcon} from '../../assets/icons.tsx';
-import {ChooseChatMessage} from './ChooseChatMessage.tsx';
-import {useRoomUrl} from '../../hooks/useRoomUrl.tsx';
-import useMessageLoaderQueue from '../../hooks/useMessageLoaderQueue.tsx';
-import {useSendMessage} from '../../hooks/useSendMessage.tsx';
-import {useRoomInitialization} from '../../hooks/useRoomInitialization.tsx';
-import {useRoomState} from '../../hooks/useRoomState.tsx';
-import {useChatSettingState} from '../../hooks/useChatSettingState.tsx';
-import useComposing from '../../hooks/useComposing.tsx';
+} from "../../roomStore/roomsSlice";
+import Loader from "../styled/Loader";
+import { useXmppClient } from "../../context/xmppProvider.tsx";
+import ChatHeader from "./ChatHeader.tsx";
+import NoMessagesPlaceholder from "./NoMessagesPlaceholder.tsx";
+import NewChatModal from "../Modals/NewChatModal/NewChatModal.tsx";
+import { EditWrapper } from "./EditWrapper.tsx";
+import { NoSelectedChatIcon } from "../../assets/icons.tsx";
+import { ChooseChatMessage } from "./ChooseChatMessage.tsx";
+import { useRoomUrl } from "../../hooks/useRoomUrl.tsx";
+import useMessageLoaderQueue from "../../hooks/useMessageLoaderQueue.tsx";
+import { useSendMessage } from "../../hooks/useSendMessage.tsx";
+import { useRoomInitialization } from "../../hooks/useRoomInitialization.tsx";
+import { useRoomState } from "../../hooks/useRoomState.tsx";
+import { useChatSettingState } from "../../hooks/useChatSettingState.tsx";
+import useComposing from "../../hooks/useComposing.tsx";
 
 interface ChatRoomProps {
   CustomMessageComponent?: any;
@@ -30,13 +30,13 @@ interface ChatRoomProps {
 }
 
 const ChatRoom: React.FC<ChatRoomProps> = React.memo(
-  ({CustomMessageComponent, handleBackClick}) => {
-    const {client} = useXmppClient();
+  ({ CustomMessageComponent, handleBackClick }) => {
+    const { client } = useXmppClient();
     const dispatch = useDispatch();
 
     const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
 
-    const {user, config} = useChatSettingState();
+    const { user, config } = useChatSettingState();
     const {
       roomsList,
       activeRoomJID,
@@ -45,21 +45,22 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
       globalLoading,
       roomMessages,
     } = useRoomState();
-    const {sendMessage: sendMs, sendMedia: sendMessageMedia} = useSendMessage();
-    const {sendStartComposing, sendEndComposing} = useComposing();
+    const { sendMessage: sendMs, sendMedia: sendMessageMedia } =
+      useSendMessage();
+    const { sendStartComposing, sendEndComposing } = useComposing();
 
     const sendMessage = useCallback(
       (message: string) => {
         sendMs(message, activeRoomJID);
       },
-      [activeRoomJID],
+      [activeRoomJID]
     );
 
     const sendMedia = useCallback(
       (data: any, type: string) => {
         sendMessageMedia(data, type, activeRoomJID);
       },
-      [activeRoomJID],
+      [activeRoomJID]
     );
 
     const loadMoreMessages = useCallback(
@@ -71,7 +72,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
           });
         }
       },
-      [client],
+      [client]
     );
 
     const queueMessageLoader = useCallback(
@@ -79,14 +80,14 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
         try {
           client?.getHistoryStanza(chatJID, max);
         } catch (error) {
-          console.log('Error in loading queue messages');
+          console.log("Error in loading queue messages");
         }
       },
-      [globalLoading, loading],
+      [globalLoading, loading]
     );
 
     const onCloseEdit = () => {
-      dispatch(setEditAction({isEdit: false}));
+      dispatch(setEditAction({ isEdit: false }));
     };
 
     useEffect(() => {
@@ -94,27 +95,27 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
         setLastViewedTimestamp({
           chatJID: activeRoomJID,
           timestamp: 0,
-        }),
+        })
       );
       return () => {
         if (client) {
           client.actionSetTimestampToPrivateStoreStanza(
             activeRoomJID,
             new Date().getTime(),
-            Object.keys(roomsList),
+            Object.keys(roomsList)
           );
         }
         dispatch(
           setLastViewedTimestamp({
             chatJID: activeRoomJID,
             timestamp: new Date().getTime(),
-          }),
+          })
         );
         dispatch(
           deleteRoomMessage({
             roomJID: activeRoomJID,
-            messageId: 'delimiter-new',
-          }),
+            messageId: "delimiter-new",
+          })
         );
       };
     }, [activeRoomJID]);
@@ -124,7 +125,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
       Object.keys(roomsList),
       globalLoading,
       loading,
-      queueMessageLoader,
+      queueMessageLoader
     );
 
     useRoomUrl(activeRoomJID, roomsList, config);
@@ -133,7 +134,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
       activeRoomJID,
       roomsList,
       config,
-      roomMessages.length,
+      roomMessages.length
     );
 
     if (Object.keys(roomsList)?.length < 1 && !loading && !globalLoading) {
@@ -152,9 +153,9 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
     return (
       <ChatContainer
         style={{
-          overflow: 'auto',
           ...config?.chatRoomStyles,
-        }}>
+        }}
+      >
         {!config?.disableHeader && (
           <ChatHeader
             currentRoom={roomsList[activeRoomJID]}
@@ -181,7 +182,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
         )}
       </ChatContainer>
     );
-  },
+  }
 );
 
 export default ChatRoom;

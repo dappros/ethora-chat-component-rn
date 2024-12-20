@@ -1,6 +1,6 @@
-import React, {useMemo} from 'react';
-import styled from 'styled-components';
-import {EditIcon} from '../../assets/icons';
+import React, { useMemo } from "react";
+import styled from "styled-components/native";
+import { EditIcon } from "../../assets/icons";
 import {
   AvatarCircle,
   AvatarImage,
@@ -8,12 +8,12 @@ import {
   Overlay,
   RemoveButton,
   Wrapper,
-} from '../styled/StyledComponents';
-import {Text} from 'react-native';
+} from "../styled/StyledComponents";
+import { Text } from "react-native";
 
 interface ProfileImagePlaceholderProps {
   name?: string;
-  icon?: string | File;
+  icon?: string | File | null;
   onClick?: () => void;
   size?: number;
   upload?: {
@@ -30,7 +30,7 @@ interface ProfileImagePlaceholderProps {
   disableOverlay?: boolean;
 }
 
-const backgroundColors = ['#f44336', '#2196f3', '#4caf50', '#ff9800'];
+const backgroundColors = ["#f44336", "#2196f3", "#4caf50", "#ff9800"];
 
 export const ProfileImagePlaceholder: React.FC<
   ProfileImagePlaceholderProps
@@ -50,20 +50,20 @@ export const ProfileImagePlaceholder: React.FC<
       const index = Math.floor(Math.random() * backgroundColors.length);
       return backgroundColors[index];
     }
-    return '';
+    return "";
   }, [icon]);
 
   const getTwoUppercaseLetters = (fullName: string) => {
-    if (!fullName) return '';
+    if (!fullName) return "";
 
-    const words = fullName.trim().split(' ');
-    const firstLetter = words[0]?.[0]?.toUpperCase() || '';
-    const secondLetter = words[words.length - 1]?.[0]?.toUpperCase() || '';
+    const words = fullName.trim().split(" ");
+    const firstLetter = words[0]?.[0]?.toUpperCase() || "";
+    const secondLetter = words[words.length - 1]?.[0]?.toUpperCase() || "";
 
     return firstLetter + secondLetter;
   };
 
-  const getInitials = () => (!icon && name ? getTwoUppercaseLetters(name) : '');
+  const getInitials = () => (!icon && name ? getTwoUppercaseLetters(name) : "");
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -74,24 +74,26 @@ export const ProfileImagePlaceholder: React.FC<
 
   const handleAvatarClick = () => {
     if (upload?.active) {
-      document.getElementById('avatar-file-input')?.click();
+      document.getElementById("avatar-file-input")?.click();
     }
   };
 
   return (
     <Wrapper
-      bgColor={icon ? 'transparent' : randomColor}
+      bgColor={icon ? "transparent" : randomColor}
       size={size}
-      isClickable={active || !!upload?.active}>
+      isClickable={active || !!upload?.active}
+    >
       <AvatarCircle
-        bgColor={icon ? 'transparent' : randomColor}
+        bgColor={icon ? "transparent" : randomColor}
         size={size}
-        isClickable={active || (role === 'participant' && !!upload?.active)}
+        isClickable={active || (role === "participant" && !!upload?.active)}
         onClick={handleAvatarClick}
-        style={{fontSize: size >= 64 ? '24px' : '18px'}}>
+        style={{ fontSize: size >= 64 ? 24 : 18 }}
+      >
         {icon ? (
           <AvatarImage
-            src={typeof icon === 'string' ? icon : URL.createObjectURL(icon)}
+            src={typeof icon === "string" ? icon : URL.createObjectURL(icon)}
             alt="avatar icon"
             size={size}
           />
@@ -106,22 +108,23 @@ export const ProfileImagePlaceholder: React.FC<
               type="file"
               id="avatar-file-input"
               accept="image/png, image/jpeg"
-              onChange={handleFileChange}
+              onChangeText={handleFileChange}
             />
             {!disableOverlay && (
               <Overlay>
-                <EditIcon style={{fontSize: size / 2}} color="#fff" />
+                <EditIcon style={{ fontSize: size / 2 }} color="#fff" />
               </Overlay>
             )}
           </>
         )}
       </AvatarCircle>
-      {remove?.enabled && icon && role !== 'participant' && (
+      {remove?.enabled && icon && role !== "participant" && (
         <RemoveButton
-          onClick={e => {
+          onPress={(e) => {
             e.stopPropagation();
             remove.onRemoveClick();
-          }}>
+          }}
+        >
           &times;
         </RemoveButton>
       )}

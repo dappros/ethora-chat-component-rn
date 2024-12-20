@@ -1,6 +1,7 @@
-import React, {FC} from 'react';
-import {EditIcon} from '../../assets/icons';
-import {styled} from 'styled-components';
+import React, { FC } from "react";
+import { EditIcon } from "../../assets/icons";
+import { styled } from "styled-components/native";
+import { View } from "react-native";
 
 export const EditContainer = styled.View`
   background-color: #0052cd0d;
@@ -34,18 +35,23 @@ interface EditWrapperProps {
   onClose: () => void;
 }
 
-export const EditWrapper: FC<EditWrapperProps> = ({text, onClose}) => {
+export const EditWrapper: FC<EditWrapperProps> = ({ text, onClose }) => {
   return (
     <EditContainer>
       <EditInfoBox>
         <View
           style={{
-            padding: '9px 20px 9px 0',
-            borderRight: '1px solid #0052CD',
-          }}>
+            padding: 9,
+            paddingRight: 20,
+            paddingLeft: 0,
+            borderRightWidth: 1,
+            borderRightColor: "#0052CD",
+            borderStyle: "solid",
+          }}
+        >
           <EditIcon color="#0052CD" />
         </View>
-        <View style={{paddingLeft: 20}}>
+        <View style={{ paddingLeft: 20 }}>
           <EditTitle>Edit Message</EditTitle>
           <EditText>{text}</EditText>
         </View>
@@ -53,13 +59,14 @@ export const EditWrapper: FC<EditWrapperProps> = ({text, onClose}) => {
       <button
         style={{
           fontSize: 24,
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          color: '#888',
-          borderRadius: '8px',
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          color: "#888",
+          borderRadius: 8,
         }}
-        onClick={onClose}>
+        onClick={onClose}
+      >
         &times;
       </button>
     </EditContainer>

@@ -1,17 +1,17 @@
-import React from 'react';
+import React from "react";
 import {
   HeaderContainer,
   HeaderLeft,
   HeaderRight,
-} from './styledModalComponents';
-import { BackIcon, MoreIcon, QrIcon } from '../../assets/icons';
-import Button from '../styled/Button';
+} from "./styledModalComponents";
+import { BackIcon, MoreIcon, QrIcon } from "../../assets/icons";
+import Button from "../styled/Button";
 
 interface ModalHeaderComponentProps {
   handleCloseModal?: any;
   headerTitle?: string;
-  rightMenu?: React.ReactElement;
-  leftMenu?: React.ReactElement;
+  rightMenu?: React.ReactNode;
+  leftMenu?: React.ReactNode;
 }
 
 const ModalHeaderComponent: React.FC<ModalHeaderComponentProps> = ({
@@ -27,8 +27,8 @@ const ModalHeaderComponent: React.FC<ModalHeaderComponentProps> = ({
           leftMenu
         ) : (
           <>
-            <Button EndIcon={<BackIcon />} onClick={handleCloseModal} />
-            {headerTitle ?? 'Go back'}
+            <Button EndIcon={<BackIcon />} onPress={handleCloseModal} />
+            {headerTitle ?? "Go back"}
           </>
         )}
       </HeaderLeft>

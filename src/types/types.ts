@@ -1,3 +1,4 @@
+import { ViewStyle } from 'react-native';
 import { MODAL_TYPES } from '../helpers/constants/MODAL_TYPES';
 
 export interface IUser extends Partial<User> {
@@ -160,8 +161,8 @@ export interface IConfig {
   disableInteractions?: boolean;
   chatHeaderBurgerMenu?: boolean;
   forceSetRoom?: boolean;
-  roomListStyles?: React.CSSProperties;
-  chatRoomStyles?: React.CSSProperties;
+  roomListStyles?: ViewStyle;
+  chatRoomStyles?: ViewStyle;
   setRoomJidInPath?: boolean;
   disableRoomMenu?: boolean;
   defaultRooms?: string[] | ConfigRoom[];

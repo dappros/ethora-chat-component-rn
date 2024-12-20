@@ -1,16 +1,22 @@
-import React, { useCallback } from 'react';
-import { AttachIcon, RemoveIcon } from '../../assets/icons';
-import { IConfig } from '../../types/types';
-import Button from '../styled/Button';
-import {
-  FilePreview,
-  FilePreviewContainer,
-  HiddenFileInput,
-} from '../styled/StyledInputComponents/StyledInputComponents';
+import React, { useCallback } from "react";
+import { View, Image, TouchableOpacity } from "react-native";
+import Video from "react-native-video";
+import { AttachIcon, RemoveIcon } from "../../assets/icons";
+import Button from "../styled/Button";
+import { launchImageLibrary } from "react-native-image-picker";
+import { IConfig } from "../../types/types";
+
+interface FilePreview {
+  uri: string;
+  name: string;
+  type: string;
+}
 
 interface MediaInputProps {
-  filePreviews: File[];
-  setFilePreviews: any;
+  filePreviews: FilePreview[];
+  setFilePreviews: (
+    update: FilePreview[] | ((prev: FilePreview[]) => FilePreview[])
+  ) => void;
   handleSendClick: () => void;
   config?: IConfig;
 }
@@ -21,80 +27,87 @@ const MediaInput: React.FC<MediaInputProps> = ({
   handleSendClick,
   config,
 }) => {
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
-
   const handleAttachClick = useCallback(() => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
-    }
-  }, []);
-
-  const handleFileChange = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      const files = event.target.files;
-      if (files) {
-        const newFiles = Array.from(files);
-        setFilePreviews((prevFiles: any) =>
-          [...prevFiles, ...newFiles]?.slice(0, 5)
-        );
+    launchImageLibrary(
+      {
+        mediaType: "mixed",
+        selectionLimit: 5,
+      },
+      (response) => {
+        if (response.assets) {
+          const newFiles = response.assets.map((asset) => ({
+            uri: asset.uri!,
+            name: asset.fileName!,
+            type: asset.type!,
+          }));
+          setFilePreviews((prevFiles: FilePreview[]) =>
+            [...prevFiles, ...newFiles].slice(0, 5)
+          );
+        }
       }
-    },
-    [setFilePreviews]
-  );
+    );
+  }, [setFilePreviews]);
 
   const handleRemoveFile = useCallback(
-    (file: File) => {
-      setFilePreviews((prevFiles: File[]) =>
-        prevFiles.filter((f) => f !== file)
+    (file: FilePreview) => {
+      setFilePreviews((prevFiles: FilePreview[]) =>
+        prevFiles.filter((f) => f.uri !== file.uri)
       );
     },
     [setFilePreviews]
   );
 
-  const renderFilePreview = useCallback((file: File) => {
-    const fileUrl = URL.createObjectURL(file);
-    const fileType = file.type.split('/')[0];
-    if (fileType === 'image') {
-      return <img src={fileUrl} alt={file.name} style={{ width: '50px' }} />;
-    } else if (fileType === 'video') {
-      return <video src={fileUrl} controls style={{ width: '50px' }} />;
+  const renderFilePreview = useCallback((file: FilePreview) => {
+    if (file.type?.startsWith("image/")) {
+      return (
+        <Image source={{ uri: file.uri }} style={{ width: 50, height: 50 }} />
+      );
+    } else if (file.type?.startsWith("video/")) {
+      return (
+        <Video
+          source={{ uri: file.uri }}
+          style={{ width: 50, height: 50 }}
+          controls
+          resizeMode="cover"
+        />
+      );
     }
     return null;
   }, []);
 
   return (
-    <>
+    <View>
       <Button
-        onClick={handleAttachClick}
+        onPress={handleAttachClick}
         disabled={config?.disableMedia}
         EndIcon={<AttachIcon />}
       />
-      <HiddenFileInput
-        ref={fileInputRef}
-        type="file"
-        onChange={handleFileChange}
-      />
       {filePreviews.length > 0 && (
-        <FilePreviewContainer>
+        <View>
           {filePreviews.map((file) => (
-            <FilePreview key={file.name}>
+            <View key={file.uri} style={{ position: "relative", margin: 8 }}>
               {renderFilePreview(file)}
-              <Button
-                onClick={() => handleRemoveFile(file)}
-                EndIcon={<RemoveIcon />}
+              <TouchableOpacity
+                onPress={() => handleRemoveFile(file)}
                 style={{
-                  position: 'absolute',
+                  position: "absolute",
                   top: 4,
                   right: 4,
-                  height: 16,
-                  width: 16,
+                  width: 20,
+                  height: 20,
+                  backgroundColor: "rgba(0, 0, 0, 0.5)",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  borderRadius: 10,
                 }}
-              />
-            </FilePreview>
+              >
+                <RemoveIcon />
+              </TouchableOpacity>
+            </View>
           ))}
-        </FilePreviewContainer>
+        </View>
       )}
-    </>
+    </View>
   );
 };
 

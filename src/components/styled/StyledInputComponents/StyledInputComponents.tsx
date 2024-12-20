@@ -1,4 +1,4 @@
-import styled from 'styled-components/native';
+import styled from "styled-components/native";
 
 export const InputContainer = styled.View`
   flex-direction: column;
@@ -22,7 +22,7 @@ export const MessageInputContainer = styled.View`
   gap: 16px;
 `;
 
-export const MessageInput = styled.TextInput<{color?: string}>`
+export const MessageInput = styled.TextInput<{ color?: string }>`
   flex-grow: 1;
   padding: 10px;
   border-radius: 12px;
@@ -30,7 +30,7 @@ export const MessageInput = styled.TextInput<{color?: string}>`
   color: #141414;
   background-color: #f5f7f9;
   max-height: 40px;
-  ${({color}) =>
+  ${({ color }) =>
     color &&
     `
     border-width: 1px;
@@ -97,13 +97,13 @@ export const VideoPreview = styled.View`
   height: 100%;
 `;
 
-export const StyledInput = styled.TextInput`
+export const StyledInput = styled.TextInput<{ color?: string }>`
   padding: 16px 12px;
   background-color: #f5f7f9;
   border: none;
   outline: none;
   font-size: 16px;
-  color: #000;
+  color: ${(props) => props.color || "#000"};
   border-radius: 16px;
 
   &::placeholder {

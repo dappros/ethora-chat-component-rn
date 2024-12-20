@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from "react";
 import {
   CenterContainer,
   UserInfo,
@@ -9,24 +9,24 @@ import {
   Label,
   BorderedContainer,
   LabelData,
-} from '../styledModalComponents';
-import { ChatIcon, EditIcon, LeaveIcon, MoreIcon } from '../../../assets/icons';
-import ModalHeaderComponent from '../ModalHeaderComponent';
-import { useDispatch, useSelector } from 'react-redux';
-import { RootState } from '../../../roomStore';
-import { ProfileImagePlaceholder } from '../../MainComponents/ProfileImagePlaceholder';
-import Button from '../../styled/Button';
-import DropdownMenu from '../../DropdownMenu/DropdownMenu';
+} from "../styledModalComponents";
+import { ChatIcon, EditIcon, LeaveIcon, MoreIcon } from "../../../assets/icons";
+import ModalHeaderComponent from "../ModalHeaderComponent";
+import { useDispatch, useSelector } from "react-redux";
+import { RootState } from "../../../roomStore";
+import { ProfileImagePlaceholder } from "../../MainComponents/ProfileImagePlaceholder";
+import Button from "../../styled/Button";
+import DropdownMenu from "../../DropdownMenu/DropdownMenu";
 import {
   logout,
   setActiveModal,
   setSelectedUser,
-} from '../../../roomStore/chatSettingsSlice';
-import { setCurrentRoom, setLogoutState } from '../../../roomStore/roomsSlice';
-import EditUserModal from './EditUserModal';
-import { walletToUsername } from '../../../helpers/walletUsername';
-import { useXmppClient } from '../../../context/xmppProvider';
-import Loader from '../../styled/Loader';
+} from "../../../roomStore/chatSettingsSlice";
+import { setCurrentRoom, setLogoutState } from "../../../roomStore/roomsSlice";
+import EditUserModal from "./EditUserModal";
+import { walletToUsername } from "../../../helpers/walletUsername";
+import { useXmppClient } from "../../../context/xmppProvider";
+import Loader from "../../styled/Loader";
 
 interface UserProfileModalProps {
   handleCloseModal: any;
@@ -59,12 +59,12 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const menuOptions = useMemo(
     () => [
       {
-        label: 'Log Out',
+        label: "Log Out",
         icon: <LeaveIcon />,
         onClick: () => {
           handleLogout();
         },
-        styles: { color: 'red' },
+        styles: { color: "red" },
       },
     ],
     []
@@ -81,16 +81,16 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
     const combinedWalletAddress = [myUsername, selectedUserUsername]
       .sort()
-      .join('.');
+      .join(".");
 
     const roomJid = combinedWalletAddress.toLowerCase();
 
     const combinedUsersName = [
       user.firstName,
-      selectedUser.name?.split(' ')?.[0],
+      selectedUser.name?.split(" ")?.[0],
     ]
       .sort()
-      .join(' and ');
+      .join(" and ");
 
     const newRoomJid = await client.createRoomStanza(
       combinedUsersName,
@@ -114,11 +114,11 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
       <>
         <ModalHeaderComponent
           handleCloseModal={handleBackClick}
-          headerTitle={'Profile'}
+          headerTitle={"Profile"}
           rightMenu={
             !selectedUser && (
               <>
-                <Button onClick={EditClick}>
+                <Button onPress={EditClick}>
                   <EditIcon color="#8C8C8C" />
                 </Button>
                 <DropdownMenu
@@ -149,7 +149,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
             <LabelData>
               {modalUser?.description && modalUser?.description?.length > 4
                 ? modalUser.description
-                : 'No description'}
+                : "No description"}
             </LabelData>
           </BorderedContainer>
           {loading ? (
@@ -158,7 +158,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
             selectedUser && (
               <ActionButton
                 StartIcon={<ChatIcon />}
-                onClick={handlePrivateMessage}
+                onPress={handlePrivateMessage}
                 variant="filled"
               >
                 Message

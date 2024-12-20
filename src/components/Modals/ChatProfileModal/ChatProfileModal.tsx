@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, { useEffect, useState } from "react";
 import {
   CenterContainer,
   UserInfo,
@@ -9,18 +9,18 @@ import {
   BorderedContainer,
   LabelData,
   Viewider,
-} from '../styledModalComponents';
-import ModalHeaderComponent from '../ModalHeaderComponent';
-import {ProfileImagePlaceholder} from '../../MainComponents/ProfileImagePlaceholder';
-import {useDispatch, useSelector} from 'react-redux';
-import {RootState, getActiveRoom} from '../../../roomStore';
-import {uploadFile} from '../../../networking/api-requests/auth.api';
-import {useXmppClient} from '../../../context/xmppProvider';
-import {updateRoom} from '../../../roomStore/roomsSlice';
-import Loader from '../../styled/Loader';
-import Button from '../../styled/Button';
-import {MoreIcon, QrIcon} from '../../../assets/icons';
-import {View} from 'react-native';
+} from "../styledModalComponents";
+import ModalHeaderComponent from "../ModalHeaderComponent";
+import { ProfileImagePlaceholder } from "../../MainComponents/ProfileImagePlaceholder";
+import { useDispatch, useSelector } from "react-redux";
+import { RootState, getActiveRoom } from "../../../roomStore";
+import { uploadFile } from "../../../networking/api-requests/auth.api";
+import { useXmppClient } from "../../../context/xmppProvider";
+import { updateRoom } from "../../../roomStore/roomsSlice";
+import Loader from "../../styled/Loader";
+import Button from "../../styled/Button";
+import { MoreIcon, QrIcon } from "../../../assets/icons";
+import { Text, View } from "react-native";
 
 interface ChatProfileModalProps {
   handleCloseModal: any;
@@ -33,7 +33,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
   const [visible, setVisible] = useState<boolean>(false);
 
   const dispatch = useDispatch();
-  const {client} = useXmppClient();
+  const { client } = useXmppClient();
   const activeRoom = useSelector((state: RootState) => getActiveRoom(state));
 
   useEffect(() => {
@@ -50,32 +50,34 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
   const onUpload = async (file: File) => {
     try {
       let mediaData: FormData | null = new FormData();
-      mediaData.append('files', file);
+      mediaData.append("files", file);
 
       const uploadResult = await uploadFile(mediaData);
 
       const location = uploadResult?.data?.results?.[0]?.location;
       if (!location) {
-        throw new Error('No location found in upload result.');
+        throw new Error("No location found in upload result.");
       }
 
-      client.setRoomImageStanza(activeRoom.jid, location, 'icon', 'none');
-      dispatch(updateRoom({jid: activeRoom.jid, updates: {icon: location}}));
+      client.setRoomImageStanza(activeRoom.jid, location, "icon", "none");
+      dispatch(
+        updateRoom({ jid: activeRoom.jid, updates: { icon: location } })
+      );
     } catch (error) {
-      console.error('File upload failed or location is missing:', error);
+      console.error("File upload failed or location is missing:", error);
     }
   };
 
   const onRemoveClick = async () => {
-    client.setRoomImageStanza(activeRoom.jid, null, 'icon', 'none');
-    dispatch(updateRoom({jid: activeRoom.jid, updates: {icon: null}}));
+    client.setRoomImageStanza(activeRoom.jid, null, "icon", "none");
+    dispatch(updateRoom({ jid: activeRoom.jid, updates: { icon: null } }));
   };
 
   return (
-    <ModalContainerFullScreen style={{position: 'relative'}}>
+    <ModalContainerFullScreen style={{ position: "relative" }}>
       <ModalHeaderComponent
         handleCloseModal={handleCloseModal}
-        headerTitle={'Chat Profile'}
+        headerTitle={"Chat Profile"}
         rightMenu={
           <>
             <Button EndIcon={<QrIcon />} onClick={() => setVisible(true)} />
@@ -89,53 +91,61 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
           icon={activeRoom.icon}
           upload={{
             onUpload,
-            active: activeRoom?.role !== 'participant' ? true : false,
+            active: activeRoom?.role !== "participant" ? true : false,
           }}
-          remove={{enabled: true, onRemoveClick}}
+          remove={{ enabled: true, onRemoveClick }}
           role={activeRoom?.role}
           size={128}
         />
         <UserInfo>
           <UserName>{activeRoom.name}</UserName>
           <UserStatus>
-            {activeRoom.usersCnt}{' '}
-            {activeRoom.usersCnt > 1 ? 'members' : 'member'}
+            {activeRoom.usersCnt}{" "}
+            {activeRoom.usersCnt > 1 ? "members" : "member"}
           </UserStatus>
         </UserInfo>
         <BorderedContainer>
           <LabelData>Description</LabelData>
           <Label>Chat's Description</Label>
         </BorderedContainer>
-        <BorderedContainer style={{padding: '8px 16px'}}>
+        <BorderedContainer
+          style={{
+            paddingVertical: 8,
+            paddingHorizontal: 16,
+          }}
+        >
           {loading ? (
             <Loader />
           ) : (
             activeRoom?.roomMembers?.map((user, index) => (
               <View
                 style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'start',
-                  boxSizing: 'border-box',
-                }}>
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "flex-start",
+                }}
+              >
                 <View
                   style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    padding: '8px 0px',
-                    alignItems: 'center',
-                    width: '100%',
-                  }}>
-                  <View style={{display: 'flex', gap: '8px'}}>
+                    display: "flex",
+                    justifyContent: "space-between",
+                    paddingVertical: 8,
+                    paddingHorizontal: 0,
+                    alignItems: "center",
+                    width: "100%",
+                  }}
+                >
+                  <View style={{ display: "flex", gap: 8 }}>
                     <ProfileImagePlaceholder name={user.name} size={40} />
                     <View
                       style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '2px',
-                        alignItems: 'start',
-                      }}>
-                      <Label style={{fontSize: '16px', fontWeight: 600}}>
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 2,
+                        alignItems: "flex-start",
+                      }}
+                    >
+                      <Label style={{ fontSize: 16, fontWeight: 600 }}>
                         {user.name}
                       </Label>
                       <LabelData>
@@ -143,18 +153,27 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
                       </LabelData>
                     </View>
                   </View>
-                  {user.role !== 'none' && (
+                  {user.role !== "none" && (
                     <View
                       style={{
                         backgroundColor:
-                          user.ban_status !== 'banned' ? '#F3F6FC' : '#FFEBEE',
-                        color:
-                          user.ban_status !== 'banned' ? '#0052CD' : '#F44336',
-                        padding: '5px 8px',
-                        borderRadius: '16px',
-                        fontSize: '12px',
-                      }}>
-                      {user.role}
+                          user.ban_status !== "banned" ? "#F3F6FC" : "#FFEBEE",
+                        paddingVertical: 5,
+                        paddingHorizontal: 8,
+                        borderRadius: 16,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color:
+                            user.ban_status !== "banned"
+                              ? "#0052CD"
+                              : "#F44336",
+                          fontSize: 12,
+                        }}
+                      >
+                        {user.role}
+                      </Text>
                     </View>
                   )}
                 </View>

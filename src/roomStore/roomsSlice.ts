@@ -4,7 +4,7 @@ import { insertMessageWithDelimiter } from '../helpers/insertMessageWithDelimite
 
 interface RoomMessagesState {
   rooms: { [jid: string]: IRoom };
-  activeRoomJID: string;
+  activeRoomJID: string | null;
   editAction?: EditAction;
   isLoading: boolean;
 }
@@ -71,7 +71,7 @@ export const roomsStore = createSlice({
         });
       }
     },
-    setEditAction: (state, action: PayloadAction<EditAction | undefined>) => {
+    setEditAction: (state, action: PayloadAction<EditAction>) => {
       const { isEdit } = action.payload;
       if (isEdit) {
         state.editAction = action.payload;
@@ -154,10 +154,10 @@ export const roomsStore = createSlice({
     },
     setLastViewedTimestamp: (
       state,
-      action: PayloadAction<{ chatJID: string; timestamp: number }>
+      action: PayloadAction<{ chatJID?: string; timestamp: number }>
     ) => {
       const { chatJID, timestamp } = action.payload;
-      if (state.rooms[chatJID]) {
+      if (chatJID && state.rooms[chatJID]) {
         state.rooms[chatJID].lastViewedTimestamp = timestamp;
         if (timestamp) {
           state.rooms[chatJID].unreadMessages = countNewerMessages(

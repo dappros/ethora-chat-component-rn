@@ -1,32 +1,32 @@
-import React, {useCallback, useEffect, useState} from 'react';
-import {IConfig, MessageProps} from '../../types/types';
-import {ChatWrapper} from './ChatWrapper';
-import {RootState} from '../../roomStore';
-import {useDispatch, useSelector} from 'react-redux';
-import {setUser} from '../../roomStore/chatSettingsSlice';
-import {loginEmail} from '../../networking/api-requests/auth.api';
-import {OrDelimiter} from '../styled/StyledComponents';
-import {ButtonText, Container, CustomButton, Message} from './RNStyled';
-import {Text} from 'react-native';
+import React, { useCallback, useEffect, useState } from "react";
+import { IConfig, MessageProps } from "../../types/types";
+import { ChatWrapper } from "./ChatWrapper";
+import { RootState } from "../../roomStore";
+import { useDispatch, useSelector } from "react-redux";
+import { setUser } from "../../roomStore/chatSettingsSlice";
+import { loginEmail } from "../../networking/api-requests/auth.api";
+import { OrDelimiter } from "../styled/StyledComponents";
+import { ButtonText, Container, CustomButton, Message } from "./RNStyled";
+import { Text, ViewStyle } from "react-native";
 
 interface LoginWrapperProps {
-  user?: {email: string; password: string};
-  MainComponentStyles?: React.CSSProperties;
+  user?: { email: string; password: string };
+  MainComponentStyles?: ViewStyle;
   CustomMessageComponent?: React.ComponentType<MessageProps>;
   config?: IConfig;
   roomJID?: string;
 }
 
-const LoginWrapper: React.FC<LoginWrapperProps> = ({...props}) => {
+const LoginWrapper: React.FC<LoginWrapperProps> = ({ ...props }) => {
   const [showModal, setShowModal] = useState(false);
 
-  const {user} = useSelector((state: RootState) => state.chatSettingStore);
+  const { user } = useSelector((state: RootState) => state.chatSettingStore);
 
   const loginUserFunction = useCallback(async () => {
     try {
       const authData = await loginEmail(
-        props?.user?.email || 'yukiraze9@gmail.com',
-        props?.user?.password || 'Qwerty123',
+        props?.user?.email || "yukiraze9@gmail.com",
+        props?.user?.password || "Qwerty123"
       );
 
       return {
@@ -35,7 +35,7 @@ const LoginWrapper: React.FC<LoginWrapperProps> = ({...props}) => {
         refreshToken: authData.data.refreshToken,
       };
     } catch (error) {
-      console.error('Login failed:', error);
+      console.error("Login failed:", error);
       return null;
     }
   }, []);
@@ -44,7 +44,7 @@ const LoginWrapper: React.FC<LoginWrapperProps> = ({...props}) => {
 
   useEffect(() => {
     if (props?.config?.userLogin?.enabled && props?.config?.userLogin?.user) {
-      console.log('hehrehre', props.config.userLogin.user);
+      console.log("hehrehre", props.config.userLogin.user);
       dispatch(setUser(props.config.userLogin.user));
       return;
     }
@@ -56,7 +56,7 @@ const LoginWrapper: React.FC<LoginWrapperProps> = ({...props}) => {
       !props.config?.defaultLogin &&
       !props.config?.jwtLogin &&
       !props.config?.userLogin &&
-      user.xmppUsername === ''
+      user.xmppUsername === ""
     ) {
       const defaultLogin = async () => {
         try {
@@ -65,7 +65,7 @@ const LoginWrapper: React.FC<LoginWrapperProps> = ({...props}) => {
             dispatch(setUser(loginData));
           }
         } catch (error) {
-          console.log('error with default login', error);
+          console.log("error with default login", error);
           setShowModal(true);
         }
       };

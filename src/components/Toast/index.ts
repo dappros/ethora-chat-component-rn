@@ -1,4 +1,4 @@
-import styled from 'styled-components';
+import styled from 'styled-components/native';
 
 export const Notification = styled.View<{type: 'success' | 'error'}>`
   padding: 10px 15px;

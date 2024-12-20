@@ -1,35 +1,40 @@
-import React from 'react';
-import {View, Modal, StyleSheet} from 'react-native';
+import React from "react";
+import { View, Modal, StyleSheet, ViewStyle } from "react-native";
 
-export const Overlay = ({
-  children,
-  visible,
-}: {
-  children: React.ReactNode;
-  visible: boolean;
-}) => (
+interface OverlayProps {
+  children?: React.ReactNode;
+  visible?: boolean;
+  style?: ViewStyle;
+}
+
+export const Overlay = ({ children, visible, style }: OverlayProps) => (
   <Modal
     transparent={true}
     animationType="fade"
     visible={visible}
     onRequestClose={() => {
       // Implement logic to close the modal if needed
-    }}>
-    <View style={styles.overlay}>{children}</View>
+    }}
+  >
+    <View style={[styles.modal, style]}>{children}</View>;
   </Modal>
 );
 
-export const StyledModal = ({children}: {children: React.ReactNode}) => (
-  <View style={styles.modal}>{children}</View>
-);
+export const StyledModal = ({
+  children,
+  style,
+}: {
+  children: React.ReactNode;
+  style?: ViewStyle;
+}) => <View style={[styles.modal, style]}>{children}</View>;
 
 const styles = StyleSheet.create({
   overlay: {
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    backgroundColor: "rgba(0, 0, 0, 0.75)",
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'absolute',
+    justifyContent: "center",
+    alignItems: "center",
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
@@ -38,15 +43,15 @@ const styles = StyleSheet.create({
     elevation: 999, // Added to give the overlay layer a higher stacking context on Android.
   },
   modal: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '70%',
-    height: '70%',
-    backgroundColor: 'white',
+    alignItems: "center",
+    justifyContent: "center",
+    width: "70%",
+    height: "70%",
+    backgroundColor: "white",
     padding: 0,
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    transform: [{translateX: -'50%'}, {translateY: -'50%'}],
+    position: "absolute",
+    top: "50%",
+    left: "50%",
+    transform: [{ translateX: -"50%" }, { translateY: -"50%" }],
   },
 });

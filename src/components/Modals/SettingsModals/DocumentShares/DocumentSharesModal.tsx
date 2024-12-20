@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 import {
   EmptySection,
   CenterContainer,
@@ -10,17 +10,17 @@ import {
   Label,
   BorderedContainer,
   LabelData,
-} from '../../styledModalComponents';
+} from "../../styledModalComponents";
 import {
   AddNewIcon,
   ChatIcon,
   PlusIcon,
   SearchIcon,
-} from '../../../../assets/icons';
-import ModalHeaderComponent from '../../ModalHeaderComponent';
-import {useSelector} from 'react-redux';
-import {RootState} from '../../../../roomStore';
-import {ProfileImagePlaceholder} from '../../../MainComponents/ProfileImagePlaceholder';
+} from "../../../../assets/icons";
+import ModalHeaderComponent from "../../ModalHeaderComponent";
+import { useSelector } from "react-redux";
+import { RootState } from "../../../../roomStore";
+import { ProfileImagePlaceholder } from "../../../MainComponents/ProfileImagePlaceholder";
 import {
   SharedSettingsSectionContainer,
   SharedSettingsStyledLabel,
@@ -28,10 +28,11 @@ import {
   SharedSettingsInfoPanel,
   SharedSettingsInfoText,
   SharedSettingsColumnContainer,
-} from '../SharedStyledComponents';
-import {SearchInput} from '../../../InputComponents/Search';
-import Button from '../../../styled/Button';
-import DropdownMenu from '../../../SortDropDown';
+} from "../SharedStyledComponents";
+import { SearchInput } from "../../../InputComponents/Search";
+import Button from "../../../styled/Button";
+import DropdownMenu from "../../../SortDropDown";
+import { View } from "react-native";
 
 interface DocumentSharesModalProps {
   handleCloseModal: any;
@@ -40,13 +41,13 @@ interface DocumentSharesModalProps {
 const DocumentSharesModal: React.FC<DocumentSharesModalProps> = ({
   handleCloseModal,
 }) => {
-  const {config} = useSelector((state: RootState) => state.chatSettingStore);
+  const { config } = useSelector((state: RootState) => state.chatSettingStore);
 
   return (
     <ModalContainerFullScreen>
       <ModalHeaderComponent
         handleCloseModal={handleCloseModal}
-        headerTitle={'Document Shares'}
+        headerTitle={"Document Shares"}
       />
       <CenterContainer>
         <SharedSettingsColumnContainer>
@@ -61,14 +62,15 @@ const DocumentSharesModal: React.FC<DocumentSharesModalProps> = ({
             <BorderedContainer>
               <View
                 style={{
-                  display: 'flex',
-                  padding: '8px',
-                  width: '100%',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                }}>
+                  display: "flex",
+                  padding: 8,
+                  width: "100%",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
                 <View>List of shares</View>
-                <View style={{display: 'flex', flexDirection: 'row'}}>
+                <View style={{ display: "flex", flexDirection: "row" }}>
                   <View>
                     <SearchInput
                       animated
@@ -79,16 +81,17 @@ const DocumentSharesModal: React.FC<DocumentSharesModalProps> = ({
                   <View>
                     <DropdownMenu
                       sortFunction={function (value: string): void {
-                        throw new Error('Function not implemented.');
+                        throw new Error("Function not implemented.");
                       }}
-                      icon={''}
-                      values={['Name', 'Surname']}
+                      icon={""}
+                      values={["Name", "Surname"]}
                     />
                   </View>
                   <Button
                     variant="filled"
                     StartIcon={<PlusIcon />}
-                    style={{width: '100%'}}>
+                    style={{ width: "100%" }}
+                  >
                     Add New Share
                   </Button>
                 </View>

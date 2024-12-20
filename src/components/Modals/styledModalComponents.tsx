@@ -1,5 +1,5 @@
-import styled from 'styled-components';
-import Button from '../styled/Button';
+import styled from "styled-components/native";
+import Button from "../styled/Button";
 
 export const ModalBackground = styled.View`
   position: fixed;
@@ -14,7 +14,7 @@ export const ModalBackground = styled.View`
   z-index: 1000;
 `;
 
-export const CloseButton = styled.button`
+export const CloseButton = styled.TouchableOpacity`
   position: absolute;
   top: 16px;
   right: 16px;
@@ -46,13 +46,13 @@ export const ModalContainer = styled.View`
   max-width: 400px;
 `;
 
-export const ModalTitle = styled.h2`
+export const ModalTitle = styled.Text`
   font-size: 1.5em;
   margin: 0;
   font-weight: 400;
 `;
 
-export const ModalDescription = styled.p`
+export const ModalDescription = styled.View`
   font-size: 14px;
   margin: 0;
   font-weight: 400;
@@ -143,13 +143,13 @@ export const BorderedContainer = styled.View`
   padding: 16px;
 `;
 
-export const LabelData = styled.View`
+export const LabelData = styled.Text`
   color: #8c8c8c;
   font-size: 14px;
   font-weight: 400;
 `;
 
-export const Label = styled.span`
+export const Label = styled.Text`
   color: #141414;
   font-size: 16px;
 `;

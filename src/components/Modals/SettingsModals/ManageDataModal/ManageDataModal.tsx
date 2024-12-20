@@ -1,11 +1,14 @@
-import React from 'react';
-import {LabelData, ModalContainerFullScreen} from '../../styledModalComponents';
-import ModalHeaderComponent from '../../ModalHeaderComponent';
-import {useSelector} from 'react-redux';
-import {RootState} from '../../../../roomStore';
-import styled from 'styled-components';
-import {InfoIcon} from '../../../../assets/icons';
-import {getExportMyData} from '../../../../networking/api-requests/user.api';
+import React from "react";
+import {
+  LabelData,
+  ModalContainerFullScreen,
+} from "../../styledModalComponents";
+import ModalHeaderComponent from "../../ModalHeaderComponent";
+import { useSelector } from "react-redux";
+import { RootState } from "../../../../roomStore";
+import styled from "styled-components/native";
+import { InfoIcon } from "../../../../assets/icons";
+import { getExportMyData } from "../../../../networking/api-requests/user.api";
 import {
   SharedSettingsCenterContainer,
   SharedSettingsColumnContainer,
@@ -15,14 +18,15 @@ import {
   SharedSettingsSectionContainer,
   SharedSettingsStyledButton,
   SharedSettingsStyledLabel,
-} from '../SharedStyledComponents';
+} from "../SharedStyledComponents";
+import { View } from "react-native";
 
 interface ManageDataModalProps {
   handleCloseModal: any;
 }
 
 const InfoPanel = styled.View`
-  background-color: '#F3F6FC';
+  background-color: "#F3F6FC";
   display: flex;
   gap: 8px;
   border-radius: 8px;
@@ -32,19 +36,19 @@ const InfoPanel = styled.View`
 const ManageDataModal: React.FC<ManageDataModalProps> = ({
   handleCloseModal,
 }) => {
-  const {config} = useSelector((state: RootState) => state.chatSettingStore);
+  const { config } = useSelector((state: RootState) => state.chatSettingStore);
 
   const handleDownloadClick = async () => {
     const exportedData = await getExportMyData();
     const binaryData = exportedData.data;
     console.log(binaryData);
-    const blob = new Blob([binaryData], {type: 'text/plain'});
+    const blob = new Blob([binaryData], { type: "text/plain" });
 
     const url = URL.createObjectURL(blob);
 
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
-    a.download = 'mydata.json';
+    a.download = "mydata.json";
 
     document.body.appendChild(a);
     a.click();
@@ -57,7 +61,7 @@ const ManageDataModal: React.FC<ManageDataModalProps> = ({
     <ModalContainerFullScreen>
       <ModalHeaderComponent
         handleCloseModal={handleCloseModal}
-        headerTitle={'Manage Data'}
+        headerTitle={"Manage Data"}
       />
       <SharedSettingsCenterContainer>
         <SharedSettingsColumnContainer>
@@ -67,16 +71,18 @@ const ManageDataModal: React.FC<ManageDataModalProps> = ({
             </SharedSettingsStyledLabel>
             <LabelData
               style={{
-                fontSize: '12px',
-                textAlign: 'start',
-              }}>
+                fontSize: 12,
+                textAlign: "left",
+              }}
+            >
               You own your data. Tap the button below to download a copy of your
               data
             </LabelData>
           </SharedSettingsSectionContainer>
           <SharedSettingsStyledButton
-            borderColor={config.colors.primary || '#0052CD'}
-            onClick={handleDownloadClick}>
+            borderColor={config.colors.primary || "#0052CD"}
+            onPress={handleDownloadClick}
+          >
             Download your data
           </SharedSettingsStyledButton>
         </SharedSettingsColumnContainer>
@@ -91,7 +97,8 @@ const ManageDataModal: React.FC<ManageDataModalProps> = ({
             </SharedSettingsLabelData>
           </SharedSettingsSectionContainer>
           <SharedSettingsInfoPanel
-            bgColor={config?.colors?.secondary || '#F3F6FC'}>
+            bgColor={config?.colors?.secondary || "#F3F6FC"}
+          >
             <View>
               <InfoIcon color={config?.colors?.primary} />
             </View>

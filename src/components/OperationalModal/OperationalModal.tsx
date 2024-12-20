@@ -1,9 +1,12 @@
-import React, {useState} from 'react';
+import React, { useState } from "react";
 // import QRCode from 'react-qr-code';
-import {CloseButton} from '../Modals/styledModalComponents';
-import {Overlay, StyledModal} from '../styled/MediaModal';
-import {StyledInput} from '../styled/StyledInputComponents/StyledInputComponents';
-import Button from '../styled/Button';
+import { CloseButton } from "../Modals/styledModalComponents";
+import { Overlay, StyledModal } from "../styled/MediaModal";
+import { StyledInput } from "../styled/StyledInputComponents/StyledInputComponents";
+import Button from "../styled/Button";
+import { Text, View } from "react-native";
+import { QRCODE_URL } from "../../helpers/constants/PLATFORM_CONSTANTS";
+import Clipboard from "@react-native-clipboard/clipboard";
 
 interface OperationalModalProps {
   isVisible: boolean;
@@ -16,45 +19,54 @@ const OperationalModal: React.FC<OperationalModalProps> = ({
   chatJid,
   setVisible,
 }) => {
+  const handleCopyClick = () => {
+    Clipboard.setString(`${QRCODE_URL}${chatJid}`);
+  };
+
   return (
     isVisible && (
       <Overlay
         style={{
-          position: 'absolute',
-        }}>
+          position: "absolute",
+        }}
+      >
         <StyledModal
           style={{
-            borderRadius: '16px',
-            width: 'auto',
-            height: 'auto',
-            padding: '32px 64px',
-            minWidth: '480px',
-          }}>
-          <CloseButton onClick={() => setVisible(false)} style={{fontSize: 24}}>
-            &times;
+            borderRadius: 16,
+            width: "auto",
+            height: "auto",
+            paddingHorizontal: 64,
+            paddingVertical: 32,
+            minWidth: 480,
+          }}
+        >
+          <CloseButton onPress={() => setVisible(false)}>
+            <Text style={{ fontSize: 24 }}>&times;</Text>
           </CloseButton>
           <View
             style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '16px',
-              alignItems: 'center',
-            }}>
-            <View style={{width: '70%', position: 'relative'}}></View>
+              display: "flex",
+              flexDirection: "column",
+              gap: 16,
+              alignItems: "center",
+            }}
+          >
+            <View style={{ width: "70%", position: "relative" }}></View>
 
             <View
               style={{
-                display: 'flex',
-                gap: '8px',
-                alignItems: 'center',
-                minWidth: '400px',
-              }}>
+                display: "flex",
+                gap: 8,
+                alignItems: "center",
+                minWidth: 400,
+              }}
+            >
               <StyledInput
                 value={chatJid}
-                disabled={true}
-                style={{width: '80%'}}
+                editable={true}
+                style={{ width: "80%" }}
               />
-              <Button text="Copy" onClick={handleCopyClick} />
+              <Button text="Copy" onPress={handleCopyClick} />
             </View>
           </View>
         </StyledModal>

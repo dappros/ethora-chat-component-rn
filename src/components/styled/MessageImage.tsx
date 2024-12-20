@@ -1,11 +1,11 @@
-import React from 'react';
-import { Container } from './StyledInputComponents/MediaComponents';
-import { useDispatch } from 'react-redux';
+import React from "react";
+import { Container } from "./StyledInputComponents/MediaComponents";
+import { useDispatch } from "react-redux";
 import {
   setActiveFile,
   setActiveModal,
-} from '../../roomStore/chatSettingsSlice';
-import { MODAL_TYPES } from '../../helpers/constants/MODAL_TYPES';
+} from "../../roomStore/chatSettingsSlice";
+import { MODAL_TYPES } from "../../helpers/constants/MODAL_TYPES";
 interface CustomMessageImageProps {
   fileURL: string;
   fileName: string;
@@ -33,13 +33,13 @@ const CustomMessageImage: React.FC<CustomMessageImageProps> = ({
           onClick={handleOpen}
           style={{
             borderRadius: 16,
-            cursor: 'pointer',
-            maxWidth: '150px',
-            maxHeight: '200px',
+            cursor: "pointer",
+            maxWidth: 150,
+            maxHeight: 200,
           }}
           onError={(e) => {
             (e.target as HTMLImageElement).src =
-              'https://as2.ftcdn.net/v2/jpg/02/51/95/53/1000_F_251955356_FAQH0U1y1TZw3ZcdPGybwUkH90a3VAhb.jpg';
+              "https://as2.ftcdn.net/v2/jpg/02/51/95/53/1000_F_251955356_FAQH0U1y1TZw3ZcdPGybwUkH90a3VAhb.jpg";
           }}
         />
       ) : (
@@ -49,9 +49,9 @@ const CustomMessageImage: React.FC<CustomMessageImageProps> = ({
           onClick={handleOpen}
           style={{
             borderRadius: 16,
-            cursor: 'pointer',
-            maxWidth: '150px',
-            maxHeight: '200px',
+            cursor: "pointer",
+            maxWidth: 150,
+            maxHeight: 200,
           }}
         />
       )}

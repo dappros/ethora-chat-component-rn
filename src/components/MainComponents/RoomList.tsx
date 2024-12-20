@@ -1,4 +1,10 @@
-import React, {useState, useEffect, useCallback, useMemo, useRef} from 'react';
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import {
   View,
   TextInput,
@@ -6,20 +12,20 @@ import {
   Modal,
   StyleSheet,
   ScrollView,
-} from 'react-native';
-import {IRoom} from '../../types/types';
-import {SearchInput} from '../InputComponents/Search';
-import {useDispatch, useSelector} from 'react-redux';
-import {RootState} from '../../roomStore';
-import {SearchIcon} from '../../assets/icons';
-import DropdownMenu from '../DropdownMenu/DropdownMenu';
-import {logout, setActiveModal} from '../../roomStore/chatSettingsSlice';
-import NewChatModal from '../Modals/NewChatModal/NewChatModal';
-import {setLogoutState} from '../../roomStore/roomsSlice';
-import {MODAL_TYPES} from '../../helpers/constants/MODAL_TYPES';
-import {useXmppClient} from '../../context/xmppProvider';
-import ChatRoomItem from '../RoomComponents/ChatRoomItem';
-import {useChatSettingState} from '../../hooks/useChatSettingState';
+} from "react-native";
+import { IRoom } from "../../types/types";
+import { SearchInput } from "../InputComponents/Search";
+import { useDispatch, useSelector } from "react-redux";
+import { RootState } from "../../roomStore";
+import { SearchIcon } from "../../assets/icons";
+import DropdownMenu from "../DropdownMenu/DropdownMenu";
+import { logout, setActiveModal } from "../../roomStore/chatSettingsSlice";
+import NewChatModal from "../Modals/NewChatModal/NewChatModal";
+import { setLogoutState } from "../../roomStore/roomsSlice";
+import { MODAL_TYPES } from "../../helpers/constants/MODAL_TYPES";
+import { useXmppClient } from "../../context/xmppProvider";
+import ChatRoomItem from "../RoomComponents/ChatRoomItem";
+import { useChatSettingState } from "../../hooks/useChatSettingState";
 
 interface RoomListProps {
   chats: IRoom[];
@@ -34,14 +40,14 @@ const RoomList: React.FC<RoomListProps> = ({
   onRoomClick,
   isSmallScreen,
 }) => {
-  const {client, setClient} = useXmppClient();
+  const { client, setClient } = useXmppClient();
   const [open, setOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
 
   const dispatch = useDispatch();
 
-  const {config} = useChatSettingState();
-  const {activeRoomJID} = useSelector((state: RootState) => state.rooms);
+  const { config } = useChatSettingState();
+  const { activeRoomJID } = useSelector((state: RootState) => state.rooms);
 
   const containerRef = useRef<View>(null);
 
@@ -56,7 +62,7 @@ const RoomList: React.FC<RoomListProps> = ({
       onRoomClick?.(chat);
       setOpen(false);
     },
-    [onRoomClick],
+    [onRoomClick]
   );
 
   const handleSearchChange = useCallback((text: string) => {
@@ -65,8 +71,8 @@ const RoomList: React.FC<RoomListProps> = ({
 
   const filteredChats = useMemo(() => {
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
-    return chats.filter(chat =>
-      chat.name.toLowerCase().includes(lowerCaseSearchTerm),
+    return chats.filter((chat) =>
+      chat.name.toLowerCase().includes(lowerCaseSearchTerm)
     );
   }, [chats, searchTerm]);
 
@@ -79,7 +85,7 @@ const RoomList: React.FC<RoomListProps> = ({
 
   const isChatActive = useCallback(
     (room: IRoom) => activeRoomJID === room.jid,
-    [activeRoomJID],
+    [activeRoomJID]
   );
 
   const handleLogout = useCallback(async () => {
@@ -94,25 +100,25 @@ const RoomList: React.FC<RoomListProps> = ({
   const menuOptions = useMemo(
     () => [
       {
-        label: 'Profile',
+        label: "Profile",
         onClick: () => {
           dispatch(setActiveModal(MODAL_TYPES.PROFILE));
-          console.log('Profile clicked');
+          console.log("Profile clicked");
         },
       },
       {
-        label: 'Settings',
+        label: "Settings",
         onClick: () => {
           dispatch(setActiveModal(MODAL_TYPES.SETTINGS));
-          console.log('Settings clicked');
+          console.log("Settings clicked");
         },
       },
       {
-        label: 'Logout',
+        label: "Logout",
         onClick: handleLogout,
       },
     ],
-    [handleLogout],
+    [handleLogout]
   );
 
   return (
@@ -126,9 +132,10 @@ const RoomList: React.FC<RoomListProps> = ({
         ref={containerRef}
         style={[
           styles.container,
-          isSmallScreen ? {width: '100%'} : {maxWidth: 432},
+          isSmallScreen ? { width: "100%" } : { maxWidth: 432 },
           config?.roomListStyles,
-        ]}>
+        ]}
+      >
         {(open || !burgerMenu) && (
           <ScrollView style={styles.scrollContainer}>
             <View style={styles.searchContainer}>
@@ -136,7 +143,7 @@ const RoomList: React.FC<RoomListProps> = ({
                 <DropdownMenu options={menuOptions} />
               )}
               <SearchInput
-                icon={<SearchIcon height="20px" />}
+                icon={<SearchIcon height={20} />}
                 value={searchTerm}
                 onChange={handleSearchChange}
                 placeholder="Search..."
@@ -172,17 +179,17 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     marginTop: 10,
   },
   scrollContainer: {
     flexGrow: 1,
   },
   searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: 16,
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
   },
   chatList: {
     flex: 1,
@@ -190,7 +197,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    backgroundColor: '#0052CD0D',
+    backgroundColor: "#0052CD0D",
     marginVertical: 8,
   },
 });

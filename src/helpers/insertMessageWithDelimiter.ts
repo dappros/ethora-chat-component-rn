@@ -3,7 +3,7 @@ import { isDateAfter, isDateBefore } from './dateComparison';
 export function insertMessageWithDelimiter(
   roomMessages: any[],
   message: { id: any; date: any },
-  lastViewedTimestamp: { toString: () => string }
+  lastViewedTimestamp: { toString: () => string } | null
 ) {
   const existingMessage = roomMessages.find((msg) => msg.id === message.id);
 

@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useMemo, useRef} from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   ScrollView,
   View,
@@ -6,12 +6,12 @@ import {
   ActivityIndicator,
   StyleSheet,
   FlatList,
-} from 'react-native';
-import {IMessage, User, IConfig} from '../../types/types';
-import Composing from '../styled/StyledInputComponents/Composing';
-import TreadLabel from '../styled/TreadLabel';
-import {MessageContainer} from './MessageContainer';
-import {useRoomState} from '../../hooks/useRoomState';
+} from "react-native";
+import { IMessage, User, IConfig } from "../../types/types";
+import Composing from "../styled/StyledInputComponents/Composing";
+import TreadLabel from "../styled/TreadLabel";
+import { MessageContainer } from "./MessageContainer";
+import { useRoomState } from "../../hooks/useRoomState";
 
 interface MessageListProps<TMessage extends IMessage> {
   CustomMessage?: React.ComponentType<{
@@ -24,7 +24,7 @@ interface MessageListProps<TMessage extends IMessage> {
   loadMoreMessages: (
     chatJID: string,
     max: number,
-    amount?: number,
+    amount?: number
   ) => Promise<void>;
   loading: boolean;
   config?: IConfig;
@@ -42,14 +42,14 @@ const MessageList = <TMessage extends IMessage>({
   isReply,
   activeMessage,
 }: MessageListProps<TMessage>) => {
-  const {composing, messages} = useRoomState(roomJID).room;
+  const { composing, messages } = useRoomState(roomJID).room;
 
   const memoizedMessages = useMemo(() => {
-    const addReplyMessages = messages.map(message => ({
+    const addReplyMessages = messages.map((message) => ({
       ...message,
       reply: messages.filter(
-        mess =>
-          !!mess.mainMessage && JSON.parse(mess.mainMessage).id === message.id,
+        (mess) =>
+          !!mess.mainMessage && JSON.parse(mess.mainMessage).id === message.id
       ),
     }));
 
@@ -58,22 +58,22 @@ const MessageList = <TMessage extends IMessage>({
         (item: IMessage) =>
           item.roomJid === roomJID &&
           item.isReply &&
-          item.isReply === 'true' &&
+          item.isReply === "true" &&
           item.mainMessage &&
-          JSON.parse(item.mainMessage).id === activeMessage?.id,
+          JSON.parse(item.mainMessage).id === activeMessage?.id
       );
     }
     return addReplyMessages.filter(
       (item: IMessage) =>
-        item.showInChannel === 'true' ||
-        ((!item.isReply || item.isReply === 'false') && !item.mainMessage),
+        item.showInChannel === "true" ||
+        ((!item.isReply || item.isReply === "false") && !item.mainMessage)
     );
   }, [messages, isReply]);
 
   const containerRef = useRef<ScrollView>(null);
 
   const handleScroll = (event: any) => {
-    const {nativeEvent} = event;
+    const { nativeEvent } = event;
     if (nativeEvent.contentOffset.y < 150 && !loading) {
       const firstMessage = memoizedMessages[0];
       if (firstMessage) {
@@ -83,7 +83,7 @@ const MessageList = <TMessage extends IMessage>({
   };
 
   const scrollToBottom = useCallback(() => {
-    containerRef.current?.scrollToEnd({animated: true});
+    containerRef.current?.scrollToEnd({ animated: true });
   }, []);
 
   useEffect(() => {
@@ -98,11 +98,12 @@ const MessageList = <TMessage extends IMessage>({
         ref={containerRef}
         style={styles.messageList}
         onScroll={handleScroll}
-        scrollEventThrottle={16}>
+        scrollEventThrottle={16}
+      >
         {loading && (
           <ActivityIndicator
             size="small"
-            color={config?.colors?.primary || '#000'}
+            color={config?.colors?.primary || "#000"}
           />
         )}
         {activeMessage && (
@@ -120,7 +121,7 @@ const MessageList = <TMessage extends IMessage>({
             />
           </>
         )}
-        {memoizedMessages.map(message => {
+        {memoizedMessages.map((message) => {
           const messageDate = new Date(message.date).toDateString();
           const showDateLabel = messageDate !== lastDateLabel;
           lastDateLabel = messageDate;
@@ -139,7 +140,7 @@ const MessageList = <TMessage extends IMessage>({
           );
         })}
         {config?.disableHeader && composing && (
-          <Composing usersTyping={['User']} />
+          <Composing usersTyping={["User"]} />
         )}
       </ScrollView>
     </View>
@@ -151,7 +152,7 @@ export default MessageList;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   messageList: {
     paddingHorizontal: 10,

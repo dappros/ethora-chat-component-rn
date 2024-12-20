@@ -1,20 +1,21 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import Button from '../../styled/Button';
-import { AddNewIcon, AddPhotoIcon } from '../../../assets/icons';
-import { useDispatch, useSelector } from 'react-redux';
-import { RootState } from '../../../roomStore';
-import { useXmppClient } from '../../../context/xmppProvider';
+import React, { useState, useEffect, useMemo } from "react";
+import Button from "../../styled/Button";
+import { AddNewIcon, AddPhotoIcon } from "../../../assets/icons";
+import { useDispatch, useSelector } from "react-redux";
+import { RootState } from "../../../roomStore";
+import { useXmppClient } from "../../../context/xmppProvider";
 import {
   CloseButton,
   GroupContainer,
   ModalBackground,
   ModalContainer,
   ModalTitle,
-} from '../styledModalComponents';
-import { setCurrentRoom, updateRoom } from '../../../roomStore/roomsSlice';
-import InputWithLabel from '../../styled/StyledInput';
-import { uploadFile } from '../../../networking/api-requests/auth.api';
-import { ProfileImagePlaceholder } from '../../MainComponents/ProfileImagePlaceholder';
+} from "../styledModalComponents";
+import { setCurrentRoom, updateRoom } from "../../../roomStore/roomsSlice";
+import InputWithLabel from "../../styled/StyledInput";
+import { uploadFile } from "../../../networking/api-requests/auth.api";
+import { ProfileImagePlaceholder } from "../../MainComponents/ProfileImagePlaceholder";
+import { Text } from "react-native";
 
 const NewChatModal: React.FC = () => {
   const config = useSelector(
@@ -25,10 +26,10 @@ const NewChatModal: React.FC = () => {
   const { client } = useXmppClient();
 
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
-  const [roomName, setRoomName] = useState<string>('');
-  const [roomDescription, setRoomDescription] = useState<string>('');
+  const [roomName, setRoomName] = useState<string>("");
+  const [roomDescription, setRoomDescription] = useState<string>("");
   const [profileImage, setProfileImage] = useState<string | File | null>(null);
-  const [errors, setErrors] = useState({ name: '', description: '' });
+  const [errors, setErrors] = useState({ name: "", description: "" });
 
   const isValid = useMemo(
     () => roomName.length >= 3 && roomDescription.length >= 5,
@@ -37,20 +38,20 @@ const NewChatModal: React.FC = () => {
 
   const validateRoomName = (name: string) => {
     if (name.trim().length < 3) {
-      return 'Room name must be at least 3 characters.';
+      return "Room name must be at least 3 characters.";
     }
-    return '';
+    return "";
   };
 
   const validateRoomDescription = (description: string) => {
     if (description.trim().length < 5) {
-      return 'Room description must be at least 5 characters.';
+      return "Room description must be at least 5 characters.";
     }
-    return '';
+    return "";
   };
 
   const handleRoomNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    console.log('adsasd');
+    console.log("adsasd");
     const name = e.target.value;
     setRoomName(name);
     setErrors((prevErrors) => ({
@@ -84,13 +85,13 @@ const NewChatModal: React.FC = () => {
   const handleCreateRoom = async () => {
     if (isValid) {
       let mediaData: FormData | null = new FormData();
-      mediaData.append('files', profileImage);
+      mediaData.append("files", profileImage);
 
       const uploadResult = await uploadFile(mediaData);
 
       const location = uploadResult?.data?.results?.[0]?.location;
       if (!location) {
-        throw new Error('No location found in upload result.');
+        throw new Error("No location found in upload result.");
       }
 
       const newChatJid = await client.createRoomStanza(
@@ -98,14 +99,14 @@ const NewChatModal: React.FC = () => {
         roomDescription
       );
 
-      client.setRoomImageStanza(newChatJid, location, 'icon', 'none');
+      client.setRoomImageStanza(newChatJid, location, "icon", "none");
       client.getRoomsStanza();
       dispatch(setCurrentRoom({ roomJID: newChatJid }));
       dispatch(updateRoom({ jid: newChatJid, updates: { icon: location } }));
       setIsModalOpen(false);
-      setErrors({ name: '', description: '' });
-      setRoomName('');
-      setRoomDescription('');
+      setErrors({ name: "", description: "" });
+      setRoomName("");
+      setRoomDescription("");
     }
   };
 
@@ -113,21 +114,21 @@ const NewChatModal: React.FC = () => {
     <>
       <Button
         style={{
-          color: 'black',
           padding: 8,
-          borderRadius: '16px',
-          backgroundColor: 'transparent',
+          borderRadius: 16,
+          backgroundColor: "transparent",
         }}
+        color="black"
         unstyled
         EndIcon={<AddNewIcon color={config?.colors?.primary} />}
-        onClick={handleOpenModal}
+        onPress={handleOpenModal}
       />
 
       {isModalOpen && (
         <ModalBackground>
           <ModalContainer>
-            <CloseButton onClick={handleCloseModal} style={{ fontSize: 24 }}>
-              &times;
+            <CloseButton onPress={handleCloseModal}>
+              <Text style={{ fontSize: 24 }}>&times;</Text>
             </CloseButton>
             <ModalTitle>Create New Chat</ModalTitle>
             <ProfileImagePlaceholder
@@ -141,10 +142,9 @@ const NewChatModal: React.FC = () => {
             />
             <GroupContainer
               style={{
-                flexDirection: 'column',
-                position: 'relative',
-                boxSizing: 'border-box',
-                width: '100%',
+                flexDirection: "column",
+                position: "relative",
+                width: "100%",
               }}
             >
               <InputWithLabel
@@ -169,16 +169,16 @@ const NewChatModal: React.FC = () => {
 
             <GroupContainer>
               <Button
-                onClick={handleCloseModal}
-                text={'Cancel'}
-                style={{ width: '100%' }}
+                onPress={handleCloseModal}
+                text={"Cancel"}
+                style={{ width: "100%" }}
                 unstyled
                 variant="outlined"
               />
               <Button
-                onClick={handleCreateRoom}
-                text={'Create'}
-                style={{ width: '100%' }}
+                onPress={handleCreateRoom}
+                text={"Create"}
+                style={{ width: "100%" }}
                 unstyled
                 variant="filled"
                 disabled={!isValid}

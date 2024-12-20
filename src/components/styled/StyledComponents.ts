@@ -1,7 +1,7 @@
 import styled from 'styled-components/native';
 
 // General Containers
-export const ChatContainer = styled.View`
+export const ChatContainer = styled.ScrollView`
   flex: 1;
   width: 100%;
   background-color: #f3f6fc;
@@ -151,6 +151,10 @@ export const Overlay = styled.View`
   align-items: center;
   justify-content: center;
   border-radius: 50%;
+`;
+
+export const FileInput = styled.TextInput`
+  display: none;
 `;
 
 export const StyledLoaderWrapper = styled.View`

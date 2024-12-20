@@ -1,79 +1,111 @@
-import React, {useState, useEffect, ReactElement, useRef} from 'react';
-import {View, TouchableOpacity, Text, StyleSheet, Animated} from 'react-native';
+import React, { useState, useEffect, ReactElement, useRef } from "react";
+import {
+  View,
+  TouchableOpacity,
+  Text,
+  StyleSheet,
+  Animated,
+  TextStyle,
+} from "react-native";
 
 interface MenuOption {
   label: string;
   icon: React.ReactNode;
   onClick: () => void;
-  styles?: React.CSSProperties;
+  styles?: TextStyle;
 }
 
 interface DropdownMenuProps {
   options: MenuOption[];
   onClose?: any;
   openButton?: ReactElement;
-  position?: 'left' | 'right';
+  position?: "left" | "right";
   menuIcon?: React.ReactNode;
 }
 
 const DropdownMenu: React.FC<DropdownMenuProps> = ({
   options,
   openButton,
-  position = 'right',
+  position = "right",
   menuIcon,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<View>(null);
-  const buttonRef = useRef<TouchableOpacity>(null);
 
   const menuPosition =
-    position === 'right' ? {top: 60, right: -140} : {top: 60, left: 0};
+    position === "right" ? { top: 60, right: -140 } : { top: 60, left: 0 };
 
   const fadeAnim = useRef(new Animated.Value(0)).current; // For fade-in effect
+  const translateYAnim = useRef(new Animated.Value(-10)).current;
 
-  const toggleMenu = () => setIsOpen(prev => !prev);
+  const toggleMenu = () => setIsOpen((prev) => !prev);
+
+  // useEffect(() => {
+  //   const handleClickOutside = (event: any) => {
+  //     if (
+  //       menuRef.current &&
+  //       !menuRef.current.contains(event.target) &&
+  //       buttonRef.current &&
+  //       !buttonRef.current.contains(event.target)
+  //     ) {
+  //       setIsOpen(false);
+  //     }
+  //   };
+
+  //   if (isOpen) {
+  //     Animated.timing(fadeAnim, {
+  //       toValue: 1,
+  //       duration: 200,
+  //       useNativeDriver: true,
+  //     }).start();
+  //   }
+
+  //   return () => {
+  //     // Clean up
+  //   };
+  // }, [isOpen]);
 
   useEffect(() => {
-    const handleClickOutside = (event: any) => {
-      if (
-        menuRef.current &&
-        !menuRef.current.contains(event.target) &&
-        buttonRef.current &&
-        !buttonRef.current.contains(event.target)
-      ) {
-        setIsOpen(false);
-      }
-    };
-
     if (isOpen) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(translateYAnim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
       Animated.timing(fadeAnim, {
-        toValue: 1,
+        toValue: 0,
         duration: 200,
         useNativeDriver: true,
       }).start();
     }
-
-    return () => {
-      // Clean up
-    };
   }, [isOpen]);
 
   return (
     <View style={styles.container}>
       {openButton ? (
-        React.cloneElement(openButton, {ref: buttonRef, onPress: toggleMenu})
+        React.cloneElement(openButton, { onPress: toggleMenu })
       ) : (
-        <TouchableOpacity
-          onPress={toggleMenu}
-          ref={buttonRef}
-          style={styles.button}>
+        <TouchableOpacity onPress={toggleMenu} style={styles.button}>
           {menuIcon ?? <Text style={styles.icon}>☰</Text>}
         </TouchableOpacity>
       )}
       {isOpen && (
         <Animated.View
           ref={menuRef}
-          style={[styles.menu, menuPosition, {opacity: fadeAnim}]}>
+          style={[
+            styles.menu,
+            menuPosition,
+            { opacity: fadeAnim, transform: [{ translateY: translateYAnim }] },
+          ]}
+        >
           {options.map((option, index) => (
             <View key={index} style={styles.menuItemWrapper}>
               <TouchableOpacity
@@ -81,7 +113,8 @@ const DropdownMenu: React.FC<DropdownMenuProps> = ({
                 onPress={() => {
                   option.onClick();
                   setIsOpen(false);
-                }}>
+                }}
+              >
                 {option.icon}
                 <Text style={[styles.label, option?.styles]}>
                   {option.label}
@@ -100,35 +133,38 @@ export default DropdownMenu;
 
 const styles = StyleSheet.create({
   container: {
-    position: 'relative',
+    position: "relative",
   },
   button: {
     padding: 10,
-    backgroundColor: '#0052CD',
+    backgroundColor: "#0052CD",
     borderRadius: 8,
   },
   icon: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 24,
   },
   menu: {
-    position: 'absolute',
-    backgroundColor: '#fcfcfc',
+    position: "absolute",
+    backgroundColor: "#fcfcfc",
     borderRadius: 8,
     padding: 16,
     minWidth: 150,
     zIndex: 1000,
-    boxShadow: '0px 0px 6px -2px #12121908', // React Native doesn't support box-shadow
+    elevation: 4, // Android
+    shadowColor: "#121219", // iOS
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
   },
   menuItemWrapper: {
-    display: 'flex',
-    flexDirection: 'column',
+    display: "flex",
+    flexDirection: "column",
   },
   menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: 8,
-    cursor: 'pointer',
   },
   label: {
     fontSize: 16,
@@ -136,7 +172,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    width: '100%',
-    backgroundColor: '#0052cd0d',
+    width: "100%",
+    backgroundColor: "#0052cd0d",
   },
 });

@@ -88,8 +88,10 @@ export const BottomReplyContainer: FC<BottomReplyContainerProps> = ({
               style={{
                 height: "100%",
                 width: "100%",
-                border: "solid 1px #F0F0F0",
-                fontSize: "11px",
+                borderWidth: 1,
+                borderColor: "#F0F0F0",
+                borderStyle: "solid",
+                fontSize: 11,
               }}
             />
           </AvatarCircle>

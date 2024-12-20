@@ -1,5 +1,5 @@
-import {styled} from 'styled-components';
-import {NoSelectedChatIcon} from '../../assets/icons';
+import { styled } from "styled-components/native";
+import { NoSelectedChatIcon } from "../../assets/icons";
 
 export const ChooseChatMessageContainer = styled.View`
   height: 100%;
@@ -18,13 +18,13 @@ export const ChooseChatMessageContainerBoxText = styled.View`
   align-items: center;
 `;
 
-export const ChooseChatTitle = styled.View`
+export const ChooseChatTitle = styled.Text`
   font-size: 16px;
   color: #141414;
   font-weight: 600;
 `;
 
-export const ChooseChatDescription = styled.View`
+export const ChooseChatDescription = styled.Text`
   font-size: 14px;
   color: #141414;
 `;

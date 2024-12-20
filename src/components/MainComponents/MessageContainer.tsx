@@ -1,14 +1,14 @@
-import React, { FC, Fragment, useMemo } from 'react';
-import { IConfig, IMessage } from '../../types/types';
-import DateLabel from '../styled/DateLabel';
-import SystemMessage from './SystemMessage';
-import NewMessageLabel from '../styled/NewMessageLabel';
+import React, { FC, Fragment, useMemo } from "react";
+import { IConfig, IMessage } from "../../types/types";
+import DateLabel from "../styled/DateLabel";
+import SystemMessage from "./SystemMessage";
+import NewMessageLabel from "../styled/NewMessageLabel";
 import {
   Message,
   MessageText,
   MessageTimestamp,
   UserName,
-} from '../styled/StyledComponents';
+} from "../styled/StyledComponents";
 
 interface MessageContainerProps {
   CustomMessage?: React.ComponentType<{
@@ -17,8 +17,8 @@ interface MessageContainerProps {
     isReply: boolean;
   }>;
   message: IMessage;
-  activeMessage: IMessage;
-  config: IConfig;
+  activeMessage?: IMessage;
+  config?: IConfig;
   walletAddress: string;
   isReply: boolean;
   showDateLabel: boolean;
@@ -37,7 +37,7 @@ export const MessageContainer: FC<MessageContainerProps> = ({
 
   const messageDate = new Date(message.date);
 
-  if (message?.isSystemMessage === 'true') {
+  if (message?.isSystemMessage === "true") {
     return (
       <Fragment key={message.id}>
         {showDateLabel && (
@@ -48,7 +48,7 @@ export const MessageContainer: FC<MessageContainerProps> = ({
     );
   }
 
-  if (message?.id === 'delimiter-new') {
+  if (message?.id === "delimiter-new") {
     return <NewMessageLabel color={config?.colors?.primary} />;
   }
 
@@ -56,7 +56,7 @@ export const MessageContainer: FC<MessageContainerProps> = ({
 
   return (
     <Fragment key={message.id}>
-      {showDateLabel && !activeMessage && message.id === 'delimiter-new' && (
+      {showDateLabel && !activeMessage && message.id === "delimiter-new" && (
         <DateLabel date={messageDate} colors={config?.colors} />
       )}
       <MessageComponent message={message} isUser={isUser} isReply={isReply}>
