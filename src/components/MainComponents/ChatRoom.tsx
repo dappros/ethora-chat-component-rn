@@ -183,7 +183,6 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
             isReply={false}
           />
         )}
-        <Text style={{ paddingVertical: 15 }}>AAAAAA</Text>
         <SendInput
           sendMessage={sendMessage}
           sendMedia={sendMedia}

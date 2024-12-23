@@ -39,6 +39,7 @@ const SendInput: React.FC<SendInputProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   console.log("message", message);
+  console.log("isLoading", isLoading);
 
   useEffect(() => {
     setMessage(editMessage || "");
@@ -105,7 +106,7 @@ const SendInput: React.FC<SendInputProps> = ({
                 setIsFocused(false);
                 if (onBlur) onBlur();
               }}
-              editable={isLoading}
+              // editable={isLoading}
             />
           </>
         )}
