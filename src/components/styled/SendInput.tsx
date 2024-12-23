@@ -106,7 +106,7 @@ const SendInput: React.FC<SendInputProps> = ({
                 setIsFocused(false);
                 if (onBlur) onBlur();
               }}
-              // editable={isLoading}
+              editable={!isLoading}
             />
           </>
         )}
