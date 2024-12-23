@@ -94,14 +94,14 @@ export const LastMessage = ({ children }: { children: React.ReactNode }) => (
 export const UserCount = ({
   style,
   active,
-  children,
+  text,
 }: {
   active: boolean;
-  children: React.ReactNode;
+  text: string;
   style: TextStyle;
 }) => (
   <Text style={[styles.userCount, active && { color: "#fff" }, style]}>
-    {children}
+    {text}
   </Text>
 );
 

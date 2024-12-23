@@ -1,19 +1,20 @@
-import {useEffect, useState} from 'react';
-import {RadioGroup, RadioLabel, RadioInput} from './StyledComponents';
-import ModalHeaderComponent from '../../ModalHeaderComponent';
-import {useDispatch, useSelector} from 'react-redux';
-import {RootState} from '../../../../roomStore';
-import {setUser} from '../../../../roomStore/chatSettingsSlice';
-import {Notification} from '../../../Toast';
-import {updateMe} from '../../../../networking/api-requests/user.api';
-import {User} from '../../../../types/types';
-import {ModalContainerFullScreen} from '../../styledModalComponents';
+import { useEffect, useState } from "react";
+import { RadioGroup, RadioLabel } from "./StyledComponents";
+import ModalHeaderComponent from "../../ModalHeaderComponent";
+import { useDispatch, useSelector } from "react-redux";
+import { RootState } from "../../../../roomStore";
+import { setUser } from "../../../../roomStore/chatSettingsSlice";
+import { Notification } from "../../../Toast";
+import { updateMe } from "../../../../networking/api-requests/user.api";
+import { User } from "../../../../types/types";
+import { ModalContainerFullScreen } from "../../styledModalComponents";
 import {
   SharedSettingsCenterContainer,
   SharedSettingsColumnContainer,
   SharedSettingsLabelData,
   SharedSettingsStyledLabel,
-} from '../SharedStyledComponents';
+} from "../SharedStyledComponents";
+import { RadioInput } from "./RadioInput";
 
 interface VisibilityModalProps {
   handleCloseModal: any;
@@ -23,8 +24,8 @@ const VisibilityModal: React.FC<VisibilityModalProps> = ({
   handleCloseModal,
 }) => {
   const dispatch = useDispatch();
-  const {user, config} = useSelector(
-    (state: RootState) => state.chatSettingStore,
+  const { user, config } = useSelector(
+    (state: RootState) => state.chatSettingStore
   );
 
   const doUpdateUser = (user: User) => dispatch(setUser(user));
@@ -32,33 +33,33 @@ const VisibilityModal: React.FC<VisibilityModalProps> = ({
   const [isAssetsOpen, setIsAssetsOpen] = useState(user?.isAssetsOpen);
   const [notification, setNotification] = useState<{
     message: string;
-    type: 'success' | 'error';
+    type: "success" | "error";
   } | null>(null);
 
-  const showNotification = (message: string, type: 'success' | 'error') => {
-    setNotification({message, type});
+  const showNotification = (message: string, type: "success" | "error") => {
+    setNotification({ message, type });
     setTimeout(() => setNotification(null), 3000);
   };
 
   useEffect(() => {
     if (isProfileOpen !== user.isProfileOpen) {
-      updateMe({isProfileOpen})
-        .then(({data}) => {
+      updateMe({ isProfileOpen })
+        .then(({ data }) => {
           doUpdateUser(data.user);
-          showNotification('Saved', 'success');
+          showNotification("Saved", "success");
         })
-        .catch(() => showNotification('Error', 'error'));
+        .catch(() => showNotification("Error", "error"));
     }
   }, [isProfileOpen]);
 
   useEffect(() => {
     if (isAssetsOpen !== user?.isAssetsOpen) {
-      updateMe({isAssetsOpen})
-        .then(({data}) => {
+      updateMe({ isAssetsOpen })
+        .then(({ data }) => {
           doUpdateUser(data.user);
-          showNotification('Saved', 'success');
+          showNotification("Saved", "success");
         })
-        .catch(() => showNotification('Error', 'error'));
+        .catch(() => showNotification("Error", "error"));
     }
   }, [isAssetsOpen]);
 
@@ -66,7 +67,7 @@ const VisibilityModal: React.FC<VisibilityModalProps> = ({
     <ModalContainerFullScreen>
       <ModalHeaderComponent
         handleCloseModal={handleCloseModal}
-        headerTitle={'Visibility'}
+        headerTitle={"Visibility"}
       />
       <SharedSettingsCenterContainer>
         <SharedSettingsColumnContainer>
@@ -76,25 +77,24 @@ const VisibilityModal: React.FC<VisibilityModalProps> = ({
           <RadioGroup>
             <RadioLabel>
               <RadioInput
+                option={{ label: "Open (default)", value: isProfileOpen }}
                 radioColor={config?.colors?.primary}
-                type="radio"
                 checked={isProfileOpen === true}
                 onChange={() => setIsProfileOpen(true)}
               />
-              Open (default)
             </RadioLabel>
+
             <SharedSettingsLabelData>
               Your profile can be viewed by anyone who follows your profile link
               or QR code.
             </SharedSettingsLabelData>
             <RadioLabel>
               <RadioInput
+                option={{ label: "Restricted", value: isProfileOpen }}
                 radioColor={config?.colors?.primary}
-                type="radio"
                 checked={isProfileOpen === false}
                 onChange={() => setIsProfileOpen(false)}
               />
-              Restricted
             </RadioLabel>
             <SharedSettingsLabelData>
               Only users with your permission or temporary secure link can see
@@ -109,24 +109,22 @@ const VisibilityModal: React.FC<VisibilityModalProps> = ({
           <RadioGroup>
             <RadioLabel>
               <RadioInput
+                option={{ label: "Full (default)", value: isAssetsOpen }}
                 radioColor={config?.colors?.primary}
-                type="radio"
                 checked={isAssetsOpen === true}
                 onChange={() => setIsAssetsOpen(true)}
               />
-              Full (default)
             </RadioLabel>
             <SharedSettingsLabelData>
               Show all Documents to those who can see your profile.
             </SharedSettingsLabelData>
             <RadioLabel>
               <RadioInput
+                option={{ label: "InViewidual", value: isAssetsOpen }}
                 radioColor={config?.colors?.primary}
-                type="radio"
                 checked={isAssetsOpen === false}
                 onChange={() => setIsAssetsOpen(false)}
               />
-              InViewidual
             </RadioLabel>
             <SharedSettingsLabelData>
               You need to share each document inViewidually before others can

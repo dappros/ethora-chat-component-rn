@@ -28,12 +28,18 @@ export const MessageInputContainer = styled.View`
   gap: 16px;
 `;
 
-export const MessageInput = styled.TextInput`
+export const MessageInput = styled.TextInput<{
+  isFocused?: boolean;
+  color?: string;
+}>`
   flex-grow: 1;
   padding: 10px;
   border-radius: 12px;
-  color: ${colors.primary};
-  background-color: ${colors.secondary};
+  border-width: 1px;
+  border-color: ${(props) =>
+    props.isFocused ? props.color || "#0052CD" : "transparent"};
+  color: #141414;
+  background-color: #f5f7f9;
   max-height: 40px;
 `;
 

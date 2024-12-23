@@ -25,6 +25,7 @@ import { useRoomInitialization } from "../../hooks/useRoomInitialization.tsx";
 import { useRoomState } from "../../hooks/useRoomState.tsx";
 import { useChatSettingState } from "../../hooks/useChatSettingState.tsx";
 import useComposing from "../../hooks/useComposing.tsx";
+import { Text } from "react-native";
 
 interface ChatRoomProps {
   CustomMessageComponent?: any;
@@ -182,6 +183,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
             isReply={false}
           />
         )}
+        <Text style={{ paddingVertical: 15 }}>AAAAAA</Text>
         <SendInput
           sendMessage={sendMessage}
           sendMedia={sendMedia}

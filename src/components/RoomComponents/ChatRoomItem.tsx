@@ -13,10 +13,10 @@ import { Text, View } from "react-native";
 
 interface ChatRoomItemProps {
   chat: IRoom;
-  index: number;
+  index?: number;
   isChatActive: boolean;
   performClick: (chat: IRoom) => void;
-  config: IConfig;
+  config?: IConfig;
 }
 
 const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
@@ -45,7 +45,8 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
       onPress={() => performClick(chat)}
       bg={config?.colors?.primary}
     >
-      <ProfileImagePlaceholder name={chat.name} icon={chat?.icon} />
+      {/* ned fix!!!!!!!!!!!!! */}
+      {/* <ProfileImagePlaceholder name={chat.name} icon={chat?.icon} /> */}
       <View
         style={{
           display: "flex",
@@ -73,9 +74,8 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
                 fontSize: 12,
               }}
               active={isChatActive}
-            >
-              {formatTimeToHHMM(lastMessage.date)}
-            </UserCount>
+              text={formatTimeToHHMM(lastMessage.date)}
+            />
           )}
         </View>
         <View

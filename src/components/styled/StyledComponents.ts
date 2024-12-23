@@ -36,7 +36,7 @@ export const ChatContainerHeaderLabel = styled.Text`
 `;
 
 // Messages
-export const NonRoomChat = styled.View`
+export const NonRoomChat = styled.Text`
   flex: 1;
   width: 100%;
   align-items: center;

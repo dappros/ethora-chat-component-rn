@@ -79,7 +79,7 @@ const SearchInput: React.FC<SearchInputProps> = ({
         {icon}
       </TouchableOpacity>
       <Animated.View style={[styles.searchInputWrapper, { width }]}>
-        <TextInput
+        {/* <TextInput
           ref={inputRef}
           style={[styles.input, { opacity }]}
           onFocus={handleFocus}
@@ -88,7 +88,7 @@ const SearchInput: React.FC<SearchInputProps> = ({
           value={isTyping ? "Typing..." : ""}
           placeholder={placeholder}
           placeholderTextColor="#999"
-        />
+        /> */}
       </Animated.View>
     </View>
   );

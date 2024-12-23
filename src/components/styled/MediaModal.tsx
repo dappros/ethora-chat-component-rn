@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Modal, StyleSheet, ViewStyle } from "react-native";
+import { View, Modal, StyleSheet, ViewStyle, Text } from "react-native";
 
 interface OverlayProps {
   children?: React.ReactNode;
@@ -26,7 +26,7 @@ export const StyledModal = ({
 }: {
   children: React.ReactNode;
   style?: ViewStyle;
-}) => <View style={[styles.modal, style]}>{children}</View>;
+}) => <Text style={[styles.modal, style]}>{children}</Text>;
 
 const styles = StyleSheet.create({
   overlay: {

@@ -1,13 +1,15 @@
 /** @format */
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   MessageInputContainer,
   InputContainer,
+  MessageInput,
 } from "./StyledInputComponents/StyledInputComponents";
 import { IConfig } from "../../types/types";
 import Button from "./Button";
-import { SendIcon } from "../../assets/icons";
+import { AttachIcon, SendIcon } from "../../assets/icons";
+import { TextInput } from "react-native";
 
 interface SendInputProps {
   sendMessage: (message: string) => void;
@@ -23,15 +25,38 @@ const SendInput: React.FC<SendInputProps> = ({
   sendMessage,
   sendMedia,
   config,
+  onFocus,
+  onBlur,
   editMessage,
+  isLoading,
 }) => {
   const [message, setMessage] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
 
   const [filePreviews, setFilePreviews] = useState<File[]>([]);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  console.log("message", message);
 
   useEffect(() => {
     setMessage(editMessage || "");
   }, [editMessage]);
+
+  const handleFocus = () => {
+    onFocus?.();
+  };
+
+  const handleInputChange = useCallback((text: string) => {
+    setMessage(text);
+  }, []);
+
+  const handleAttachClick = useCallback(() => {
+    // if (fileInputRef.current) {
+    //   fileInputRef.current.click();
+    // }
+  }, []);
 
   const handleSendClick = useCallback(
     (audioUrl?: string) => {
@@ -56,6 +81,34 @@ const SendInput: React.FC<SendInputProps> = ({
   return (
     <InputContainer>
       <MessageInputContainer>
+        {!isRecording && (
+          <>
+            {!config?.disableMedia && (
+              <Button
+                onPress={handleAttachClick}
+                disabled={false}
+                EndIcon={<AttachIcon />}
+              />
+            )}
+            <MessageInput
+              isFocused={isFocused}
+              color={config?.colors?.primary}
+              placeholder="Type message"
+              placeholderTextColor="#999"
+              value={message}
+              onChangeText={handleInputChange}
+              onFocus={() => {
+                setIsFocused(true);
+                if (onFocus) onFocus();
+              }}
+              onBlur={() => {
+                setIsFocused(false);
+                if (onBlur) onBlur();
+              }}
+              editable={isLoading}
+            />
+          </>
+        )}
         {message && (
           <Button
             onPress={() => handleSendClick()}

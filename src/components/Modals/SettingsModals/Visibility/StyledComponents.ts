@@ -7,7 +7,7 @@ export const Title = styled.View`
   font-weight: bold;
 `;
 
-export const Description = styled.p`
+export const Description = styled.View`
   font-size: 14px;
   color: #6b7280;
   margin-bottom: 32px;
@@ -19,14 +19,14 @@ export const RadioGroup = styled.View`
   gap: 6px;
 `;
 
-export const RadioLabel = styled.label`
+export const RadioLabel = styled.View`
   display: flex;
   align-items: center;
   font-size: 14px;
   gap: 8px;
 `;
 
-export const RadioInput = styled.input<{radioColor?: string}>`
-  accent-color: ${({radioColor}) => radioColor || '#0052CD'};
-  margin: 0px;
-`;
+// export const RadioInput = styled.input<{radioColor?: string}>`
+//   accent-color: ${({radioColor}) => radioColor || '#0052CD'};
+//   margin: 0px;
+// `;
