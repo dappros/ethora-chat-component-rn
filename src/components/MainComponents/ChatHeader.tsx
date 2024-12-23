@@ -1,3 +1,5 @@
+/** @format */
+
 import React, { useCallback } from "react";
 import {
   ChatContainerHeader,
@@ -23,7 +25,7 @@ import { MODAL_TYPES } from "../../helpers/constants/MODAL_TYPES";
 import { RoomMenu } from "../MenuRoom/MenuRoom";
 import { useRoomState } from "../../hooks/useRoomState";
 import { useChatSettingState } from "../../hooks/useChatSettingState";
-import { View, StyleSheet } from "react-native";
+import { View, StyleSheet, Text } from "react-native";
 
 interface ChatHeaderProps {
   currentRoom: IRoom;
@@ -62,6 +64,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
       <View style={styles.leftSection}>
         {handleBackClick && (
           <Button
+            style={{ backgroundColor: "#1c1c1c" }}
             EndIcon={<BackIcon />}
             onPress={() => handleBackClick(false)}
           />
@@ -93,7 +96,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                 <Composing usersTyping={currentRoom?.composingList} />
               ) : (
                 <ChatContainerHeaderLabel style={styles.subLabel}>
-                  `${currentRoom?.usersCnt} users`
+                  <Text>{`${currentRoom?.usersCnt} users`}</Text>
                 </ChatContainerHeaderLabel>
               )}
             </View>

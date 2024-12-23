@@ -1,3 +1,5 @@
+/** @format */
+
 import React from "react";
 import {
   EmptySection,
@@ -72,11 +74,11 @@ const DocumentSharesModal: React.FC<DocumentSharesModalProps> = ({
                 <View>List of shares</View>
                 <View style={{ display: "flex", flexDirection: "row" }}>
                   <View>
-                    <SearchInput
+                    {/* <SearchInput
                       animated
                       icon={<SearchIcon />}
                       direction="right"
-                    />
+                    /> */}
                   </View>
                   <View>
                     <DropdownMenu

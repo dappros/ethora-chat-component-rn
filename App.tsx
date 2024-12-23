@@ -1,7 +1,9 @@
-import React from 'react';
-import {SafeAreaView, StyleSheet} from 'react-native';
-import {defaultUser} from './api.config';
-import {ReduxWrapper} from './src/components/MainComponents/ReduxWrapper';
+/** @format */
+
+import React from "react";
+import { SafeAreaView, StyleSheet } from "react-native";
+import { defaultUser } from "./api.config";
+import { ReduxWrapper } from "./src/components/MainComponents/ReduxWrapper";
 
 function App(): React.JSX.Element {
   return (
@@ -12,6 +14,7 @@ function App(): React.JSX.Element {
             enabled: true,
             user: defaultUser,
           },
+          disableHeader: false,
         }}
       />
     </SafeAreaView>

@@ -1,3 +1,5 @@
+/** @format */
+
 import React, {
   useState,
   useEffect,
@@ -31,14 +33,12 @@ interface RoomListProps {
   chats: IRoom[];
   burgerMenu?: boolean;
   onRoomClick?: (chat: IRoom) => void;
-  isSmallScreen?: boolean;
 }
 
 const RoomList: React.FC<RoomListProps> = ({
   chats,
   burgerMenu = false,
   onRoomClick,
-  isSmallScreen,
 }) => {
   const { client, setClient } = useXmppClient();
   const [open, setOpen] = useState(false);
@@ -130,24 +130,20 @@ const RoomList: React.FC<RoomListProps> = ({
       )}
       <View
         ref={containerRef}
-        style={[
-          styles.container,
-          isSmallScreen ? { width: "100%" } : { maxWidth: 432 },
-          config?.roomListStyles,
-        ]}
+        style={[styles.container, { width: "100%" }, config?.roomListStyles]}
       >
         {(open || !burgerMenu) && (
           <ScrollView style={styles.scrollContainer}>
             <View style={styles.searchContainer}>
-              {!config?.disableRoomMenu && (
-                <DropdownMenu options={menuOptions} />
-              )}
-              <SearchInput
+              {/* {!config?.disableRoomMenu && (
+                // <DropdownMenu options={menuOptions} />
+              )} */}
+              {/* <SearchInput
                 icon={<SearchIcon height={20} />}
                 value={searchTerm}
                 onChange={handleSearchChange}
                 placeholder="Search..."
-              />
+              /> */}
               <NewChatModal />
             </View>
             <ScrollView style={styles.chatList}>

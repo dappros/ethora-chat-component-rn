@@ -1,3 +1,5 @@
+/** @format */
+
 import React, { useState, useEffect, useCallback } from "react";
 import { ChatContainer, NonRoomChat } from "../styled/StyledComponents";
 import { useDispatch } from "react-redux";
@@ -180,6 +182,14 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
             isReply={false}
           />
         )}
+        <SendInput
+          sendMessage={sendMessage}
+          sendMedia={sendMedia}
+          config={config}
+          onFocus={sendStartComposing}
+          onBlur={sendEndComposing}
+          isLoading={loading}
+        />
       </ChatContainer>
     );
   }

@@ -1,3 +1,5 @@
+/** @format */
+
 import React, { FC, useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import ChatRoom from "./ChatRoom";
@@ -263,43 +265,14 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
               ...MainComponentStyles,
             }}
           >
-            <ChatWrapperBox
-              style={{
-                ...MainComponentStyles,
-              }}
-            >
-              {!config?.disableRooms &&
-                rooms &&
-                (isSmallScreen ? (
-                  !isChatVisible && (
-                    <RoomList
-                      chats={Object.values(rooms)}
-                      onRoomClick={handleChangeChat}
-                      isSmallScreen={isSmallScreen}
-                    />
-                  )
-                ) : (
-                  <RoomList
-                    chats={Object.values(rooms)}
-                    onRoomClick={handleChangeChat}
-                  />
-                ))}
-              {isSmallScreen ? (
-                isChatVisible ? (
-                  activeMessage?.activeMessage ? (
-                    <ThreadWrapper
-                      activeMessage={activeMessage}
-                      user={user}
-                      customMessageComponent={CustomMessageComponent || Message}
-                    />
-                  ) : (
-                    <ChatRoom
-                      CustomMessageComponent={CustomMessageComponent || Message}
-                      handleBackClick={handleItemClick}
-                    />
-                  )
-                ) : null
-              ) : activeMessage?.activeMessage ? (
+            {!config?.disableRooms && rooms && !isChatVisible && (
+              <RoomList
+                chats={Object.values(rooms)}
+                onRoomClick={handleChangeChat}
+              />
+            )}
+            {isChatVisible ? (
+              activeMessage?.activeMessage ? (
                 <ThreadWrapper
                   activeMessage={activeMessage}
                   user={user}
@@ -308,15 +281,22 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
               ) : (
                 <ChatRoom
                   CustomMessageComponent={CustomMessageComponent || Message}
+                  handleBackClick={handleItemClick}
                 />
-              )}
-              <Modal
-                modal={activeModal}
-                setOpenModal={(value?: ModalType) =>
-                  dispatch(setActiveModal(value))
-                }
+              )
+            ) : activeMessage?.activeMessage ? (
+              <ThreadWrapper
+                activeMessage={activeMessage}
+                user={user}
+                customMessageComponent={CustomMessageComponent || Message}
               />
-            </ChatWrapperBox>
+            ) : null}
+            <Modal
+              modal={activeModal}
+              setOpenModal={(value?: ModalType) =>
+                dispatch(setActiveModal(value))
+              }
+            />
           </ChatWrapperBox>
         ) : (
           <StyledLoaderWrapper>
@@ -324,7 +304,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
           </StyledLoaderWrapper>
         )}
       </>
-      {deleteModal?.isDeleteModal && (
+      {/* {deleteModal?.isDeleteModal && (
         <ModalWrapper
           title="Delete Message"
           description="Are you sure you want to delete this message?"
@@ -333,7 +313,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
           handleClick={handleDeleteClick}
           handleCloseModal={handleCloseDeleteModal}
         />
-      )}
+      )} */}
     </>
   );
 };

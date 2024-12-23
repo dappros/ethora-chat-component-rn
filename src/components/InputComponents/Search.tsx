@@ -1,23 +1,25 @@
-import React, {useState, useEffect, useRef} from 'react';
+/** @format */
+
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   TextInput,
   TouchableOpacity,
   Animated,
   StyleSheet,
-} from 'react-native';
+} from "react-native";
 
 interface SearchInputProps {
   icon?: React.ReactNode;
   animated?: boolean;
-  direction?: 'left' | 'right';
+  direction?: "left" | "right";
   placeholder?: string;
 }
 
 const SearchInput: React.FC<SearchInputProps> = ({
   icon,
   animated = false,
-  direction = 'left',
+  direction = "left",
   placeholder,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -76,14 +78,14 @@ const SearchInput: React.FC<SearchInputProps> = ({
       <TouchableOpacity onPress={handleFocus} style={styles.iconContainer}>
         {icon}
       </TouchableOpacity>
-      <Animated.View style={[styles.searchInputWrapper, {width}]}>
+      <Animated.View style={[styles.searchInputWrapper, { width }]}>
         <TextInput
           ref={inputRef}
-          style={[styles.input, {opacity}]}
+          style={[styles.input, { opacity }]}
           onFocus={handleFocus}
           onBlur={handleBlur}
           onChangeText={handleInput}
-          value={isTyping ? 'Typing...' : ''}
+          value={isTyping ? "Typing..." : ""}
           placeholder={placeholder}
           placeholderTextColor="#999"
         />
@@ -94,26 +96,26 @@ const SearchInput: React.FC<SearchInputProps> = ({
 
 const styles = StyleSheet.create({
   wrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   iconContainer: {
     padding: 10,
   },
   searchInputWrapper: {
-    backgroundColor: '#f5f7f9',
+    backgroundColor: "#f5f7f9",
     borderRadius: 16,
     height: 48,
     paddingHorizontal: 16,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   input: {
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
     borderWidth: 0,
-    height: '100%',
+    height: "100%",
     fontSize: 16,
-    color: '#000',
+    color: "#000",
   },
 });
 
-export {SearchInput};
+export { SearchInput };

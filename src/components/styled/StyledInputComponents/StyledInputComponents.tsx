@@ -1,17 +1,23 @@
+/** @format */
+
 import styled from "styled-components/native";
+
+// Theme variables for reuse
+const colors = {
+  primary: "#141414",
+  secondary: "#f5f7f9",
+  border: "#ccc",
+  white: "#fff",
+  black: "#000",
+};
 
 export const InputContainer = styled.View`
   flex-direction: column;
   border-top-left-radius: 15px;
   border-top-right-radius: 15px;
   padding: 16px;
-  background-color: #fff;
+  background-color: ${colors.white};
   z-index: 1;
-  shadow-color: #121219;
-  shadow-offset: { width: 0, height: 4 };
-  shadow-opacity: 0.08;
-  shadow-radius: 12px;
-  elevation: 4;
 `;
 
 export const MessageInputContainer = styled.View`
@@ -22,20 +28,13 @@ export const MessageInputContainer = styled.View`
   gap: 16px;
 `;
 
-export const MessageInput = styled.TextInput<{ color?: string }>`
+export const MessageInput = styled.TextInput`
   flex-grow: 1;
   padding: 10px;
   border-radius: 12px;
-  border-width: 0;
-  color: #141414;
-  background-color: #f5f7f9;
+  color: ${colors.primary};
+  background-color: ${colors.secondary};
   max-height: 40px;
-  ${({ color }) =>
-    color &&
-    `
-    border-width: 1px;
-    border-color: ${color};
-  `};
 `;
 
 export const HiddenFileInput = styled.View`
@@ -51,7 +50,7 @@ export const Timer = styled.Text`
 export const TimerText = styled.Text`
   font-size: 18px;
   font-weight: bold;
-  color: #000;
+  color: ${colors.black};
 `;
 
 export const WaveformContainer = styled.View`
@@ -81,7 +80,7 @@ export const FilePreview = styled.View`
   width: 100px;
   height: 100px;
   border-width: 1px;
-  border-color: #ccc;
+  border-color: ${colors.border};
   border-radius: 8px;
   background-color: #f9f9f9;
   overflow: hidden;
@@ -97,25 +96,17 @@ export const VideoPreview = styled.View`
   height: 100%;
 `;
 
-export const StyledInput = styled.TextInput<{ color?: string }>`
+export const StyledInput = styled.TextInput`
   padding: 16px 12px;
-  background-color: #f5f7f9;
-  border: none;
-  outline: none;
+  background-color: ${colors.secondary};
   font-size: 16px;
-  color: ${(props) => props.color || "#000"};
   border-radius: 16px;
-
-  &::placeholder {
-    opacity: 1;
-  }
 `;
 
 export const TextareaInput = styled.TextInput`
   padding: 16px 12px;
-  background-color: #f5f7f9;
+  background-color: ${colors.secondary};
   font-size: 16px;
-  color: #000;
+  color: ${colors.black};
   border-radius: 16px;
-  text-align-vertical: top;
 `;

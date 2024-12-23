@@ -1,4 +1,6 @@
-import styled from 'styled-components/native';
+/** @format */
+
+import styled from "styled-components/native";
 
 // General Containers
 export const ChatContainer = styled.ScrollView`
@@ -62,14 +64,14 @@ export const MessageTimestamp = styled.Text`
   margin-bottom: 5px;
 `;
 
-export const Message = styled.View<{isUser: boolean}>`
-  background-color: ${props => (props.isUser ? '#dcf8c6' : '#f1f1f1')};
+export const Message = styled.View<{ isUser: boolean }>`
+  background-color: ${(props) => (props.isUser ? "#dcf8c6" : "#f1f1f1")};
   padding: 10px;
   margin: 10px 0;
   border-radius: 8px;
   max-width: 60%;
   flex-direction: row;
-  align-self: ${props => (props.isUser ? 'flex-end' : 'flex-start')};
+  align-self: ${(props) => (props.isUser ? "flex-end" : "flex-start")};
 `;
 
 export const MessageText = styled.Text`
@@ -111,11 +113,11 @@ export const SendButtonText = styled.Text`
 `;
 
 // Avatar and Utility Components
-export const AvatarCircle = styled.View<{bgColor: string; size?: number}>`
-  width: ${({size}) => size || 64}px;
-  height: ${({size}) => size || 64}px;
+export const AvatarCircle = styled.View<{ bgColor: string; size?: number }>`
+  width: ${({ size }) => size || 64}px;
+  height: ${({ size }) => size || 64}px;
   border-radius: 50%;
-  background-color: ${({bgColor}) => bgColor};
+  background-color: ${({ bgColor }) => bgColor};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -181,18 +183,18 @@ export const Line = styled.View`
   background-color: #ccc;
 `;
 
-export const AlsoCheckbox = styled.TouchableOpacity<{accentColor: string}>`
+export const AlsoCheckbox = styled.TouchableOpacity<{ accentColor: string }>`
   width: 16px;
   height: 16px;
-  background-color: ${props => props.accentColor};
+  background-color: ${(props) => props.accentColor};
   border-radius: 4px;
 `;
 
-export const Wrapper = styled.View<{bgColor: string; size?: number}>`
-  width: ${({size}) => size || 64}px;
-  height: ${({size}) => size || 64}px;
+export const Wrapper = styled.View<{ bgColor: string; size?: number }>`
+  width: ${({ size }) => size || 64}px;
+  height: ${({ size }) => size || 64}px;
   border-radius: 50%;
-  background-color: ${({bgColor}) => bgColor};
+  background-color: ${({ bgColor }) => bgColor};
   display: flex;
   align-items: center;
   justify-content: center;
