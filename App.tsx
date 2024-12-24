@@ -10,10 +10,7 @@ function App(): React.JSX.Element {
     <SafeAreaView>
       <ReduxWrapper
         config={{
-          userLogin: {
-            enabled: true,
-            user: defaultUser,
-          },
+          userLogin: { enabled: true, user: null },
           disableHeader: false,
         }}
       />

@@ -15,7 +15,7 @@ import { useDispatch } from "react-redux";
 import { useLocalStorage } from "../../hooks/useLocalStorage";
 import { setUser } from "../../roomStore/chatSettingsSlice";
 import { localStorageConstants } from "../../helpers/constants/LOCAL_STORAGE";
-import { Text, View } from "react-native";
+import { Text, TextInput, View } from "react-native";
 
 interface LoginFormProps {
   config?: IConfig;
@@ -65,6 +65,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ config }) => {
       };
       dispatch(setUser(user));
       useLocalStorage(localStorageConstants.ETHORA_USER).set(user);
+      console.log(useLocalStorage(localStorageConstants.ETHORA_USER).get());
     } catch (error) {
       console.error("Login failed:", error);
       setIsLoading(false);
@@ -143,6 +144,8 @@ const LoginForm: React.FC<LoginFormProps> = ({ config }) => {
     }
   };
 
+  console.log("email", email);
+
   return (
     <FormContainer>
       <Form>
@@ -155,6 +158,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ config }) => {
             flexDirection: "column",
           }}
         >
+          {/* <TextInput value={email} onChangeText={(text) => setEmail(text)} /> */}
           <MessageInput
             value={email}
             placeholder="Email"

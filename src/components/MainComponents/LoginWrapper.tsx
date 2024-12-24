@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { IConfig, MessageProps } from "../../types/types";
+import { IConfig, MessageProps, User } from "../../types/types";
 import { ChatWrapper } from "./ChatWrapper";
 import { RootState } from "../../roomStore";
 import { useDispatch, useSelector } from "react-redux";
@@ -7,7 +7,11 @@ import { setUser } from "../../roomStore/chatSettingsSlice";
 import { loginEmail } from "../../networking/api-requests/auth.api";
 import { OrDelimiter } from "../styled/StyledComponents";
 import { ButtonText, Container, CustomButton, Message } from "./RNStyled";
-import { Text, ViewStyle } from "react-native";
+import { Text, View, ViewStyle } from "react-native";
+import Button from "../styled/Button";
+import LoginForm from "../AuthForms/Login";
+import { useLocalStorage } from "../../hooks/useLocalStorage";
+import { localStorageConstants } from "../../helpers/constants/LOCAL_STORAGE";
 
 interface LoginWrapperProps {
   user?: { email: string; password: string };
@@ -50,6 +54,17 @@ const LoginWrapper: React.FC<LoginWrapperProps> = ({ ...props }) => {
     }
 
     //if no login config - default user login
+    const initializeStoredUser = async () => {
+      const storedUser: User = (await useLocalStorage(
+        localStorageConstants.ETHORA_USER
+      ).get()) as User;
+      if (storedUser) {
+        console.log("Login data storedUser", storedUser);
+        dispatch(setUser(storedUser));
+      }
+    };
+
+    initializeStoredUser();
 
     if (
       !props.config?.googleLogin &&
@@ -79,44 +94,44 @@ const LoginWrapper: React.FC<LoginWrapperProps> = ({ ...props }) => {
   }, []);
 
   return (
-    // <>
-    //   {showModal ? (
-    //     <View
-    //       style={{
-    //         ...props.MainComponentStyles,
-    //         display: 'flex',
-    //         justifyContent: 'center',
-    //         alignItems: 'center',
-    //         flexDirection: 'column',
-    //         padding: '20px',
-    //         gap: '8px',
-    //       }}
-    //     >
-    //       <p>Error on loading chat. Please, try again later</p>
-    //       <OrDelimiter>Or</OrDelimiter>
-    //       <Button onClick={() => setShowModal(false)} style={{ width: '100%' }}>
-    //         Enter with default account
-    //       </Button>
-    //     </View>
-    //   ) : user && user.xmppPassword !== '' ? (
-    //     <ChatWrapper {...props} />
-    //   ) : (
-    //     <LoginForm {...props} />
-    //   )}
-    // </>
     <>
       {showModal ? (
-        <Container>
-          <Message>Error on loading chat. Please, try again later</Message>
+        <View
+          style={{
+            ...props.MainComponentStyles,
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            flexDirection: "column",
+            padding: 20,
+            gap: 8,
+          }}
+        >
+          <Text>Error on loading chat. Please, try again later</Text>
           <OrDelimiter>Or</OrDelimiter>
-          <CustomButton onPress={() => setShowModal(false)}>
-            <ButtonText>Enter with default account</ButtonText>
-          </CustomButton>
-        </Container>
+          <Button onPress={() => setShowModal(false)} style={{ width: "100%" }}>
+            Enter with default account
+          </Button>
+        </View>
+      ) : user && user.xmppPassword !== "" ? (
+        <ChatWrapper {...props} />
       ) : (
-        <ChatWrapper />
+        <LoginForm {...props} />
       )}
     </>
+    // <>
+    //   {showModal ? (
+    //     <Container>
+    //       <Message>Error on loading chat. Please, try again later</Message>
+    //       <OrDelimiter>Or</OrDelimiter>
+    //       <CustomButton onPress={() => setShowModal(false)}>
+    //         <ButtonText>Enter with default account</ButtonText>
+    //       </CustomButton>
+    //     </Container>
+    //   ) : (
+    //     <ChatWrapper />
+    //   )}
+    // </>
   );
 };
 

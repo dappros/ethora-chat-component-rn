@@ -65,7 +65,7 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
           }}
         >
           <ChatInfo>
-            <ChatName>{chat.name}</ChatName>
+            <ChatName text={chat.name} />
           </ChatInfo>
           {lastMessage && (
             <UserCount

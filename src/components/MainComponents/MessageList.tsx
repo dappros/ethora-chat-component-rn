@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ScrollView,
   View,
@@ -12,6 +18,7 @@ import Composing from "../styled/StyledInputComponents/Composing";
 import TreadLabel from "../styled/TreadLabel";
 import { MessageContainer } from "./MessageContainer";
 import { useRoomState } from "../../hooks/useRoomState";
+import Loader from "../styled/Loader";
 
 interface MessageListProps<TMessage extends IMessage> {
   CustomMessage?: React.ComponentType<{
@@ -43,16 +50,22 @@ const MessageList = <TMessage extends IMessage>({
   activeMessage,
 }: MessageListProps<TMessage>) => {
   const { composing, messages } = useRoomState(roomJID).room;
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
+  const addReplyMessages = useMemo(() => {
+    return messages.map((message) => {
+      const newMessage = {
+        ...message,
+        reply: messages.filter(
+          (mess) =>
+            !!mess.mainMessage && JSON.parse(mess.mainMessage).id === message.id
+        ),
+      };
+      return newMessage;
+    });
+  }, [messages]);
 
   const memoizedMessages = useMemo(() => {
-    const addReplyMessages = messages.map((message) => ({
-      ...message,
-      reply: messages.filter(
-        (mess) =>
-          !!mess.mainMessage && JSON.parse(mess.mainMessage).id === message.id
-      ),
-    }));
-
     if (isReply) {
       return addReplyMessages.filter(
         (item: IMessage) =>
@@ -62,87 +75,77 @@ const MessageList = <TMessage extends IMessage>({
           item.mainMessage &&
           JSON.parse(item.mainMessage).id === activeMessage?.id
       );
+    } else {
+      return addReplyMessages.filter(
+        (item: IMessage) =>
+          item.showInChannel === "true" ||
+          ((!item.isReply || item.isReply === "false") && !item.mainMessage)
+      );
     }
-    return addReplyMessages.filter(
-      (item: IMessage) =>
-        item.showInChannel === "true" ||
-        ((!item.isReply || item.isReply === "false") && !item.mainMessage)
-    );
-  }, [messages, isReply]);
+  }, [addReplyMessages, isReply, roomJID, activeMessage]);
 
-  const containerRef = useRef<ScrollView>(null);
+  const handleLoadMore = useCallback(async () => {
+    if (isLoadingMore || !memoizedMessages.length || loading) return;
 
-  const handleScroll = (event: any) => {
-    const { nativeEvent } = event;
-    if (nativeEvent.contentOffset.y < 150 && !loading) {
-      const firstMessage = memoizedMessages[0];
-      if (firstMessage) {
-        loadMoreMessages(roomJID, 30, Number(firstMessage.id));
-      }
+    setIsLoadingMore(true);
+    try {
+      await loadMoreMessages(
+        memoizedMessages[0].roomJid,
+        30,
+        Number(memoizedMessages[0].id)
+      );
+    } catch (error) {
+      console.error("Error loading more messages:", error);
+    } finally {
+      setIsLoadingMore(false);
     }
-  };
+  }, [memoizedMessages, isLoadingMore, loadMoreMessages]);
 
-  const scrollToBottom = useCallback(() => {
-    containerRef.current?.scrollToEnd({ animated: true });
-  }, []);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [memoizedMessages.length]);
-
-  let lastDateLabel: string | null = null;
+  const renderMessage = useCallback(
+    ({ item }: { item: IMessage }) => {
+      return (
+        <MessageContainer
+          CustomMessage={CustomMessage}
+          message={item}
+          activeMessage={activeMessage}
+          config={config}
+          walletAddress={user.walletAddress}
+          isReply={isReply}
+          showDateLabel={true} // Date labels can be handled if needed
+        />
+      );
+    },
+    [CustomMessage, activeMessage, config, user.walletAddress, isReply]
+  );
 
   return (
     <View style={styles.container}>
-      <ScrollView
-        ref={containerRef}
-        style={styles.messageList}
-        onScroll={handleScroll}
-        scrollEventThrottle={16}
-      >
-        {loading && (
-          <ActivityIndicator
-            size="small"
-            color={config?.colors?.primary || "#000"}
-          />
-        )}
-        {activeMessage && (
-          <>
-            {CustomMessage && (
-              <CustomMessage
-                message={activeMessage}
-                isUser={user.walletAddress === activeMessage.user.id}
-                isReply={isReply}
-              />
-            )}
-            <TreadLabel
-              reply={memoizedMessages.length}
-              colors={config?.colors}
-            />
-          </>
-        )}
-        {memoizedMessages.map((message) => {
-          const messageDate = new Date(message.date).toDateString();
-          const showDateLabel = messageDate !== lastDateLabel;
-          lastDateLabel = messageDate;
-
-          return (
-            <MessageContainer
-              key={message.id}
-              CustomMessage={CustomMessage}
-              message={message}
-              activeMessage={activeMessage}
-              config={config}
-              walletAddress={user.walletAddress}
+      {loading && <Loader color={config?.colors?.primary} />}
+      {activeMessage && (
+        <View>
+          {CustomMessage && (
+            <CustomMessage
+              message={activeMessage}
+              isUser={activeMessage.user.id === user.walletAddress}
               isReply={isReply}
-              showDateLabel={showDateLabel}
             />
-          );
-        })}
-        {config?.disableHeader && composing && (
-          <Composing usersTyping={["User"]} />
-        )}
-      </ScrollView>
+          )}
+          <TreadLabel reply={memoizedMessages.length} colors={config?.colors} />
+        </View>
+      )}
+      <FlatList
+        data={memoizedMessages}
+        renderItem={renderMessage}
+        keyExtractor={(item) => item.id.toString()}
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.1}
+        ListFooterComponent={
+          isLoadingMore ? <Loader color={config?.colors?.primary} /> : null
+        }
+      />
+      {composing && config?.disableHeader && (
+        <Composing usersTyping={["User"]} />
+      )}
     </View>
   );
 };

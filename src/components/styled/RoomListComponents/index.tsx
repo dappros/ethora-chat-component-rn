@@ -82,8 +82,8 @@ export const ChatInfo = ({ children }: { children: React.ReactNode }) => (
 );
 
 // Chat name and last message display
-export const ChatName = ({ children }: { children: React.ReactNode }) => (
-  <Text style={styles.chatName}>{children}</Text>
+export const ChatName = ({ text }: { text: string }) => (
+  <Text style={styles.chatName}>{text}</Text>
 );
 
 export const LastMessage = ({ children }: { children: React.ReactNode }) => (
