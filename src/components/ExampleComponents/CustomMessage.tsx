@@ -33,7 +33,7 @@ export const UserName = styled.Text<{ isUser: boolean; color?: string }>`
 `;
 
 export const MessageTimestamp = styled.Text`
-  font-size: 0.8em;
+  font-size: 13px;
   color: #999;
   margin-left: 8px;
 `;
@@ -61,7 +61,7 @@ export const SystemMessage = styled.Text`
 
 export const SystemMessageText = styled.Text`
   margin: 0;
-  font-size: 0.9em;
+  font-size: 14px;
   color: #333;
 `;
 

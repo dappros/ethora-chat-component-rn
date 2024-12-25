@@ -1,23 +1,24 @@
 import React, { useMemo } from "react";
 import styled from "styled-components/native";
+import { TouchableOpacity, Image, Text } from "react-native";
 import { EditIcon } from "../../assets/icons";
 import {
   AvatarCircle,
   AvatarImage,
-  FileInput,
+  InitialsText,
   Overlay,
   RemoveButton,
+  RemoveButtonText,
   Wrapper,
 } from "../styled/StyledComponents";
-import { Text } from "react-native";
 
 interface ProfileImagePlaceholderProps {
   name?: string;
-  icon?: string | File | null;
+  icon?: string | { uri: string };
   onClick?: () => void;
   size?: number;
   upload?: {
-    onUpload: (image: File) => void;
+    onUpload: (image: any) => void; // Replace `any` with a proper type if available
     active: boolean;
   };
   remove?: {
@@ -50,7 +51,7 @@ export const ProfileImagePlaceholder: React.FC<
       const index = Math.floor(Math.random() * backgroundColors.length);
       return backgroundColors[index];
     }
-    return "";
+    return "transparent";
   }, [icon]);
 
   const getTwoUppercaseLetters = (fullName: string) => {
@@ -65,19 +66,6 @@ export const ProfileImagePlaceholder: React.FC<
 
   const getInitials = () => (!icon && name ? getTwoUppercaseLetters(name) : "");
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file && upload?.onUpload) {
-      upload.onUpload(file);
-    }
-  };
-
-  const handleAvatarClick = () => {
-    if (upload?.active) {
-      document.getElementById("avatar-file-input")?.click();
-    }
-  };
-
   return (
     <Wrapper
       bgColor={icon ? "transparent" : randomColor}
@@ -87,45 +75,28 @@ export const ProfileImagePlaceholder: React.FC<
       <AvatarCircle
         bgColor={icon ? "transparent" : randomColor}
         size={size}
-        isClickable={active || (role === "participant" && !!upload?.active)}
-        onClick={handleAvatarClick}
-        style={{ fontSize: size >= 64 ? 24 : 18 }}
+        isClickable={active || !!upload?.active}
+        onPress={upload?.active ? upload.onUpload : undefined}
       >
         {icon ? (
           <AvatarImage
-            src={typeof icon === "string" ? icon : URL.createObjectURL(icon)}
-            alt="avatar icon"
+            source={typeof icon === "string" ? { uri: icon } : icon}
             size={size}
           />
         ) : placeholderIcon ? (
           placeholderIcon
         ) : (
-          <Text>{getInitials()}</Text>
+          <InitialsText size={size}>{getInitials()}</InitialsText>
         )}
-        {upload?.active && (
-          <>
-            <FileInput
-              type="file"
-              id="avatar-file-input"
-              accept="image/png, image/jpeg"
-              onChangeText={handleFileChange}
-            />
-            {!disableOverlay && (
-              <Overlay>
-                <EditIcon style={{ fontSize: size / 2 }} color="#fff" />
-              </Overlay>
-            )}
-          </>
+        {upload?.active && !disableOverlay && (
+          <Overlay>
+            <EditIcon style={{ fontSize: size / 2 }} color="#fff" />
+          </Overlay>
         )}
       </AvatarCircle>
       {remove?.enabled && icon && role !== "participant" && (
-        <RemoveButton
-          onPress={(e) => {
-            e.stopPropagation();
-            remove.onRemoveClick();
-          }}
-        >
-          &times;
+        <RemoveButton onPress={remove.onRemoveClick}>
+          <RemoveButtonText>&times;</RemoveButtonText>
         </RemoveButton>
       )}
     </Wrapper>

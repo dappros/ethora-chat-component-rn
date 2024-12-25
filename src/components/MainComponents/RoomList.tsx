@@ -14,12 +14,13 @@ import {
   Modal,
   StyleSheet,
   ScrollView,
+  Text,
 } from "react-native";
 import { IRoom } from "../../types/types";
 import { SearchInput } from "../InputComponents/Search";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState } from "../../roomStore";
-import { SearchIcon } from "../../assets/icons";
+import { BurgerMenuIcon, SearchIcon } from "../../assets/icons";
 import DropdownMenu from "../DropdownMenu/DropdownMenu";
 import { logout, setActiveModal } from "../../roomStore/chatSettingsSlice";
 import NewChatModal from "../Modals/NewChatModal/NewChatModal";
@@ -28,6 +29,7 @@ import { MODAL_TYPES } from "../../helpers/constants/MODAL_TYPES";
 import { useXmppClient } from "../../context/xmppProvider";
 import ChatRoomItem from "../RoomComponents/ChatRoomItem";
 import { useChatSettingState } from "../../hooks/useChatSettingState";
+import Button from "../styled/Button";
 
 interface RoomListProps {
   chats: IRoom[];
@@ -124,26 +126,37 @@ const RoomList: React.FC<RoomListProps> = ({
   return (
     <>
       {burgerMenu && !open && (
-        <TouchableOpacity onPress={() => setOpen(!open)}>
-          <View style={styles.burgerButton}>☰</View>
-        </TouchableOpacity>
+        // <TouchableOpacity onPress={() => setOpen(!open)}>
+        //   <Text style={styles.burgerButton}>☰</Text>
+        // </TouchableOpacity>
+        <Button
+          style={{
+            padding: 8,
+            borderRadius: 16,
+            backgroundColor: "transparent",
+          }}
+          color="black"
+          unstyled
+          EndIcon={<BurgerMenuIcon color={config?.colors?.primary} />}
+          onPress={() => setOpen(!open)}
+        />
       )}
       <View
         ref={containerRef}
-        style={[styles.container, { width: "100%" }, config?.roomListStyles]}
+        style={[styles.container, config?.roomListStyles]}
       >
         {(open || !burgerMenu) && (
           <ScrollView style={styles.scrollContainer}>
             <View style={styles.searchContainer}>
-              {/* {!config?.disableRoomMenu && (
-                // <DropdownMenu options={menuOptions} />
-              )} */}
-              {/* <SearchInput
+              {!config?.disableRoomMenu && (
+                <DropdownMenu options={menuOptions} config={config} />
+              )}
+              <SearchInput
                 icon={<SearchIcon height={20} />}
                 value={searchTerm}
                 onChange={handleSearchChange}
                 placeholder="Search..."
-              /> */}
+              />
               <NewChatModal />
             </View>
             <ScrollView style={styles.chatList}>
@@ -154,10 +167,8 @@ const RoomList: React.FC<RoomListProps> = ({
                     isChatActive={isChatActive(chat)}
                     performClick={performClick}
                     config={config}
+                    isDriver={index < filteredChats.length - 1}
                   />
-                  {index < filteredChats.length - 1 && (
-                    <View style={styles.divider} />
-                  )}
                 </View>
               ))}
             </ScrollView>
@@ -172,8 +183,11 @@ const styles = StyleSheet.create({
   burgerButton: {
     fontSize: 24,
     padding: 10,
+    color: "#333",
   },
   container: {
+    width: "100%",
+    height: "100%",
     flex: 1,
     backgroundColor: "#fff",
     marginTop: 10,
@@ -182,6 +196,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   searchContainer: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     padding: 16,
@@ -190,11 +205,7 @@ const styles = StyleSheet.create({
   chatList: {
     flex: 1,
     paddingTop: 10,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: "#0052CD0D",
-    marginVertical: 8,
+    paddingHorizontal: 8,
   },
 });
 

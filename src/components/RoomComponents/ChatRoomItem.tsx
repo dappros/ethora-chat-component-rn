@@ -14,7 +14,7 @@ import { Text, View } from "react-native";
 interface ChatRoomItemProps {
   chat: IRoom;
   index?: number;
-  isChatActive: boolean;
+  isDriver?: boolean;
   performClick: (chat: IRoom) => void;
   config?: IConfig;
 }
@@ -22,7 +22,7 @@ interface ChatRoomItemProps {
 const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
   chat,
   index,
-  isChatActive,
+  isDriver,
   performClick,
   config,
 }) => {
@@ -41,27 +41,24 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
   return (
     <ChatItem
       key={index}
-      active={isChatActive}
       onPress={() => performClick(chat)}
       bg={config?.colors?.primary}
     >
-      {/* ned fix!!!!!!!!!!!!! */}
-      {/* <ProfileImagePlaceholder name={chat.name} icon={chat?.icon} /> */}
+      <ProfileImagePlaceholder name={chat.name} icon={chat?.icon} />
       <View
         style={{
-          display: "flex",
           flexDirection: "column",
+          justifyContent: "space-between",
+          flex: 2,
           width: "100%",
+          paddingVertical: 8,
+          paddingRight: 8,
         }}
       >
         <View
           style={{
-            display: "flex",
+            flexDirection: "row",
             alignItems: "center",
-            width: "100%",
-            gap: 16,
-            height: 24,
-            justifyContent: "space-between",
           }}
         >
           <ChatInfo>
@@ -70,10 +67,9 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
           {lastMessage && (
             <UserCount
               style={{
-                color: !isChatActive ? "#8C8C8C" : "#fff",
+                color: "#8C8C8C",
                 fontSize: 12,
               }}
-              active={isChatActive}
               text={formatTimeToHHMM(lastMessage.date)}
             />
           )}
@@ -81,16 +77,15 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
         <View
           style={{
             // textAlign: "right",
-            display: "flex",
             width: "100%",
             justifyContent: "space-between",
-            alignItems: "center",
+            alignItems: "flex-start",
           }}
         >
           {chat.composing ? (
             <Composing
               usersTyping={chat.composingList}
-              style={{ color: !isChatActive ? "#141414" : "#fff" }}
+              style={{ color: "#141414" }}
             />
           ) : (
             lastMessage?.body && (
@@ -135,9 +130,7 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
             <View
               style={{
                 borderRadius: 8,
-                backgroundColor: isChatActive
-                  ? "#fff"
-                  : config?.colors?.primary,
+                backgroundColor: config?.colors?.primary,
                 padding: 2,
                 minWidth: 24,
                 minHeight: 24,
@@ -149,7 +142,8 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
             >
               <Text
                 style={{
-                  color: isChatActive ? "#141414" : "#fff",
+                  // color: isChatActive ? "#141414" : "#fff",
+                  color: "#141414",
                   fontSize: 14,
                   fontWeight: "600",
                 }}
@@ -159,6 +153,11 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
             </View>
           )}
         </View>
+        {isDriver && (
+          <View
+            style={{ height: 1, backgroundColor: "#0052CD0D", marginTop: 8 }}
+          />
+        )}
       </View>
     </ChatItem>
   );

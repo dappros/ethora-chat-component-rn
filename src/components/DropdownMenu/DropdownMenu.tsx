@@ -7,6 +7,9 @@ import {
   Animated,
   TextStyle,
 } from "react-native";
+import { BurgerMenuIcon } from "../../assets/icons";
+import { IConfig } from "../../types/types";
+import Button from "../styled/Button";
 
 interface MenuOption {
   label: string;
@@ -20,6 +23,7 @@ interface DropdownMenuProps {
   onClose?: any;
   openButton?: ReactElement;
   position?: "left" | "right";
+  config?: IConfig;
   menuIcon?: React.ReactNode;
 }
 
@@ -28,6 +32,7 @@ const DropdownMenu: React.FC<DropdownMenuProps> = ({
   openButton,
   position = "right",
   menuIcon,
+  config,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<View>(null);
@@ -93,9 +98,20 @@ const DropdownMenu: React.FC<DropdownMenuProps> = ({
       {openButton ? (
         React.cloneElement(openButton, { onPress: toggleMenu })
       ) : (
-        <TouchableOpacity onPress={toggleMenu} style={styles.button}>
-          {menuIcon ?? <Text style={styles.icon}>☰</Text>}
-        </TouchableOpacity>
+        // <TouchableOpacity onPress={toggleMenu} style={styles.button}>
+        //   {menuIcon ?? <Text style={styles.icon}>☰</Text>}
+        // </TouchableOpacity>
+        <Button
+          style={{
+            padding: 8,
+            borderRadius: 16,
+            backgroundColor: "transparent",
+          }}
+          color="black"
+          unstyled
+          EndIcon={<BurgerMenuIcon color={config?.colors?.primary} />}
+          onPress={toggleMenu}
+        />
       )}
       {isOpen && (
         <Animated.View

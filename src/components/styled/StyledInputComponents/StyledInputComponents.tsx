@@ -43,9 +43,7 @@ export const MessageInput = styled.TextInput<{
   max-height: 40px;
 `;
 
-export const HiddenFileInput = styled.View`
-  display: none;
-`;
+export const HiddenFileInput = styled.View``;
 
 export const Timer = styled.Text`
   justify-content: center;

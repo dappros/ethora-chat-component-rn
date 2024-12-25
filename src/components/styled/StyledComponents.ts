@@ -54,7 +54,7 @@ export const MessagesScroll = styled.ScrollView`
 
 export const MessagesList = styled.View`
   width: 100%;
-  min-height: 1.25em;
+  min-height: 20px;
   position: relative;
 `;
 
@@ -112,33 +112,50 @@ export const SendButtonText = styled.Text`
 `;
 
 // Avatar and Utility Components
-export const AvatarCircle = styled.View<{ bgColor: string; size?: number }>`
-  width: ${({ size }) => size || 64}px;
-  height: ${({ size }) => size || 64}px;
-  border-radius: 50%;
+export const AvatarCircle = styled.TouchableOpacity<{
+  bgColor: string;
+  size?: number;
+  isClickable: boolean;
+}>`
+  width: ${({ size }) => `${size}px` || "64px"};
+  height: ${({ size }) => `${size}px` || "64px"};
+  border-radius: 50px;
   background-color: ${({ bgColor }) => bgColor};
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
 `;
 
-export const AvatarImage = styled.Image`
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  object-fit: cover;
+export const AvatarImage = styled.Image<{ size?: number }>`
+width: 100%;
+height: 100%;
+border-radius: 50px;
+object-fit: cover;
 `;
 
 export const RemoveButton = styled.TouchableOpacity`
-  position: absolute;
-  top: -4px;
-  right: -4px;
-  width: 20px;
-  height: 20px;
-  background-color: rgba(0, 0, 0, 0.5);
-  border-radius: 50%;
-  justify-content: center;
-  align-items: center;
+position: absolute;
+top: -4px;
+right: -4px;
+width: 20px;
+height: 20px;
+background-color: rgba(0, 0, 0, 0.5);
+border-radius: 50px;
+justify-content: center;
+align-items: center;
+`;
+
+export const RemoveButtonText = styled.Text`
+color: #fff;
+font-size: 12px;
+font-weight: bold;
+`;
+
+export const InitialsText = styled.Text<{ size?: number }>`
+font-size: ${({ size }) => (size && size >= 64 ? "24px" : "18px")};
+color: white;
+font-weight: bold;
 `;
 
 export const Overlay = styled.View`
@@ -189,14 +206,20 @@ export const AlsoCheckbox = styled.TouchableOpacity<{ accentColor: string }>`
   border-radius: 4px;
 `;
 
-export const Wrapper = styled.View<{ bgColor: string; size?: number }>`
-  width: ${({ size }) => size || 64}px;
-  height: ${({ size }) => size || 64}px;
-  border-radius: 50%;
+export const Wrapper = styled.View<{
+  bgColor: string;
+  size?: number;
+  isClickable: boolean;
+}>`
+  width: ${({ size }) => `${size}px` || "64px"};
+  height: ${({ size }) => `${size}px` || "64px"};
+  margin: 8px 0 8px 8px;
+  border-radius: 50px;
   background-color: ${({ bgColor }) => bgColor};
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
 `;
 
 export const CustomSystemMessage = styled.View`

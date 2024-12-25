@@ -40,25 +40,18 @@ export const BurgerButton = ({ onPress }: { onPress: () => void }) => (
 const ColorContext = createContext<string | undefined>(undefined);
 
 export const ChatItem = ({
-  active,
   bg,
   onPress,
   children,
 }: {
-  active: boolean;
   bg?: string;
   onPress: () => void;
   children: React.ReactNode;
 }) => {
-  const backgroundColor = active ? bg || "#0052CD" : "#fff";
-  const textColor = active ? "#fff" : "#000";
-
   return (
-    <ColorContext.Provider value={textColor}>
-      <View style={[styles.chatItem, { backgroundColor }]} onTouchEnd={onPress}>
-        {children}
-      </View>
-    </ColorContext.Provider>
+    <View style={styles.chatItem} onTouchEnd={onPress}>
+      {children}
+    </View>
   );
 };
 
@@ -93,17 +86,11 @@ export const LastMessage = ({ children }: { children: React.ReactNode }) => (
 // User count display for the chat
 export const UserCount = ({
   style,
-  active,
   text,
 }: {
-  active: boolean;
   text: string;
   style: TextStyle;
-}) => (
-  <Text style={[styles.userCount, active && { color: "#fff" }, style]}>
-    {text}
-  </Text>
-);
+}) => <Text style={[styles.userCount, style]}>{text}</Text>;
 
 export const Viewider = () => <View style={styles.viewider} />;
 
@@ -145,12 +132,11 @@ const styles = StyleSheet.create({
     color: "#333",
   },
   chatItem: {
-    padding: 8,
     borderRadius: 16,
     gap: 16,
-    display: "flex",
-    justifyContent: "space-between",
     color: "#000",
+    flexDirection: "row",
+    justifyContent: "flex-start",
   },
   searchContainer: {
     display: "flex",
@@ -166,7 +152,6 @@ const styles = StyleSheet.create({
     flexDirection: "column",
   },
   chatInfo: {
-    flexDirection: "column",
     maxWidth: "60%",
   },
   chatName: {

@@ -18,9 +18,8 @@ export const CloseButton = styled.TouchableOpacity`
   position: absolute;
   top: 16px;
   right: 16px;
-  background: none;
   border: none;
-  font-size: 1.25em;
+  font-size: 20px;
   cursor: pointer;
   color: #888;
   border-radius: 8px;
@@ -47,7 +46,7 @@ export const ModalContainer = styled.View`
 `;
 
 export const ModalTitle = styled.Text`
-  font-size: 1.5em;
+  font-size: 20px;
   margin: 0;
   font-weight: 400;
 `;

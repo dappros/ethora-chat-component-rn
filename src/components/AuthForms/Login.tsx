@@ -65,7 +65,6 @@ const LoginForm: React.FC<LoginFormProps> = ({ config }) => {
       };
       dispatch(setUser(user));
       useLocalStorage(localStorageConstants.ETHORA_USER).set(user);
-      console.log(useLocalStorage(localStorageConstants.ETHORA_USER).get());
     } catch (error) {
       console.error("Login failed:", error);
       setIsLoading(false);

@@ -8,7 +8,7 @@ export const Container = styled.View`
   justify-content: center;
 `;
 
-export const FullScreenImage = styled.img`
+export const FullScreenImage = styled.Image`
   width: 100%;
   height: 100%;
   object-fit: contain;
@@ -32,8 +32,7 @@ export const ButtonContainer = styled.View`
   gap: 4px;
 `;
 
-export const IconButton = styled.button`
-  background: none;
+export const IconButton = styled.TouchableOpacity`
   border: none;
   cursor: pointer;
   color: gray;

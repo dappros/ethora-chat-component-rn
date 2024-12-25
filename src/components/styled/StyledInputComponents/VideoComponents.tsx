@@ -37,8 +37,7 @@ export const ButtonContainer = styled.View`
   right: 8px;
 `;
 
-export const IconButton = styled.button`
-  background: none;
+export const IconButton = styled.TouchableOpacity`
   border: none;
   cursor: pointer;
   color: gray;

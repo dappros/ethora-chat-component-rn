@@ -59,9 +59,8 @@ export const EditWrapper: FC<EditWrapperProps> = ({ text, onClose }) => {
       <button
         style={{
           fontSize: 24,
-          background: "none",
-          border: "none",
-          cursor: "pointer",
+          // background: "none",
+          // border: "none",
           color: "#888",
           borderRadius: 8,
         }}
