@@ -154,6 +154,7 @@ export default MessageList;
 
 const styles = StyleSheet.create({
   container: {
+    paddingBottom: 80,
     flex: 1,
     backgroundColor: "#F3F6FC",
   },

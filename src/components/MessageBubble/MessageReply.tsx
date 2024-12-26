@@ -6,13 +6,17 @@ import { Text } from "react-native";
 export const StyledMessageReply = styled.TouchableOpacity<{ isUser: boolean }>`
   background-color: ${(props) => (props.isUser ? "#ffffff" : "#E7EDF9")};
   padding: 8px 16px;
-  font-size: 14px;
   border-radius: 4px;
-  border-left: ${(props) => (props.isUser ? "4px solid #0052CD" : "")};
-  border-right: ${(props) => (!props.isUser ? "4px solid #0052CD" : "")};
+  border-style: solid;
+  border-left-width: ${(props) => (props.isUser ? 4 : 0)}px;
+  border-left-color: ${(props) => (props.isUser ? "#0052CD" : "transparent")};
+  border-right-width: ${(props) => (!props.isUser ? 4 : 0)}px;
+  border-right-color: ${(props) => (!props.isUser ? "#0052CD" : "transparent")};
+`;
+
+const StyledText = styled.Text`
+  font-size: 14px;
   overflow: hidden;
-  text-overflow: ellipsis;
-  cursor: pointer;
 `;
 
 interface MessageReplyProps {
@@ -28,7 +32,7 @@ export const MessageReply: FC<MessageReplyProps> = ({
 }) => {
   return (
     <StyledMessageReply onPress={handleReplyMessage} isUser={isUser}>
-      <Text>{text}</Text>
+      <StyledText>{text}</StyledText>
     </StyledMessageReply>
   );
 };

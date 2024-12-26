@@ -3,7 +3,7 @@ import { DeleteIcon } from "../../assets/icons";
 import { styled } from "styled-components/native";
 
 const ReplyContainer = styled.View`
-  display: flex;
+  flex-direction: row;
   align-items: center;
   gap: 5px;
   padding-top: 5px;

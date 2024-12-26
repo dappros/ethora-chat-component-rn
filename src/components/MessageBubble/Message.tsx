@@ -26,15 +26,17 @@ import { IUser, MessageProps } from "../../types/types";
 const CustomMessageContainer = styled.View<{ isUser: boolean }>`
   flex-direction: row;
   padding: 10px;
-  align-items: flex-start;
+  align-items: flex-end;
   justify-content: ${({ isUser }: { isUser: boolean }) =>
     isUser ? "flex-end" : "flex-start"};
 `;
 
-const CustomMessageBubble = styled.View<{ isUser: boolean; deleted: boolean }>`
+const CustomMessageBubble = styled.View<{ isUser: boolean; deleted?: boolean }>`
   max-width: 70%;
   padding: 10px;
   border-radius: 10px;
+  border-bottom-left-radius: ${({ isUser }) => (isUser ? "10" : "0")}px;
+  border-bottom-right-radius: ${({ isUser }) => (isUser ? "0" : "10")}px;
   background-color: ${({ isUser, deleted }) =>
     deleted ? "#f5f5f5" : isUser ? "#d1e7ff" : "#fff"};
 `;
@@ -54,7 +56,7 @@ const CustomMessagePhotoContainer = styled.TouchableOpacity`
   margin-right: 10px;
 `;
 
-const CustomUserName = styled.Text<{ color: string }>`
+const CustomUserName = styled.Text<{ color?: string }>`
   font-size: 14px;
   color: ${({ color }) => color || "#333"};
 `;
