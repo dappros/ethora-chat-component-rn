@@ -113,13 +113,13 @@ const SendInput: React.FC<SendInputProps> = ({
             // disabled={!message || message === ""}
             EndIcon={
               <SendIcon
-                color={
-                  filePreviews.length > 0
-                    ? "#fff"
-                    : !message || message === ""
-                    ? "#D4D4D8"
-                    : "#fff"
-                }
+              // color={
+              //   filePreviews.length > 0
+              //     ? "#fff"
+              //     : !message || message === ""
+              //     ? "#D4D4D8"
+              //     : "#fff"
+              // }
               />
             }
             style={{

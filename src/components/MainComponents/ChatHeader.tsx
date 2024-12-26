@@ -114,6 +114,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
 
 const styles = StyleSheet.create({
   leftSection: {
+    position: "relative",
     flexDirection: "row",
     alignItems: "center",
     gap: 8,

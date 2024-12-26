@@ -113,7 +113,7 @@ export const SendButtonText = styled.Text`
 
 // Avatar and Utility Components
 export const AvatarCircle = styled.TouchableOpacity<{
-  bgColor: string;
+  bgColor?: string;
   size?: number;
   isClickable: boolean;
 }>`
@@ -207,7 +207,7 @@ export const AlsoCheckbox = styled.TouchableOpacity<{ accentColor: string }>`
 `;
 
 export const Wrapper = styled.View<{
-  bgColor: string;
+  bgColor?: string;
   size?: number;
   isClickable: boolean;
 }>`

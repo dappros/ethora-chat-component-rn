@@ -1,10 +1,7 @@
 import styled from "styled-components/native";
 import Button from "../styled/Button";
 
-export const ModalBackground = styled.View`
-  position: fixed;
-  top: 0;
-  left: 0;
+export const ModalBackground = styled.Modal`
   width: 100%;
   height: 100%;
   background: rgba(0, 0, 0, 0.5);
@@ -31,6 +28,7 @@ export const CloseButton = styled.TouchableOpacity`
 `;
 
 export const ModalContainer = styled.View`
+  flex: 1;
   background: white;
   border-radius: 24px;
   padding: 32px 64px;
@@ -41,8 +39,6 @@ export const ModalContainer = styled.View`
   position: relative;
   justify-content: center;
   align-items: center;
-  width: 50%;
-  max-width: 400px;
 `;
 
 export const ModalTitle = styled.Text`

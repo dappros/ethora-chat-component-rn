@@ -164,7 +164,6 @@ const RoomList: React.FC<RoomListProps> = ({
                 <View key={chat.jid}>
                   <ChatRoomItem
                     chat={chat}
-                    isChatActive={isChatActive(chat)}
                     performClick={performClick}
                     config={config}
                     isDriver={index < filteredChats.length - 1}

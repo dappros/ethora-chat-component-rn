@@ -50,9 +50,9 @@ const NewChatModal: React.FC = () => {
     return "";
   };
 
-  const handleRoomNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleRoomNameChange = (text: string) => {
     console.log("adsasd");
-    const name = e.target.value;
+    const name = text;
     setRoomName(name);
     setErrors((prevErrors) => ({
       ...prevErrors,
@@ -60,10 +60,8 @@ const NewChatModal: React.FC = () => {
     }));
   };
 
-  const handleRoomDescriptionChange = (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const description = e.target.value;
+  const handleRoomDescriptionChange = (text: string) => {
+    const description = text;
     setRoomDescription(description);
     setErrors((prevErrors) => ({
       ...prevErrors,
@@ -124,69 +122,73 @@ const NewChatModal: React.FC = () => {
         onPress={handleOpenModal}
       />
 
-      {isModalOpen && (
-        <ModalBackground>
-          <ModalContainer>
-            <CloseButton onPress={handleCloseModal}>
-              <Text style={{ fontSize: 24 }}>&times;</Text>
-            </CloseButton>
-            <ModalTitle>Create New Chat</ModalTitle>
-            <ProfileImagePlaceholder
-              size={120}
-              upload={{ active: true, onUpload }}
-              remove={{ enabled: true, onRemoveClick }}
-              placeholderIcon={<AddPhotoIcon />}
-              icon={profileImage}
-              disableOverlay={!profileImage}
-              role="user"
+      <ModalBackground
+        visible={isModalOpen}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleCloseModal}
+      >
+        <ModalContainer>
+          <CloseButton onPress={handleCloseModal}>
+            <Text style={{ fontSize: 24, padding: 5 }}>&times;</Text>
+          </CloseButton>
+          <ModalTitle>Create New Chat</ModalTitle>
+          <ProfileImagePlaceholder
+            size={120}
+            upload={{ active: true, onUpload }}
+            remove={{ enabled: true, onRemoveClick }}
+            placeholderIcon={<AddPhotoIcon color="#0052CD" />}
+            icon={profileImage}
+            disableOverlay={!profileImage}
+            role="user"
+          />
+          <GroupContainer
+            style={{
+              flexDirection: "column",
+              position: "relative",
+              width: "100%",
+            }}
+          >
+            <InputWithLabel
+              style={{ flex: 1 }}
+              color="#F5F7F9"
+              id="roomName"
+              value={roomName}
+              onChangeText={handleRoomNameChange}
+              placeholder="Enter Room Name"
+              helperText={errors.name}
+              error={!!errors.name}
             />
-            <GroupContainer
-              style={{
-                flexDirection: "column",
-                position: "relative",
-                width: "100%",
-              }}
-            >
-              <InputWithLabel
-                style={{ flex: 1 }}
-                id="roomName"
-                value={roomName}
-                onChange={handleRoomNameChange}
-                placeholder="Enter Room Name"
-                helperText={errors.name}
-                error={!!errors.name}
-              />
-              <InputWithLabel
-                style={{ flex: 1 }}
-                id="roomDescription"
-                value={roomDescription}
-                onChange={handleRoomDescriptionChange}
-                placeholder="Enter Description"
-                helperText={errors.description}
-                error={!!errors.description}
-              />
-            </GroupContainer>
+            <InputWithLabel
+              style={{ flex: 1 }}
+              id="roomDescription"
+              value={roomDescription}
+              onChangeText={handleRoomDescriptionChange}
+              placeholder="Enter Description"
+              helperText={errors.description}
+              error={!!errors.description}
+            />
+          </GroupContainer>
 
-            <GroupContainer>
-              <Button
-                onPress={handleCloseModal}
-                text={"Cancel"}
-                style={{ width: "100%" }}
-                unstyled
-                variant="outlined"
-              />
-              <Button
-                onPress={handleCreateRoom}
-                text={"Create"}
-                style={{ width: "100%" }}
-                unstyled
-                variant="filled"
-                disabled={!isValid}
-              />
-            </GroupContainer>
-          </ModalContainer>
-        </ModalBackground>
-      )}
+          <GroupContainer>
+            <Button
+              onPress={handleCreateRoom}
+              text={"Create"}
+              style={{ width: "100%" }}
+              unstyled
+              variant="filled"
+              disabled={!isValid}
+            />
+            <Button
+              onPress={handleCloseModal}
+              text={"Cancel"}
+              style={{ width: "100%" }}
+              unstyled
+              variant="outlined"
+            />
+          </GroupContainer>
+        </ModalContainer>
+      </ModalBackground>
     </>
   );
 };
