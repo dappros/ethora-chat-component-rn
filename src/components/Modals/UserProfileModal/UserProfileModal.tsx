@@ -123,7 +123,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 </Button>
                 <DropdownMenu
                   options={menuOptions}
-                  position="left"
+                  position="right"
                   menuIcon={<MoreIcon />}
                 />
               </>

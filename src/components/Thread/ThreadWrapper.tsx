@@ -1,24 +1,25 @@
-import { FC, useCallback, useState } from 'react';
-import { IMessage, User } from '../../types/types';
+import { FC, useCallback, useState } from "react";
+import { IMessage, User } from "../../types/types";
 import {
   AlsoCheckbox,
   AlsoContainer,
   ChatContainer,
-} from '../styled/StyledComponents';
-import SendInput from '../styled/SendInput';
-import { useDispatch } from 'react-redux';
-import { useXmppClient } from '../../context/xmppProvider';
-import MessageList from '../MainComponents/MessageList';
-import ModalHeaderComponent from '../Modals/ModalHeaderComponent';
+} from "../styled/StyledComponents";
+import SendInput from "../styled/SendInput";
+import { useDispatch } from "react-redux";
+import { useXmppClient } from "../../context/xmppProvider";
+import MessageList from "../MainComponents/MessageList";
+import ModalHeaderComponent from "../Modals/ModalHeaderComponent";
 import {
   setCloseActiveMessage,
   setEditAction,
-} from '../../roomStore/roomsSlice';
-import { EditWrapper } from '../MainComponents/EditWrapper';
-import { useSendMessage } from '../../hooks/useSendMessage';
-import { createMainMessageForThread } from '../../helpers/createMainMessageForThread';
-import { useRoomState } from '../../hooks/useRoomState';
-import { useChatSettingState } from '../../hooks/useChatSettingState';
+} from "../../roomStore/roomsSlice";
+import { EditWrapper } from "../MainComponents/EditWrapper";
+import { useSendMessage } from "../../hooks/useSendMessage";
+import { createMainMessageForThread } from "../../helpers/createMainMessageForThread";
+import { useRoomState } from "../../hooks/useRoomState";
+import { useChatSettingState } from "../../hooks/useChatSettingState";
+import { Text } from "react-native";
 
 interface ThreadWrapperProps {
   activeMessage: IMessage;
@@ -112,7 +113,7 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
   return (
     <ChatContainer
       style={{
-        overflow: 'auto',
+        overflow: "auto",
         ...config?.chatRoomStyles,
       }}
     >
@@ -131,22 +132,22 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
         isReply
       />
       <AlsoContainer
-        style={{ cursor: 'pointer' }}
+        style={{ cursor: "pointer" }}
         onClick={() => setIsChecked((prev) => !prev)}
       >
         <AlsoCheckbox
-          accentColor={config?.colors?.primary || '#0052CD'}
+          accentColor={config?.colors?.primary || "#0052CD"}
           type="checkbox"
           checked={isChecked}
           onChange={(e) => setIsChecked(e.target.checked)}
         />
-        <span>Also send to</span>
+        <Text>Also send to</Text>
         <a
           style={{
-            color: config?.colors?.primary || '#0052CD',
+            color: config?.colors?.primary || "#0052CD",
             fontWeight: 500,
-            cursor: 'pointer',
-            borderBottom: '1px solid',
+            cursor: "pointer",
+            borderBottom: "1px solid",
           }}
           onClick={closeThread}
         >

@@ -80,7 +80,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
         headerTitle={"Chat Profile"}
         rightMenu={
           <>
-            <Button EndIcon={<QrIcon />} onClick={() => setVisible(true)} />
+            <Button EndIcon={<QrIcon />} onPress={() => setVisible(true)} />
             {/* <Button EndIcon={<MoreIcon />} /> */}
           </>
         }

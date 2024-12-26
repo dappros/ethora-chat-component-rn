@@ -20,7 +20,13 @@ import { IRoom } from "../../types/types";
 import { SearchInput } from "../InputComponents/Search";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState } from "../../roomStore";
-import { BurgerMenuIcon, SearchIcon } from "../../assets/icons";
+import {
+  AddNewIcon,
+  BurgerMenuIcon,
+  ProfileIcon,
+  SearchIcon,
+  SettingIcon,
+} from "../../assets/icons";
 import DropdownMenu from "../DropdownMenu/DropdownMenu";
 import { logout, setActiveModal } from "../../roomStore/chatSettingsSlice";
 import NewChatModal from "../Modals/NewChatModal/NewChatModal";
@@ -102,7 +108,17 @@ const RoomList: React.FC<RoomListProps> = ({
   const menuOptions = useMemo(
     () => [
       {
+        label: "New Chat",
+        icon: <AddNewIcon color="#8C8C8C" />,
+        onClick: () => {
+          dispatch(setActiveModal(MODAL_TYPES.NEW_CHAT));
+          console.log("New chat clicked");
+        },
+        styles: { color: "#141414" },
+      },
+      {
         label: "Profile",
+        icon: <ProfileIcon color="#8C8C8C" />,
         onClick: () => {
           dispatch(setActiveModal(MODAL_TYPES.PROFILE));
           console.log("Profile clicked");
@@ -110,15 +126,16 @@ const RoomList: React.FC<RoomListProps> = ({
       },
       {
         label: "Settings",
+        icon: <SettingIcon color="#8C8C8C" />,
         onClick: () => {
           dispatch(setActiveModal(MODAL_TYPES.SETTINGS));
           console.log("Settings clicked");
         },
       },
-      {
-        label: "Logout",
-        onClick: handleLogout,
-      },
+      // {
+      //   label: "Logout",
+      //   onClick: handleLogout,
+      // },
     ],
     [handleLogout]
   );
@@ -149,7 +166,11 @@ const RoomList: React.FC<RoomListProps> = ({
           <ScrollView style={styles.scrollContainer}>
             <View style={styles.searchContainer}>
               {!config?.disableRoomMenu && (
-                <DropdownMenu options={menuOptions} config={config} />
+                <DropdownMenu
+                  options={menuOptions}
+                  config={config}
+                  position="left"
+                />
               )}
               <SearchInput
                 icon={<SearchIcon height={20} />}
@@ -157,7 +178,7 @@ const RoomList: React.FC<RoomListProps> = ({
                 onChange={handleSearchChange}
                 placeholder="Search..."
               />
-              <NewChatModal />
+              {/* <NewChatModal /> */}
             </View>
             <ScrollView style={styles.chatList}>
               {filteredChats.map((chat, index) => (

@@ -8,6 +8,7 @@ import { updateProfile } from "../../../networking/api-requests/user.api";
 import { useDispatch } from "react-redux";
 import { updateUser } from "../../../roomStore/chatSettingsSlice";
 import { View } from "react-native";
+import { AddPhotoIcon } from "../../../assets/icons";
 // import { actionUpdateUser } from '../actions';
 
 const base64ToFile = (base64String: string, fileName: string) => {
@@ -96,12 +97,18 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
               paddingHorizontal: 8,
               width: "100%",
             }}
+            color="#000"
           >
             Cancel
           </Button>
         }
         rightMenu={
-          <Button onPress={onSave} variant="outlined" style={{ width: 128 }}>
+          <Button
+            onPress={onSave}
+            variant="outlined"
+            style={{ width: 128 }}
+            color="#000"
+          >
             Save
           </Button>
         }
@@ -109,6 +116,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
       <CenterContainer>
         <ProfileImagePlaceholder
           icon={profileImage}
+          placeholderIcon={<AddPhotoIcon color="#0052CD" />}
           name={`${firstName} ${lastName}`}
           size={120}
           upload={{
@@ -132,27 +140,21 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
           placeholder="First Name"
           label="First Name"
           value={firstName}
-          onChange={(e: { target: { value: any } }) =>
-            setFirstName(e.target.value)
-          }
+          onChangeText={(text: string) => setFirstName(text)}
         />
         <InputWithLabel
           color={config?.colors?.primary}
           placeholder="Last Name"
           label="Last Name"
           value={lastName}
-          onChange={(e: { target: { value: any } }) =>
-            setLastName(e.target.value)
-          }
+          onChangeText={(text: string) => setLastName(text)}
         />
         <InputWithLabel
           color={config?.colors?.primary}
           placeholder="About"
           label="About"
           value={description}
-          onChange={(e: { target: { value: any } }) =>
-            setDescription(e.target.value)
-          }
+          onChangeText={(text: string) => setDescription(text)}
         />
       </View>
     </>

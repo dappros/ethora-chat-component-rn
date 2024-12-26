@@ -1,7 +1,7 @@
 import styled from "styled-components/native";
 import Button from "../styled/Button";
 
-export const ModalBackground = styled.Modal`
+export const ModalBackground = styled.View`
   width: 100%;
   height: 100%;
   background: rgba(0, 0, 0, 0.5);
@@ -19,7 +19,6 @@ export const CloseButton = styled.TouchableOpacity`
   font-size: 20px;
   cursor: pointer;
   color: #888;
-  border-radius: 8px;
 
   &:hover {
     color: #555;
@@ -29,8 +28,9 @@ export const CloseButton = styled.TouchableOpacity`
 
 export const ModalContainer = styled.View`
   flex: 1;
+  width: 100%;
+  height: 100%;
   background: white;
-  border-radius: 24px;
   padding: 32px 64px;
   box-shadow: 0px 4px 16px rgba(0, 0, 0, 0.2);
   display: flex;
@@ -80,6 +80,7 @@ export const HeaderContainer = styled(GroupContainer)`
   box-sizing: border-box;
   border-bottom: 1px solid #f0f0f0;
   z-index: 1;
+  flex-direction: row;
   justify-content: space-between;
 `;
 
@@ -90,7 +91,7 @@ export const HeaderLeft = styled.View`
 `;
 
 export const HeaderRight = styled.View`
-  display: flex;
+  flex-direction: row;
   align-items: center;
   gap: 16px;
 `;

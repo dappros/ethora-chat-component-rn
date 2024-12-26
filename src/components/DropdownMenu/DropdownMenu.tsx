@@ -38,7 +38,7 @@ const DropdownMenu: React.FC<DropdownMenuProps> = ({
   const menuRef = useRef<View>(null);
 
   const menuPosition =
-    position === "right" ? { top: 60, right: -140 } : { top: 60, left: 0 };
+    position === "right" ? { top: 55, right: 10 } : { top: 55, left: 0 };
 
   const fadeAnim = useRef(new Animated.Value(0)).current; // For fade-in effect
   const translateYAnim = useRef(new Animated.Value(-10)).current;
@@ -164,7 +164,8 @@ const styles = StyleSheet.create({
     position: "absolute",
     backgroundColor: "#fcfcfc",
     borderRadius: 8,
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     minWidth: 150,
     zIndex: 1000,
     elevation: 4, // Android

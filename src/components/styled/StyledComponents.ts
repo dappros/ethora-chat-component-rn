@@ -119,7 +119,7 @@ export const AvatarCircle = styled.TouchableOpacity<{
 }>`
   width: ${({ size }) => `${size}px` || "64px"};
   height: ${({ size }) => `${size}px` || "64px"};
-  border-radius: 50px;
+  border-radius: 60px;
   background-color: ${({ bgColor }) => bgColor};
   display: flex;
   align-items: center;
@@ -214,7 +214,7 @@ export const Wrapper = styled.View<{
   width: ${({ size }) => `${size}px` || "64px"};
   height: ${({ size }) => `${size}px` || "64px"};
   margin: 8px 0 8px 8px;
-  border-radius: 50px;
+  border-radius: 60px;
   background-color: ${({ bgColor }) => bgColor};
   display: flex;
   align-items: center;

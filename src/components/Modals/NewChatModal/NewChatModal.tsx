@@ -17,7 +17,11 @@ import { uploadFile } from "../../../networking/api-requests/auth.api";
 import { ProfileImagePlaceholder } from "../../MainComponents/ProfileImagePlaceholder";
 import { Text } from "react-native";
 
-const NewChatModal: React.FC = () => {
+interface NewChatModalProps {
+  handleCloseModal: any;
+}
+
+const NewChatModal: React.FC<NewChatModalProps> = ({ handleCloseModal }) => {
   const config = useSelector(
     (state: RootState) => state.chatSettingStore.config
   );
@@ -70,7 +74,9 @@ const NewChatModal: React.FC = () => {
   };
 
   const handleOpenModal = () => setIsModalOpen(true);
-  const handleCloseModal = () => setIsModalOpen(false);
+  // const handleCloseModal = () =>{
+  //    setIsModalOpen(false)
+  // };
 
   const onUpload = async (file: File) => {
     setProfileImage(file);
@@ -111,7 +117,7 @@ const NewChatModal: React.FC = () => {
 
   return (
     <>
-      <Button
+      {/* <Button
         style={{
           padding: 8,
           borderRadius: 16,
@@ -121,13 +127,13 @@ const NewChatModal: React.FC = () => {
         unstyled
         EndIcon={<AddNewIcon color={config?.colors?.primary} />}
         onPress={handleOpenModal}
-      />
+      /> */}
 
       <ModalBackground
-        visible={isModalOpen}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={handleCloseModal}
+      // visible={isModalOpen}
+      // transparent={true}
+      // animationType="fade"
+      // onRequestClose={handleCloseModal}
       >
         <ModalContainer>
           <CloseButton onPress={handleCloseModal}>
