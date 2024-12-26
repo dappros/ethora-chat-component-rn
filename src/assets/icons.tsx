@@ -36,8 +36,7 @@ export const AddNewIcon = ({ color = "#0052CD", ...props }) => (
 );
 
 export const AttachIcon = (props: any) => (
-  <Svg width="70" height="70" viewBox="0 0 70 70" fill="none">
-    <Rect width="70" height="70" rx="15" fill="white" />
+  <Svg width="40" height="40" viewBox="0 0 70 70" fill="none">
     <Path
       fillRule="evenodd"
       clipRule="evenodd"

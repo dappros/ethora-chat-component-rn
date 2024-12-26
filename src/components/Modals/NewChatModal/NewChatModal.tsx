@@ -82,6 +82,7 @@ const NewChatModal: React.FC = () => {
 
   const handleCreateRoom = async () => {
     if (isValid) {
+      console.log("11111111111", roomName);
       let mediaData: FormData | null = new FormData();
       mediaData.append("files", profileImage);
 

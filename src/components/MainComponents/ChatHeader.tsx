@@ -64,7 +64,6 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
       <View style={styles.leftSection}>
         {handleBackClick && (
           <Button
-            style={{ backgroundColor: "#1c1c1c" }}
             EndIcon={<BackIcon />}
             onPress={() => handleBackClick(false)}
           />

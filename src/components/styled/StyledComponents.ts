@@ -3,7 +3,8 @@
 import styled from "styled-components/native";
 
 // General Containers
-export const ChatContainer = styled.ScrollView`
+export const ChatContainer = styled.View`
+  position: relative;
   flex: 1;
   width: 100%;
   background-color: #f3f6fc;
@@ -11,8 +12,6 @@ export const ChatContainer = styled.ScrollView`
 
 export const ChatContainerHeader = styled.View`
   flex-direction: row;
-  border-bottom-left-radius: 15px;
-  border-bottom-right-radius: 15px;
   padding: 16px;
   background-color: #fff;
   justify-content: space-between;
@@ -20,7 +19,8 @@ export const ChatContainerHeader = styled.View`
 
 export const ChatContainerHeaderBoxInfo = styled.TouchableOpacity`
   flex-direction: row;
-  gap: 8px;
+  align-items: center;
+  gap: 16px;
 `;
 
 export const ChatContainerHeaderInfo = styled.View`

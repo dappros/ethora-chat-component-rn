@@ -11,13 +11,16 @@ const colors = {
   black: "#000",
 };
 
-export const InputContainer = styled.View`
+export const InputContainer = styled.View<{ isText?: boolean }>`
   flex-direction: column;
-  border-top-left-radius: 15px;
-  border-top-right-radius: 15px;
-  padding: 16px;
+  padding: 16px 0;
+  padding-right: ${(props) => (props.isText ? "0" : "16")}px;
   background-color: ${colors.white};
-  z-index: 1;
+  z-index: 100;
+  width: 100%;
+  position: absolute;
+  bottom: 0;
+  left: 0;
 `;
 
 export const MessageInputContainer = styled.View`
@@ -25,7 +28,6 @@ export const MessageInputContainer = styled.View`
   align-items: center;
   width: 100%;
   max-height: 72px;
-  gap: 16px;
 `;
 
 export const MessageInput = styled.TextInput<{

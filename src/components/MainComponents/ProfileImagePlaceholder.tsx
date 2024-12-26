@@ -46,13 +46,13 @@ export const ProfileImagePlaceholder: React.FC<
   placeholderIcon,
   disableOverlay,
 }) => {
-  // const randomColor = useMemo(() => {
-  //   if (!icon) {
-  //     const index = Math.floor(Math.random() * backgroundColors.length);
-  //     return backgroundColors[index];
-  //   }
-  //   return "transparent";
-  // }, [icon]);
+  const randomColor = useMemo(() => {
+    if (!icon) {
+      const index = Math.floor(Math.random() * backgroundColors.length);
+      return backgroundColors[index];
+    }
+    return "transparent";
+  }, [icon]);
 
   const getTwoUppercaseLetters = (fullName: string) => {
     if (!fullName) return "";
@@ -66,9 +66,26 @@ export const ProfileImagePlaceholder: React.FC<
 
   const getInitials = () => (!icon && name ? getTwoUppercaseLetters(name) : "");
 
+  const renderIcon = useMemo((): string => {
+    if (icon && placeholderIcon) {
+      return "transparent";
+    }
+
+    if (icon || placeholderIcon) {
+      return "transparent";
+    }
+
+    return randomColor;
+  }, [icon, placeholderIcon]);
+
   return (
-    <Wrapper size={size} isClickable={active || !!upload?.active}>
+    <Wrapper
+      bgColor={renderIcon}
+      size={size}
+      isClickable={active || !!upload?.active}
+    >
       <AvatarCircle
+        bgColor={renderIcon}
         size={size}
         isClickable={active || !!upload?.active}
         onPress={upload?.active ? upload.onUpload : undefined}
