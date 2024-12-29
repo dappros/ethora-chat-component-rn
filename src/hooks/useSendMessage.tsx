@@ -18,13 +18,14 @@ export const useSendMessage = () => {
     user: state.chatSettingStore.user,
     editAction: state.rooms.editAction,
   }));
-  
+
   const sendMessage = useCallback(
-    ( message: string,
+    (
+      message: string,
       activeRoomJID: string,
       isReply?: boolean,
       isChecked?: boolean,
-      mainMessage?: string,
+      mainMessage?: string
     ) => {
       if (editAction.isEdit) {
         client?.editMessageStanza(
@@ -40,14 +41,13 @@ export const useSendMessage = () => {
           activeRoomJID,
           user.firstName,
           user.lastName,
-          '',
+          "",
           user.walletAddress,
           message,
-          '',
+          "",
           isReply || false,
           isChecked || false,
-          mainMessage || '',
-
+          mainMessage || ""
         );
       }
 
@@ -73,19 +73,20 @@ export const useSendMessage = () => {
   );
 
   const sendMedia = useCallback(
-    async (data: any,
-          type: string,
-          activeRoomJID: string,
-          isReply?: boolean,
-          isChecked?: boolean,
-          mainMessage?: string,
-        ) => {
+    async (
+      data: any,
+      type: string,
+      activeRoomJID: string,
+      isReply?: boolean,
+      isChecked?: boolean,
+      mainMessage?: string
+    ) => {
       let mediaData: FormData | null = new FormData();
-      mediaData.append('files', data);
+      mediaData.append("files", data);
 
       uploadFile(mediaData)
         .then((response) => {
-          console.log('Upload successful', response);
+          console.log("Upload successful", response);
           response.data.results.map(async (item: any) => {
             const data = {
               firstName: user.firstName,
@@ -109,16 +110,16 @@ export const useSendMessage = () => {
               roomJid: activeRoomJID,
               showInChannel: isChecked || false,
               isReply: isReply || false,
-              mainMessage: mainMessage || '',
+              mainMessage: mainMessage || "",
               isPrivate: item?.isPrivate,
               __v: item.__v,
             };
-            console.log(data, 'data to send media');
+            console.log(data, "data to send media");
             client?.sendMediaMessageStanza(activeRoomJID, data);
           });
         })
         .catch((error) => {
-          console.error('Upload failed', error);
+          console.error("Upload failed", error);
         });
     },
     [client]
@@ -126,6 +127,6 @@ export const useSendMessage = () => {
 
   return {
     sendMessage,
-    sendMedia
-  }
-}
+    sendMedia,
+  };
+};

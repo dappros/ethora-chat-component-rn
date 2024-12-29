@@ -5,11 +5,26 @@ import {
   MessageInputContainer,
   InputContainer,
   MessageInput,
+  MediaContainer,
+  MediaImage,
 } from "./StyledInputComponents/StyledInputComponents";
 import { IConfig } from "../../types/types";
 import Button from "./Button";
 import { AttachIcon, SendIcon } from "../../assets/icons";
-import { TextInput } from "react-native";
+import { Image, TextInput, TouchableOpacity, View } from "react-native";
+import AudioRecorder from "../InputComponents/AudioRecorder";
+import {
+  launchImageLibrary,
+  launchCamera,
+  ImageLibraryOptions,
+} from "react-native-image-picker";
+import { RemoveButton, RemoveButtonText } from "./StyledComponents";
+
+interface MediaFile {
+  uri: string;
+  type: string;
+  name: string;
+}
 
 interface SendInputProps {
   sendMessage: (message: string) => void;
@@ -33,107 +48,124 @@ const SendInput: React.FC<SendInputProps> = ({
   const [message, setMessage] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
+  const [filePreviews, setFilePreviews] = useState<MediaFile[]>([]);
 
-  const [filePreviews, setFilePreviews] = useState<File[]>([]);
+  const handleRemoveImage = (index: number) => {
+    setFilePreviews((prev) => prev.filter((_, i) => i !== index));
+  };
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const handleAttachClick = useCallback(async () => {
+    const options: ImageLibraryOptions = {
+      mediaType: "mixed",
+      selectionLimit: 5,
+    };
+
+    try {
+      const result = await launchImageLibrary(options);
+
+      if (result.didCancel) {
+        console.log("User cancelled image picker");
+      } else if (result.errorCode) {
+        console.error("ImagePicker Error:", result.errorMessage);
+      } else if (result.assets && result.assets.length > 0) {
+        setFilePreviews((prev) => {
+          const remainingSlots = 5 - prev.length;
+          if (remainingSlots <= 0) {
+            console.log("Maximum file limit reached.");
+            return prev;
+          }
+
+          const selectedFiles = result
+            .assets!.slice(0, remainingSlots)
+            .map((asset) => ({
+              uri: asset.uri || "",
+              type: asset.type || "unknown",
+              name: asset.fileName || `file_${Date.now()}`,
+            }));
+
+          return [...prev, ...selectedFiles];
+        });
+      }
+    } catch (error) {
+      console.error("Error selecting media:", error);
+    }
+  }, []);
+
+  const handleSendClick = useCallback(() => {
+    if (filePreviews.length > 0) {
+      filePreviews.forEach((file) => {
+        sendMedia(file, file.type.startsWith("image") ? "image" : "video");
+      });
+    } else if (message) {
+      sendMessage(message);
+    }
+    setMessage("");
+    setFilePreviews([]);
+  }, [filePreviews, message, sendMessage, sendMedia]);
 
   useEffect(() => {
     setMessage(editMessage || "");
   }, [editMessage]);
 
-  const handleFocus = () => {
-    onFocus?.();
-  };
-
-  const handleInputChange = useCallback((text: string) => {
-    setMessage(text);
-  }, []);
-
-  const handleAttachClick = useCallback(() => {
-    // if (fileInputRef.current) {
-    //   fileInputRef.current.click();
-    // }
-  }, []);
-
-  const handleSendClick = useCallback(
-    (audioUrl?: string) => {
-      if (filePreviews.length > 0) {
-        console.log(filePreviews);
-        console.log("Files sent:", filePreviews[0]);
-        sendMedia(filePreviews[0], "media");
-      } else if (audioUrl) {
-        sendMedia(audioUrl, "audio");
-        console.log(audioUrl);
-        console.log("Audio sent:", audioUrl);
-      } else {
-        console.log("sending default", message);
-        sendMessage(message);
-      }
-      setMessage("");
-      setFilePreviews([]);
-    },
-    [filePreviews, message, sendMessage, sendMedia]
-  );
-
   return (
-    <InputContainer isText={!!message}>
+    <InputContainer>
+      {filePreviews.length > 0 && (
+        <MediaContainer>
+          {filePreviews.map((file, index) => (
+            <View>
+              <MediaImage key={index} source={{ uri: file.uri }} />
+              <RemoveButton onPress={() => handleRemoveImage(index)}>
+                <RemoveButtonText>&times;</RemoveButtonText>
+              </RemoveButton>
+            </View>
+          ))}
+        </MediaContainer>
+      )}
       <MessageInputContainer>
         {!isRecording && (
           <>
-            {!config?.disableMedia && (
-              <Button
-                onPress={handleAttachClick}
-                disabled={false}
-                EndIcon={<AttachIcon />}
-              />
-            )}
+            <Button
+              onPress={handleAttachClick}
+              disabled={false}
+              EndIcon={<AttachIcon />}
+            />
             <MessageInput
               isFocused={isFocused}
               color={config?.colors?.primary}
               placeholder="Type message"
               placeholderTextColor="#999"
               value={message}
-              onChangeText={handleInputChange}
-              onFocus={() => {
-                setIsFocused(true);
-                if (onFocus) onFocus();
-              }}
-              onBlur={() => {
-                setIsFocused(false);
-                if (onBlur) onBlur();
-              }}
+              onChangeText={setMessage}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
               editable={!isLoading}
             />
           </>
         )}
-        {message && (
+        {message || filePreviews.length > 0 || config?.disableMedia ? (
           <Button
-            onPress={() => handleSendClick()}
-            // disabled={!message || message === ""}
-            EndIcon={
-              <SendIcon
-                color={
-                  filePreviews.length > 0
-                    ? "#fff"
-                    : !message || message === ""
-                    ? "#D4D4D8"
-                    : "#0052CD"
-                }
-              />
-            }
+            onPress={handleSendClick}
+            EndIcon={<SendIcon color={message ? "#0052CD" : "#D4D4D8"} />}
             style={{
               borderRadius: 100,
-              backgroundColor:
-                filePreviews.length > 0
-                  ? config?.colors?.primary
-                  : !message || message === ""
-                  ? "transparent"
-                  : config?.colors?.primary,
+              backgroundColor: message
+                ? config?.colors?.primary
+                : "transparent",
             }}
+          />
+        ) : (
+          <AudioRecorder
+            setIsRecording={setIsRecording}
+            isRecording={isRecording}
+            handleSendClick={handleSendClick}
           />
         )}
       </MessageInputContainer>
+      <View
+        style={{
+          paddingHorizontal: 16,
+        }}
+      ></View>
     </InputContainer>
   );
 };

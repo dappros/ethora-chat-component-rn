@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
   RecordContainer,
   Timer,
@@ -6,8 +6,9 @@ import {
 import { RecordIcon, RemoveIcon, SendIcon } from "../../assets/icons";
 import Button from "../styled/Button";
 import RecordingIndicator from "./RecordingIndicator";
-import { View } from "react-native";
+import { Platform, View } from "react-native";
 import AudioRecorderPlayer from "react-native-audio-recorder-player";
+import RNFS from "react-native-fs";
 
 interface AudioRecorderProps {
   setIsRecording: (state: boolean) => void;
@@ -20,27 +21,37 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
   isRecording,
   handleSendClick,
 }) => {
-  const [timer, setTimer] = useState(0);
-  const [audioFilePath, setAudioFilePath] = useState<string | null>(null);
-  const recorderPlayerRef = useRef(new AudioRecorderPlayer());
+  const audioRecorderPlayer = useRef(new AudioRecorderPlayer()).current;
+  const [timer, setTimer] = useState("00:00");
+  const [audioPath, setAudioPath] = useState<string | null>(null);
 
-  const formatTime = (time: number) => {
-    const minutes = Math.floor(time / 60);
-    const seconds = time % 60;
-    return `${minutes.toString().padStart(2, "0")}:${seconds
-      .toString()
-      .padStart(2, "0")}`;
-  };
+  useEffect(() => {
+    return () => {
+      audioRecorderPlayer.stopRecorder();
+      audioRecorderPlayer.removeRecordBackListener();
+    };
+  }, [audioRecorderPlayer]);
 
   const startRecording = async () => {
-    setTimer(0);
-    setIsRecording(true);
     try {
-      const result = await recorderPlayerRef.current.startRecorder();
-      recorderPlayerRef.current.addRecordBackListener((e) => {
-        setTimer(Math.floor(e.currentPosition / 1000));
+      const path = Platform.select({
+        ios: `${RNFS.DocumentDirectoryPath}/recording.m4a`,
+        android: `${RNFS.CachesDirectoryPath}/recording.mp4`,
       });
-      setAudioFilePath(result);
+      const uri = await audioRecorderPlayer.startRecorder(path);
+      setAudioPath(uri);
+
+      audioRecorderPlayer.addRecordBackListener((e) => {
+        const minutes = Math.floor(e.currentPosition / 60000); // Минуты
+        const seconds = Math.floor((e.currentPosition % 60000) / 1000); // Секунды
+        setTimer(
+          `${minutes.toString().padStart(2, "0")}:${seconds
+            .toString()
+            .padStart(2, "0")}`
+        );
+      });
+
+      setIsRecording(true);
     } catch (error) {
       console.error("Error starting recording:", error);
     }
@@ -48,8 +59,8 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
 
   const stopRecording = async () => {
     try {
-      await recorderPlayerRef.current.stopRecorder();
-      recorderPlayerRef.current.removeRecordBackListener();
+      await audioRecorderPlayer.stopRecorder();
+      audioRecorderPlayer.removeRecordBackListener();
       setIsRecording(false);
     } catch (error) {
       console.error("Error stopping recording:", error);
@@ -57,23 +68,24 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
   };
 
   const sendAudio = () => {
-    if (audioFilePath) {
-      handleSendClick(audioFilePath);
+    if (audioPath) {
+      console.log("Audio sent:", audioPath);
+      // Handle audio send logic here
+      handleSendClick(audioPath);
       resetState();
     }
   };
 
   const resetState = () => {
-    setTimer(0);
-    setAudioFilePath(null);
+    setAudioPath(null);
+    setTimer("00:00");
     setIsRecording(false);
   };
-
   return isRecording ? (
     <RecordContainer>
       <View style={{ display: "flex", alignItems: "center" }}>
         {isRecording && <RecordingIndicator />}
-        <Timer>{formatTime(timer)}</Timer>
+        <Timer>{timer}</Timer>
       </View>
 
       <View style={{ display: "flex", gap: 8 }}>

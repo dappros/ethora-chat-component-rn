@@ -94,8 +94,8 @@ export const DownloadIcon = (props: any) => (
 );
 
 export const RecordIcon = (props: any) => (
-  <Svg width="70" height="70" viewBox="0 0 70 70" fill="none">
-    <Rect width="70" height="70" rx="15" fill="white" />
+  <Svg width="40" height="40" viewBox="0 0 70 70" fill="none">
+    <Rect width="40" height="40" rx="15" fill="white" />
     <Path
       fillRule="evenodd"
       clipRule="evenodd"
@@ -120,14 +120,7 @@ export const RecordIcon = (props: any) => (
 );
 
 export const RemoveIcon = (props: any) => (
-  <Svg
-    width="28"
-    height="36"
-    viewBox="0 0 28 36"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    {...props}
-  >
+  <Svg width="20" height="26" viewBox="0 0 28 36" fill="none" {...props}>
     <Path
       d="M2.00391 12.6699V26.3797C2.00391 30.5862 5.41398 33.9963 9.62051 33.9963H18.3795C22.586 33.9963 25.9961 30.5862 25.9961 26.3797V12.6699"
       stroke="#9F0000"

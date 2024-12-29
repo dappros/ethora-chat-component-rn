@@ -35,7 +35,7 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
     const date = new Date(isoTime);
     const hours = date.getHours().toString().padStart(2, "0");
     const minutes = date.getMinutes().toString().padStart(2, "0");
-    return `${hours}:${minutes}`;
+    return `${hours}:${minutes}` || "";
   };
 
   return (
@@ -62,7 +62,7 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
           }}
         >
           <ChatInfo>
-            <ChatName text={chat.name} />
+            <ChatName text={chat.name || ""} />
           </ChatInfo>
           {lastMessage && (
             <UserCount
@@ -148,7 +148,7 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
                   fontWeight: "600",
                 }}
               >
-                {chat.unreadMessages}
+                {chat.unreadMessages || ""}
               </Text>
             </View>
           )}

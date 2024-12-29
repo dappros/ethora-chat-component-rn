@@ -11,16 +11,27 @@ const colors = {
   black: "#000",
 };
 
-export const InputContainer = styled.View<{ isText?: boolean }>`
+export const InputContainer = styled.View`
   flex-direction: column;
   padding: 16px 0;
-  padding-right: ${(props) => (props.isText ? "0" : "16")}px;
   background-color: ${colors.white};
   z-index: 100;
   width: 100%;
   position: absolute;
   bottom: 0;
   left: 0;
+`;
+
+export const MediaContainer = styled.View`
+  flex-direction: row;
+  gap: 8px;
+  padding: 0 16px 8px;
+`;
+
+export const MediaImage = styled.Image`
+  width: 70px;
+  height: 70px;
+  border-radius: 8px;
 `;
 
 export const MessageInputContainer = styled.View`
@@ -70,7 +81,6 @@ export const RecordContainer = styled.View`
   justify-content: space-between;
   align-items: center;
   width: 100%;
-  height: 40px;
 `;
 
 export const FilePreviewContainer = styled.View`

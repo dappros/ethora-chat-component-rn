@@ -26,7 +26,7 @@ const CustomButton = styled(TouchableOpacity)<{
   justify-content: center;
   align-items: center;
   height: 40px;
-  padding-horizontal: 12px;
+  padding-horizontal: 8px;
   flex-direction: row;
   opacity: ${({ disabled }) => (disabled ? 0.6 : 1)};
 `;
