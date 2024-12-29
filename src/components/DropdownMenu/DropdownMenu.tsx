@@ -131,7 +131,14 @@ const DropdownMenu: React.FC<DropdownMenuProps> = ({
                   setIsOpen(false);
                 }}
               >
-                {option.icon}
+                <View
+                  style={{
+                    width: 22,
+                    alignItems: "center",
+                  }}
+                >
+                  {option.icon}
+                </View>
                 <Text style={[styles.label, option?.styles]}>
                   {option.label}
                 </Text>

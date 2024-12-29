@@ -66,7 +66,7 @@ const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                   width: "100%",
                   justifyContent: "center",
                   borderRadius: 0,
-                  alignItems: "center",
+                  alignItems: "flex-start",
                 }}
                 onPress={() => handleClick(option.key)}
               >

@@ -157,7 +157,6 @@ const NewChatModal: React.FC<NewChatModalProps> = ({ handleCloseModal }) => {
             }}
           >
             <InputWithLabel
-              style={{ flex: 1 }}
               color="#F5F7F9"
               id="roomName"
               value={roomName}
@@ -167,7 +166,7 @@ const NewChatModal: React.FC<NewChatModalProps> = ({ handleCloseModal }) => {
               error={!!errors.name}
             />
             <InputWithLabel
-              style={{ flex: 1 }}
+              color="#F5F7F9"
               id="roomDescription"
               value={roomDescription}
               onChangeText={handleRoomDescriptionChange}
@@ -185,6 +184,7 @@ const NewChatModal: React.FC<NewChatModalProps> = ({ handleCloseModal }) => {
               unstyled
               variant="filled"
               disabled={!isValid}
+              color="#fff"
             />
             <Button
               onPress={handleCloseModal}
@@ -192,6 +192,7 @@ const NewChatModal: React.FC<NewChatModalProps> = ({ handleCloseModal }) => {
               style={{ width: "100%" }}
               unstyled
               variant="outlined"
+              color="#0052CD"
             />
           </GroupContainer>
         </ModalContainer>

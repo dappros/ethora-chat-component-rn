@@ -71,14 +71,14 @@ export const ModalContainerFullScreen = styled.View`
   overflow-y: auto;
 `;
 
-export const HeaderContainer = styled(GroupContainer)`
-  position: sticky;
+export const HeaderContainer = styled.View`
+  position: relative;
   top: 0;
   width: 100%;
   padding: 16px;
   background-color: #fff;
-  box-sizing: border-box;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom-width: 1px;
+  border-bottom-color: #f0f0f0;
   z-index: 1;
   flex-direction: row;
   justify-content: space-between;
@@ -97,7 +97,7 @@ export const HeaderRight = styled.View`
 `;
 
 export const CenterContainer = styled(GroupContainer)`
-  width: 52.5%;
+  width: 100%;
   padding: 16px;
   flex-direction: column;
   align-items: center;

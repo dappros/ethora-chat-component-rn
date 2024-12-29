@@ -29,7 +29,7 @@ const StyledInput = ({
       styles.input,
       {
         borderColor: error ? "red" : color || "#0052CD",
-        backgroundColor: "#f5f7f9",
+        backgroundColor: "#F5F7F9",
       },
     ]}
     {...props}
@@ -71,7 +71,6 @@ const styles = StyleSheet.create({
     justifyContent: "flex-start",
     alignItems: "flex-start",
     position: "relative",
-    backgroundColor: "#F5F7F9",
     height: 48,
     borderRadius: 15,
     paddingHorizontal: 16,

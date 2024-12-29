@@ -39,22 +39,18 @@ const ManageDataModal: React.FC<ManageDataModalProps> = ({
   const { config } = useSelector((state: RootState) => state.chatSettingStore);
 
   const handleDownloadClick = async () => {
-    const exportedData = await getExportMyData();
-    const binaryData = exportedData.data;
-    console.log(binaryData);
-    const blob = new Blob([binaryData], { type: "text/plain" });
-
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "mydata.json";
-
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-
-    URL.revokeObjectURL(url);
+    // const exportedData = await getExportMyData();
+    // const binaryData = exportedData.data;
+    // console.log(binaryData);
+    // const blob = new Blob([binaryData], { type: "text/plain" });
+    // const url = URL.createObjectURL(blob);
+    // const a = document.createElement("a");
+    // a.href = url;
+    // a.download = "mydata.json";
+    // document.body.appendChild(a);
+    // a.click();
+    // document.body.removeChild(a);
+    // URL.revokeObjectURL(url);
   };
 
   return (
@@ -80,11 +76,11 @@ const ManageDataModal: React.FC<ManageDataModalProps> = ({
             </LabelData>
           </SharedSettingsSectionContainer>
           <SharedSettingsStyledButton
-            borderColor={config.colors.primary || "#0052CD"}
+            borderColor={config?.colors?.primary || "#0052CD"}
             onPress={handleDownloadClick}
-          >
-            Download your data
-          </SharedSettingsStyledButton>
+            text="Download your data"
+            color={config?.colors?.primary || "#0052CD"}
+          />
         </SharedSettingsColumnContainer>
         <SharedSettingsColumnContainer>
           <SharedSettingsSectionContainer>
@@ -100,7 +96,7 @@ const ManageDataModal: React.FC<ManageDataModalProps> = ({
             bgColor={config?.colors?.secondary || "#F3F6FC"}
           >
             <View>
-              <InfoIcon color={config?.colors?.primary} />
+              <InfoIcon color={config?.colors?.primary || "#0052CD"} />
             </View>
             <SharedSettingsInfoText>
               Due to the immutable nature of distributed ledger technology,
@@ -111,9 +107,11 @@ const ManageDataModal: React.FC<ManageDataModalProps> = ({
               assets will be lost.
             </SharedSettingsInfoText>
           </SharedSettingsInfoPanel>
-          <SharedSettingsStyledButton borderColor="#E53935">
-            Delete My Account
-          </SharedSettingsStyledButton>
+          <SharedSettingsStyledButton
+            borderColor="#E53935"
+            text="Delete My Account"
+            color="#E53935"
+          />
         </SharedSettingsColumnContainer>
       </SharedSettingsCenterContainer>
     </ModalContainerFullScreen>

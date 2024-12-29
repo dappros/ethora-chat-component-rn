@@ -21,7 +21,7 @@ export const RadioGroup = styled.View`
 
 export const RadioLabel = styled.View`
   display: flex;
-  align-items: center;
+  align-items: start;
   font-size: 14px;
   gap: 8px;
 `;

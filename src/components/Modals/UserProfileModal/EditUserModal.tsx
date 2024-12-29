@@ -89,34 +89,33 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   return (
     <>
       <ModalHeaderComponent
-        leftMenu={
-          <Button
-            onPress={() => setIsEditing(false)}
-            style={{
-              paddingVertical: 13,
-              paddingHorizontal: 8,
-              width: "100%",
-            }}
-            color="#000"
-          >
-            Cancel
-          </Button>
-        }
+        // leftMenu={
+        //   <Button
+        //     onPress={() => setIsEditing(false)}
+        //     style={{
+        //       paddingVertical: 13,
+        //       paddingHorizontal: 8,
+        //       width: "100%",
+        //     }}
+        //     color="#00"
+        //   >
+        //     Cancel
+        //   </Button>
+        // }
+        handleCloseModal={() => setIsEditing(false)}
         rightMenu={
           <Button
             onPress={onSave}
             variant="outlined"
             style={{ width: 128 }}
-            color="#000"
-          >
-            Save
-          </Button>
+            color="#0052CD"
+            text="Save"
+          />
         }
       />
       <CenterContainer>
         <ProfileImagePlaceholder
           icon={profileImage}
-          placeholderIcon={<AddPhotoIcon color="#0052CD" />}
           name={`${firstName} ${lastName}`}
           size={120}
           upload={{
@@ -130,7 +129,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
           display: "flex",
           flexDirection: "column",
           gap: 32,
-          width: "52%",
+          width: "100%",
           justifyContent: "center",
           alignItems: "center",
         }}

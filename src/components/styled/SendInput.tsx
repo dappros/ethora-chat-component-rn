@@ -108,7 +108,7 @@ const SendInput: React.FC<SendInputProps> = ({
   }, [editMessage]);
 
   return (
-    <InputContainer>
+    <InputContainer isText={!!message}>
       {filePreviews.length > 0 && (
         <MediaContainer>
           {filePreviews.map((file, index) => (
@@ -142,24 +142,27 @@ const SendInput: React.FC<SendInputProps> = ({
             />
           </>
         )}
-        {message || filePreviews.length > 0 || config?.disableMedia ? (
-          <Button
-            onPress={handleSendClick}
-            EndIcon={<SendIcon color={message ? "#0052CD" : "#D4D4D8"} />}
-            style={{
-              borderRadius: 100,
-              backgroundColor: message
-                ? config?.colors?.primary
-                : "transparent",
-            }}
-          />
-        ) : (
-          <AudioRecorder
-            setIsRecording={setIsRecording}
-            isRecording={isRecording}
-            handleSendClick={handleSendClick}
-          />
-        )}
+        {
+          message ||
+            filePreviews.length > 0 ||
+            (config?.disableMedia && (
+              <Button
+                onPress={handleSendClick}
+                EndIcon={<SendIcon color={message ? "#0052CD" : "#D4D4D8"} />}
+                style={{
+                  borderRadius: 100,
+                  backgroundColor: message
+                    ? config?.colors?.primary
+                    : "transparent",
+                }}
+              />
+            ))
+          // <AudioRecorder
+          //   setIsRecording={setIsRecording}
+          //   isRecording={isRecording}
+          //   handleSendClick={handleSendClick}
+          // />
+        }
       </MessageInputContainer>
       <View
         style={{
