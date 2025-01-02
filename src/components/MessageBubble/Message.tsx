@@ -1,10 +1,11 @@
-import React, { forwardRef, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   View,
-  Text,
-  Image,
-  TouchableOpacity,
   TouchableWithoutFeedback,
+  StyleSheet,
+  findNodeHandle,
+  UIManager,
+  Dimensions,
 } from "react-native";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState } from "../../roomStore";
@@ -23,16 +24,18 @@ import { setActiveMessage, setEditAction } from "../../roomStore/roomsSlice";
 import styled from "styled-components/native";
 import { IUser, MessageProps } from "../../types/types";
 
-const CustomMessageContainer = styled.View<{ isUser: boolean }>`
+const CustomMessageContainer = styled.View<{ isUser: boolean; reply?: number }>`
   flex-direction: row;
   padding: 10px;
   align-items: flex-end;
-  justify-content: ${({ isUser }: { isUser: boolean }) =>
-    isUser ? "flex-end" : "flex-start"};
+  justify-content: ${({ isUser }) => (isUser ? "flex-end" : "flex-start")};
+  margin-bottom: ${(props) => !!props.reply && "20px"};
 `;
 
 const CustomMessageBubble = styled.View<{ isUser: boolean; deleted?: boolean }>`
-  max-width: 70%;
+  position: relative;
+  max-width: 90%;
+  min-width: 30%;
   padding: 10px;
   border-radius: 10px;
   border-bottom-left-radius: ${({ isUser }) => (isUser ? "10" : "0")}px;
@@ -68,58 +71,105 @@ const CustomMessageTimestamp = styled.Text`
   align-self: flex-end;
 `;
 
-const Message: React.FC<MessageProps> = forwardRef<any, MessageProps>(
-  ({ message, isUser, isReply }, ref) => {
-    const dispatch = useDispatch();
-    const config = useSelector(
-      (state: RootState) => state.chatSettingStore.config
-    );
+const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
+  const dispatch = useDispatch();
+  const config = useSelector(
+    (state: RootState) => state.chatSettingStore.config
+  );
 
-    const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const [isPressed, setIsPressed] = useState(false);
 
-    const handleUserAvatarClick = (user: IUser): void => {
-      dispatch(setActiveModal(MODAL_TYPES.PROFILE));
-      dispatch(setSelectedUser(user));
-    };
+  const [contextMenuPosition, setContextMenuPosition] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
 
-    const handleReplyMessage = () => {
-      dispatch(setEditAction({ isEdit: false }));
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const messageRef = useRef<View>(null);
 
-      if (!isReply && message.mainMessage) {
-        const messageCore = JSON.parse(message.mainMessage);
-        return dispatch(
-          setActiveMessage({ id: messageCore.id, chatJID: messageCore.roomJid })
-        );
-      }
+  const handleUserAvatarClick = (user: IUser): void => {
+    dispatch(setActiveModal(MODAL_TYPES.PROFILE));
+    dispatch(setSelectedUser(user));
+  };
 
+  const handleReplyMessage = () => {
+    dispatch(setEditAction({ isEdit: false }));
+
+    if (!isReply && message.mainMessage) {
+      console.log("handleReplyMessage 2");
+      const messageCore = JSON.parse(message.mainMessage);
       return dispatch(
-        setActiveMessage({ id: message.id, chatJID: message.roomJid })
+        setActiveMessage({ id: messageCore.id, chatJID: messageCore.roomJid })
       );
-    };
+    }
 
-    const handleDeleteMessage = () => {
-      dispatch(
-        setDeleteModal({
-          isDeleteModal: true,
-          roomJid: message.roomJid,
-          messageId: message.id,
-        })
-      );
-    };
+    return dispatch(
+      setActiveMessage({ id: message.id, chatJID: message.roomJid })
+    );
+  };
 
-    const handleEditMessage = () => {
-      dispatch(
-        setEditAction({
-          isEdit: true,
-          roomJid: message.roomJid,
-          messageId: message.id,
-          text: message.body,
-        })
-      );
-    };
+  const handleDeleteMessage = () => {
+    dispatch(
+      setDeleteModal({
+        isDeleteModal: true,
+        roomJid: message.roomJid,
+        messageId: message.id,
+      })
+    );
+    setIsPressed(false);
+  };
 
-    return (
-      <CustomMessageContainer isUser={isUser} ref={ref}>
+  const handleEditMessage = () => {
+    dispatch(
+      setEditAction({
+        isEdit: true,
+        roomJid: message.roomJid,
+        messageId: message.id,
+        text: message.body,
+      })
+    );
+  };
+
+  // const handleLongPress = () => {
+  //   setIsPressed(true);
+  //   console.log("setIsPressed", isPressed);
+  // };
+
+  const handleLongPress = () => {
+    if (messageRef.current) {
+      const nodeHandle = findNodeHandle(messageRef.current);
+      if (nodeHandle) {
+        UIManager.measure(nodeHandle, (x, y, width, height, pageX, pageY) => {
+          const screenHeight = Dimensions.get("window").height;
+
+          const enoughSpaceBelow = screenHeight - pageY - height > 150;
+          setContextMenuPosition({
+            x: pageX,
+            y: enoughSpaceBelow ? pageY + height : pageY - 150,
+          });
+        });
+      }
+    }
+    setIsPressed(true);
+  };
+
+  const handlePressOut = () => {
+    setIsPressed(false);
+  };
+
+  return (
+    <View style={styles.container}>
+      {isPressed && <View style={styles.overlay} />}
+      <CustomMessageContainer
+        ref={messageRef}
+        isUser={isUser}
+        reply={message?.reply?.length}
+        style={
+          isPressed
+            ? { transform: [{ scale: 1.05 }], paddingRight: 16 }
+            : undefined
+        }
+      >
         {!isUser && (
           <CustomMessagePhotoContainer
             onPress={() => handleUserAvatarClick(message.user)}
@@ -131,7 +181,10 @@ const Message: React.FC<MessageProps> = forwardRef<any, MessageProps>(
             )}
           </CustomMessagePhotoContainer>
         )}
-        <TouchableWithoutFeedback>
+        <TouchableWithoutFeedback
+          onLongPress={handleLongPress}
+          delayLongPress={500}
+        >
           <CustomMessageBubble isUser={isUser} deleted={message.isDeleted}>
             {!isUser && (
               <CustomUserName color={config?.colors?.primary}>
@@ -157,11 +210,52 @@ const Message: React.FC<MessageProps> = forwardRef<any, MessageProps>(
                 minute: "2-digit",
               })}
             </CustomMessageTimestamp>
+            {message?.reply?.length ? (
+              <BottomReplyContainer
+                isUser={isUser}
+                onClick={handleReplyMessage}
+                reply={message?.reply}
+              />
+            ) : (
+              <View />
+            )}
           </CustomMessageBubble>
         </TouchableWithoutFeedback>
       </CustomMessageContainer>
-    );
-  }
-);
+
+      {/* {!config?.disableInteractions && ( */}
+      {isPressed && (
+        <MessageInteractions
+          position={contextMenuPosition}
+          isReply={isReply}
+          isUser={isUser}
+          message={message}
+          closeMenu={() => setIsPressed(false)}
+          handleReplyMessage={handleReplyMessage}
+          handleDeleteMessage={handleDeleteMessage}
+          handleEditMessage={handleEditMessage}
+        />
+      )}
+    </View>
+  );
+};
 
 export { Message };
+
+const styles = StyleSheet.create({
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: "100%",
+    height: "100%",
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
+  },
+  timestamp: {
+    fontSize: 12,
+    color: "#999",
+    marginTop: 5,
+    alignSelf: "flex-end",
+  },
+});

@@ -40,7 +40,6 @@ export const BurgerButton = ({ onPress }: { onPress: () => void }) => (
 const ColorContext = createContext<string | undefined>(undefined);
 
 export const ChatItem = ({
-  bg,
   onPress,
   children,
 }: {

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ContextMenu,
   Delimeter,
@@ -14,13 +14,22 @@ import {
 import { IMessage } from "../../types/types";
 import { useXmppClient } from "../../context/xmppProvider";
 import { setActiveMessage } from "../../roomStore/roomsSlice";
+import {
+  Alert,
+  Modal,
+  Text,
+  TouchableWithoutFeedback,
+  StyleSheet,
+} from "react-native";
+import Clipboard from "@react-native-clipboard/clipboard";
+import Toast from "../Toast/Toast";
 
 interface MessageInteractionsProps {
   isReply?: boolean;
   isUser?: boolean;
   message: IMessage;
-  contextMenu: { visible: boolean; x: number; y: number };
-  setContextMenu: ({ visible, x, y }) => void;
+  position: { x: number; y: number } | null;
+  closeMenu: () => void;
   handleReplyMessage: () => void;
   handleDeleteMessage: () => void;
   handleEditMessage: () => void;
@@ -30,14 +39,15 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
   isReply,
   isUser,
   message,
-  contextMenu,
-  setContextMenu,
+  closeMenu,
+  position,
   handleReplyMessage: replyMessage,
   handleDeleteMessage,
   handleEditMessage,
 }) => {
   const { client } = useXmppClient();
   const dispatch = useDispatch();
+  const [toastVisible, setToastVisible] = useState(false);
 
   // const handleDeleteMessage = (roomJid: string, messageId: string) => {
   //   // dispatch(deleteRoomMessage({ roomJID: room, messageId: msgId }));
@@ -49,28 +59,51 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
   );
 
   const closeContextMenu = () => {
-    if (!config?.disableInteractions) {
-      setContextMenu({ visible: false, x: 0, y: 0 });
-    }
+    // if (!config?.disableInteractions) {
+    //   setContextMenu({ visible: false, x: 0, y: 0 });
+    // }
   };
 
   const handleCopyMessage = (text: string) => {
-    navigator.clipboard.writeText(text);
+    setToastVisible(true);
+    Clipboard.setString(text);
+    setTimeout(() => setToastVisible(false), 2000);
   };
 
   const handleReplyMessage = () => {
     replyMessage();
   };
 
-  if (config?.disableInteractions || !contextMenu.visible) return null;
+  const memoPosition = useMemo(() => {
+    if (position) {
+      if (isUser) {
+        return {
+          top: position.y,
+          right: 10,
+        };
+      }
+
+      return {
+        top: position.y,
+        left: 10,
+      };
+    }
+  }, [position, isUser]);
+
+  if (config?.disableInteractions) return null;
 
   return (
-    <>
+    <Modal
+      transparent
+      animationType="fade"
+      visible={true}
+      onRequestClose={closeMenu}
+    >
       {!message.isDeleted && (
-        <Overlay onPress={closeContextMenu}>
+        <Overlay onPress={closeMenu}>
           <ContextMenu
-            style={{ top: contextMenu.y, left: contextMenu.x }}
-            onPress={closeContextMenu}
+            style={[styles.contextMenu, memoPosition]}
+            // style={{ top: contextMenu.y, left: contextMenu.x }}
           >
             {/* <MenuItem onClick={() => console.log(MESSAGE_INTERACTIONS.SEND_COINS)}>
             {MESSAGE_INTERACTIONS.SEND_COINS}
@@ -85,29 +118,29 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
             {!isReply && (
               <>
                 <MenuItem onPress={handleReplyMessage}>
-                  {MESSAGE_INTERACTIONS.REPLY}
-                  <MESSAGE_INTERACTIONS_ICONS.REPLY />{" "}
+                  <Text>{MESSAGE_INTERACTIONS.REPLY}</Text>
+                  <MESSAGE_INTERACTIONS_ICONS.REPLY />
                 </MenuItem>
                 <Delimeter />
               </>
             )}
             <MenuItem onPress={() => handleCopyMessage(message.body)}>
-              {MESSAGE_INTERACTIONS.COPY}
+              <Text>{MESSAGE_INTERACTIONS.COPY}</Text>
               <MESSAGE_INTERACTIONS_ICONS.COPY />
             </MenuItem>
             <Delimeter />
             {isUser && (
               <>
                 <MenuItem onPress={handleEditMessage}>
-                  {MESSAGE_INTERACTIONS.EDIT}
-                  <MESSAGE_INTERACTIONS_ICONS.EDIT />{" "}
+                  <Text>{MESSAGE_INTERACTIONS.EDIT}</Text>
+                  <MESSAGE_INTERACTIONS_ICONS.EDIT />
                 </MenuItem>
                 <Delimeter />
               </>
             )}
             <MenuItem onPress={handleDeleteMessage}>
-              {MESSAGE_INTERACTIONS.DELETE}
-              <MESSAGE_INTERACTIONS_ICONS.DELETE />{" "}
+              <Text>{MESSAGE_INTERACTIONS.DELETE}</Text>
+              <MESSAGE_INTERACTIONS_ICONS.DELETE />
             </MenuItem>
             {/* <Delimeter />
           <MenuItem onClick={() => console.log(MESSAGE_INTERACTIONS.REPORT)}>
@@ -117,8 +150,32 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
           </ContextMenu>
         </Overlay>
       )}
-    </>
+
+      <Toast
+        visible={toastVisible}
+        message="Copied to clipboard!"
+        duration={1500}
+      />
+    </Modal>
   );
 };
 
 export default MessageInteractions;
+
+const styles = StyleSheet.create({
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
+  },
+  contextMenu: {
+    position: "absolute",
+    backgroundColor: "white",
+    padding: 10,
+    borderRadius: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+});

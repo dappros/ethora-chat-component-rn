@@ -16,7 +16,7 @@ const Container = styled.View`
   gap: 16px;
 `;
 
-export const StyledDateLabel = styled.View<{
+export const StyledDateLabel = styled.Text<{
   primary?: string;
   secondary?: string;
 }>`

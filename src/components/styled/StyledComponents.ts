@@ -5,6 +5,8 @@ import styled from "styled-components/native";
 // General Containers
 export const ChatContainer = styled.View`
   position: relative;
+  flex-direction: col;
+  justify-content: space-between;
   flex: 1;
   width: 100%;
   background-color: #f3f6fc;
@@ -204,6 +206,16 @@ export const AlsoCheckbox = styled.TouchableOpacity<{ accentColor: string }>`
   height: 16px;
   background-color: ${(props) => props.accentColor};
   border-radius: 4px;
+`;
+
+export const AlsoContainer = styled.TouchableOpacity`
+  align-items: center;
+  flex-direction: row;
+  gap: 8px;
+  background-color: #0052cd0d;
+  font-size: 14px;
+  padding: 10px 28px;
+  text-align: start;
 `;
 
 export const Wrapper = styled.View<{

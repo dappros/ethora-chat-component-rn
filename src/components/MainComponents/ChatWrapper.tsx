@@ -304,7 +304,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
           </StyledLoaderWrapper>
         )}
       </>
-      {/* {deleteModal?.isDeleteModal && (
+      {deleteModal?.isDeleteModal && (
         <ModalWrapper
           title="Delete Message"
           description="Are you sure you want to delete this message?"
@@ -313,7 +313,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
           handleClick={handleDeleteClick}
           handleCloseModal={handleCloseDeleteModal}
         />
-      )} */}
+      )}
     </>
   );
 };

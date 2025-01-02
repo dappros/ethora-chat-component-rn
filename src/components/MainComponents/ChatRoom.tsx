@@ -183,7 +183,11 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
             isReply={false}
           />
         )}
+        {editAction.isEdit && (
+          <EditWrapper text={editAction.text || ""} onClose={onCloseEdit} />
+        )}
         <SendInput
+          editMessage={editAction.text}
           sendMessage={sendMessage}
           sendMedia={sendMedia}
           config={config}

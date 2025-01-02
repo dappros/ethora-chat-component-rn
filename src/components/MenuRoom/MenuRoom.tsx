@@ -32,7 +32,7 @@ export const RoomMenu: FC<RoomMenuProps> = ({ handleLeaveClick }) => {
 
   return (
     <DropdownMenu
-      position="left"
+      position="right"
       options={menuOptions}
       openButton={
         <Button

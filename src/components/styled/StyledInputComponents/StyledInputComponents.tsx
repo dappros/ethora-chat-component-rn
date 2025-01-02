@@ -14,11 +14,9 @@ const colors = {
 export const InputContainer = styled.View<{ isText?: boolean }>`
   flex-direction: column;
   padding: 16px 0;
-  padding-right: ${(props) => (props.isText ? "0" : "16")}px;
   background-color: ${colors.white};
   z-index: 100;
   width: 100%;
-  position: absolute;
   bottom: 0;
   left: 0;
 `;

@@ -39,11 +39,7 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
   };
 
   return (
-    <ChatItem
-      key={index}
-      onPress={() => performClick(chat)}
-      bg={config?.colors?.primary}
-    >
+    <ChatItem key={index} onPress={() => performClick(chat)}>
       <ProfileImagePlaceholder name={chat.name} icon={chat?.icon} />
       <View
         style={{

@@ -1,6 +1,7 @@
 import React from "react";
 import styled from "styled-components/native";
 import { Line } from "./StyledComponents";
+import { Text } from "react-native";
 
 interface DateLabelProps {
   date: Date;
@@ -17,11 +18,9 @@ const Container = styled.View`
 `;
 
 export const StyledDateLabel = styled.View<{
-  primary?: string;
   secondary?: string;
 }>`
   margin: 0;
-  color: ${(props) => props.primary || "#0052cd"};
   border-radius: 118px;
   padding: 5px 8px;
   display: flex;
@@ -31,8 +30,11 @@ export const StyledDateLabel = styled.View<{
   line-height: 14px;
   font-weight: 600;
   background-color: ${(props) => props.secondary || "#e7edf9"};
-  height: 24px;
   white-space: nowrap;
+`;
+
+export const StyledDateText = styled.Text<{ primary?: string }>`
+  color: ${(props) => props.primary || "#0052cd"};
 `;
 
 const DateLabel: React.FC<DateLabelProps> = ({ date, colors }) => {
@@ -63,7 +65,9 @@ const DateLabel: React.FC<DateLabelProps> = ({ date, colors }) => {
   return (
     <Container>
       <Line />
-      <StyledDateLabel {...colors}>{label}</StyledDateLabel>
+      <StyledDateLabel secondary={colors?.secondary}>
+        <StyledDateText primary={colors?.primary}>{label}</StyledDateText>
+      </StyledDateLabel>
       <Line />
     </Container>
   );

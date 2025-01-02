@@ -29,7 +29,6 @@ import {
 } from "../../assets/icons";
 import DropdownMenu from "../DropdownMenu/DropdownMenu";
 import { logout, setActiveModal } from "../../roomStore/chatSettingsSlice";
-import NewChatModal from "../Modals/NewChatModal/NewChatModal";
 import { setLogoutState } from "../../roomStore/roomsSlice";
 import { MODAL_TYPES } from "../../helpers/constants/MODAL_TYPES";
 import { useXmppClient } from "../../context/xmppProvider";

@@ -5,14 +5,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import {
-  ScrollView,
-  View,
-  Text,
-  ActivityIndicator,
-  StyleSheet,
-  FlatList,
-} from "react-native";
+import { View, StyleSheet, FlatList } from "react-native";
 import { IMessage, User, IConfig } from "../../types/types";
 import Composing from "../styled/StyledInputComponents/Composing";
 import TreadLabel from "../styled/TreadLabel";
@@ -84,6 +77,9 @@ const MessageList = <TMessage extends IMessage>({
     }
   }, [addReplyMessages, isReply, roomJID, activeMessage]);
 
+  const flatListRef = useRef<FlatList<IMessage>>(null);
+  const previousMessageCount = useRef(memoizedMessages.length);
+
   const handleLoadMore = useCallback(async () => {
     if (isLoadingMore || !memoizedMessages.length || loading) return;
 
@@ -118,6 +114,20 @@ const MessageList = <TMessage extends IMessage>({
     [CustomMessage, activeMessage, config, user.walletAddress, isReply]
   );
 
+  useEffect(() => {
+    if (memoizedMessages.length > previousMessageCount.current) {
+      flatListRef.current?.scrollToEnd({ animated: true });
+    }
+    previousMessageCount.current = memoizedMessages.length;
+  }, [memoizedMessages]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      flatListRef.current?.scrollToEnd({ animated: false });
+    }, 100);
+    return () => clearTimeout(timeout);
+  }, []);
+
   return (
     <View style={styles.container}>
       {loading && <Loader color={config?.colors?.primary} />}
@@ -134,11 +144,18 @@ const MessageList = <TMessage extends IMessage>({
         </View>
       )}
       <FlatList
+        ref={flatListRef}
         data={memoizedMessages}
         renderItem={renderMessage}
         keyExtractor={(item) => item.id.toString()}
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.1}
+        // initialScrollIndex={memoizedMessages.length - 1}
+        // getItemLayout={(data, index) => ({
+        //   length: 100, // Высота элемента
+        //   offset: 100 * index,
+        //   index,
+        // })}
         ListFooterComponent={
           isLoadingMore ? <Loader color={config?.colors?.primary} /> : null
         }
@@ -154,7 +171,6 @@ export default MessageList;
 
 const styles = StyleSheet.create({
   container: {
-    paddingBottom: 80,
     flex: 1,
     backgroundColor: "#F3F6FC",
   },

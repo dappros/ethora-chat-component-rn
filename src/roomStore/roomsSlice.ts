@@ -5,7 +5,7 @@ import { insertMessageWithDelimiter } from '../helpers/insertMessageWithDelimite
 interface RoomMessagesState {
   rooms: { [jid: string]: IRoom };
   activeRoomJID: string | null;
-  editAction?: EditAction;
+  editAction: EditAction;
   isLoading: boolean;
 }
 

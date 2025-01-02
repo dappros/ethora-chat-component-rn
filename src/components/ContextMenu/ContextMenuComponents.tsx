@@ -1,6 +1,6 @@
 import styled from "styled-components/native";
 
-export const ContextMenu = styled.Pressable`
+export const ContextMenu = styled.View`
   position: absolute;
   z-index: 1000;
   background-color: white;
@@ -17,8 +17,8 @@ export const ContextMenu = styled.Pressable`
 
 export const MenuItem = styled.Pressable`
   padding: 8px 8px;
-  min-width: 208px;
-  display: flex;
+  min-width: 150px;
+  flex-direction: row;
   justify-content: space-between;
   align-items: center;
 `;

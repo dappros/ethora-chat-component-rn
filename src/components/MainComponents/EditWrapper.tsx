@@ -1,18 +1,18 @@
 import React, { FC } from "react";
 import { EditIcon } from "../../assets/icons";
 import { styled } from "styled-components/native";
-import { Text, View } from "react-native";
+import { Text, TouchableOpacity, View } from "react-native";
 
 export const EditContainer = styled.View`
   background-color: #0052cd0d;
   padding: 12px 24px;
-  display: flex;
+  flex-direction: row;
   align-items: center;
   justify-content: space-between;
 `;
 
 export const EditInfoBox = styled.View`
-  display: flex;
+  flex-direction: row;
   align-items: center;
 `;
 
@@ -36,6 +36,7 @@ interface EditWrapperProps {
 }
 
 export const EditWrapper: FC<EditWrapperProps> = ({ text, onClose }) => {
+  console.log("text", text);
   return (
     <EditContainer>
       <EditInfoBox>
@@ -56,18 +57,16 @@ export const EditWrapper: FC<EditWrapperProps> = ({ text, onClose }) => {
           <EditText>{text}</EditText>
         </View>
       </EditInfoBox>
-      <button
+      <TouchableOpacity
         style={{
-          fontSize: 24,
           // background: "none",
           // border: "none",
-          color: "#888",
           borderRadius: 8,
         }}
-        onClick={onClose}
+        onPress={onClose}
       >
-        <Text>&times;</Text>
-      </button>
+        <Text style={{ fontSize: 24, color: "#888" }}>&times;</Text>
+      </TouchableOpacity>
     </EditContainer>
   );
 };

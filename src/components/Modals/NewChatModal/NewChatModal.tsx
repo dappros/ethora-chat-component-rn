@@ -18,7 +18,7 @@ import { ProfileImagePlaceholder } from "../../MainComponents/ProfileImagePlaceh
 import { Text } from "react-native";
 
 interface NewChatModalProps {
-  handleCloseModal: any;
+  handleCloseModal?: any;
 }
 
 const NewChatModal: React.FC<NewChatModalProps> = ({ handleCloseModal }) => {

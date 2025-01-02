@@ -5,7 +5,6 @@ const NoMessagesPlaceholder = () => {
   return (
     <View
       style={{
-        height: "100%",
         display: "flex",
         justifyContent: "center",
         alignItems: "center",

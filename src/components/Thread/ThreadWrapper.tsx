@@ -19,7 +19,7 @@ import { useSendMessage } from "../../hooks/useSendMessage";
 import { createMainMessageForThread } from "../../helpers/createMainMessageForThread";
 import { useRoomState } from "../../hooks/useRoomState";
 import { useChatSettingState } from "../../hooks/useChatSettingState";
-import { Text } from "react-native";
+import { Text, TouchableOpacity } from "react-native";
 
 interface ThreadWrapperProps {
   activeMessage: IMessage;
@@ -113,7 +113,6 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
   return (
     <ChatContainer
       style={{
-        overflow: "auto",
         ...config?.chatRoomStyles,
       }}
     >
@@ -131,31 +130,28 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
         activeMessage={activeMessage}
         isReply
       />
-      <AlsoContainer
-        style={{ cursor: "pointer" }}
-        onClick={() => setIsChecked((prev) => !prev)}
-      >
+      <AlsoContainer onPress={() => setIsChecked((prev) => !prev)}>
         <AlsoCheckbox
-          accentColor={config?.colors?.primary || "#0052CD"}
-          type="checkbox"
-          checked={isChecked}
-          onChange={(e) => setIsChecked(e.target.checked)}
+          accentColor={
+            isChecked ? config?.colors?.primary || "#0052CD" : "#fff"
+          }
+          // checked={isChecked}
+          onPress={() => setIsChecked(!isChecked)}
         />
         <Text>Also send to</Text>
-        <a
-          style={{
-            color: config?.colors?.primary || "#0052CD",
-            fontWeight: 500,
-            cursor: "pointer",
-            borderBottom: "1px solid",
-          }}
-          onClick={closeThread}
-        >
-          {roomsList[activeMessage.roomJid].name}
-        </a>
+        <TouchableOpacity onPress={closeThread}>
+          <Text
+            style={{
+              color: config?.colors?.primary || "#0052CD",
+              fontWeight: 500,
+            }}
+          >
+            {roomsList[activeMessage.roomJid].name}
+          </Text>
+        </TouchableOpacity>
       </AlsoContainer>
       {editAction.isEdit && (
-        <EditWrapper text={editAction.text} onClose={onCloseEdit} />
+        <EditWrapper text={editAction.text || ""} onClose={onCloseEdit} />
       )}
       <SendInput
         editMessage={editAction.text}
