@@ -9,8 +9,8 @@ import { Text } from "react-native";
 interface MediaMessageProps {
   mimeType?: string;
   message?: IMessage;
-  location: string;
-  messageText: string;
+  location?: string;
+  messageText?: string;
 }
 
 const MediaMessage: React.FC<MediaMessageProps> = ({
@@ -24,7 +24,7 @@ const MediaMessage: React.FC<MediaMessageProps> = ({
         return (
           <CustomMessageImage
             fileName="image"
-            fileURL={messageText}
+            fileURL={messageText || ""}
             mimetype={mimeType}
           />
         );
@@ -32,13 +32,13 @@ const MediaMessage: React.FC<MediaMessageProps> = ({
         return (
           <CustomMessageVideo
             fileName="image"
-            fileURL={location}
+            fileURL={location || ""}
             mimetype={mimeType}
           />
         );
       case mimeType.startsWith("audio/") ||
         mimeType.includes("application/octet-stream"):
-        return <AudioMessage src={location} />;
+        return <AudioMessage src={location || ""} />;
       default:
         return (
           <FileDownload

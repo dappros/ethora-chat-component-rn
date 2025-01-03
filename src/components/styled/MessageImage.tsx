@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Container } from "./StyledInputComponents/MediaComponents";
 import { useDispatch } from "react-redux";
 import {
@@ -6,6 +6,7 @@ import {
   setActiveModal,
 } from "../../roomStore/chatSettingsSlice";
 import { MODAL_TYPES } from "../../helpers/constants/MODAL_TYPES";
+import { ActivityIndicator, Image, TouchableOpacity } from "react-native";
 interface CustomMessageImageProps {
   fileURL: string;
   fileName: string;
@@ -17,6 +18,9 @@ const CustomMessageImage: React.FC<CustomMessageImageProps> = ({
   fileName,
   mimetype,
 }) => {
+  const [error, setError] = useState(false);
+  const [loading, setLoading] = useState(true);
+
   const dispatch = useDispatch();
 
   const handleOpen = () => {
@@ -24,37 +28,34 @@ const CustomMessageImage: React.FC<CustomMessageImageProps> = ({
     dispatch(setActiveModal(MODAL_TYPES.FILE_PREVIEW));
   };
 
+  const convertSvgToPng = (svgUrl: string) => {
+    return `https://api.unsplash.com/svg-to-png?url=${encodeURIComponent(
+      svgUrl
+    )}`;
+  };
+
+  console.log("fileURL", fileURL);
+
   return (
     <Container>
-      {fileURL ? (
-        <img
-          src={fileURL}
-          alt={fileName}
-          onClick={handleOpen}
+      <TouchableOpacity onPress={handleOpen}>
+        {loading && <ActivityIndicator size="small" color="#0052CD" />}
+        <Image
+          source={{
+            uri: error
+              ? "https://as2.ftcdn.net/v2/jpg/02/51/95/53/1000_F_251955356_FAQH0U1y1TZw3ZcdPGybwUkH90a3VAhb.jpg"
+              : convertSvgToPng(fileURL),
+          }}
           style={{
             borderRadius: 16,
-            cursor: "pointer",
-            maxWidth: 150,
-            maxHeight: 200,
+            width: 150,
+            height: 200,
           }}
-          onError={(e) => {
-            (e.target as HTMLImageElement).src =
-              "https://as2.ftcdn.net/v2/jpg/02/51/95/53/1000_F_251955356_FAQH0U1y1TZw3ZcdPGybwUkH90a3VAhb.jpg";
-          }}
+          onError={() => setError(true)}
+          onLoadEnd={() => setLoading(false)}
+          resizeMode="cover"
         />
-      ) : (
-        <img
-          src="https://as2.ftcdn.net/v2/jpg/02/51/95/53/1000_F_251955356_FAQH0U1y1TZw3ZcdPGybwUkH90a3VAhb.jpg"
-          alt={fileName}
-          onClick={handleOpen}
-          style={{
-            borderRadius: 16,
-            cursor: "pointer",
-            maxWidth: 150,
-            maxHeight: 200,
-          }}
-        />
-      )}
+      </TouchableOpacity>
     </Container>
   );
 };

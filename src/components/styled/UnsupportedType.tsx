@@ -1,19 +1,18 @@
-import React from 'react';
+import React from "react";
 
 import {
   FileName,
   UnsupportedContainer,
-} from './StyledInputComponents/MediaComponents';
-import { IconButton } from './StyledComponents';
-import { DownloadIcon } from '../../assets/icons';
-import { IConfig } from '../../types/types';
-import { ActionButton } from './ActionButton';
-import { useDispatch } from 'react-redux';
-import { MODAL_TYPES } from '../../helpers/constants/MODAL_TYPES';
+} from "./StyledInputComponents/MediaComponents";
+import { DownloadIcon } from "../../assets/icons";
+import { IConfig } from "../../types/types";
+import { ActionButton } from "./ActionButton";
+import { useDispatch } from "react-redux";
+import { MODAL_TYPES } from "../../helpers/constants/MODAL_TYPES";
 import {
   setActiveFile,
   setActiveModal,
-} from '../../roomStore/chatSettingsSlice';
+} from "../../roomStore/chatSettingsSlice";
 
 interface FileDownloadProps {
   fileName: string;
@@ -34,7 +33,7 @@ const FileDownload: React.FC<FileDownloadProps> = ({
   };
 
   return (
-    <UnsupportedContainer onClick={handleOpen}>
+    <UnsupportedContainer onPress={handleOpen}>
       <FileName>{fileName}</FileName>
     </UnsupportedContainer>
   );

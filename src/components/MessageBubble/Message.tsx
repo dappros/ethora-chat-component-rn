@@ -23,6 +23,7 @@ import { MODAL_TYPES } from "../../helpers/constants/MODAL_TYPES";
 import { setActiveMessage, setEditAction } from "../../roomStore/roomsSlice";
 import styled from "styled-components/native";
 import { IUser, MessageProps } from "../../types/types";
+import MediaMessage from "../MainComponents/MediaMessage";
 
 const CustomMessageContainer = styled.View<{ isUser: boolean; reply?: number }>`
   flex-direction: row;
@@ -158,7 +159,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View>
       {isPressed && <View style={styles.overlay} />}
       <CustomMessageContainer
         ref={messageRef}
@@ -198,10 +199,27 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
                 text={JSON.parse(message.mainMessage).text}
               />
             )}
-            {message.isDeleted ? (
+            {/* {message.isDeleted ? (
               <DeletedMessage />
             ) : (
               <CustomMessageText>{message.body}</CustomMessageText>
+            )} */}
+
+            {message?.isMediafile === "true" && !message?.isDeleted ? (
+              <MediaMessage
+                mimeType={message.mimetype}
+                messageText={message.locationPreview}
+                location={message?.location}
+                message={message}
+              />
+            ) : (
+              <>
+                {message.isDeleted && message.id !== "delimiter-new" ? (
+                  <DeletedMessage />
+                ) : (
+                  <CustomMessageText>{message.body}</CustomMessageText>
+                )}
+              </>
             )}
             <CustomMessageTimestamp>
               {message?.pending && "sending..."}

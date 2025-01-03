@@ -43,7 +43,7 @@ export const IconButton = styled.TouchableOpacity`
   pointer-events: auto;
 `;
 
-export const UnsupportedContainer = styled.View`
+export const UnsupportedContainer = styled.TouchableOpacity`
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -58,7 +58,7 @@ export const UnsupportedContainer = styled.View`
   }
 `;
 
-export const FileName = styled.View`
+export const FileName = styled.Text`
   flex-grow: 1;
   padding: 0 10px;
   color: #333;

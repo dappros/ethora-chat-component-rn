@@ -6452,6 +6452,11 @@ react-native-reanimated@^3.16.5:
     convert-source-map "^2.0.0"
     invariant "^2.2.4"
 
+react-native-sound@^0.11.2:
+  version "0.11.2"
+  resolved "https://registry.yarnpkg.com/react-native-sound/-/react-native-sound-0.11.2.tgz#e542dc5b9e16ab4b3ac7e6eaddb1fc8d98da9038"
+  integrity sha512-LmGc8lgOK3qecYMVQpyHvww/C+wgT6sWeMpVbOe4NCRGC2yKd4fo4U0KBUo9PO7AqKESO3I/2GZg1/C0+bwiiA==
+
 react-native-svg-transformer@^1.5.0:
   version "1.5.0"
   resolved "https://registry.yarnpkg.com/react-native-svg-transformer/-/react-native-svg-transformer-1.5.0.tgz#75ae4dbdc4b1a1508e75282d54d66900ee5fe3c2"
@@ -6475,6 +6480,11 @@ react-native-video@^6.8.2:
   version "6.8.2"
   resolved "https://registry.yarnpkg.com/react-native-video/-/react-native-video-6.8.2.tgz#3c53524b9f74591b5e6d7964e7aa2e9f0328a95d"
   integrity sha512-lAf6pa/eqksaQnZ+rx9XWx9HpfNt0xr/XmSXMASynJJ8EqMJTr8gHJe4Wfkebo5W8qAMKRuHYtZs+4Shzl3IIQ==
+
+react-native-waves@^1.2.5:
+  version "1.2.5"
+  resolved "https://registry.yarnpkg.com/react-native-waves/-/react-native-waves-1.2.5.tgz#33bf9242267a06de0f943fbcb9d112d747b73e32"
+  integrity sha512-fsB6aCqn9w+fPly0wMmRuRlv/OIr2h3LxCWUsQf4v7ER/xQTpbzpXyTf1KCFPopxkF/ZLXbTkKwTQz/Sgqwraw==
 
 react-native@0.76.5:
   version "0.76.5"
