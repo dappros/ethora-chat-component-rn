@@ -169,6 +169,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
             ).then((client) => {
               client.getRoomsStanza().then(() => {
                 client.getChatsPrivateStoreRequestStanza();
+                console.log("CLIENT________-----", client);
                 dispatch(setStoreClient(client));
                 setClient(client);
               });

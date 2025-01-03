@@ -143,8 +143,6 @@ const LoginForm: React.FC<LoginFormProps> = ({ config }) => {
     }
   };
 
-  console.log("email", email);
-
   return (
     <FormContainer>
       <Form>
@@ -170,7 +168,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ config }) => {
           />
           <Text>
             {errors.email && <ErrorMessage>{errors.email}</ErrorMessage>}
-          </Text>{" "}
+          </Text>
         </View>
 
         <View
@@ -200,7 +198,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ config }) => {
 
         <Button
           onPress={handleSubmit}
-          text={"Login to Ethora Chat"}
+          text="Login to Ethora Chat"
           style={{
             width: "100%",
             height: 40,
@@ -215,7 +213,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ config }) => {
             <Delimiter>or</Delimiter>
             <Button
               // onPress={handleGoogleLogin}
-              text={<>Login with Google</>}
+              text="Login with Google"
               EndIcon={<GoogleIcon style={{ height: 24 }} />}
               disabled={isLoading}
             />
@@ -265,7 +263,7 @@ const ErrorMessage = styled.Text`
   margin-bottom: 10px;
 `;
 
-const Delimiter = styled.View`
+const Delimiter = styled.Text`
   text-align: center;
   position: relative;
   width: 100%;

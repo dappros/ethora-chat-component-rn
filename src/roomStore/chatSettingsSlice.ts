@@ -11,6 +11,7 @@ import {
 } from '../types/types';
 import { localStorageConstants } from '../helpers/constants/LOCAL_STORAGE';
 import { useLocalStorage } from '../hooks/useLocalStorage';
+import XmppClient from '../networking/xmppClient';
 
 interface ChatState {
   user: User;
@@ -19,7 +20,7 @@ interface ChatState {
   deleteModal?: DeleteModal;
   selectedUser?: IUser;
   activeFile?: ModalFile;
-  client?: any;
+  client?: XmppClient;
 }
 
 const unpackAndTransform = (input?: User): User => {

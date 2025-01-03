@@ -198,7 +198,7 @@ export const OrDelimiterText = styled.Text`
 export const Line = styled.View`
   width: 100%;
   height: 1px;
-  background-color: #ccc;
+  background-color: #0052CD0D;
 `;
 
 export const AlsoCheckbox = styled.TouchableOpacity<{ accentColor: string }>`

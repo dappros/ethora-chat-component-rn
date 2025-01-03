@@ -45,6 +45,8 @@ const MessageList = <TMessage extends IMessage>({
   const { composing, messages } = useRoomState(roomJID).room;
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
+  let lastDateLabel: string | null = null;
+
   const addReplyMessages = useMemo(() => {
     return messages.map((message) => {
       const newMessage = {
@@ -99,6 +101,10 @@ const MessageList = <TMessage extends IMessage>({
 
   const renderMessage = useCallback(
     ({ item }: { item: IMessage }) => {
+      const messageDate = new Date(item.date).toDateString();
+      const showDateLabel = messageDate !== lastDateLabel;
+      lastDateLabel = messageDate;
+
       return (
         <MessageContainer
           CustomMessage={CustomMessage}
@@ -107,7 +113,7 @@ const MessageList = <TMessage extends IMessage>({
           config={config}
           walletAddress={user.walletAddress}
           isReply={isReply}
-          showDateLabel={true} // Date labels can be handled if needed
+          showDateLabel={showDateLabel}
         />
       );
     },
@@ -152,7 +158,7 @@ const MessageList = <TMessage extends IMessage>({
         onEndReachedThreshold={0.1}
         // initialScrollIndex={memoizedMessages.length - 1}
         // getItemLayout={(data, index) => ({
-        //   length: 100, // Высота элемента
+        //   length: 100,
         //   offset: 100 * index,
         //   index,
         // })}

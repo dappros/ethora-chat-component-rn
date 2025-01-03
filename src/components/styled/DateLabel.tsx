@@ -9,12 +9,13 @@ interface DateLabelProps {
 }
 
 const Container = styled.View`
-  display: flex;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
   width: 100%;
   background-color: transparent;
   gap: 16px;
+  margin: 16px 0;
 `;
 
 export const StyledDateLabel = styled.View<{
@@ -23,18 +24,18 @@ export const StyledDateLabel = styled.View<{
   margin: 0;
   border-radius: 118px;
   padding: 5px 8px;
-  display: flex;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
-  line-height: 14px;
-  font-weight: 600;
-  background-color: ${(props) => props.secondary || "#e7edf9"};
-  white-space: nowrap;
+  background-color: ${(props) => props.secondary || "#E7EDF9"};
 `;
 
 export const StyledDateText = styled.Text<{ primary?: string }>`
   color: ${(props) => props.primary || "#0052cd"};
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 14px;
+  white-space: nowrap;
 `;
 
 const DateLabel: React.FC<DateLabelProps> = ({ date, colors }) => {
