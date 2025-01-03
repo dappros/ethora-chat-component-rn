@@ -58,11 +58,11 @@ const RoomList: React.FC<RoomListProps> = ({
 
   const containerRef = useRef<View>(null);
 
-  const handleClickOutside = useCallback((event: any) => {
-    if (containerRef.current && !containerRef.current.contains(event.target)) {
-      setOpen(false);
-    }
-  }, []);
+  // const handleClickOutside = useCallback((event: any) => {
+  //   if (containerRef.current && !containerRef.current.contains(event.target)) {
+  //     setOpen(false);
+  //   }
+  // }, []);
 
   const performClick = useCallback(
     (chat: IRoom) => {
@@ -78,9 +78,17 @@ const RoomList: React.FC<RoomListProps> = ({
 
   const filteredChats = useMemo(() => {
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
-    return chats.filter((chat) =>
-      chat.name.toLowerCase().includes(lowerCaseSearchTerm)
-    );
+    const chatsMap = new Map<string, IRoom[]>();
+
+    if (!chatsMap.has(lowerCaseSearchTerm)) {
+      const result = chats
+        .filter((chat) => chat.name.toLowerCase().includes(lowerCaseSearchTerm))
+        .sort((a, b) => b.usersCnt - a.usersCnt);
+
+      chatsMap.set(lowerCaseSearchTerm, result);
+    }
+
+    return chatsMap.get(lowerCaseSearchTerm) || [];
   }, [chats, searchTerm]);
 
   useEffect(() => {
@@ -89,11 +97,6 @@ const RoomList: React.FC<RoomListProps> = ({
       // A listener for "blur" event (on touch outside) or "TouchableWithoutFeedback" may be used for mobile
     }
   }, [burgerMenu]);
-
-  const isChatActive = useCallback(
-    (room: IRoom) => activeRoomJID === room.jid,
-    [activeRoomJID]
-  );
 
   const handleLogout = useCallback(async () => {
     if (client) {
@@ -174,7 +177,7 @@ const RoomList: React.FC<RoomListProps> = ({
               <SearchInput
                 icon={<SearchIcon height={20} />}
                 value={searchTerm}
-                onChange={handleSearchChange}
+                onChangeText={handleSearchChange}
                 placeholder="Search..."
               />
               {/* <NewChatModal /> */}

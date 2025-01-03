@@ -1,12 +1,18 @@
 import React, { useState, useEffect, useRef } from "react";
 import styled, { css } from "styled-components/native";
-import { TextInput, View, TouchableOpacity } from "react-native";
+import {
+  TextInput,
+  View,
+  TouchableOpacity,
+  TextInputProps,
+} from "react-native";
 
-interface SearchInputProps {
+interface SearchInputProps extends TextInputProps {
   icon?: React.ReactNode;
   animated?: boolean;
   direction?: "left" | "right";
   placeholder?: string;
+  value: string;
 }
 
 const SearchInputWrapper = styled.View<{
@@ -62,6 +68,7 @@ const SearchInput: React.FC<SearchInputProps> = ({
   animated = false,
   direction = "left",
   placeholder,
+  ...props
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
@@ -115,6 +122,7 @@ const SearchInput: React.FC<SearchInputProps> = ({
         onChangeText={handleInput}
         placeholder={placeholder}
         placeholderTextColor="#999"
+        {...props}
       />
     </SearchInputWrapper>
   );
