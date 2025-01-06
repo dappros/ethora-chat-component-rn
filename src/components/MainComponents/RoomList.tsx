@@ -39,6 +39,8 @@ import ChatRoomItem from "../RoomComponents/ChatRoomItem";
 import { useChatSettingState } from "../../hooks/useChatSettingState";
 import Button from "../styled/Button";
 
+const LONG_PRESS_THRESHOLD = 200;
+
 interface RoomListProps {
   chats: IRoom[];
   burgerMenu?: boolean;
@@ -54,7 +56,8 @@ const RoomList: React.FC<RoomListProps> = ({
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
-  const [isScrolling, setIsScrolling] = useState(false);
+  const [isLongPress, setIsLongPress] = useState(false);
+  const pressTimer = useRef<NodeJS.Timeout | null>(null);
 
   const dispatch = useDispatch();
 
@@ -68,15 +71,27 @@ const RoomList: React.FC<RoomListProps> = ({
   //     setOpen(false);
   //   }
   // }, []);
+  const handlePressIn = useCallback(() => {
+    setIsLongPress(false); // Сбрасываем флаг удержания
+    pressTimer.current = setTimeout(() => {
+      setIsLongPress(true); // Если зажато дольше порога, флаг становится true
+    }, LONG_PRESS_THRESHOLD);
+  }, []);
+
+  const handlePressOut = useCallback(() => {
+    if (pressTimer.current) {
+      clearTimeout(pressTimer.current); // Очищаем таймер
+    }
+  }, []);
 
   const performClick = useCallback(
     (chat: IRoom) => {
-      if (!isScrolling) {
+      if (!isLongPress) {
         onRoomClick?.(chat);
       }
       setOpen(false);
     },
-    [onRoomClick, isScrolling]
+    [onRoomClick, isLongPress]
   );
 
   const handleSearchChange = useCallback((text: string) => {
@@ -195,6 +210,21 @@ const RoomList: React.FC<RoomListProps> = ({
               renderItem={({ item }) => (
                 <Pressable
                   onPress={() => performClick(item)}
+                  onPressIn={handlePressIn}
+                  onPressOut={handlePressOut}
+                >
+                  <ChatRoomItem chat={item} />
+                </Pressable>
+              )}
+              style={styles.chatList}
+            />
+
+            {/* <FlatList
+              data={chats}
+              keyExtractor={(item) => item.jid}
+              renderItem={({ item }) => (
+                <Pressable
+                  onPress={() => performClick(item)}
                   onPressIn={() => setIsScrolling(false)}
                 >
                   <ChatRoomItem chat={item} config={config} />
@@ -204,7 +234,7 @@ const RoomList: React.FC<RoomListProps> = ({
               onScrollEndDrag={() => setIsScrolling(false)}
               onMomentumScrollEnd={() => setIsScrolling(false)}
               style={styles.chatList}
-            />
+            /> */}
           </ScrollView>
         )}
       </View>
