@@ -15,6 +15,9 @@ import {
   StyleSheet,
   ScrollView,
   Text,
+  FlatList,
+  GestureResponderEvent,
+  Pressable,
 } from "react-native";
 import { IRoom } from "../../types/types";
 import { SearchInput } from "../InputComponents/Search";
@@ -51,6 +54,8 @@ const RoomList: React.FC<RoomListProps> = ({
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
+  const [isScrolling, setIsScrolling] = useState(false);
+
   const dispatch = useDispatch();
 
   const { config } = useChatSettingState();
@@ -66,10 +71,12 @@ const RoomList: React.FC<RoomListProps> = ({
 
   const performClick = useCallback(
     (chat: IRoom) => {
-      onRoomClick?.(chat);
+      if (!isScrolling) {
+        onRoomClick?.(chat);
+      }
       setOpen(false);
     },
-    [onRoomClick]
+    [onRoomClick, isScrolling]
   );
 
   const handleSearchChange = useCallback((text: string) => {
@@ -182,18 +189,22 @@ const RoomList: React.FC<RoomListProps> = ({
               />
               {/* <NewChatModal /> */}
             </View>
-            <ScrollView style={styles.chatList}>
-              {filteredChats.map((chat, index) => (
-                <View key={chat.jid}>
-                  <ChatRoomItem
-                    chat={chat}
-                    performClick={performClick}
-                    config={config}
-                    isDriver={index < filteredChats.length - 1}
-                  />
-                </View>
-              ))}
-            </ScrollView>
+            <FlatList
+              data={chats}
+              keyExtractor={(item) => item.jid}
+              renderItem={({ item }) => (
+                <Pressable
+                  onPress={() => performClick(item)}
+                  onPressIn={() => setIsScrolling(false)}
+                >
+                  <ChatRoomItem chat={item} config={config} />
+                </Pressable>
+              )}
+              onScrollBeginDrag={() => setIsScrolling(true)}
+              onScrollEndDrag={() => setIsScrolling(false)}
+              onMomentumScrollEnd={() => setIsScrolling(false)}
+              style={styles.chatList}
+            />
           </ScrollView>
         )}
       </View>

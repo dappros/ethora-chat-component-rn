@@ -42,8 +42,8 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
       setAudioPath(uri);
 
       audioRecorderPlayer.addRecordBackListener((e) => {
-        const minutes = Math.floor(e.currentPosition / 60000); // Минуты
-        const seconds = Math.floor((e.currentPosition % 60000) / 1000); // Секунды
+        const minutes = Math.floor(e.currentPosition / 60000);
+        const seconds = Math.floor((e.currentPosition % 60000) / 1000);
         setTimer(
           `${minutes.toString().padStart(2, "0")}:${seconds
             .toString()
@@ -70,7 +70,6 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
   const sendAudio = () => {
     if (audioPath) {
       console.log("Audio sent:", audioPath);
-      // Handle audio send logic here
       handleSendClick(audioPath);
       resetState();
     }

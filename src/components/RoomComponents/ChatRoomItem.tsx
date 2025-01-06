@@ -15,7 +15,6 @@ interface ChatRoomItemProps {
   chat: IRoom;
   index?: number;
   isDriver?: boolean;
-  performClick: (chat: IRoom) => void;
   config?: IConfig;
 }
 
@@ -23,7 +22,6 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
   chat,
   index,
   isDriver,
-  performClick,
   config,
 }) => {
   const lastMessage = useMemo(
@@ -39,7 +37,7 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
   };
 
   return (
-    <ChatItem key={index} onPress={() => performClick(chat)}>
+    <ChatItem key={index}>
       <ProfileImagePlaceholder name={chat.name} icon={chat?.icon} />
       <View
         style={{

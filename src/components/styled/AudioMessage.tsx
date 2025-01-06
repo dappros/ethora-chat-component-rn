@@ -17,11 +17,13 @@ const AudioMessage: React.FC<AudioMessageProps> = ({ src }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentPosition, setCurrentPosition] = useState(0);
   const [duration, setDuration] = useState(0);
+  const playbackRates = [1, 1.5, 2];
   const [playbackRateIndex, setPlaybackRateIndex] = useState(0);
 
-  const playbackRates = [1, 1.5, 2];
-  const progress = useRef(new Animated.Value(0)).current;
   const audioRecorderPlayer = useRef(new AudioRecorderPlayer()).current;
+  const waveAnimation = useRef(new Animated.Value(0)).current;
+
+  const waveHeights = [10, 20, 15, 25, 18, 12, 20, 15, 25, 10, 18, 22, 14];
 
   useEffect(() => {
     audioRecorderPlayer.setSubscriptionDuration(0.1);
@@ -30,11 +32,9 @@ const AudioMessage: React.FC<AudioMessageProps> = ({ src }) => {
       setCurrentPosition(e.currentPosition);
       setDuration(e.duration);
 
-      const progressValue = (e.currentPosition / e.duration) * 100;
-      progress.setValue(progressValue);
-
       if (e.currentPosition === e.duration) {
         setIsPlaying(false);
+        stopWaveAnimation();
       }
     });
 
@@ -47,52 +47,64 @@ const AudioMessage: React.FC<AudioMessageProps> = ({ src }) => {
   const togglePlayPause = async () => {
     if (!isPlaying) {
       await audioRecorderPlayer.startPlayer(src);
+      startWaveAnimation();
     } else {
       await audioRecorderPlayer.pausePlayer();
+      stopWaveAnimation();
     }
     setIsPlaying(!isPlaying);
+  };
+
+  const startWaveAnimation = () => {
+    Animated.loop(
+      Animated.timing(waveAnimation, {
+        toValue: 1,
+        duration: 500,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    ).start();
+  };
+
+  const stopWaveAnimation = () => {
+    waveAnimation.stopAnimation();
   };
 
   const changePlaybackRate = () => {
     const nextRateIndex = (playbackRateIndex + 1) % playbackRates.length;
     setPlaybackRateIndex(nextRateIndex);
-
-    const selectedRate = playbackRates[nextRateIndex];
-    audioRecorderPlayer.setVolume(selectedRate);
   };
 
-  const formatTime = (ms: number) => {
-    const minutes = Math.floor(ms / 60000);
-    const seconds = Math.floor((ms % 60000) / 1000);
-    return `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
-  };
+  console.log("src", src);
+  console.log("currentPosition", currentPosition);
+  console.log("duration", duration);
 
   return (
     <View style={styles.audioContainer}>
       <TouchableOpacity style={styles.playButton} onPress={togglePlayPause}>
-        <Text style={styles.playButtonText}>
-          {isPlaying ? "Pause" : "Play"}
-        </Text>
+        <Text style={styles.playButtonText}>{isPlaying ? "❚❚" : "▶"}</Text>
       </TouchableOpacity>
 
-      <View style={styles.progressContainer}>
-        <View style={styles.progressBarBackground}>
+      <View style={styles.waveformContainer}>
+        {waveHeights.map((height, index) => (
           <Animated.View
+            key={index}
             style={[
-              styles.progressBar,
+              styles.waveBar,
               {
-                width: progress.interpolate({
-                  inputRange: [0, 100],
-                  outputRange: ["0%", "100%"],
-                }),
+                height,
+                transform: [
+                  {
+                    translateY: waveAnimation.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, -height / 2],
+                    }),
+                  },
+                ],
               },
             ]}
           />
-        </View>
-        <View style={styles.timeContainer}>
-          <Text style={styles.timeText}>{formatTime(currentPosition)}</Text>
-          <Text style={styles.timeText}>{formatTime(duration)}</Text>
-        </View>
+        ))}
       </View>
 
       <TouchableOpacity style={styles.speedButton} onPress={changePlaybackRate}>
@@ -110,55 +122,49 @@ const styles = StyleSheet.create({
   audioContainer: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 10,
-    backgroundColor: "#f1f1f1",
+    backgroundColor: "#d1e7ff",
     borderRadius: 12,
+    padding: 10,
     marginVertical: 8,
   },
   playButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: "#0052CD",
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#7b61ff",
     justifyContent: "center",
     alignItems: "center",
   },
   playButtonText: {
     color: "#fff",
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "bold",
   },
-  progressContainer: {
-    flex: 1,
-    marginHorizontal: 10,
-  },
-  progressBarBackground: {
-    height: 4,
-    backgroundColor: "#e0e0e0",
-    borderRadius: 2,
-  },
-  progressBar: {
-    height: 4,
-    backgroundColor: "#0052CD",
-    borderRadius: 2,
-  },
-  timeContainer: {
+  waveformContainer: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 4,
+    alignItems: "center",
+    height: 40,
+    marginLeft: 10,
+    marginRight: 10,
   },
-  timeText: {
-    fontSize: 12,
-    color: "#333",
+  waveBar: {
+    width: 2,
+    backgroundColor: "#c4c4c4",
+    marginHorizontal: 2,
+    borderRadius: 2,
   },
   speedButton: {
-    marginLeft: 10,
     padding: 5,
+    backgroundColor: "#7b61ff",
     borderRadius: 5,
-    backgroundColor: "#0052CD",
   },
   speedButtonText: {
     color: "#fff",
     fontSize: 14,
+  },
+  timeText: {
+    marginLeft: 10,
+    fontSize: 12,
+    color: "#333",
   },
 });

@@ -40,18 +40,12 @@ export const BurgerButton = ({ onPress }: { onPress: () => void }) => (
 const ColorContext = createContext<string | undefined>(undefined);
 
 export const ChatItem = ({
-  onPress,
   children,
 }: {
   bg?: string;
-  onPress: () => void;
   children: React.ReactNode;
 }) => {
-  return (
-    <View style={styles.chatItem} onTouchEnd={onPress}>
-      {children}
-    </View>
-  );
+  return <View style={styles.chatItem}>{children}</View>;
 };
 
 // Search container for the chat area

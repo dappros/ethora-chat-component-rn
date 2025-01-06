@@ -21,11 +21,9 @@
     "react-native-fs": "^2.20.0",
     "react-native-image-picker": "^7.2.3",
     "react-native-reanimated": "^3.16.5",
-    "react-native-sound": "^0.11.2",
     "react-native-svg": "^15.10.1",
     "react-native-svg-transformer": "^1.5.0",
     "react-native-video": "^6.8.2",
-    "react-native-waves": "^1.2.5",
     "react-qr-code": "^2.0.15",
     "react-redux": "^9.2.0",
     "styled-components": "^6.1.13"
