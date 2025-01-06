@@ -62,20 +62,24 @@ const MessageList = <TMessage extends IMessage>({
 
   const memoizedMessages = useMemo(() => {
     if (isReply) {
-      return addReplyMessages.filter(
-        (item: IMessage) =>
-          item.roomJid === roomJID &&
-          item.isReply &&
-          item.isReply === "true" &&
-          item.mainMessage &&
-          JSON.parse(item.mainMessage).id === activeMessage?.id
-      );
+      return addReplyMessages
+        .filter(
+          (item: IMessage) =>
+            item.roomJid === roomJID &&
+            item.isReply &&
+            item.isReply === "true" &&
+            item.mainMessage &&
+            JSON.parse(item.mainMessage).id === activeMessage?.id
+        )
+        .reverse();
     } else {
-      return addReplyMessages.filter(
-        (item: IMessage) =>
-          item.showInChannel === "true" ||
-          ((!item.isReply || item.isReply === "false") && !item.mainMessage)
-      );
+      return addReplyMessages
+        .filter(
+          (item: IMessage) =>
+            item.showInChannel === "true" ||
+            ((!item.isReply || item.isReply === "false") && !item.mainMessage)
+        )
+        .reverse();
     }
   }, [addReplyMessages, isReply, roomJID, activeMessage]);
 
@@ -120,20 +124,6 @@ const MessageList = <TMessage extends IMessage>({
     [CustomMessage, activeMessage, config, user.walletAddress, isReply]
   );
 
-  useEffect(() => {
-    if (memoizedMessages.length > previousMessageCount.current) {
-      flatListRef.current?.scrollToEnd({ animated: true });
-    }
-    previousMessageCount.current = memoizedMessages.length;
-  }, [memoizedMessages]);
-
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      flatListRef.current?.scrollToEnd({ animated: false });
-    }, 100);
-    return () => clearTimeout(timeout);
-  }, []);
-
   return (
     <View style={styles.container}>
       {loading && <Loader color={config?.colors?.primary} />}
@@ -156,12 +146,7 @@ const MessageList = <TMessage extends IMessage>({
         keyExtractor={(item) => item.id.toString()}
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.1}
-        // initialScrollIndex={memoizedMessages.length - 1}
-        // getItemLayout={(data, index) => ({
-        //   length: 100,
-        //   offset: 100 * index,
-        //   index,
-        // })}
+        inverted
         ListFooterComponent={
           isLoadingMore ? <Loader color={config?.colors?.primary} /> : null
         }

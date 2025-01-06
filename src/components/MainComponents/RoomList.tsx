@@ -9,20 +9,14 @@ import React, {
 } from "react";
 import {
   View,
-  TextInput,
-  TouchableOpacity,
-  Modal,
   StyleSheet,
   ScrollView,
-  Text,
   FlatList,
-  GestureResponderEvent,
   Pressable,
 } from "react-native";
 import { IRoom } from "../../types/types";
 import { SearchInput } from "../InputComponents/Search";
-import { useDispatch, useSelector } from "react-redux";
-import { RootState } from "../../roomStore";
+import { useDispatch } from "react-redux";
 import {
   AddNewIcon,
   BurgerMenuIcon,
@@ -62,7 +56,6 @@ const RoomList: React.FC<RoomListProps> = ({
   const dispatch = useDispatch();
 
   const { config } = useChatSettingState();
-  const { activeRoomJID } = useSelector((state: RootState) => state.rooms);
 
   const containerRef = useRef<View>(null);
 
@@ -72,15 +65,15 @@ const RoomList: React.FC<RoomListProps> = ({
   //   }
   // }, []);
   const handlePressIn = useCallback(() => {
-    setIsLongPress(false); // Сбрасываем флаг удержания
+    setIsLongPress(false);
     pressTimer.current = setTimeout(() => {
-      setIsLongPress(true); // Если зажато дольше порога, флаг становится true
+      setIsLongPress(true);
     }, LONG_PRESS_THRESHOLD);
   }, []);
 
   const handlePressOut = useCallback(() => {
     if (pressTimer.current) {
-      clearTimeout(pressTimer.current); // Очищаем таймер
+      clearTimeout(pressTimer.current);
     }
   }, []);
 
@@ -205,7 +198,7 @@ const RoomList: React.FC<RoomListProps> = ({
               {/* <NewChatModal /> */}
             </View>
             <FlatList
-              data={chats}
+              data={filteredChats}
               keyExtractor={(item) => item.jid}
               renderItem={({ item }) => (
                 <Pressable
@@ -213,7 +206,7 @@ const RoomList: React.FC<RoomListProps> = ({
                   onPressIn={handlePressIn}
                   onPressOut={handlePressOut}
                 >
-                  <ChatRoomItem chat={item} />
+                  <ChatRoomItem chat={item} config={config} />
                 </Pressable>
               )}
               style={styles.chatList}
