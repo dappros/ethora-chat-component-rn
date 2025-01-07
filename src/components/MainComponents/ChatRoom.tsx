@@ -78,17 +78,6 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
       [client]
     );
 
-    const queueMessageLoader = useCallback(
-      async (chatJID: string, max: number) => {
-        try {
-          client?.getHistoryStanza(chatJID, max);
-        } catch (error) {
-          console.log("Error in loading queue messages");
-        }
-      },
-      [globalLoading, loading]
-    );
-
     const onCloseEdit = () => {
       dispatch(setEditAction({ isEdit: false }));
     };
@@ -122,14 +111,6 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
         );
       };
     }, [activeRoomJID]);
-
-    // hooks useEffect
-    useMessageLoaderQueue(
-      Object.keys(roomsList),
-      globalLoading,
-      loading,
-      queueMessageLoader
-    );
 
     useRoomUrl(activeRoomJID, roomsList, config);
 

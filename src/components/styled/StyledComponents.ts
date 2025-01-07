@@ -154,9 +154,9 @@ font-size: 12px;
 font-weight: bold;
 `;
 
-export const InitialsText = styled.Text<{ size?: number }>`
+export const InitialsText = styled.Text<{ size?: number; color?: string }>`
 font-size: ${({ size }) => (size && size >= 64 ? "24px" : "18px")};
-color: white;
+color: ${({ color }) => (color ? color : "#fff")};
 font-weight: bold;
 `;
 

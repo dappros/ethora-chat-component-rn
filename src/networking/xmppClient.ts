@@ -20,8 +20,9 @@ import { inviteRoomRequest } from './xmpp/inviteRoomRequest.xmpp';
 import { getRooms } from './xmpp/getRooms.xmpp';
 import { handleStanza } from './xmpp/handleStanzas.xmpp';
 import { setVcard } from './xmpp/setVCard.xmpp';
+import { XmppClientInterface } from '../types/types';
 
-export class XmppClient {
+export class XmppClient implements XmppClientInterface {
   client!: Client;
   devServer: string | undefined;
   host: string;

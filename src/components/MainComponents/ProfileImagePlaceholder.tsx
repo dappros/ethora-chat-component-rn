@@ -11,6 +11,7 @@ import {
   RemoveButtonText,
   Wrapper,
 } from "../styled/StyledComponents";
+import { nameToColor } from "../../helpers/constants/hashcolor";
 
 interface ProfileImagePlaceholderProps {
   name?: string;
@@ -46,13 +47,7 @@ export const ProfileImagePlaceholder: React.FC<
   placeholderIcon,
   disableOverlay,
 }) => {
-  const randomColor = useMemo(() => {
-    if (!icon) {
-      const index = Math.floor(Math.random() * backgroundColors.length);
-      return backgroundColors[index];
-    }
-    return "transparent";
-  }, [icon]);
+  const { backgroundColor, textColor } = nameToColor(name || "");
 
   const getTwoUppercaseLetters = (fullName: string) => {
     if (!fullName) return "";
@@ -66,26 +61,14 @@ export const ProfileImagePlaceholder: React.FC<
 
   const getInitials = () => (!icon && name ? getTwoUppercaseLetters(name) : "");
 
-  const renderIcon = useMemo((): string => {
-    if (icon && placeholderIcon) {
-      return "transparent";
-    }
-
-    if (icon || placeholderIcon) {
-      return "transparent";
-    }
-
-    return randomColor;
-  }, [icon, placeholderIcon]);
-
   return (
     <Wrapper
-      bgColor={renderIcon}
+      bgColor={icon ? "transparent" : backgroundColor}
       size={size}
       isClickable={active || !!upload?.active}
     >
       <AvatarCircle
-        bgColor={renderIcon}
+        bgColor={icon ? "transparent" : backgroundColor}
         size={size}
         isClickable={active || !!upload?.active}
         onPress={upload?.active ? upload.onUpload : undefined}
@@ -98,7 +81,9 @@ export const ProfileImagePlaceholder: React.FC<
         ) : placeholderIcon ? (
           placeholderIcon
         ) : (
-          <InitialsText size={size}>{getInitials()}</InitialsText>
+          <InitialsText size={size} color={textColor}>
+            {getInitials()}
+          </InitialsText>
         )}
         {upload?.active && !disableOverlay && (
           <Overlay>

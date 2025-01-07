@@ -1,6 +1,6 @@
 /** @format */
 
-import React, { FC, useEffect, useMemo, useState } from "react";
+import React, { FC, useCallback, useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import ChatRoom from "./ChatRoom";
 import {
@@ -38,6 +38,8 @@ import { ModalWrapper } from "../Modals/ModalWrapper/ModalWrapper";
 import { useChatSettingState } from "../../hooks/useChatSettingState";
 import { CONFERENCE_DOMAIN } from "../../helpers/constants/PLATFORM_CONSTANTS";
 import { AppState, Linking, ViewStyle } from "react-native";
+import { useRoomState } from "../../hooks/useRoomState";
+import useMessageLoaderQueue from "../../hooks/useMessageLoaderQueue";
 
 interface ChatWrapperProps {
   token?: string;
@@ -62,6 +64,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
     deleteModal,
     client: storedClient,
   } = useChatSettingState();
+  const { roomsList, loading, globalLoading } = useRoomState();
 
   const [isInited, setInited] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -250,6 +253,25 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
       subscription.remove();
     };
   }, [client, room?.jid]);
+
+  const queueMessageLoader = useCallback(
+    async (chatJID: string, max: number) => {
+      try {
+        client?.getHistoryStanza(chatJID, max);
+      } catch (error) {
+        console.log("Error in loading queue messages");
+      }
+    },
+    [globalLoading, loading, isInited]
+  );
+
+  useMessageLoaderQueue(
+    Object.keys(roomsList),
+    globalLoading,
+    loading,
+    queueMessageLoader,
+    isInited
+  );
 
   if (user.xmppPassword === "" && user.xmppUsername === "")
     return <LoginForm config={config} />;

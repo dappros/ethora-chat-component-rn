@@ -1,10 +1,11 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef } from "react";
 
 const useMessageLoaderQueue = (
   roomsList: string[],
   globalLoading: boolean,
   loading: boolean,
-  loadMoreMessages: (roomJid: string, max: number) => Promise<any>
+  loadMoreMessages: (roomJid: string, max: number) => Promise<any>,
+  isInited?: boolean
 ) => {
   const [queueActive, setQueueActive] = useState(false);
   const [processedChats, setProcessedChats] = useState<Set<string>>(new Set());
@@ -13,7 +14,7 @@ const useMessageLoaderQueue = (
   useEffect(() => {
     const processQueue = () => {
       if (!globalLoading && processedChats.size !== roomsList.length) {
-        console.log('Processing queue...');
+        console.log("Processing queue...");
         roomsList.forEach(async (room) => {
           if (!processedChats.has(room)) {
             await loadMoreMessages(room, 20);

@@ -197,13 +197,9 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
                 handleReplyMessage={handleReplyMessage}
                 isUser={isUser}
                 text={JSON.parse(message.mainMessage).text}
+                color={config?.colors?.primary}
               />
             )}
-            {/* {message.isDeleted ? (
-              <DeletedMessage />
-            ) : (
-              <CustomMessageText>{message.body}</CustomMessageText>
-            )} */}
 
             {message?.isMediafile === "true" && !message?.isDeleted ? (
               <MediaMessage
@@ -221,6 +217,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
                 )}
               </>
             )}
+
             <CustomMessageTimestamp>
               {message?.pending && "sending..."}
               {new Date(message.date).toLocaleTimeString([], {
