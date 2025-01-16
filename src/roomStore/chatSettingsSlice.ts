@@ -9,9 +9,10 @@ import {
   ModalType,
   User,
 } from '../types/types';
+import XmppClient from '../networking/xmppClient';
 import { localStorageConstants } from '../helpers/constants/LOCAL_STORAGE';
 import { useLocalStorage } from '../hooks/useLocalStorage';
-import XmppClient from '../networking/xmppClient';
+import { walletToUsername } from '../helpers/walletUsername';
 
 interface ChatState {
   user: User;
@@ -46,7 +47,10 @@ const unpackAndTransform = (input?: User): User => {
     authMethod: input?.authMethod || '',
     resetPasswordExpires: input?.resetPasswordExpires || '',
     resetPasswordToken: input?.resetPasswordToken || '',
-    xmppUsername: input?.xmppUsername || '',
+    xmppUsername:
+      input?.xmppUsername ||
+      walletToUsername(input?.defaultWallet?.walletAddress || "") ||
+      '',
     roles: input?.roles || [],
     tags: input?.tags || [],
     __v: input?.__v || 0,

@@ -6,8 +6,8 @@ export interface IUser extends Partial<User> {
   id: string;
   name: string | null;
   userJID?: string | null;
-  token: string;
-  refreshToken: string;
+  token?: string;
+  refreshToken?: string;
 }
 
 export interface IMessage {
@@ -312,4 +312,9 @@ export interface XmppClientInterface {
     chats?: string[]
   ): Promise<void>;
   sendMediaMessageStanza(roomJID: string, data: any): void;
+  createPrivateRoomStanza(
+    title: string,
+    description: string,
+    to: string
+  ): Promise<string>;
 }

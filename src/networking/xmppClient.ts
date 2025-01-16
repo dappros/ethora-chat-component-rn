@@ -87,6 +87,7 @@ export class XmppClient implements XmppClientInterface {
 
     this.client.on('online', () => {
       console.log('Client is online.', new Date());
+      this.client.send(xml('presence'));
       this.status = 'online';
       this.reconnectAttempts = 0;
     });
@@ -146,8 +147,8 @@ export class XmppClient implements XmppClientInterface {
 
   //room functions
 
-  async createRoomStanza(title: string, description: string, to?: string) {
-    return await createRoom(title, description, this.client, to);
+  async createRoomStanza(title: string, description: string) {
+    return await createRoom(title, description, this.client);
   }
 
   async inviteRoomRequestStanza(to: string, roomJid: string) {
