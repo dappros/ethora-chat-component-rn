@@ -299,19 +299,12 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
               />
             )}
             {isChatVisible ? (
-              activeMessage?.activeMessage ? (
-                <ThreadWrapper
-                  activeMessage={activeMessage}
-                  user={user}
-                  customMessageComponent={CustomMessageComponent || Message}
-                />
-              ) : (
-                <ChatRoom
-                  CustomMessageComponent={CustomMessageComponent || Message}
-                  handleBackClick={handleItemClick}
-                />
-              )
-            ) : activeMessage?.activeMessage ? (
+              <ChatRoom
+                CustomMessageComponent={CustomMessageComponent || Message}
+                handleBackClick={handleItemClick}
+              />
+            ) : null}
+            {isChatVisible && activeMessage?.activeMessage ? (
               <ThreadWrapper
                 activeMessage={activeMessage}
                 user={user}

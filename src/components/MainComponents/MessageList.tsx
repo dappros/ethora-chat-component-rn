@@ -5,13 +5,14 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { View, StyleSheet, FlatList } from "react-native";
+import { View, StyleSheet, FlatList, Image } from "react-native";
 import { IMessage, User, IConfig } from "../../types/types";
 import Composing from "../styled/StyledInputComponents/Composing";
 import TreadLabel from "../styled/TreadLabel";
 import { MessageContainer } from "./MessageContainer";
 import { useRoomState } from "../../hooks/useRoomState";
 import Loader from "../styled/Loader";
+import { SvgUri } from "react-native-svg";
 
 interface MessageListProps<TMessage extends IMessage> {
   CustomMessage?: React.ComponentType<{
@@ -87,14 +88,14 @@ const MessageList = <TMessage extends IMessage>({
   const previousMessageCount = useRef(memoizedMessages.length);
 
   const handleLoadMore = useCallback(async () => {
-    if (isLoadingMore || !memoizedMessages.length || loading) return;
+    if (isLoadingMore || loading || !memoizedMessages.length) return;
 
     setIsLoadingMore(true);
     try {
       await loadMoreMessages(
         memoizedMessages[0].roomJid,
         30,
-        Number(memoizedMessages[0].id)
+        Number(memoizedMessages[memoizedMessages.length - 1].id)
       );
     } catch (error) {
       console.error("Error loading more messages:", error);
@@ -124,8 +125,62 @@ const MessageList = <TMessage extends IMessage>({
     [CustomMessage, activeMessage, config, user.walletAddress, isReply]
   );
 
+  // useEffect(() => {
+  //   if (
+  //     flatListRef.current &&
+  //     previousMessageCount.current !== memoizedMessages.length
+  //   ) {
+  //     flatListRef.current.scrollToOffset({ animated: false, offset: 0 });
+  //   }
+  //   previousMessageCount.current = memoizedMessages.length;
+  // }, [memoizedMessages]);
+
+  const BackgroundImage = useMemo(() => {
+    const image = config?.backgroundChat?.image;
+
+    if (image) {
+      if (typeof image === "function") {
+        const SvgComponent = image as React.FC<React.SVGProps<SVGSVGElement>>;
+        return (
+          <SvgComponent
+            width="100%"
+            height="100%"
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+            }}
+          />
+        );
+        // return <image width="100%" height="100%" />
+      } else {
+        return <Image source={image} style={styles.image} />;
+      }
+    }
+
+    return <View />;
+  }, [config?.backgroundChat?.image]);
+
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: config?.backgroundChat?.color || "#F3F6FC" },
+      ]}
+    >
+      {BackgroundImage}
+      {/* {config?.backgroundChat?.image &&
+      config?.backgroundChat?.image.endsWith(".svg") ? (
+        <SvgUri
+          width={"100%"}
+          height={"100%"}
+          uri={config?.backgroundChat?.image}
+        />
+      ) : (
+        <Image source={config?.backgroundChat?.image} style={styles.image} />
+      )} */}
       {loading && <Loader color={config?.colors?.primary} />}
       {activeMessage && (
         <View>
@@ -145,8 +200,13 @@ const MessageList = <TMessage extends IMessage>({
         renderItem={renderMessage}
         keyExtractor={(item) => item.id.toString()}
         onEndReached={handleLoadMore}
-        onEndReachedThreshold={0.1}
+        onEndReachedThreshold={0.5}
         inverted
+        onScroll={(e) => {
+          if (e.nativeEvent.contentOffset.y === 0) {
+            handleLoadMore();
+          }
+        }}
         ListFooterComponent={
           isLoadingMore ? <Loader color={config?.colors?.primary} /> : null
         }
@@ -162,11 +222,18 @@ export default MessageList;
 
 const styles = StyleSheet.create({
   container: {
+    position: "relative",
     flex: 1,
-    backgroundColor: "#F3F6FC",
   },
   messageList: {
     paddingHorizontal: 10,
     flexGrow: 1,
+  },
+  image: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: "100%",
+    height: "100%",
   },
 });

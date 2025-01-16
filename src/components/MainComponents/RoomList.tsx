@@ -180,7 +180,7 @@ const RoomList: React.FC<RoomListProps> = ({
         style={[styles.container, config?.roomListStyles]}
       >
         {(open || !burgerMenu) && (
-          <ScrollView style={styles.scrollContainer}>
+          <View style={styles.scrollContainer}>
             <View style={styles.searchContainer}>
               {!config?.disableRoomMenu && (
                 <DropdownMenu
@@ -228,7 +228,7 @@ const RoomList: React.FC<RoomListProps> = ({
               onMomentumScrollEnd={() => setIsScrolling(false)}
               style={styles.chatList}
             /> */}
-          </ScrollView>
+          </View>
         )}
       </View>
     </>
@@ -252,7 +252,6 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   searchContainer: {
-    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     padding: 16,

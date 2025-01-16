@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { setEditAction } from "../roomStore/roomsSlice";
 import { uploadFile } from "../networking/api-requests/auth.api";
 import { RootState } from "../roomStore";
+import { Platform } from "react-native";
 
 export const useSendMessage = () => {
   const { client } = useXmppClient();
@@ -82,7 +83,13 @@ export const useSendMessage = () => {
       mainMessage?: string
     ) => {
       let mediaData: FormData | null = new FormData();
-      mediaData.append("files", data);
+
+      mediaData.append("files", {
+        uri: data.uri,
+        type: type || "image/png",
+        name:
+          data.name || data.uri.split("/").pop() || `file_${Date.now()}.jpg`,
+      });
 
       uploadFile(mediaData)
         .then((response) => {

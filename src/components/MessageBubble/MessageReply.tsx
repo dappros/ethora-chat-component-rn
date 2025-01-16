@@ -9,13 +9,14 @@ export const StyledMessageReply = styled.TouchableOpacity<{
 }>`
   background-color: ${(props) => (props.isUser ? "#ffffff" : "#E7EDF9")};
   padding: 8px 16px;
+  margin-bottom: 8px;
   border-radius: 4px;
   border-style: solid;
-  border-left-width: ${(props) => (props.isUser ? 4 : 0)}px;
-  border-left-color: ${(props) =>
+  border-start-width: ${(props) => (props.isUser ? 4 : 0)}px;
+  border-start-color: ${(props) =>
     props.isUser ? props.configColor : "transparent"};
-  border-right-width: ${(props) => (!props.isUser ? 4 : 0)}px;
-  border-right-color: ${(props) =>
+  border-end-width: ${(props) => (!props.isUser ? 4 : 0)}px;
+  border-end-color: ${(props) =>
     !props.isUser ? props.configColor : "transparent"};
 `;
 

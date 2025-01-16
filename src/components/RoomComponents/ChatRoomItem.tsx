@@ -58,7 +58,7 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
           <ChatInfo>
             <ChatName text={chat.name || ""} />
           </ChatInfo>
-          {lastMessage && (
+          {lastMessage ? (
             <UserCount
               style={{
                 color: "#8C8C8C",
@@ -66,7 +66,7 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
               }}
               text={formatTimeToHHMM(lastMessage.date)}
             />
-          )}
+          ) : null}
         </View>
         <View
           style={{
@@ -81,46 +81,44 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
               usersTyping={chat.composingList}
               style={{ color: "#141414" }}
             />
-          ) : (
-            lastMessage?.body && (
+          ) : lastMessage?.body ? (
+            <View
+              style={{
+                display: "flex",
+                width: "80%",
+                flexDirection: "column",
+                alignItems: "flex-start",
+              }}
+            >
               <View
                 style={{
-                  display: "flex",
-                  width: "80%",
-                  flexDirection: "column",
-                  alignItems: "flex-start",
+                  height: 20,
                 }}
               >
-                <View
-                  style={{
-                    height: 20,
-                  }}
-                >
-                  <Text style={{ fontWeight: "600", textAlign: "right" }}>
-                    {lastMessage.user.name || ""}:
-                  </Text>
-                </View>
-                <View
-                  style={{
-                    height: 20,
-                    maxWidth: 200,
-                    overflow: "hidden",
-                  }}
-                >
-                  <Text
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
-                    style={{
-                      textAlign: "right",
-                    }}
-                  >
-                    {lastMessage.body || "Chat created"}
-                  </Text>
-                </View>
+                <Text style={{ fontWeight: "600", textAlign: "right" }}>
+                  {lastMessage.user.name || ""}:
+                </Text>
               </View>
-            )
-          )}
-          {chat.unreadMessages && chat.unreadMessages > 0 && (
+              <View
+                style={{
+                  height: 20,
+                  maxWidth: 200,
+                  overflow: "hidden",
+                }}
+              >
+                <Text
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                  style={{
+                    textAlign: "right",
+                  }}
+                >
+                  {lastMessage.body || "Chat created"}
+                </Text>
+              </View>
+            </View>
+          ) : null}
+          {chat.unreadMessages && chat.unreadMessages > 0 ? (
             <View
               style={{
                 borderRadius: 8,
@@ -145,7 +143,7 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
                 {chat.unreadMessages || ""}
               </Text>
             </View>
-          )}
+          ) : null}
         </View>
         {isDriver && (
           <View

@@ -28,24 +28,15 @@ const CustomMessageImage: React.FC<CustomMessageImageProps> = ({
     dispatch(setActiveModal(MODAL_TYPES.FILE_PREVIEW));
   };
 
-  const convertSvgToPng = (svgUrl: string) => {
-    return `https://api.unsplash.com/svg-to-png?url=${encodeURIComponent(
-      svgUrl
-    )}`;
-  };
-
-  console.log("fileURL", fileURL);
-
   return (
     <Container>
       <TouchableOpacity onPress={handleOpen}>
         {loading && <ActivityIndicator size="small" color="#0052CD" />}
         <Image
-          source={{
-            uri: error
-              ? "https://as2.ftcdn.net/v2/jpg/02/51/95/53/1000_F_251955356_FAQH0U1y1TZw3ZcdPGybwUkH90a3VAhb.jpg"
-              : convertSvgToPng(fileURL),
-          }}
+          src={
+            fileURL ||
+            "https://as2.ftcdn.net/v2/jpg/02/51/95/53/1000_F_251955356_FAQH0U1y1TZw3ZcdPGybwUkH90a3VAhb.jpg"
+          }
           style={{
             borderRadius: 16,
             width: 150,

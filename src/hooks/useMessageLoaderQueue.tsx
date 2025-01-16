@@ -18,7 +18,11 @@ const useMessageLoaderQueue = (
         roomsList.forEach(async (room) => {
           if (!processedChats.has(room)) {
             await loadMoreMessages(room, 20);
-            setProcessedChats((prev) => new Set(prev).add(room));
+            setProcessedChats((prev) => {
+              const updatedSet = new Set(prev);
+              updatedSet.add(room);
+              return updatedSet;
+            });
           }
         });
       }

@@ -141,17 +141,14 @@ export const chatSlice = createSlice({
       state.user.refreshToken = action.payload.refreshToken;
       state.user.token = action.payload.token;
 
-      localStorage.setItem(
-        localStorageConstants.ETHORA_USER,
-        JSON.stringify(state.user)
-      );
+      useLocalStorage(localStorageConstants.ETHORA_USER).set(JSON.stringify(state.user))
     },
     logout: (state) => {
       state.user = unpackAndTransform();
       state.config = undefined;
       state.client = undefined;
 
-      localStorage.removeItem(localStorageConstants.ETHORA_USER);
+      useLocalStorage(localStorageConstants.ETHORA_USER).remove();
     },
   },
 });

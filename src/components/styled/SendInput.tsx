@@ -94,7 +94,7 @@ const SendInput: React.FC<SendInputProps> = ({
   const handleSendClick = useCallback(() => {
     if (filePreviews.length > 0) {
       filePreviews.forEach((file) => {
-        sendMedia(file, file.type.startsWith("image") ? "image" : "video");
+        sendMedia({ uri: file.uri, name: file.name }, file.type);
       });
     } else if (message) {
       sendMessage(message);
@@ -112,7 +112,7 @@ const SendInput: React.FC<SendInputProps> = ({
       {filePreviews.length > 0 && (
         <MediaContainer>
           {filePreviews.map((file, index) => (
-            <View>
+            <View key={`${file.name}_${index}`}>
               <MediaImage key={index} source={{ uri: file.uri }} />
               <RemoveButton onPress={() => handleRemoveImage(index)}>
                 <RemoveButtonText>&times;</RemoveButtonText>

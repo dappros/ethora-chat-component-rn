@@ -33,7 +33,12 @@ const CustomMessageContainer = styled.View<{ isUser: boolean; reply?: number }>`
   margin-bottom: ${(props) => !!props.reply && "20px"};
 `;
 
-const CustomMessageBubble = styled.View<{ isUser: boolean; deleted?: boolean }>`
+const CustomMessageBubble = styled.View<{
+  isUser: boolean;
+  deleted?: boolean;
+  backgroundMessageUser?: string;
+  backgroundMessage?: string;
+}>`
   position: relative;
   max-width: 90%;
   min-width: 30%;
@@ -41,13 +46,27 @@ const CustomMessageBubble = styled.View<{ isUser: boolean; deleted?: boolean }>`
   border-radius: 10px;
   border-bottom-left-radius: ${({ isUser }) => (isUser ? "10" : "0")}px;
   border-bottom-right-radius: ${({ isUser }) => (isUser ? "0" : "10")}px;
-  background-color: ${({ isUser, deleted }) =>
-    deleted ? "#f5f5f5" : isUser ? "#d1e7ff" : "#fff"};
+  background-color: ${({
+    isUser,
+    deleted,
+    backgroundMessageUser,
+    backgroundMessage,
+  }) =>
+    deleted
+      ? "#f5f5f5"
+      : isUser
+      ? backgroundMessageUser || "#d1e7ff"
+      : backgroundMessage || "#fff"};
 `;
 
-const CustomMessageText = styled.Text`
+const CustomMessageText = styled.Text<{
+  isUser: boolean;
+  colorUser?: string;
+  color?: string;
+}>`
   font-size: 16px;
-  color: #333;
+  color: ${({ color, colorUser, isUser }) =>
+    isUser ? colorUser || "#333" : color || "#333"};
 `;
 
 const CustomMessagePhoto = styled.Image`
@@ -62,12 +81,19 @@ const CustomMessagePhotoContainer = styled.TouchableOpacity`
 
 const CustomUserName = styled.Text<{ color?: string }>`
   font-size: 14px;
+  font-weight: 500;
   color: ${({ color }) => color || "#333"};
 `;
 
-const CustomMessageTimestamp = styled.Text`
+const CustomMessageTimestamp = styled.Text<{
+  isUser?: boolean;
+  color?: string;
+  colorUser?: string;
+}>`
   font-size: 12px;
   color: #999;
+  color: ${({ isUser, color, colorUser }) =>
+    isUser ? colorUser || "#999" : color || "#999"};
   margin-top: 5px;
   align-self: flex-end;
 `;
@@ -99,14 +125,16 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
     if (!isReply && message.mainMessage) {
       console.log("handleReplyMessage 2");
       const messageCore = JSON.parse(message.mainMessage);
-      return dispatch(
+      dispatch(
         setActiveMessage({ id: messageCore.id, chatJID: messageCore.roomJid })
       );
+
+      return setIsPressed(false);
     }
 
-    return dispatch(
-      setActiveMessage({ id: message.id, chatJID: message.roomJid })
-    );
+    dispatch(setActiveMessage({ id: message.id, chatJID: message.roomJid }));
+
+    return setIsPressed(false);
   };
 
   const handleDeleteMessage = () => {
@@ -129,6 +157,8 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
         text: message.body,
       })
     );
+
+    return setIsPressed(false);
   };
 
   // const handleLongPress = () => {
@@ -154,22 +184,23 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
     setIsPressed(true);
   };
 
-  const handlePressOut = () => {
-    setIsPressed(false);
-  };
-
   return (
     <View>
-      {isPressed && <View style={styles.overlay} />}
-      <CustomMessageContainer
+      {isPressed && <View style={styles.overlay} />}\
+      <View
         ref={messageRef}
-        isUser={isUser}
-        reply={message?.reply?.length}
-        style={
+        style={[
+          styles.customMessageContainer,
+          {
+            justifyContent: isUser ? "flex-end" : "flex-start",
+            marginBottom: !!message?.reply?.length ? 20 : 0,
+          },
           isPressed
             ? { transform: [{ scale: 1.05 }], paddingRight: 16 }
-            : undefined
-        }
+            : undefined,
+          // justify-content: ${({ isUser }) => (isUser ? "flex-end" : "flex-start")},
+          // margin-bottom: ${(props) => !!props.reply && "20px"},
+        ]}
       >
         {!isUser && (
           <CustomMessagePhotoContainer
@@ -186,7 +217,12 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
           onLongPress={handleLongPress}
           delayLongPress={500}
         >
-          <CustomMessageBubble isUser={isUser} deleted={message.isDeleted}>
+          <CustomMessageBubble
+            isUser={isUser}
+            deleted={message.isDeleted}
+            backgroundMessageUser={config?.messageColor?.backgroundMessageUser}
+            backgroundMessage={config?.messageColor?.backgroundMessage}
+          >
             {!isUser && (
               <CustomUserName color={config?.colors?.primary}>
                 {message.user.name}
@@ -213,12 +249,22 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
                 {message.isDeleted && message.id !== "delimiter-new" ? (
                   <DeletedMessage />
                 ) : (
-                  <CustomMessageText>{message.body}</CustomMessageText>
+                  <CustomMessageText
+                    isUser={isUser}
+                    colorUser={config?.messageColor?.colorUser}
+                    color={config?.messageColor?.color}
+                  >
+                    {message.body}
+                  </CustomMessageText>
                 )}
               </>
             )}
 
-            <CustomMessageTimestamp>
+            <CustomMessageTimestamp
+              isUser={isUser}
+              colorUser={config?.messageColor?.colorUser}
+              color={config?.messageColor?.color}
+            >
               {message?.pending && "sending..."}
               {new Date(message.date).toLocaleTimeString([], {
                 hour: "2-digit",
@@ -236,8 +282,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
             )}
           </CustomMessageBubble>
         </TouchableWithoutFeedback>
-      </CustomMessageContainer>
-
+      </View>
       {/* {!config?.disableInteractions && ( */}
       {isPressed && (
         <MessageInteractions
@@ -258,6 +303,12 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
 export { Message };
 
 const styles = StyleSheet.create({
+  customMessageContainer: {
+    flexDirection: "row",
+    padding: 10,
+    alignItems: "flex-end",
+    position: "relative",
+  },
   overlay: {
     ...StyleSheet.absoluteFillObject,
     position: "absolute",
@@ -265,7 +316,7 @@ const styles = StyleSheet.create({
     left: 0,
     width: "100%",
     height: "100%",
-    backgroundColor: "rgba(0, 0, 0, 0.3)",
+    // backgroundColor: "rgba(0, 0, 0, 0.3)",
   },
   timestamp: {
     fontSize: 12,

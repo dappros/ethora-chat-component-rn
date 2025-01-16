@@ -1,4 +1,4 @@
-import { ViewStyle } from 'react-native';
+import { ImageSourcePropType, ViewStyle } from 'react-native';
 import { MODAL_TYPES } from '../helpers/constants/MODAL_TYPES';
 import { Client } from '@xmpp/client';
 
@@ -168,6 +168,17 @@ export interface IConfig {
   disableRoomMenu?: boolean;
   defaultRooms?: string[] | ConfigRoom[];
   refreshTokens?: { enabled: boolean; refreshFunction?: any };
+  backgroundChat?: {
+    color?: string;
+    image?: ImageSourcePropType | React.FC<React.SVGProps<SVGSVGElement>>;
+
+  };
+  messageColor?: {
+    backgroundMessageUser?: string;
+    backgroundMessage?: string;
+    colorUser?: string;
+    color?: string; 
+  };
 }
 
 interface ConfigRoom {

@@ -8,6 +8,7 @@ import SendInput from "../styled/SendInput";
 import {
   deleteRoomMessage,
   setEditAction,
+  setIsLoading,
   setLastViewedTimestamp,
 } from "../../roomStore/roomsSlice";
 import Loader from "../styled/Loader";
@@ -68,14 +69,18 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
 
     const loadMoreMessages = useCallback(
       async (chatJID: string, max: number, idOfMessageBefore?: number) => {
-        if (!isLoadingMore) {
-          setIsLoadingMore(true);
-          client?.getHistoryStanza(chatJID, max, idOfMessageBefore).then(() => {
-            setIsLoadingMore(false);
-          });
+        if (isLoadingMore) return;
+
+        setIsLoadingMore(true);
+        try {
+          await client?.getHistoryStanza(chatJID, max, idOfMessageBefore);
+        } catch (error) {
+          console.error("Error loading messages:", error);
+        } finally {
+          setIsLoadingMore(false);
         }
       },
-      [client]
+      [client, isLoadingMore]
     );
 
     const onCloseEdit = () => {

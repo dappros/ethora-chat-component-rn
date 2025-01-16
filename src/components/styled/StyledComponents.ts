@@ -12,6 +12,14 @@ export const ChatContainer = styled.View`
   background-color: #f3f6fc;
 `;
 
+export const ThreadContainer = styled.View`
+  flex-direction: col;
+  justify-content: space-between;
+  flex: 1;
+  width: 100%;
+  background-color: #f3f6fc;
+`;
+
 export const ChatContainerHeader = styled.View`
   flex-direction: row;
   padding: 16px;

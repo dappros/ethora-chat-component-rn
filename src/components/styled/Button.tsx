@@ -20,14 +20,16 @@ const CustomButton = styled(TouchableOpacity)<{
 }>`
   border-width: ${({ variant }) => (variant === "outlined" ? 1 : 0)}px;
   border-color: ${({ backgroundColor }) => backgroundColor || "#0052CD"};
-  border-radius: 16px;
+  border-radius: 20px;
   background-color: ${({ variant, backgroundColor }) =>
     variant === "filled" ? backgroundColor || "#0052CD" : "transparent"};
+  flex-direction: row;
   justify-content: center;
   align-items: center;
   height: 40px;
+  width: 40px;
+  margin: 0 10px;
   padding-horizontal: 8px;
-  flex-direction: row;
   opacity: ${({ disabled }) => (disabled ? 0.6 : 1)};
 `;
 

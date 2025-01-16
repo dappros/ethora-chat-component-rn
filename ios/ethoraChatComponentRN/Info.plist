@@ -2,6 +2,13 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 	<dict>
+		<key>LSApplicationQueriesSchemes</key>
+		<array>
+			<string>fb</string>
+			<string>instagram</string>
+			<string>twitter</string>
+			<string>tiktoksharesdk</string>
+		</array>
 		<key>NSMicrophoneUsageDescription</key>
 		<string>We need access to your microphone to record audio.</string>
 		<key>CFBundleDevelopmentRegion</key>

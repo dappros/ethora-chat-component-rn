@@ -1,9 +1,10 @@
-import { FC, useCallback, useState } from "react";
+import { FC, useCallback, useEffect, useRef, useState } from "react";
 import { IMessage, User } from "../../types/types";
 import {
   AlsoCheckbox,
   AlsoContainer,
   ChatContainer,
+  ThreadContainer,
 } from "../styled/StyledComponents";
 import SendInput from "../styled/SendInput";
 import { useDispatch } from "react-redux";
@@ -19,7 +20,13 @@ import { useSendMessage } from "../../hooks/useSendMessage";
 import { createMainMessageForThread } from "../../helpers/createMainMessageForThread";
 import { useRoomState } from "../../hooks/useRoomState";
 import { useChatSettingState } from "../../hooks/useChatSettingState";
-import { Text, TouchableOpacity } from "react-native";
+import {
+  Animated,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  PanResponder,
+} from "react-native";
 
 interface ThreadWrapperProps {
   activeMessage: IMessage;
@@ -45,6 +52,34 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
 
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
   const [isChecked, setIsChecked] = useState<boolean>(false);
+
+  const slideAnim = useRef(new Animated.Value(300)).current;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: (e, gestureState) => {
+        return gestureState.x0 <= 100;
+      },
+      onMoveShouldSetPanResponder: (e, gestureState) => {
+        return gestureState.x0 <= 100 && gestureState.dx > 0;
+      },
+      onPanResponderMove: (e, gestureState) => {
+        if (gestureState.x0 <= 100 && gestureState.dx > 0) {
+          slideAnim.setValue(gestureState.dx);
+        }
+      },
+      onPanResponderRelease: (e, gestureState) => {
+        if (gestureState.x0 <= 100 && gestureState.dx > 150) {
+          closeThread();
+        } else {
+          Animated.spring(slideAnim, {
+            toValue: 0,
+            useNativeDriver: true,
+          }).start();
+        }
+      },
+    })
+  ).current;
 
   const loadMoreMessages = useCallback(
     async (chatJID: string, max: number, idOfMessageBefore?: number) => {
@@ -110,11 +145,30 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
     dispatch(setEditAction({ isEdit: false }));
   };
 
+  useEffect(() => {
+    if (activeMessage?.activeMessage) {
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(slideAnim, {
+        toValue: 300,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [activeMessage?.activeMessage]);
+
   return (
-    <ChatContainer
-      style={{
-        ...config?.chatRoomStyles,
-      }}
+    <Animated.View
+      {...panResponder.panHandlers}
+      style={[
+        styles.threadContainer,
+        { transform: [{ translateX: slideAnim }] },
+        // ...config?.chatRoomStyles,
+      ]}
     >
       <ModalHeaderComponent
         headerTitle="Thread"
@@ -162,8 +216,28 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
         onBlur={sendEndComposing}
         isLoading={loading}
       />
-    </ChatContainer>
+    </Animated.View>
   );
 };
 
 export default ThreadWrapper;
+
+const styles = StyleSheet.create({
+  threadContainer: {
+    zIndex: 999,
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    right: 0,
+    width: "100%",
+    height: "100%",
+    backgroundColor: "#f3f6fc",
+    flexDirection: "column",
+    justifyContent: "space-between",
+    flex: 1,
+  },
+  text: {
+    color: "#fff",
+    fontSize: 18,
+  },
+});
