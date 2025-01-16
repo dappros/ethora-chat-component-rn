@@ -16,7 +16,10 @@ import { nameToColor } from "../../helpers/constants/hashcolor";
 interface ProfileImagePlaceholderProps {
   name?: string;
   icon?: string | { uri: string };
-  onClick?: () => void;
+  click?: {
+    onPress: () => void;
+    isClick: boolean;
+  };
   size?: number;
   upload?: {
     onUpload: (image: any) => void; // Replace `any` with a proper type if available
@@ -39,6 +42,7 @@ export const ProfileImagePlaceholder: React.FC<
 > = ({
   name,
   icon,
+  click,
   size = 64,
   upload,
   remove,
@@ -71,7 +75,13 @@ export const ProfileImagePlaceholder: React.FC<
         bgColor={icon ? "transparent" : backgroundColor}
         size={size}
         isClickable={active || !!upload?.active}
-        onPress={upload?.active ? upload.onUpload : undefined}
+        onPress={
+          upload?.active
+            ? upload.onUpload
+            : click?.isClick
+            ? click.onPress
+            : undefined
+        }
       >
         {icon ? (
           <AvatarImage
@@ -81,7 +91,7 @@ export const ProfileImagePlaceholder: React.FC<
         ) : placeholderIcon ? (
           placeholderIcon
         ) : (
-          <InitialsText size={size} color={textColor}>
+          <InitialsText size={size} color={textColor || ""}>
             {getInitials()}
           </InitialsText>
         )}

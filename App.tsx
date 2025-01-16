@@ -4,7 +4,6 @@ import React from "react";
 import { SafeAreaView, StyleSheet } from "react-native";
 import { defaultUser } from "./api.config";
 import { ReduxWrapper } from "./src/components/MainComponents/ReduxWrapper";
-import { BG } from "./src/assets/BG";
 
 function App(): React.JSX.Element {
   return (
@@ -25,6 +24,7 @@ function App(): React.JSX.Element {
             colorUser: "#FFFFFF",
             color: "#53575A",
           },
+          headerLogo: require("./src/assets/ForzaCare.png"),
         }}
       />
     </SafeAreaView>

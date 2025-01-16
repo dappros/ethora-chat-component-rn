@@ -179,6 +179,7 @@ export interface IConfig {
     colorUser?: string;
     color?: string; 
   };
+  headerLogo?: ImageSourcePropType | React.FC<React.SVGProps<SVGSVGElement>>;
 }
 
 interface ConfigRoom {

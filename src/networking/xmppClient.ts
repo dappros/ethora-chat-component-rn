@@ -21,6 +21,7 @@ import { getRooms } from './xmpp/getRooms.xmpp';
 import { handleStanza } from './xmpp/handleStanzas.xmpp';
 import { setVcard } from './xmpp/setVCard.xmpp';
 import { XmppClientInterface } from '../types/types';
+import { createPrivateRoom } from './xmpp/createPrivateRoom.xmpp';
 
 export class XmppClient implements XmppClientInterface {
   client!: Client;
@@ -258,6 +259,14 @@ export class XmppClient implements XmppClientInterface {
         chats
       );
     } catch (error) {}
+  }
+
+  async createPrivateRoomStanza(
+    title: string,
+    description: string,
+    to: string
+  ) {
+    return await createPrivateRoom(title, description, to, this.client);
   }
 
   sendMediaMessageStanza(roomJID: string, data: any) {

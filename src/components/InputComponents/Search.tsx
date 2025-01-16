@@ -23,10 +23,11 @@ const SearchInputWrapper = styled.View<{
   position: relative;
   flex-direction: row;
   align-items: center;
-  background-color: #f5f7f9;
+  background-color: #fff;
   border-radius: 16px;
   height: 48px;
   padding: 0 16px;
+  margin: 0 6px 16px 6px;
   flex: 1;
   ${({ animated, expanded }) =>
     animated &&

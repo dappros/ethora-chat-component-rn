@@ -13,6 +13,8 @@ import {
   ScrollView,
   FlatList,
   Pressable,
+  Text,
+  Image,
 } from "react-native";
 import { IRoom } from "../../types/types";
 import { SearchInput } from "../InputComponents/Search";
@@ -32,6 +34,7 @@ import { useXmppClient } from "../../context/xmppProvider";
 import ChatRoomItem from "../RoomComponents/ChatRoomItem";
 import { useChatSettingState } from "../../hooks/useChatSettingState";
 import Button from "../styled/Button";
+import { ProfileImagePlaceholder } from "./ProfileImagePlaceholder";
 
 const LONG_PRESS_THRESHOLD = 200;
 
@@ -55,7 +58,7 @@ const RoomList: React.FC<RoomListProps> = ({
 
   const dispatch = useDispatch();
 
-  const { config } = useChatSettingState();
+  const { config, user, selectedUser } = useChatSettingState();
 
   const containerRef = useRef<View>(null);
 
@@ -157,6 +160,29 @@ const RoomList: React.FC<RoomListProps> = ({
     [handleLogout]
   );
 
+  const HeaderLogo = useMemo(() => {
+    const image = config?.headerLogo;
+
+    if (image) {
+      if (typeof image === "function") {
+        const SvgComponent = image as React.FC<React.SVGProps<SVGSVGElement>>;
+        return <SvgComponent />;
+        // return <image width="100%" height="100%" />
+      } else {
+        return <Image source={image} />;
+      }
+    }
+
+    return <View />;
+  }, [config?.backgroundChat?.image]);
+
+  const openProfile = () => {
+    dispatch(setActiveModal(MODAL_TYPES.PROFILE));
+    console.log("Profile clicked");
+  };
+
+  const modalUser: any = selectedUser ?? user;
+
   return (
     <>
       {burgerMenu && !open && (
@@ -189,11 +215,21 @@ const RoomList: React.FC<RoomListProps> = ({
                   position="left"
                 />
               )}
-              <SearchInput
-                icon={<SearchIcon height={20} />}
-                value={searchTerm}
-                onChangeText={handleSearchChange}
-                placeholder="Search..."
+              <View>
+                {config?.headerLogo ? (
+                  HeaderLogo
+                ) : (
+                  <Text style={{ fontWeight: 500, fontSize: 18 }}>Chats</Text>
+                )}
+              </View>
+              <ProfileImagePlaceholder
+                icon={modalUser?.profileImage ?? null}
+                name={modalUser?.name ?? modalUser?.firstName}
+                size={30}
+                click={{
+                  isClick: true,
+                  onPress: openProfile,
+                }}
               />
               {/* <NewChatModal /> */}
             </View>
@@ -209,6 +245,14 @@ const RoomList: React.FC<RoomListProps> = ({
                   <ChatRoomItem chat={item} config={config} />
                 </Pressable>
               )}
+              ListHeaderComponent={
+                <SearchInput
+                  icon={<SearchIcon height={20} />}
+                  value={searchTerm}
+                  onChangeText={handleSearchChange}
+                  placeholder="Search..."
+                />
+              }
               style={styles.chatList}
             />
 
@@ -261,6 +305,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingTop: 10,
     paddingHorizontal: 8,
+    backgroundColor: "#FAFAFA",
   },
 });
 
