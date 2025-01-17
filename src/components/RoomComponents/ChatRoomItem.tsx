@@ -47,6 +47,8 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
           width: "100%",
           paddingVertical: 8,
           paddingRight: 8,
+          borderBottomWidth: 1,
+          borderBottomColor: "#F0F0F0",
         }}
       >
         <View
