@@ -185,6 +185,7 @@ export interface IConfig {
     color?: string; 
   };
   headerLogo?: ImageSourcePropType | React.FC<React.SVGProps<SVGSVGElement>>;
+  headerMenu?: () => void;
 }
 
 export interface xmppSettingsInterface {

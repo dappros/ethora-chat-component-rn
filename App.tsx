@@ -4,6 +4,8 @@ import React from "react";
 import { SafeAreaView, StyleSheet } from "react-native";
 import { defaultUser } from "./api.config";
 import { ReduxWrapper } from "./src/components/MainComponents/ReduxWrapper";
+import { BG } from "./src/assets/BG";
+import { ForzaCare } from "./src/assets/ForzaCare";
 
 function App(): React.JSX.Element {
   return (
@@ -15,7 +17,7 @@ function App(): React.JSX.Element {
           backgroundChat: {
             color: "#fff",
             // image: BG,
-            image: require("./src/assets/BG.png"),
+            image: BG,
           },
           colors: { primary: "#60269E", secondary: "#F2E6F6" },
           messageColor: {
@@ -24,7 +26,8 @@ function App(): React.JSX.Element {
             colorUser: "#FFFFFF",
             color: "#53575A",
           },
-          headerLogo: require("./src/assets/ForzaCare.png"),
+          headerLogo: ForzaCare,
+          // headerMenu: () => navigation.dispatch(DrawerActions.openDrawer()),
         }}
       />
     </SafeAreaView>

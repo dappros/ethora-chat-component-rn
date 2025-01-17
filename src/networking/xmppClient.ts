@@ -47,7 +47,7 @@ export class XmppClient {
     xmppSettings?: xmppSettingsInterface,
   ) {
     this.devServer =
-      xmppSettings?.devServer || `wss://'xmpp.ethoradev.com:5443'/ws`;
+      xmppSettings?.devServer || `wss://xmpp.ethoradev.com:5443/ws`;
     this.host = xmppSettings?.host || '';
     this.service = xmppSettings?.conference || '';
 
@@ -232,7 +232,7 @@ export class XmppClient {
       isReply,
       showInChannel,
       mainMessage,
-      this.devServer || `wss://'xmpp.ethoradev.com:5443'/ws`,
+      this.devServer || `wss://xmpp.ethoradev.com:5443/ws`,
     );
   };
 
