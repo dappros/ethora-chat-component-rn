@@ -36,7 +36,7 @@ import ThreadWrapper from "../Thread/ThreadWrapper";
 import { ModalWrapper } from "../Modals/ModalWrapper/ModalWrapper";
 import { useChatSettingState } from "../../hooks/useChatSettingState";
 import { CONFERENCE_DOMAIN } from "../../helpers/constants/PLATFORM_CONSTANTS";
-import { AppState, Linking, View, ViewStyle } from "react-native";
+import { AppState, Linking, StatusBar, View, ViewStyle } from "react-native";
 import useMessageLoaderQueue from "../../hooks/useMessageLoaderQueue";
 import { useRoomState } from "../../hooks/useRoomState";
 
@@ -288,6 +288,11 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
               ...MainComponentStyles,
             }}
           >
+            <StatusBar
+              barStyle="dark-content"
+              backgroundColor="#fff"
+              translucent={false}
+            />
             {!config?.disableRooms && roomsList && !isChatVisible && (
               <RoomList
                 chats={Object.values(roomsList)}
