@@ -10,31 +10,20 @@ import React, {
 import {
   View,
   StyleSheet,
-  ScrollView,
   FlatList,
   Pressable,
+  Animated,
   Text,
-  Image,
+  TouchableOpacity,
 } from "react-native";
 import { IRoom } from "../../types/types";
 import { SearchInput } from "../InputComponents/Search";
-import { useDispatch } from "react-redux";
-import {
-  AddNewIcon,
-  BurgerMenuIcon,
-  ProfileIcon,
-  SearchIcon,
-  SettingIcon,
-} from "../../assets/icons";
-import DropdownMenu from "../DropdownMenu/DropdownMenu";
-import { logout, setActiveModal } from "../../roomStore/chatSettingsSlice";
-import { setLogoutState } from "../../roomStore/roomsSlice";
-import { MODAL_TYPES } from "../../helpers/constants/MODAL_TYPES";
-import { useXmppClient } from "../../context/xmppProvider";
+import { BurgerMenuIcon, SearchIcon } from "../../assets/icons";
 import ChatRoomItem from "../RoomComponents/ChatRoomItem";
 import { useChatSettingState } from "../../hooks/useChatSettingState";
 import Button from "../styled/Button";
-import { ProfileImagePlaceholder } from "./ProfileImagePlaceholder";
+import { HeaderRoomList } from "../Header/HeaderRoomList";
+import { HeaderRoomListMenu } from "../Menu/HeaderRoomListMenu";
 
 const LONG_PRESS_THRESHOLD = 200;
 
@@ -49,24 +38,19 @@ const RoomList: React.FC<RoomListProps> = ({
   burgerMenu = false,
   onRoomClick,
 }) => {
-  const { client, setClient } = useXmppClient();
+  const { config } = useChatSettingState();
+
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-
   const [isLongPress, setIsLongPress] = useState(false);
+  const [isDrawerOpen, setDrawerOpen] = useState(false);
+
   const pressTimer = useRef<NodeJS.Timeout | null>(null);
-
-  const dispatch = useDispatch();
-
-  const { config, user, selectedUser } = useChatSettingState();
-
   const containerRef = useRef<View>(null);
 
-  // const handleClickOutside = useCallback((event: any) => {
-  //   if (containerRef.current && !containerRef.current.contains(event.target)) {
-  //     setOpen(false);
-  //   }
-  // }, []);
+  const drawerAnimation = useRef(new Animated.Value(0)).current;
+  const overlayAnimation = useRef(new Animated.Value(0)).current;
+
   const handlePressIn = useCallback(() => {
     setIsLongPress(false);
     pressTimer.current = setTimeout(() => {
@@ -116,79 +100,46 @@ const RoomList: React.FC<RoomListProps> = ({
     }
   }, [burgerMenu]);
 
-  const handleLogout = useCallback(async () => {
-    if (client) {
-      await client.close();
-      setClient(null);
+  const toggleDrawer = () => {
+    if (isDrawerOpen) {
+      closeDrawer();
+    } else {
+      setDrawerOpen(true);
+      Animated.parallel([
+        Animated.timing(drawerAnimation, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(overlayAnimation, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
     }
-    dispatch(setLogoutState());
-    dispatch(logout());
-  }, [client, dispatch, setClient]);
-
-  const menuOptions = useMemo(
-    () => [
-      {
-        label: "New Chat",
-        icon: <AddNewIcon color="#8C8C8C" />,
-        onClick: () => {
-          dispatch(setActiveModal(MODAL_TYPES.NEW_CHAT));
-          console.log("New chat clicked");
-        },
-        styles: { color: "#141414" },
-      },
-      {
-        label: "Profile",
-        icon: <ProfileIcon color="#8C8C8C" />,
-        onClick: () => {
-          dispatch(setActiveModal(MODAL_TYPES.PROFILE));
-          console.log("Profile clicked");
-        },
-      },
-      {
-        label: "Settings",
-        icon: <SettingIcon color="#8C8C8C" />,
-        onClick: () => {
-          dispatch(setActiveModal(MODAL_TYPES.SETTINGS));
-          console.log("Settings clicked");
-        },
-      },
-      // {
-      //   label: "Logout",
-      //   onClick: handleLogout,
-      // },
-    ],
-    [handleLogout]
-  );
-
-  const HeaderLogo = useMemo(() => {
-    const image = config?.headerLogo;
-
-    if (image) {
-      if (typeof image === "function") {
-        const SvgComponent = image as React.FC<React.SVGProps<SVGSVGElement>>;
-        return <SvgComponent />;
-        // return <image width="100%" height="100%" />
-      } else {
-        return <Image source={image} />;
-      }
-    }
-
-    return <View />;
-  }, [config?.backgroundChat?.image]);
-
-  const openProfile = () => {
-    dispatch(setActiveModal(MODAL_TYPES.PROFILE));
-    console.log("Profile clicked");
   };
 
-  const modalUser: any = selectedUser ?? user;
+  const closeDrawer = () => {
+    Animated.parallel([
+      Animated.timing(drawerAnimation, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(overlayAnimation, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setDrawerOpen(false);
+    });
+  };
 
   return (
     <>
       {burgerMenu && !open && (
-        // <TouchableOpacity onPress={() => setOpen(!open)}>
-        //   <Text style={styles.burgerButton}>☰</Text>
-        // </TouchableOpacity>
         <Button
           style={{
             padding: 8,
@@ -206,73 +157,40 @@ const RoomList: React.FC<RoomListProps> = ({
         style={[styles.container, config?.roomListStyles]}
       >
         {(open || !burgerMenu) && (
-          <View style={styles.scrollContainer}>
-            <View style={styles.searchContainer}>
-              {!config?.disableRoomMenu && (
-                <DropdownMenu
-                  options={menuOptions}
-                  config={config}
-                  position="left"
-                />
-              )}
-              <View>
-                {config?.headerLogo ? (
-                  HeaderLogo
-                ) : (
-                  <Text style={{ fontWeight: 500, fontSize: 18 }}>Chats</Text>
+          <>
+            <View style={styles.scrollContainer}>
+              <HeaderRoomList setDrawerOpen={toggleDrawer} />
+              <FlatList
+                data={filteredChats}
+                keyExtractor={(item) => item.jid}
+                renderItem={({ item }) => (
+                  <Pressable
+                    onPress={() => performClick(item)}
+                    onPressIn={handlePressIn}
+                    onPressOut={handlePressOut}
+                  >
+                    <ChatRoomItem chat={item} config={config} />
+                  </Pressable>
                 )}
-              </View>
-              <ProfileImagePlaceholder
-                icon={modalUser?.profileImage ?? null}
-                name={modalUser?.name ?? modalUser?.firstName}
-                size={30}
-                click={{
-                  isClick: true,
-                  onPress: openProfile,
-                }}
+                ListHeaderComponent={
+                  <SearchInput
+                    icon={<SearchIcon height={20} />}
+                    value={searchTerm}
+                    onChangeText={handleSearchChange}
+                    placeholder="Search..."
+                  />
+                }
+                style={styles.chatList}
               />
-              {/* <NewChatModal /> */}
-            </View>
-            <FlatList
-              data={filteredChats}
-              keyExtractor={(item) => item.jid}
-              renderItem={({ item }) => (
-                <Pressable
-                  onPress={() => performClick(item)}
-                  onPressIn={handlePressIn}
-                  onPressOut={handlePressOut}
-                >
-                  <ChatRoomItem chat={item} config={config} />
-                </Pressable>
-              )}
-              ListHeaderComponent={
-                <SearchInput
-                  icon={<SearchIcon height={20} />}
-                  value={searchTerm}
-                  onChangeText={handleSearchChange}
-                  placeholder="Search..."
-                />
-              }
-              style={styles.chatList}
-            />
 
-            {/* <FlatList
-              data={chats}
-              keyExtractor={(item) => item.jid}
-              renderItem={({ item }) => (
-                <Pressable
-                  onPress={() => performClick(item)}
-                  onPressIn={() => setIsScrolling(false)}
-                >
-                  <ChatRoomItem chat={item} config={config} />
-                </Pressable>
-              )}
-              onScrollBeginDrag={() => setIsScrolling(true)}
-              onScrollEndDrag={() => setIsScrolling(false)}
-              onMomentumScrollEnd={() => setIsScrolling(false)}
-              style={styles.chatList}
-            /> */}
-          </View>
+              <HeaderRoomListMenu
+                closeDrawer={closeDrawer}
+                drawerAnimation={drawerAnimation}
+                overlayAnimation={overlayAnimation}
+                isDrawerOpen={isDrawerOpen}
+              />
+            </View>
+          </>
         )}
       </View>
     </>
@@ -295,7 +213,7 @@ const styles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
   },
-  searchContainer: {
+  headerContainer: {
     flexDirection: "row",
     alignItems: "center",
     padding: 16,

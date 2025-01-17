@@ -1,29 +1,29 @@
-import xmpp, { Client, xml } from '@xmpp/client';
-import { walletToUsername } from '../helpers/walletUsername';
+import xmpp, {Client, xml} from '@xmpp/client';
+import {walletToUsername} from '../helpers/walletUsername';
 
-import { sendMediaMessage } from './xmpp/sendMediaMessage.xmpp';
-import { getChatsPrivateStoreRequest } from './xmpp/getChatsPrivateStoreRequest.xmpp';
-import { actionSetTimestampToPrivateStore } from './xmpp/actionSetTimestampToPrivateStore.xmpp';
-import { sendTypingRequest } from './xmpp/sendTypingRequest.xmpp';
-import { getHistory } from './xmpp/getHistory.xmpp';
-import { sendTextMessage } from './xmpp/sendTextMessage.xmpp';
-import { deleteMessage } from './xmpp/deleteMessage.xmpp';
-import { presenceInRoom } from './xmpp/presenceInRoom.xmpp';
-import { getLastMessage } from './xmpp/getLastMessageArchive.xmpp';
-import { createRoom } from './xmpp/createRoom.xmpp';
-import { setRoomImage } from './xmpp/setRoomImage.xmpp';
-import { getRoomMembers } from './xmpp/getRoomMembers.xmpp';
-import { getRoomInfo } from './xmpp/getRoomInfo.xmpp';
-import { leaveTheRoom } from './xmpp/leaveTheRoom.xmpp';
-import { editMessage } from './xmpp/editMessage.xmpp';
-import { inviteRoomRequest } from './xmpp/inviteRoomRequest.xmpp';
-import { getRooms } from './xmpp/getRooms.xmpp';
-import { handleStanza } from './xmpp/handleStanzas.xmpp';
-import { setVcard } from './xmpp/setVCard.xmpp';
-import { XmppClientInterface } from '../types/types';
+import {sendMediaMessage} from './xmpp/sendMediaMessage.xmpp';
+import {getChatsPrivateStoreRequest} from './xmpp/getChatsPrivateStoreRequest.xmpp';
+import {actionSetTimestampToPrivateStore} from './xmpp/actionSetTimestampToPrivateStore.xmpp';
+import {sendTypingRequest} from './xmpp/sendTypingRequest.xmpp';
+import {getHistory} from './xmpp/getHistory.xmpp';
+import {sendTextMessage} from './xmpp/sendTextMessage.xmpp';
+import {deleteMessage} from './xmpp/deleteMessage.xmpp';
+import {presenceInRoom} from './xmpp/presenceInRoom.xmpp';
+import {getLastMessage} from './xmpp/getLastMessageArchive.xmpp';
+import {createRoom} from './xmpp/createRoom.xmpp';
+import {setRoomImage} from './xmpp/setRoomImage.xmpp';
+import {getRoomMembers} from './xmpp/getRoomMembers.xmpp';
+import {getRoomInfo} from './xmpp/getRoomInfo.xmpp';
+import {leaveTheRoom} from './xmpp/leaveTheRoom.xmpp';
+import {editMessage} from './xmpp/editMessage.xmpp';
+import {inviteRoomRequest} from './xmpp/inviteRoomRequest.xmpp';
+import {getRooms} from './xmpp/getRooms.xmpp';
+import {handleStanza} from './xmpp/handleStanzas.xmpp';
+import {setVcard} from './xmpp/setVCard.xmpp';
+import { XmppClientInterface, xmppSettingsInterface } from '../types/types';
 import { createPrivateRoom } from './xmpp/createPrivateRoom.xmpp';
 
-export class XmppClient implements XmppClientInterface {
+export class XmppClient {
   client!: Client;
   devServer: string | undefined;
   host: string;
@@ -41,9 +41,19 @@ export class XmppClient implements XmppClientInterface {
     return this.client && this.client.status === 'online';
   }
 
-  constructor(username: string, password: string, devServer?: string) {
-    this.devServer = devServer;
-    const url = `wss://${this.devServer || 'xmpp.ethoradev.com:5443'}/ws`;
+  constructor(
+    username: string,
+    password: string,
+    xmppSettings?: xmppSettingsInterface,
+  ) {
+    this.devServer =
+      xmppSettings?.devServer || `wss://'xmpp.ethoradev.com:5443'/ws`;
+    this.host = xmppSettings?.host || '';
+    this.service = xmppSettings?.conference || '';
+
+    console.log(xmppSettings);
+
+    const url = this.devServer || `wss://xmpp.ethoradev.com:5443/ws`;
     // if (url.startsWith("wss")) {
     //   this.host = url.match(/wss:\/\/([^:/]+)/)[1];
     // } else {
@@ -57,11 +67,12 @@ export class XmppClient implements XmppClientInterface {
 
   initializeClient() {
     try {
-      const url = `wss://${this.devServer || 'xmpp.ethoradev.com:5443'}/ws`;
+      const url = this.devServer || `wss://xmpp.ethoradev.com:5443/ws`;
+
       this.service = url;
       this.host = url.match(/wss:\/\/([^:/]+)/)?.[1] || '';
       this.conference = `conference.${this.host}`;
-      console.log('+-+-+-+-+-+-+-+-+ ', { username: this.username });
+      console.log('+-+-+-+-+-+-+-+-+ ', {username: this.username});
       this.service = url;
 
       this.client = xmpp.client({
@@ -71,7 +82,7 @@ export class XmppClient implements XmppClientInterface {
       });
 
       this.attachEventListeners();
-      this.client.start().catch((error) => {
+      this.client.start().catch(error => {
         console.error('Error starting client:', error);
       });
     } catch (error) {
@@ -87,8 +98,7 @@ export class XmppClient implements XmppClientInterface {
 
     this.client.on('online', () => {
       console.log('Client is online.', new Date());
-      this.client.send(xml('presence'));
-      this.status = 'online';
+            this.status = 'online';
       this.reconnectAttempts = 0;
     });
 
@@ -222,7 +232,7 @@ export class XmppClient implements XmppClientInterface {
       isReply,
       showInChannel,
       mainMessage,
-      this.devServer || 'xmpp.ethoradev.com:5443'
+      this.devServer || `wss://'xmpp.ethoradev.com:5443'/ws`,
     );
   };
 

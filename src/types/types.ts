@@ -136,7 +136,7 @@ export interface XmppState {
 export interface IConfig {
   disableHeader?: boolean;
   disableMedia?: boolean;
-  colors?: { primary: string; secondary: string };
+  colors?: {primary: string; secondary: string};
   googleLogin?: {
     enabled: boolean;
     firebaseConfig: {
@@ -157,6 +157,11 @@ export interface IConfig {
     enabled: boolean;
     user: User | null;
   };
+  customLogin?: {
+    enabled: boolean;
+    loginFunction: any; //() => Promise<User>
+  };
+  xmppSettings?: xmppSettingsInterface;
   disableRooms?: boolean;
   defaultLogin?: boolean;
   disableInteractions?: boolean;
@@ -167,7 +172,7 @@ export interface IConfig {
   setRoomJidInPath?: boolean;
   disableRoomMenu?: boolean;
   defaultRooms?: string[] | ConfigRoom[];
-  refreshTokens?: { enabled: boolean; refreshFunction?: any };
+  refreshTokens?: {enabled: boolean; refreshFunction?: any};
   backgroundChat?: {
     color?: string;
     image?: ImageSourcePropType | React.FC<React.SVGProps<SVGSVGElement>>;
@@ -180,6 +185,12 @@ export interface IConfig {
     color?: string; 
   };
   headerLogo?: ImageSourcePropType | React.FC<React.SVGProps<SVGSVGElement>>;
+}
+
+export interface xmppSettingsInterface {
+  devServer: string;
+  host: string;
+  conference?: string;
 }
 
 interface ConfigRoom {

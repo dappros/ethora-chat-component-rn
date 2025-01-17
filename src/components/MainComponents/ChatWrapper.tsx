@@ -21,7 +21,6 @@ import {
 } from "../../types/types";
 import { useXmppClient } from "../../context/xmppProvider";
 import LoginForm from "../AuthForms/Login";
-import { RootState } from "../../roomStore";
 import Loader from "../styled/Loader";
 import {
   setCurrentRoom,
@@ -37,9 +36,9 @@ import ThreadWrapper from "../Thread/ThreadWrapper";
 import { ModalWrapper } from "../Modals/ModalWrapper/ModalWrapper";
 import { useChatSettingState } from "../../hooks/useChatSettingState";
 import { CONFERENCE_DOMAIN } from "../../helpers/constants/PLATFORM_CONSTANTS";
-import { AppState, Linking, ViewStyle } from "react-native";
-import { useRoomState } from "../../hooks/useRoomState";
+import { AppState, Linking, View, ViewStyle } from "react-native";
 import useMessageLoaderQueue from "../../hooks/useMessageLoaderQueue";
+import { useRoomState } from "../../hooks/useRoomState";
 
 interface ChatWrapperProps {
   token?: string;
@@ -64,14 +63,13 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
     deleteModal,
     client: storedClient,
   } = useChatSettingState();
-  const { roomsList, loading, globalLoading } = useRoomState();
+  const { roomsList, loading, globalLoading, activeRoomJID } = useRoomState();
 
   const [isInited, setInited] = useState(false);
   const [showModal, setShowModal] = useState(false);
   // const [isModalDeleteOpen, setIsModalDeleteOpen] = useState(false);
 
   const [isChatVisible, setIsChatVisible] = useState(false);
-  const [isSmallScreen, setIsSmallScreen] = useState(false);
 
   const handleItemClick = (value: boolean) => {
     setIsChatVisible(value);
@@ -80,17 +78,13 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
   const dispatch = useDispatch();
   const { client, initializeClient, setClient } = useXmppClient();
 
-  const { rooms, activeRoomJID } = useSelector(
-    (state: RootState) => state.rooms
-  );
-
   const activeMessage = useMemo(() => {
     if (activeRoomJID) {
-      return rooms[activeRoomJID]?.messages?.find(
+      return roomsList[activeRoomJID]?.messages?.find(
         (message) => message?.activeMessage
       );
     }
-  }, [rooms, activeRoomJID]);
+  }, [Object.keys(roomsList).length, activeRoomJID]);
 
   const handleChangeChat = (chat: IRoom) => {
     dispatch(setCurrentRoom({ roomJID: chat.jid }));
@@ -157,6 +151,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
 
     const initXmmpClient = async () => {
       dispatch(setConfig(config));
+      dispatch(setIsLoading({ loading: true }));
       try {
         if (!user.defaultWallet || user?.defaultWallet.walletAddress === "") {
           setShowModal(true);
@@ -168,7 +163,8 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
             console.log("No client, so initing one");
             await initializeClient(
               user.defaultWallet?.walletAddress,
-              user.xmppPassword
+              user.xmppPassword,
+              config?.xmppSettings
             ).then((client) => {
               client.getRoomsStanza().then(() => {
                 client.getChatsPrivateStoreRequestStanza();
@@ -225,7 +221,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
   const updateLastReadTimeStamp = () => {
     if (client) {
       client.actionSetTimestampToPrivateStoreStanza(
-        room?.jid || roomJID,
+        room?.jid || roomJID || "",
         new Date().getTime()
       );
     }
@@ -277,7 +273,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
     return <LoginForm config={config} />;
 
   return (
-    <>
+    <View>
       {showModal && (
         <Overlay>
           <StyledModal>
@@ -292,9 +288,9 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
               ...MainComponentStyles,
             }}
           >
-            {!config?.disableRooms && rooms && !isChatVisible && (
+            {!config?.disableRooms && roomsList && !isChatVisible && (
               <RoomList
-                chats={Object.values(rooms)}
+                chats={Object.values(roomsList)}
                 onRoomClick={handleChangeChat}
               />
             )}
@@ -334,7 +330,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
           handleCloseModal={handleCloseDeleteModal}
         />
       )}
-    </>
+    </View>
   );
 };
 

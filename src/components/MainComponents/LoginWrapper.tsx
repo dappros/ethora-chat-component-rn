@@ -6,7 +6,6 @@ import { useDispatch, useSelector } from "react-redux";
 import { setUser } from "../../roomStore/chatSettingsSlice";
 import { loginEmail } from "../../networking/api-requests/auth.api";
 import { OrDelimiter } from "../styled/StyledComponents";
-import { ButtonText, Container, CustomButton, Message } from "./RNStyled";
 import { Text, View, ViewStyle } from "react-native";
 import Button from "../styled/Button";
 import LoginForm from "../AuthForms/Login";
@@ -47,6 +46,32 @@ const LoginWrapper: React.FC<LoginWrapperProps> = ({ ...props }) => {
   const dispatch = useDispatch();
 
   useEffect(() => {
+    if (
+      props?.config?.customLogin?.enabled &&
+      typeof props?.config?.customLogin?.loginFunction === "function"
+    ) {
+      // const performCustomLogin = async (
+      //   loginFunction: () => Promise<User>,
+      // ): Promise<User | null> => {
+      //   try {
+      //     const user = await loginFunction();
+      //     console.log(user, 'herrerre')
+      //     return user;
+      //   } catch (error) {
+      //     console.error('Custom login failed', error);
+      //     return null;
+      //   }
+      // };
+      // (async () => {
+      //   const customLoginUser = await performCustomLogin(
+      //     props?.config?.customLogin?.loginFunction,
+      //   );
+      //   if (customLoginUser) {
+      //     dispatch(setUser(customLoginUser));
+      //   }
+      // })();
+    }
+
     if (props?.config?.userLogin?.enabled && props?.config?.userLogin?.user) {
       console.log("hehrehre", props.config.userLogin.user);
       dispatch(setUser(props.config.userLogin.user));
@@ -94,7 +119,7 @@ const LoginWrapper: React.FC<LoginWrapperProps> = ({ ...props }) => {
   }, []);
 
   return (
-    <>
+    <View style={{ flex: 1, backgroundColor: "red" }}>
       {showModal ? (
         <View
           style={{
@@ -118,7 +143,7 @@ const LoginWrapper: React.FC<LoginWrapperProps> = ({ ...props }) => {
       ) : (
         <LoginForm {...props} />
       )}
-    </>
+    </View>
     // <>
     //   {showModal ? (
     //     <Container>
