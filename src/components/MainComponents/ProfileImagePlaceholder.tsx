@@ -35,8 +35,6 @@ interface ProfileImagePlaceholderProps {
   disableOverlay?: boolean;
 }
 
-const backgroundColors = ["#f44336", "#2196f3", "#4caf50", "#ff9800"];
-
 export const ProfileImagePlaceholder: React.FC<
   ProfileImagePlaceholderProps
 > = ({
@@ -51,14 +49,19 @@ export const ProfileImagePlaceholder: React.FC<
   placeholderIcon,
   disableOverlay,
 }) => {
-  const { backgroundColor, textColor } = nameToColor(name || "");
+  const backgroundColor = nameToColor(name);
 
   const getTwoUppercaseLetters = (fullName: string) => {
     if (!fullName) return "";
 
     const words = fullName.trim().split(" ");
-    const firstLetter = words[0]?.[0]?.toUpperCase() || "";
-    const secondLetter = words[words.length - 1]?.[0]?.toUpperCase() || "";
+
+    const firstLetter = /^[a-zA-Zа-яА-ЯёЁ]$/.test(words[0]?.[0] || "")
+      ? words[0][0].toUpperCase()
+      : "";
+    const secondLetter = /^[a-zA-Zа-яА-ЯёЁ]$/.test(words[1]?.[0] || "")
+      ? words[1][0].toUpperCase()
+      : "";
 
     return firstLetter + secondLetter;
   };
@@ -67,12 +70,12 @@ export const ProfileImagePlaceholder: React.FC<
 
   return (
     <Wrapper
-      bgColor={icon ? "transparent" : backgroundColor}
+      bgColor={icon ? "transparent" : backgroundColor?.backgroundColor}
       size={size}
       isClickable={active || !!upload?.active}
     >
       <AvatarCircle
-        bgColor={icon ? "transparent" : backgroundColor}
+        bgColor={icon ? "transparent" : backgroundColor?.backgroundColor}
         size={size}
         isClickable={active || !!upload?.active}
         onPress={
@@ -91,7 +94,7 @@ export const ProfileImagePlaceholder: React.FC<
         ) : placeholderIcon ? (
           placeholderIcon
         ) : (
-          <InitialsText size={size} color={textColor || ""}>
+          <InitialsText size={size} color="#fff">
             {getInitials()}
           </InitialsText>
         )}

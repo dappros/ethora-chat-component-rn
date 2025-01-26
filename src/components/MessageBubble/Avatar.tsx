@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import styled from "styled-components/native";
+import { nameToColor } from "../../helpers/constants/hashcolor";
 
 interface AvatarProps {
   username?: string | null;
@@ -8,9 +9,7 @@ interface AvatarProps {
   style?: object;
 }
 
-const backgroundColors = ["#f44336", "#2196f3", "#4caf50", "#ff9800"];
-
-const AvatarCircle = styled.View<{ bgColor: string }>`
+const AvatarCircle = styled.View<{ bgColor?: string }>`
   width: 40px;
   height: 40px;
   border-radius: 20px;
@@ -24,10 +23,10 @@ const AvatarCircle = styled.View<{ bgColor: string }>`
   elevation: 4;
 `;
 
-const AvatarText = styled.Text<{ textColor: string }>`
+const AvatarText = styled.Text`
   font-size: 16px;
   font-weight: bold;
-  color: ${({ textColor }) => textColor};
+  color: #fff;
 `;
 
 export const Avatar: React.FC<AvatarProps> = ({
@@ -36,35 +35,42 @@ export const Avatar: React.FC<AvatarProps> = ({
   lastName,
   style,
 }) => {
+  const backgroundColor = nameToColor(username ? username : firstName);
+
   const getInitials = () => {
+    const isAlphabetic = (char: string) => /^[a-zA-Zа-яА-ЯёЁ]$/.test(char);
+
     if (firstName && lastName) {
-      return `${firstName[0]}${lastName[0]}`.toUpperCase();
+      const firstInitial = isAlphabetic(firstName[0])
+        ? firstName[0].toUpperCase()
+        : "";
+      const lastInitial = isAlphabetic(lastName[0])
+        ? lastName[0].toUpperCase()
+        : "";
+      return `${firstInitial}${lastInitial}`;
     } else if (username) {
       const names = username.split(" ");
-      return names.length > 1
-        ? `${names[0][0]}${names[1][0]}`.toUpperCase()
-        : `${names[0][0]}`.toUpperCase();
+      if (names.length > 1) {
+        const firstInitial = isAlphabetic(names[0][0])
+          ? names[0][0].toUpperCase()
+          : "";
+        const secondInitial = isAlphabetic(names[1][0])
+          ? names[1][0].toUpperCase()
+          : "";
+        return `${firstInitial}${secondInitial}`;
+      } else {
+        const singleInitial = isAlphabetic(names[0][0])
+          ? names[0][0].toUpperCase()
+          : "";
+        return `${singleInitial}`;
+      }
     }
     return "??";
   };
 
-  const randomColor = useMemo(() => {
-    const index = Math.floor(Math.random() * backgroundColors.length);
-    return backgroundColors[index];
-  }, []);
-
-  const getTextColor = (bgColor: string) => {
-    const lightColors = ["#4caf50", "#ff9800"];
-    return lightColors.includes(bgColor) ? "#000" : "#fff";
-  };
-
-  const initials = getInitials();
-  const bgColor = randomColor;
-  const textColor = getTextColor(bgColor);
-
   return (
-    <AvatarCircle style={style} bgColor={bgColor}>
-      <AvatarText textColor={textColor}>{initials}</AvatarText>
+    <AvatarCircle style={style} bgColor={backgroundColor?.backgroundColor}>
+      <AvatarText>{getInitials()}</AvatarText>
     </AvatarCircle>
   );
 };
