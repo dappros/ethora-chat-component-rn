@@ -22,6 +22,7 @@ import {handleStanza} from './xmpp/handleStanzas.xmpp';
 import {setVcard} from './xmpp/setVCard.xmpp';
 import { XmppClientInterface, xmppSettingsInterface } from '../types/types';
 import { createPrivateRoom } from './xmpp/createPrivateRoom.xmpp';
+import { sendTextMessageWithTranslateTag } from './xmpp/sendTextMessageWithTranslateTag.xmpp';
 
 export class XmppClient {
   client!: Client;
@@ -233,6 +234,37 @@ export class XmppClient {
       showInChannel,
       mainMessage,
       this.devServer || `wss://xmpp.ethoradev.com:5443/ws`,
+    );
+  };
+
+  sendTextMessageWithTranslateTagStanza = (
+    roomJID: string,
+    firstName: string,
+    lastName: string,
+    photo: string,
+    walletAddress: string,
+    userMessage: string,
+    notDisplayedValue?: string,
+    isReply?: boolean,
+    showInChannel?: boolean,
+    mainMessage?: string
+  ) => {
+    sendTextMessageWithTranslateTag(
+      this.client,
+      {
+        roomJID,
+        firstName,
+        lastName,
+        photo,
+        walletAddress,
+        userMessage,
+        notDisplayedValue,
+        isReply,
+        showInChannel,
+        mainMessage,
+        devServer: this.devServer || 'xmpp.ethoradev.com:5443',
+      },
+      'es'
     );
   };
 

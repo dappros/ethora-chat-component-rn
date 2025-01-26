@@ -24,6 +24,7 @@ import { setActiveMessage, setEditAction } from "../../roomStore/roomsSlice";
 import styled from "styled-components/native";
 import { IUser, MessageProps } from "../../types/types";
 import MediaMessage from "../MainComponents/MediaMessage";
+import MessageTranslations from "./MessageTranslations";
 
 const CustomMessageContainer = styled.View<{ isUser: boolean; reply?: number }>`
   flex-direction: row;
@@ -259,7 +260,9 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
                 )}
               </>
             )}
-
+            {config?.enableTranslates && (
+              <MessageTranslations message={message} config={config} />
+            )}
             <CustomMessageTimestamp
               isUser={isUser}
               colorUser={config?.messageColor?.colorUser}

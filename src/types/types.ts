@@ -1,6 +1,7 @@
 import { ImageSourcePropType, ViewStyle } from 'react-native';
 import { MODAL_TYPES } from '../helpers/constants/MODAL_TYPES';
 import { Client } from '@xmpp/client';
+import { TranslationObject } from '../helpers/transformTranslation';
 
 export interface IUser extends Partial<User> {
   id: string;
@@ -14,7 +15,7 @@ export interface IMessage {
   id: string; // message ID (aka timestamp in microseconds)
   user: IUser;
   date: Date | string; // date converted from id / timestamp (e.g. "2024-02-18T03:24:33.102Z")
-  body: string; // message body
+  body?: string; // message body
   roomJid: string; // room id
   key?: string; // workaround to solve a problem of messages uniqueness - additional, local timestamp to solve when XMPP server sends duplicate timestamps (TO DO: depricate / review)
   coinsInMessage?: string | number; // store only - message coins counter
@@ -33,6 +34,8 @@ export interface IMessage {
   mainMessage?: string;
   reply?: IReply[];
   fileName?: string;
+  translations?: TranslationObject;
+  langSource?: string;
 }
 
 export interface IReply extends IMessage {}
@@ -187,6 +190,11 @@ export interface IConfig {
   };
   headerLogo?: ImageSourcePropType | React.FC<React.SVGProps<SVGSVGElement>>;
   headerMenu?: () => void;
+  customRooms?: {
+    rooms: IRoom[];
+    disableGetRooms: boolean;
+  };
+  enableTranslates?: boolean;
 }
 
 export interface xmppSettingsInterface {
@@ -331,3 +339,15 @@ export interface XmppClientInterface {
     to: string
   ): Promise<string>;
 }
+
+export type Iso639_1Codes = 'en' | 'es' | 'pt' | 'ht' | 'zh';
+
+export interface Language {
+  iso639_1: Iso639_1Codes;
+  name: string;
+}
+
+export type LanguageOptions = {
+  languages: Array<Language>;
+  language?: Iso639_1Codes;
+};

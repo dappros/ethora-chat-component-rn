@@ -185,6 +185,11 @@ export const FileInput = styled.TextInput`
   display: none;
 `;
 
+export const CustomMessageText = styled.Text`
+  margin: 0px;
+  word-wrap: break-word;
+`;
+
 export const StyledLoaderWrapper = styled.View`
   flex: 1;
   justify-content: center;
