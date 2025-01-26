@@ -43,7 +43,7 @@ const CustomMessageVideo: React.FC<CustomMessageVideoProps> = ({
         controls
         resizeMode="contain"
         paused={true}
-        onBuffer={() => console.log("Buffering...")}
+        onBuffer={handleOpen}
         onError={(error) => console.error("Video error:", error)}
       />
     </TouchableOpacity>

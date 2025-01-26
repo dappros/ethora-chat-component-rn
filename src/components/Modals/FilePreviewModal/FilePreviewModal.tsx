@@ -12,11 +12,11 @@ import { RootState } from "../../../roomStore";
 import { FullScreenImage } from "../../styled/StyledInputComponents/MediaComponents";
 import { setActiveFile } from "../../../roomStore/chatSettingsSlice";
 import { Alert, Text, View, PermissionsAndroid, Platform } from "react-native";
-import Video, { VideoRef } from "react-native-video";
+import Video from "react-native-video";
 import RNFS from "react-native-fs";
 import Toast from "../../Toast/Toast";
-import Share from "react-native-share";
-import DocumentPicker from "react-native-document-picker";
+import { CameraRoll } from "@react-native-camera-roll/camera-roll";
+
 export const FullScreenVideo = styled.View`
   width: 100%;
   height: 100%;
@@ -34,7 +34,10 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   const { activeFile } = useSelector(
     (state: RootState) => state.chatSettingStore
   );
-  const [toastVisible, setToastVisible] = useState(false);
+  const [toastVisible, setToastVisible] = useState({
+    isStatus: false,
+    message: "",
+  });
 
   if (!activeFile) return;
 
@@ -78,6 +81,14 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           } else {
             return false;
           }
+        } else {
+          const result = await CameraRoll.getPhotos({
+            first: 1,
+          })
+            .then(() => true)
+            .catch(() => false);
+
+          return result;
         }
       }
 
@@ -88,7 +99,69 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
     }
   };
 
-  const saveClick = async () => {
+  const saveToGallery = async () => {
+    const hasPermission = await requestStoragePermission();
+    if (!hasPermission) {
+      Alert.alert(
+        "Permission Denied",
+        "Storage permission is required to save files to the gallery."
+      );
+      return;
+    }
+
+    try {
+      let galleryPath, filePath;
+
+      if (Platform.OS === "android") {
+        galleryPath = activeFile.mimetype.startsWith("image/")
+          ? `${RNFS.ExternalStorageDirectoryPath}/Pictures`
+          : `${RNFS.ExternalStorageDirectoryPath}/Movies`;
+
+        await RNFS.mkdir(galleryPath);
+
+        let fileName = activeFile.fileName;
+        if (!fileName.includes(".")) {
+          fileName += activeFile.mimetype.startsWith("image/")
+            ? ".jpg"
+            : ".mp4";
+        }
+        filePath = `${galleryPath}/${fileName}`;
+      } else {
+        const documentsPath = RNFS.DocumentDirectoryPath;
+        let fileName = activeFile.fileName;
+        if (!fileName.includes(".")) {
+          fileName += activeFile.mimetype.startsWith("image/")
+            ? ".jpg"
+            : ".mp4";
+        }
+        filePath = `${documentsPath}/${fileName}`;
+      }
+
+      const res = await RNFS.downloadFile({
+        fromUrl: activeFile.fileURL,
+        toFile: filePath,
+      }).promise;
+
+      if (res.statusCode === 200) {
+        if (Platform.OS === "ios") {
+          await CameraRoll.save(filePath, {
+            type: activeFile.mimetype.startsWith("image/") ? "photo" : "video",
+          });
+        }
+
+        setToastVisible({
+          isStatus: true,
+          message: "Save successful",
+        });
+      } else {
+        Alert.alert("Error", "Failed to save the file.");
+      }
+    } catch (err) {
+      Alert.alert("Error", `Failed to save the file: ${activeFile.fileName}`);
+    }
+  };
+
+  const saveFileToDownloads = async () => {
     const hasPermission = await requestStoragePermission();
     if (!hasPermission) {
       Alert.alert(
@@ -99,42 +172,37 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
     }
 
     try {
-      // Запрашиваем выбор папки
-      const result = await DocumentPicker.pickSingle({
-        type: [DocumentPicker.types.allFiles],
-        allowMultiSelection: false,
-      });
+      const downloadDest = `${RNFS.DownloadDirectoryPath}/${
+        activeFile.fileName || "MEDIA-ETHORA"
+      }`;
 
-      if (result && result.uri) {
-        // Скачиваем файл во временную директорию
-        const downloadDest = `${RNFS.TemporaryDirectoryPath}/${
-          activeFile.fileName || "MEDIA-ETHORA"
-        }`;
+      const res = await RNFS.downloadFile({
+        fromUrl: activeFile.fileURL,
+        toFile: downloadDest,
+      }).promise;
 
-        const res = await RNFS.downloadFile({
-          fromUrl: activeFile.fileURL,
-          toFile: downloadDest,
-        }).promise;
-
-        if (res.statusCode === 200) {
-          // Используем Share для сохранения в выбранную папку
-          await Share.open({
-            url: `file://${downloadDest}`,
-            saveToFiles: true,
-          });
-
-          Alert.alert("Success", "File saved successfully!");
-        } else {
-          Alert.alert("Error", "Failed to save the file.");
-        }
+      if (res.statusCode === 200) {
+        setToastVisible({
+          isStatus: true,
+          message: "Save successful",
+        });
+      } else {
+        Alert.alert("Error", "Failed to save the file one.");
       }
     } catch (err) {
-      if (DocumentPicker.isCancel(err)) {
-        console.log("User cancelled the picker");
-      } else {
-        console.error("Error saving file:", err);
-        Alert.alert("Error", "Failed to save the file.");
-      }
+      console.error("Error saving file:", err);
+      Alert.alert("Error", "Failed to save the file two.");
+    }
+  };
+
+  const saveClick = async () => {
+    if (
+      activeFile.mimetype.startsWith("image/") ||
+      activeFile.mimetype.startsWith("video/")
+    ) {
+      await saveToGallery();
+    } else {
+      await saveFileToDownloads();
     }
   };
 
@@ -204,9 +272,6 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
             <Button onPress={saveClick}>
               <SaveIcon />
             </Button>
-            {/* <Button onClick={deleteCLick}>
-              <DeleteIcon />
-            </Button> */}
           </>
         }
       />
@@ -224,8 +289,8 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
       </CenterContainer>
 
       <Toast
-        visible={toastVisible}
-        message="File saved successfully!"
+        visible={toastVisible.isStatus}
+        message={toastVisible.message}
         duration={1500}
       />
     </ModalContainerFullScreen>

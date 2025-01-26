@@ -32,6 +32,7 @@ export interface IMessage {
   isDeleted?: boolean;
   mainMessage?: string;
   reply?: IReply[];
+  fileName?: string;
 }
 
 export interface IReply extends IMessage {}

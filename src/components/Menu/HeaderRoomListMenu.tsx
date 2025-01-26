@@ -1,4 +1,4 @@
-import React, { FC, useMemo, useRef } from "react";
+import React, { FC, useMemo } from "react";
 import {
   Animated,
   Text,
@@ -32,7 +32,7 @@ export const HeaderRoomListMenu: FC<HeaderRoomListMenuProps> = ({
 
   const drawerTranslateX = drawerAnimation.interpolate({
     inputRange: [0, 1],
-    outputRange: [-width * 0.7, 0],
+    outputRange: [width, 0],
   });
 
   const menuOptions = useMemo(
@@ -104,10 +104,7 @@ export const HeaderRoomListMenu: FC<HeaderRoomListMenuProps> = ({
       {isDrawerOpen && (
         <TouchableWithoutFeedback onPress={closeDrawer}>
           <Animated.View
-            style={[
-              styles.overlay,
-              { opacity: overlayAnimation }, // Плавное изменение прозрачности
-            ]}
+            style={[styles.overlay, { opacity: overlayAnimation }]}
           />
         </TouchableWithoutFeedback>
       )}
@@ -138,13 +135,13 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 0,
     bottom: 0,
-    left: 0,
+    right: 0,
     width: width * 0.7,
     backgroundColor: "#fff",
     padding: 20,
     shadowColor: "#000",
     shadowOpacity: 0.3,
-    shadowOffset: { width: 2, height: 0 },
+    shadowOffset: { width: -2, height: 0 },
     shadowRadius: 5,
     elevation: 5,
     zIndex: 999,
