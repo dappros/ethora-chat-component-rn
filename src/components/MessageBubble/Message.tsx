@@ -25,6 +25,7 @@ import styled from "styled-components/native";
 import { IUser, MessageProps } from "../../types/types";
 import MediaMessage from "../MainComponents/MediaMessage";
 import MessageTranslations from "./MessageTranslations";
+import { useChatSettingState } from "../../hooks/useChatSettingState";
 
 const CustomMessageContainer = styled.View<{ isUser: boolean; reply?: number }>`
   flex-direction: row;
@@ -101,9 +102,7 @@ const CustomMessageTimestamp = styled.Text<{
 
 const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   const dispatch = useDispatch();
-  const config = useSelector(
-    (state: RootState) => state.chatSettingStore.config
-  );
+  const { config, langSource } = useChatSettingState();
 
   const [isPressed, setIsPressed] = useState(false);
 
@@ -261,7 +260,11 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
               </>
             )}
             {config?.enableTranslates && (
-              <MessageTranslations message={message} config={config} />
+              <MessageTranslations
+                message={message}
+                config={config}
+                langSource={langSource}
+              />
             )}
             <CustomMessageTimestamp
               isUser={isUser}

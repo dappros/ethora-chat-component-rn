@@ -99,8 +99,9 @@ export class XmppClient {
 
     this.client.on('online', () => {
       console.log('Client is online.', new Date());
-            this.status = 'online';
+      this.status = 'online';
       this.reconnectAttempts = 0;
+      this.client.send(xml('presence'));
     });
 
     this.client.on('error', (error) => {
@@ -178,9 +179,9 @@ export class XmppClient {
     chatJID: string,
     max: number,
     before?: number,
-    id?: string
+    otherStanzaId?: string
   ) => {
-    return await getHistory(this.client, chatJID, max, before, id);
+    return await getHistory(this.client, chatJID, max, before, otherStanzaId);
   };
 
   getLastMessageArchiveStanza(roomJID: string) {

@@ -57,12 +57,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
   config,
   roomJID,
 }) => {
-  const {
-    user,
-    activeModal,
-    deleteModal,
-    client: storedClient,
-  } = useChatSettingState();
+  const { user, activeModal, deleteModal } = useChatSettingState();
   const { roomsList, loading, globalLoading, activeRoomJID } = useRoomState();
 
   const [isInited, setInited] = useState(false);
@@ -151,54 +146,55 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
 
     const initXmmpClient = async () => {
       dispatch(setConfig(config));
-      dispatch(setIsLoading({ loading: true }));
       try {
         if (!user.defaultWallet || user?.defaultWallet.walletAddress === "") {
           setShowModal(true);
           console.log("Error, no user");
         } else {
-          if (!client && !storedClient) {
+          if (!client) {
             setShowModal(false);
 
             console.log("No client, so initing one");
             await initializeClient(
               user.defaultWallet?.walletAddress,
-              user.xmppPassword,
-              config?.xmppSettings
-            ).then((client) => {
-              client.getRoomsStanza().then(() => {
-                client.getChatsPrivateStoreRequestStanza();
-                client.setVCardStanza(`${user.firstName} ${user.lastName}`);
-                dispatch(setStoreClient(client));
-                setClient(client);
-              });
+              user.xmppPassword
+            ).then(async (client) => {
+              await client.getRoomsStanza();
+              await client
+                ?.getChatsPrivateStoreRequestStanza()
+                .then(
+                  (roomTimestampObject: [jid: string, timestamp: string]) => {
+                    const roomTimestampArray = Object.entries(
+                      roomTimestampObject
+                    ).map(([jid, timestamp]) => ({
+                      jid,
+                      timestamp,
+                    }));
+                    console.log(
+                      "getting roomTimestampArray",
+                      roomTimestampArray
+                    );
+
+                    roomTimestampArray.forEach(({ jid, timestamp }) => {
+                      if (jid) {
+                        dispatch(
+                          setLastViewedTimestamp({
+                            chatJID: jid,
+                            timestamp: Number(timestamp || 0),
+                          })
+                        );
+                      }
+                    });
+                    client.setVCardStanza(`${user.firstName} ${user.lastName}`);
+                    setClient(client);
+                  }
+                );
             });
             setInited(true);
             {
               config?.refreshTokens?.enabled && refresh();
             }
-          } else if (storedClient) {
-            setClient(storedClient);
-            if (!activeRoomJID) {
-              storedClient.getRoomsStanza().then(() => {
-                storedClient.getChatsPrivateStoreRequestStanza();
-                storedClient.setVCardStanza(
-                  `${user.firstName} ${user.lastName}`
-                );
-              });
-            }
-            setInited(true);
-            {
-              config?.refreshTokens?.enabled && refresh();
-            }
           } else {
-            if (!activeRoomJID) {
-              client.getRoomsStanza().then(() => {
-                client.getChatsPrivateStoreRequestStanza();
-                client.setVCardStanza(`${user.firstName} ${user.lastName}`);
-              });
-            }
-            client.getChatsPrivateStoreRequestStanza();
             setInited(true);
             {
               config?.refreshTokens?.enabled && refresh();
@@ -215,7 +211,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
     };
 
     initXmmpClient();
-  }, [user.xmppPassword, user.defaultWallet]);
+  }, [user.xmppPassword, user.defaultWallet.walletAddress]);
 
   // functionality to handle unreadmessages if user leaves tab
   const updateLastReadTimeStamp = () => {

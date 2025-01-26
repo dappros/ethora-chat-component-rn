@@ -54,7 +54,7 @@ export const useSendMessage = () => {
             mainMessage || ""
           );
         } else {
-          client?.sendTextMessageWithTranslateTagStanza(
+          client?.sendMessage(
             activeRoomJID,
             user.firstName,
             user.lastName,
