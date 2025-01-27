@@ -162,35 +162,35 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
               console.log("init client");
               await client.getRoomsStanza();
               console.log("get room");
-              // await client
-              //   ?.getChatsPrivateStoreRequestStanza()
-              //   .then(
-              //     (roomTimestampObject: [jid: string, timestamp: string]) => {
-              //       const roomTimestampArray = Object.entries(
-              //         roomTimestampObject
-              //       ).map(([jid, timestamp]) => ({
-              //         jid,
-              //         timestamp,
-              //       }));
-              //       console.log(
-              //         "getting roomTimestampArray",
-              //         roomTimestampArray
-              //       );
+              await client
+                ?.getChatsPrivateStoreRequestStanza()
+                .then(
+                  (roomTimestampObject: [jid: string, timestamp: string]) => {
+                    const roomTimestampArray = Object.entries(
+                      roomTimestampObject
+                    ).map(([jid, timestamp]) => ({
+                      jid,
+                      timestamp,
+                    }));
+                    console.log(
+                      "getting roomTimestampArray",
+                      roomTimestampArray
+                    );
 
-              //       roomTimestampArray.forEach(({ jid, timestamp }) => {
-              //         if (jid) {
-              //           dispatch(
-              //             setLastViewedTimestamp({
-              //               chatJID: jid,
-              //               timestamp: Number(timestamp || 0),
-              //             })
-              //           );
-              //         }
-              //       });
-              //       client.setVCardStanza(`${user.firstName} ${user.lastName}`);
-              //       setClient(client);
-              //     }
-              //   );
+                    roomTimestampArray.forEach(({ jid, timestamp }) => {
+                      if (jid) {
+                        dispatch(
+                          setLastViewedTimestamp({
+                            chatJID: jid,
+                            timestamp: Number(timestamp || 0),
+                          })
+                        );
+                      }
+                    });
+                    client.setVCardStanza(`${user.firstName} ${user.lastName}`);
+                    setClient(client);
+                  }
+                );
             });
             setInited(true);
             {
