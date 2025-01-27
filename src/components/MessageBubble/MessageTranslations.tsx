@@ -5,7 +5,7 @@ import { CustomMessageText } from "../styled/StyledComponents";
 
 interface MessageTranslationsProps {
   message: IMessage;
-  langSource: string;
+  langSource?: string;
   config?: IConfig;
 }
 

@@ -189,6 +189,7 @@ export const FileInput = styled.TextInput`
 export const CustomMessageText = styled.Text`
   margin: 0px;
   word-wrap: break-word;
+  color: #fff
 `;
 
 export const StyledLoaderWrapper = styled.View`

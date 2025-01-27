@@ -15,7 +15,7 @@ function App(): React.JSX.Element {
           userLogin: { enabled: true, user: null },
           disableHeader: false,
           // defaultLogin: true,
-          refreshTokens: { enabled: true },
+          // refreshTokens: { enabled: true },
           backgroundChat: {
             color: "#fff",
             // image: BG,
