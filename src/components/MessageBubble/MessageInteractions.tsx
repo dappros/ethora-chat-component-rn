@@ -124,7 +124,7 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
                 <Delimeter />
               </>
             )}
-            <MenuItem onPress={() => handleCopyMessage(message.body)}>
+            <MenuItem onPress={() => handleCopyMessage(message.body!)}>
               <Text>{MESSAGE_INTERACTIONS.COPY}</Text>
               <MESSAGE_INTERACTIONS_ICONS.COPY />
             </MenuItem>

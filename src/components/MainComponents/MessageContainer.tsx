@@ -56,9 +56,6 @@ export const MessageContainer: FC<MessageContainerProps> = ({
 
   return (
     <Fragment key={message.id}>
-      {showDateLabel && !activeMessage && message.id !== "delimiter-new" ? (
-        <DateLabel date={messageDate} colors={config?.colors} />
-      ) : null}
       <MessageComponent message={message} isUser={isUser} isReply={isReply}>
         {!CustomMessage ? (
           <>
@@ -76,6 +73,9 @@ export const MessageContainer: FC<MessageContainerProps> = ({
           />
         )}
       </MessageComponent>
+      {showDateLabel && !activeMessage && message.id !== "delimiter-new" ? (
+        <DateLabel date={messageDate} colors={config?.colors} />
+      ) : null}
     </Fragment>
   );
 };

@@ -14,10 +14,11 @@ function App(): React.JSX.Element {
         config={{
           userLogin: { enabled: true, user: null },
           disableHeader: false,
+          // defaultLogin: true,
+          refreshTokens: { enabled: true },
           backgroundChat: {
             color: "#fff",
             // image: BG,
-            image: BG,
           },
           colors: { primary: "#60269E", secondary: "#F2E6F6" },
           messageColor: {
@@ -26,7 +27,9 @@ function App(): React.JSX.Element {
             colorUser: "#FFFFFF",
             color: "#53575A",
           },
-          headerLogo: ForzaCare,
+          setRoomJidInPath: true,
+          enableTranslates: true,
+          // headerLogo: ForzaCare,
           // headerMenu: () => navigation.dispatch(DrawerActions.openDrawer()),
         }}
       />

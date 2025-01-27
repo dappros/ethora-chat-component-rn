@@ -32,32 +32,36 @@ export const HeaderRoomList: FC<HeaderRoomListProps> = ({ setDrawerOpen }) => {
   return (
     <View style={styles.headerContainer}>
       {!config?.disableRoomMenu && config?.headerMenu ? (
-        <Button
-          style={styles.menuButton}
-          color="black"
-          unstyled
-          EndIcon={<BurgerMenuIcon color={config?.colors?.primary} />}
-          onPress={() => config?.headerMenu && config?.headerMenu()}
-        />
+        <View style={styles.leftContainer}>
+          <Button
+            style={styles.menuButton}
+            color="black"
+            unstyled
+            EndIcon={<BurgerMenuIcon color={config?.colors?.primary} />}
+            onPress={() => config?.headerMenu && config?.headerMenu()}
+          />
+        </View>
       ) : (
-        <View style={styles.emptyContainer} />
+        <View style={styles.leftContainer} />
       )}
-      <View>
+      <View style={styles.centerContainer}>
         {config?.headerLogo ? (
           HeaderLogo
         ) : (
           <Text style={{ fontWeight: 500, fontSize: 18 }}>Chats</Text>
         )}
       </View>
-      <ProfileImagePlaceholder
-        icon={modalUser?.profileImage ?? null}
-        name={modalUser?.name ?? modalUser?.firstName}
-        size={30}
-        click={{
-          isClick: true,
-          onPress: setDrawerOpen,
-        }}
-      />
+      <View style={styles.rightContainer}>
+        <ProfileImagePlaceholder
+          icon={modalUser?.profileImage ?? null}
+          name={modalUser?.name ?? modalUser?.firstName}
+          size={30}
+          click={{
+            isClick: true,
+            onPress: setDrawerOpen,
+          }}
+        />
+      </View>
     </View>
   );
 };
@@ -74,7 +78,19 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: "transparent",
   },
-  emptyContainer: {
-    width: 60,
+  leftContainer: {
+    flex: 1,
+    alignItems: "flex-start",
+  },
+  centerContainer: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rightContainer: {
+    flex: 1,
+    alignItems: "flex-end",
   },
 });

@@ -61,13 +61,17 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   return (
     <ChatContainerHeader>
       {/* todo add here list of rooms */}
-      <View style={styles.leftSection}>
-        {handleBackClick && (
+      {handleBackClick ? (
+        <View style={styles.leftContainer}>
           <Button
             EndIcon={<BackIcon />}
             onPress={() => handleBackClick(false)}
           />
-        )}
+        </View>
+      ) : (
+        <View style={styles.leftContainer} />
+      )}
+      <View style={styles.centerContainer}>
         {config?.chatHeaderBurgerMenu && roomsList && (
           <RoomList
             chats={Object.values(roomsList)}
@@ -103,7 +107,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
         </ChatContainerHeaderBoxInfo>
       </View>
 
-      <View style={styles.rightSection}>
+      <View style={styles.rightContainer}>
         {/* <SearchInput animated icon={<SearchIcon />} /> */}
         <RoomMenu handleLeaveClick={handleLeaveClick} />
       </View>
@@ -112,20 +116,25 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
 };
 
 const styles = StyleSheet.create({
-  leftSection: {
-    position: "relative",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  rightSection: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-  },
   subLabel: {
     color: "#8C8C8C",
     fontSize: 14,
+  },
+
+  leftContainer: {
+    flex: 1,
+    alignItems: "flex-start",
+  },
+  centerContainer: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rightContainer: {
+    flex: 1,
+    alignItems: "flex-end",
   },
 });
 

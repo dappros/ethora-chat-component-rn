@@ -24,6 +24,7 @@ export const ChatContainerHeader = styled.View`
   flex-direction: row;
   padding: 16px;
   background-color: #fff;
+  align-items: center;
   justify-content: space-between;
 `;
 

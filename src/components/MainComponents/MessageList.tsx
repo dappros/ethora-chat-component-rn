@@ -207,9 +207,6 @@ const MessageList = <TMessage extends IMessage>({
             handleLoadMore();
           }
         }}
-        ListFooterComponent={
-          isLoadingMore ? <Loader color={config?.colors?.primary} /> : null
-        }
       />
       {composing && config?.disableHeader && (
         <Composing usersTyping={["User"]} />

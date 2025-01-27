@@ -36,7 +36,7 @@ export const getRooms = async (client: Client): Promise<any> => {
   try {
     return await Promise.race([responsePromise, timeoutPromise]);
   } catch (e) {
-    console.error('Error in getRooms:', e.message);
+    console.error('Error in getRooms:', e);
     return null;
   }
 };
