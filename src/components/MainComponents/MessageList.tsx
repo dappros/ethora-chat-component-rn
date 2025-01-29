@@ -85,6 +85,7 @@ const MessageList = <TMessage extends IMessage>({
   }, [addReplyMessages, isReply, roomJID, activeMessage]);
 
   const flatListRef = useRef<FlatList<IMessage>>(null);
+  const scrollPosition = useRef(0);
   const previousMessageCount = useRef(memoizedMessages.length);
 
   const handleLoadMore = useCallback(async () => {
@@ -94,7 +95,7 @@ const MessageList = <TMessage extends IMessage>({
     try {
       await loadMoreMessages(
         memoizedMessages[0].roomJid,
-        30,
+        15,
         Number(memoizedMessages[memoizedMessages.length - 1].id)
       );
     } catch (error) {
@@ -103,6 +104,16 @@ const MessageList = <TMessage extends IMessage>({
       setIsLoadingMore(false);
     }
   }, [memoizedMessages, isLoadingMore, loadMoreMessages]);
+
+  const handleScroll = (event: any) => {
+    const currentOffset = event.nativeEvent.contentOffset.y;
+    const direction = currentOffset > scrollPosition.current ? "down" : "up";
+    scrollPosition.current = currentOffset;
+  
+    if (direction === "up" && currentOffset < 350) {
+      handleLoadMore();
+    }
+  };
 
   const renderMessage = useCallback(
     ({ item }: { item: IMessage }) => {
@@ -200,13 +211,9 @@ const MessageList = <TMessage extends IMessage>({
         renderItem={renderMessage}
         keyExtractor={(item) => item.id.toString()}
         onEndReached={handleLoadMore}
+        onScroll={handleScroll}
         onEndReachedThreshold={0.5}
         inverted
-        onScroll={(e) => {
-          if (e.nativeEvent.contentOffset.y === 0) {
-            handleLoadMore();
-          }
-        }}
       />
       {composing && config?.disableHeader && (
         <Composing usersTyping={["User"]} />
