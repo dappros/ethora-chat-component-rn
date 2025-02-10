@@ -193,7 +193,8 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
           styles.customMessageContainer,
           {
             justifyContent: isUser ? "flex-end" : "flex-start",
-            marginBottom: !!message?.reply?.length ? 20 : 0,
+            marginBottom: !!message?.reply?.length || message?.reaction && !!Object.keys(message?.reaction)?.length
+             ? 20 : 0,
           },
           isPressed
             ? { transform: [{ scale: 1.05 }], paddingRight: 16 }
@@ -277,7 +278,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
                 minute: "2-digit",
               })}
             </CustomMessageTimestamp>
-            {message?.reply?.length ? (
+            {message?.reply?.length && message?.reply?.length > 0 ? (
               <BottomReplyContainer
                 isUser={isUser}
                 onClick={handleReplyMessage}

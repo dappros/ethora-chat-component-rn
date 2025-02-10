@@ -319,6 +319,13 @@ export interface XmppClientInterface {
     showInChannel?: boolean,
     mainMessage?: string
   ): void;
+  sendMessageReactionStanza(
+    messageId: string,
+    roomJid: string,
+    reactionsList: string[],
+    data: any,
+    reactionSymbol?: any
+  ): void;
   deleteMessageStanza(room: string, msgId: string): void;
   editMessageStanza(room: string, msgId: string, text: string): void;
   sendTypingRequestStanza(

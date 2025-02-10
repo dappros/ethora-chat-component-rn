@@ -3,8 +3,12 @@ import { IUser } from '../types/types';
 import { transformArrayToObject } from './transformTranslation';
 
 const extractTimestamp = (str: string, stanza?: any): string | null => {
-  typeof str !== 'string' && console.log(str, stanza.toString());
-  const timestamp = str.slice(-13);
+  if (!str) return null;
+  if (typeof str !== 'string') {
+    console.log(str, stanza.toString());
+    return null;
+  }
+  const timestamp = str.slice(-16);
   return timestamp;
 };
 
@@ -27,7 +31,7 @@ export const getDataFromXml = async (stanza: Element): Promise<DataXml> => {
   const data = fullData?.getChild('data') || stanza?.getChild('data');
   const id =
   stanza.getChild('result')?.attrs.id ||
-  extractTimestamp(stanza.attrs.id, stanza);
+  extractTimestamp(stanza?.getChild('stanza-id')?.attrs?.id, stanza);
   const body = fullData?.getChild('body')?.getText() || undefined;
   const deleted = !!fullData?.getChild('deleted');
   const translations = fullData?.getChild('translations')?.attrs?.value

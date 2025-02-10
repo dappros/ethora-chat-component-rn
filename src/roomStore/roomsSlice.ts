@@ -71,6 +71,30 @@ export const roomsStore = createSlice({
         });
       }
     },
+    setReactions: (
+      state,
+      action: PayloadAction<ReactionAction | undefined>
+    ) => {
+      const { roomJID, messageId, reactions, from, data } = action.payload;
+
+      if (state.rooms[roomJID]) {
+        state.rooms[roomJID].messages.map((message) => {
+          if (message.id === messageId) {
+            if (from) {
+              if (!message.reaction) {
+                message.reaction = {};
+              }
+
+              const fromId = from.split('@')[0];
+              message.reaction[fromId] = {
+                emoji: reactions,
+                data: data,
+              };
+            }
+          }
+        });
+      }
+  },
     setEditAction: (state, action: PayloadAction<EditAction>) => {
       const { isEdit } = action.payload;
       if (isEdit) {

@@ -27,11 +27,11 @@ export const StyledDateLabel = styled.View<{
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  background-color: ${(props) => props.secondary || "#E7EDF9"};
+  background-color: ${(props) => '#e7edf9'};
 `;
 
 export const StyledDateText = styled.Text<{ primary?: string }>`
-  color: ${(props) => props.primary || "#0052cd"};
+  color: ${(props) => "#0052cd"};
   font-size: 12px;
   font-weight: 400;
   line-height: 14px;
