@@ -1,30 +1,18 @@
 /** @format */
 
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   MessageInputContainer,
   InputContainer,
   MessageInput,
-  MediaContainer,
-  MediaImage,
 } from "./StyledInputComponents/StyledInputComponents";
-import { IConfig } from "../../types/types";
+import { IConfig, MediaFile } from "../../types/types";
 import Button from "./Button";
-import { AttachIcon, SendIcon } from "../../assets/icons";
-import { Image, TextInput, TouchableOpacity, View } from "react-native";
-import AudioRecorder from "../InputComponents/AudioRecorder";
-import {
-  launchImageLibrary,
-  launchCamera,
-  ImageLibraryOptions,
-} from "react-native-image-picker";
-import { RemoveButton, RemoveButtonText } from "./StyledComponents";
-
-interface MediaFile {
-  uri: string;
-  type: string;
-  name: string;
-}
+import { SendIcon } from "../../assets/icons";
+import { KeyboardAvoidingView, Platform, View } from "react-native";
+import useComposing from "../../hooks/useComposing";
+import { ModalSelectMedia } from "../Modals/ModalSelectMedia/ModalSelectMedia.tsx";
+import { MediaFilePreview } from "./MediaFilePreview";
 
 interface SendInputProps {
   sendMessage: (message: string) => void;
@@ -49,47 +37,17 @@ const SendInput: React.FC<SendInputProps> = ({
   const [isRecording, setIsRecording] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const [filePreviews, setFilePreviews] = useState<MediaFile[]>([]);
+  const [inputHeight, setInputHeight] = useState(40);
+
+  useComposing(message);
+
+  const handleFileSelect = (files: MediaFile[]) => {
+    setFilePreviews([...files]);
+  };
 
   const handleRemoveImage = (index: number) => {
     setFilePreviews((prev) => prev.filter((_, i) => i !== index));
   };
-
-  const handleAttachClick = useCallback(async () => {
-    const options: ImageLibraryOptions = {
-      mediaType: "mixed",
-      selectionLimit: 5,
-    };
-
-    try {
-      const result = await launchImageLibrary(options);
-
-      if (result.didCancel) {
-        console.log("User cancelled image picker");
-      } else if (result.errorCode) {
-        console.error("ImagePicker Error:", result.errorMessage);
-      } else if (result.assets && result.assets.length > 0) {
-        setFilePreviews((prev) => {
-          const remainingSlots = 5 - prev.length;
-          if (remainingSlots <= 0) {
-            console.log("Maximum file limit reached.");
-            return prev;
-          }
-
-          const selectedFiles = result
-            .assets!.slice(0, remainingSlots)
-            .map((asset) => ({
-              uri: asset.uri || "",
-              type: asset.type || "unknown",
-              name: asset.fileName || `file_${Date.now()}`,
-            }));
-
-          return [...prev, ...selectedFiles];
-        });
-      }
-    } catch (error) {
-      console.error("Error selecting media:", error);
-    }
-  }, []);
 
   const handleSendClick = useCallback(() => {
     if (filePreviews.length > 0) {
@@ -108,71 +66,77 @@ const SendInput: React.FC<SendInputProps> = ({
   }, [editMessage]);
 
   return (
-    <InputContainer isText={!!message}>
-      {filePreviews.length > 0 && (
-        <MediaContainer>
-          {filePreviews.map((file, index) => (
-            <View key={`${file.name}_${index}`}>
-              <MediaImage key={index} source={{ uri: file.uri }} />
-              <RemoveButton onPress={() => handleRemoveImage(index)}>
-                <RemoveButtonText>&times;</RemoveButtonText>
-              </RemoveButton>
-            </View>
-          ))}
-        </MediaContainer>
-      )}
-      <MessageInputContainer>
-        {!isRecording && (
-          <>
-            <Button
-              onPress={handleAttachClick}
-              disabled={false}
-              EndIcon={<AttachIcon />}
-            />
-            <MessageInput
-              isFocused={isFocused}
-              color={config?.colors?.primary}
-              placeholder="Type message"
-              placeholderTextColor="#999"
-              value={message}
-              onChangeText={setMessage}
-              onFocus={() => setIsFocused(true)}
-              onBlur={() => setIsFocused(false)}
-              editable={!isLoading}
-            />
-          </>
-        )}
-        {
-          <Button
-            onPress={handleSendClick}
-            EndIcon={
-              <SendIcon
-                color={
-                  message || filePreviews.length > 0 ? "#0052CD" : "#D4D4D8"
-                }
-              />
-            }
-            style={{
-              borderRadius: 100,
-              backgroundColor:
-                message || filePreviews.length > 0
-                  ? config?.colors?.primary
-                  : "transparent",
-            }}
+    <KeyboardAvoidingView
+      keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
+    >
+      <InputContainer isText={!!message}>
+        {filePreviews.length > 0 && (
+          <MediaFilePreview
+            filePreviews={filePreviews}
+            handleRemoveImage={handleRemoveImage}
           />
-          // <AudioRecorder
-          //   setIsRecording={setIsRecording}
-          //   isRecording={isRecording}
-          //   handleSendClick={handleSendClick}
-          // />
-        }
-      </MessageInputContainer>
-      <View
-        style={{
-          paddingHorizontal: 16,
-        }}
-      ></View>
-    </InputContainer>
+        )}
+        <MessageInputContainer>
+          {!isRecording && (
+            <>
+              <ModalSelectMedia onFileSelect={handleFileSelect} />
+              <MessageInput
+                isFocused={isFocused}
+                color={config?.colors?.primary}
+                placeholder="Type message"
+                placeholderTextColor="#999"
+                value={message}
+                onChangeText={setMessage}
+                onFocus={() => {
+                  setIsFocused(true);
+                }}
+                onBlur={() => {
+                  setIsFocused(false);
+                }}
+                editable={!isLoading}
+                multiline={true}
+                maxHeight={72}
+                onContentSizeChange={(event) => {
+                  setInputHeight(
+                    Math.min(
+                      72,
+                      Math.max(40, event.nativeEvent.contentSize.height)
+                    )
+                  );
+                }}
+                style={{
+                  height: inputHeight,
+                }}
+              />
+            </>
+          )}
+          {
+            <Button
+              onPress={handleSendClick}
+              EndIcon={
+                <SendIcon
+                  color={
+                    message || filePreviews.length > 0 ? "#FFFFFF" : "#D4D4D8"
+                  }
+                />
+              }
+              style={{
+                borderRadius: 100,
+                backgroundColor:
+                  message || filePreviews.length > 0
+                    ? config?.colors?.primary
+                    : "transparent",
+              }}
+            />
+          }
+        </MessageInputContainer>
+        <View
+          style={{
+            paddingHorizontal: 16,
+          }}
+        ></View>
+      </InputContainer>
+    </KeyboardAvoidingView>
   );
 };
 

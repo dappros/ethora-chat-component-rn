@@ -35,16 +35,14 @@ export const MediaImage = styled.Image`
 
 export const MessageInputContainer = styled.View`
   flex-direction: row;
-  align-items: center;
+  align-items: flex-end;
   width: 100%;
-  max-height: 72px;
 `;
 
 export const MessageInput = styled.TextInput<{
   isFocused?: boolean;
   color?: string;
 }>`
-  flex-grow: 1;
   padding: 10px;
   border-radius: 12px;
   border-width: 1px;
@@ -52,7 +50,11 @@ export const MessageInput = styled.TextInput<{
     props.isFocused ? props.color || "#0052CD" : "transparent"};
   color: #141414;
   background-color: #f5f7f9;
-  max-height: 40px;
+  width: 70%;
+  text-align-vertical: top;
+  padding-vertical: 0;
+  line-height: 20px;
+  include-font-padding: false;
 `;
 
 export const HiddenFileInput = styled.View``;

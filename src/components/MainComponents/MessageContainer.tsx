@@ -9,6 +9,7 @@ import {
   MessageTimestamp,
   UserName,
 } from "../styled/StyledComponents";
+import { View } from "react-native";
 
 interface MessageContainerProps {
   CustomMessage?: React.ComponentType<{
@@ -55,7 +56,10 @@ export const MessageContainer: FC<MessageContainerProps> = ({
   const MessageComponent = CustomMessage || Message;
 
   return (
-    <Fragment key={message.id}>
+    <View key={message.id}>
+      {showDateLabel && !activeMessage && message.id !== "delimiter-new" ? (
+        <DateLabel date={messageDate} colors={config?.colors} />
+      ) : null}
       <MessageComponent message={message} isUser={isUser} isReply={isReply}>
         {!CustomMessage ? (
           <>
@@ -73,9 +77,6 @@ export const MessageContainer: FC<MessageContainerProps> = ({
           />
         )}
       </MessageComponent>
-      {showDateLabel && !activeMessage && message.id !== "delimiter-new" ? (
-        <DateLabel date={messageDate} colors={config?.colors} />
-      ) : null}
-    </Fragment>
+    </View>
   );
 };

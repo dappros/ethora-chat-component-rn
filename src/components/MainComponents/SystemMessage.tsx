@@ -3,7 +3,7 @@ import { CustomSystemMessage } from "../styled/StyledComponents";
 import styled from "styled-components/native";
 
 interface SystemMessageProps {
-  messageText: string;
+  messageText?: string;
   colors?: { primary?: string; secondary?: string };
 }
 

@@ -1,8 +1,8 @@
-import { configureStore, combineReducers } from '@reduxjs/toolkit';
+import {configureStore, combineReducers} from '@reduxjs/toolkit';
 import chatSettingsReducer from './chatSettingsSlice';
 import roomsSlice from './roomsSlice';
-import { IRoom } from '../types/types';
-import { unreadMiddleware } from './Middleware/unreadMidlleware';
+import {IRoom} from '../types/types';
+import {unreadMiddleware} from './Middleware/unreadMidlleware';
 
 const rootReducer = combineReducers({
   chatSettingStore: chatSettingsReducer,
@@ -18,11 +18,18 @@ export const getActiveRoom = (state: RootState): IRoom | null => {
 
 export const store = configureStore({
   reducer: rootReducer,
-  middleware: (getDefaultMiddleware) =>
+  middleware: getDefaultMiddleware =>
     getDefaultMiddleware({
       serializableCheck: {
         ignoredActions: ['chat/addMessage', 'chatSettingStore/setStoreClient'],
-        ignoredPaths: ['chat.messages.timestamp', 'chatSettingStore.client'],
+        ignoredPaths: [
+          'chat.messages.timestamp',
+          'chatSettingStore.client',
+          'chatSettingStore.config.headerMenu',
+          'chatSettingStore.config.customRooms.rooms',
+          'chatSettingStore.config.headerChatMenu',
+          'chatSettingStore.config.backgroundChat.image',
+        ],
         serializableCheck: false,
       },
     }).concat(unreadMiddleware),

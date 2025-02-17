@@ -46,6 +46,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ config }) => {
 
   const handleRegularLogin = useCallback(async () => {
     setIsLoading(true);
+    console.log("LOG:", email, password);
     try {
       const authData = await loginEmail(email, password);
 

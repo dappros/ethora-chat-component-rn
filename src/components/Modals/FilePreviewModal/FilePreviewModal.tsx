@@ -276,19 +276,17 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
         }
       />
 
-      <View
+      <CenterContainer
         style={{
-          flex: 1,
-          justifyContent: "center",
-          alignItems: "center",
-          overflow: "hidden",
+          display: "flex",
           height: "100%",
-          width: "100%",
+          justifyContent: "center",
+          overflow: "hidden",
           padding: 16,
         }}
       >
         {getMediaComponent}
-      </View>
+      </CenterContainer>
 
       <Toast
         visible={toastVisible.isStatus}

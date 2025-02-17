@@ -1,8 +1,8 @@
-import { useEffect } from 'react';
-import { setIsLoading } from '../roomStore/roomsSlice';
-import { useXmppClient } from '../context/xmppProvider';
-import { IConfig, IRoom } from '../types/types';
-import { useDispatch } from 'react-redux';
+import { useEffect } from "react";
+import { setIsLoading } from "../roomStore/roomsSlice";
+import { useXmppClient } from "../context/xmppProvider";
+import { IConfig, IRoom } from "../types/types";
+import { useDispatch } from "react-redux";
 
 const countUndefinedText = (arr: { text?: string }[]) =>
   arr.filter((item) => item.text === undefined).length;
@@ -10,8 +10,8 @@ const countUndefinedText = (arr: { text?: string }[]) =>
 export const useRoomInitialization = (
   activeRoomJID: string,
   roomsList: Record<string, IRoom>,
-  config: IConfig,
-  messageLength: number
+  messageLength: number,
+  config?: IConfig
 ) => {
   const { client } = useXmppClient();
   const dispatch = useDispatch();
@@ -38,7 +38,7 @@ export const useRoomInitialization = (
         await client.getRoomsStanza();
         await getDefaultHistory();
       } else {
-        getDefaultHistory();
+        await getDefaultHistory();
       }
     };
 

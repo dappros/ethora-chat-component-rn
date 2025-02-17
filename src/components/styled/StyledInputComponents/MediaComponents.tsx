@@ -45,24 +45,46 @@ export const IconButton = styled.TouchableOpacity`
 
 export const UnsupportedContainer = styled.TouchableOpacity`
   display: flex;
+  flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  border: 1px solid #ddd;
   border-radius: 8px;
   padding: 10px;
   margin: 5px 0;
   cursor: pointer;
+  gap: 8px;
+`;
+
+export const BackgroundFile = styled.View`
   background-color: #f9f9f9;
-  &:hover {
-    background-color: #f1f1f1;
-  }
+  border-radius: 8px;
+`;
+
+export const FileInformation = styled.View`
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
 `;
 
 export const FileName = styled.Text`
+  font-size: 14px;
+  font-weight: 500;
   flex-grow: 1;
-  padding: 0 10px;
-  color: #333;
-  white-space: nowrap;
+  color: #fff;
   overflow: hidden;
-  text-overflow: ellipsis;
+`;
+
+export const FileSizeContainer = styled.View`
+  align-items: flex-start;
+  flex-direction: row;
+  background-color: #f2e6f6;
+  padding: 2px 8px;
+  border-radius: 10px;
+`;
+
+export const FileSize = styled.Text`
+  color: #53575a;
+  overflow: hidden;
+  text-align: left;
+  font-weight: 500;
 `;

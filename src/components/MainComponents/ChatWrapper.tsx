@@ -7,10 +7,8 @@ import {
   setActiveModal,
   setConfig,
   setDeleteModal,
-  setStoreClient,
 } from "../../roomStore/chatSettingsSlice";
 import { ChatWrapperBox } from "../styled/ChatWrapperBox";
-import { Overlay, StyledModal } from "../styled/MediaModal";
 import { Message } from "../MessageBubble/Message";
 import {
   IConfig,
@@ -18,11 +16,13 @@ import {
   MessageProps,
   ModalType,
   User,
+  XmppClientInterface,
 } from "../../types/types";
 import { useXmppClient } from "../../context/xmppProvider";
 import LoginForm from "../AuthForms/Login";
 import Loader from "../styled/Loader";
 import {
+  addRoom,
   setCurrentRoom,
   setEditAction,
   setIsLoading,
@@ -39,6 +39,7 @@ import { CONFERENCE_DOMAIN } from "../../helpers/constants/PLATFORM_CONSTANTS";
 import { AppState, Linking, StatusBar, View, ViewStyle } from "react-native";
 import useMessageLoaderQueue from "../../hooks/useMessageLoaderQueue";
 import { useRoomState } from "../../hooks/useRoomState";
+import { createIRoomRoom } from "../../helpers/createRoom.ts";
 
 interface ChatWrapperProps {
   token?: string;
@@ -74,10 +75,12 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
   const { client, initializeClient, setClient } = useXmppClient();
 
   const activeMessage = useMemo(() => {
-    if (activeRoomJID) {
+    if (activeRoomJID && roomsList?.[activeRoomJID]?.messages) {
       return roomsList[activeRoomJID]?.messages?.find(
         (message) => message?.activeMessage
       );
+    } else {
+      return null;
     }
   }, [roomsList, activeRoomJID]);
 
@@ -139,6 +142,22 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
     };
   }, []);
 
+  const initCustomRooms = async (client: XmppClientInterface) => {
+    setIsChatVisible(true);
+    config?.customRooms?.rooms &&
+      config?.customRooms?.rooms.length > 0 &&
+      config?.customRooms?.rooms.forEach((room) => {
+        const IRoomTypedRoom = createIRoomRoom(room);
+        dispatch(addRoom({ roomData: IRoomTypedRoom }));
+        client.presenceInRoomStanza(room.jid);
+        dispatch(setCurrentRoom({ roomJID: room.jid }));
+      });
+  };
+
+  useEffect(() => {
+    dispatch(setConfig(config));
+  }, [config, config?.enableTranslates]);
+
   useEffect(() => {
     if (roomJID) {
       dispatch(setCurrentRoom({ roomJID: roomJID }));
@@ -157,47 +176,53 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
             console.log("No client, so initing one");
             await initializeClient(
               user.defaultWallet?.walletAddress,
-              user.xmppPassword
+              user.xmppPassword,
+              config?.xmppSettings
             ).then(async (client) => {
-              console.log("init client");
               await client.getRoomsStanza();
-              console.log("get room");
-              // await client
-              //   ?.getChatsPrivateStoreRequestStanza()
-              //   .then(
-              //     (roomTimestampObject: [jid: string, timestamp: string]) => {
-              //       const roomTimestampArray = Object.entries(
-              //         roomTimestampObject
-              //       ).map(([jid, timestamp]) => ({
-              //         jid,
-              //         timestamp,
-              //       }));
-              //       console.log(
-              //         "getting roomTimestampArray",
-              //         roomTimestampArray
-              //       );
+              await client
+                ?.getChatsPrivateStoreRequestStanza()
+                .then((roomTimestampObject) => {
+                  const typedObject = roomTimestampObject as
+                    | [jid: string, timestamp: string]
+                    | null;
 
-              //       roomTimestampArray.forEach(({ jid, timestamp }) => {
-              //         if (jid) {
-              //           dispatch(
-              //             setLastViewedTimestamp({
-              //               chatJID: jid,
-              //               timestamp: Number(timestamp || 0),
-              //             })
-              //           );
-              //         }
-              //       });
-              //       client.setVCardStanza(`${user.firstName} ${user.lastName}`);
-              //       setClient(client);
-              //     }
-              //   );
+                  if (!typedObject) {
+                    setClient(client);
+                    return;
+                  }
+                  const roomTimestampArray = Object.entries(typedObject).map(
+                    ([jid, timestamp]) => ({
+                      jid,
+                      timestamp,
+                    })
+                  );
+
+                  if (roomTimestampArray && roomTimestampArray.length) {
+                    roomTimestampArray.forEach(({ jid, timestamp }) => {
+                      if (jid) {
+                        dispatch(
+                          setLastViewedTimestamp({
+                            chatJID: jid,
+                            timestamp: Number(timestamp || 0),
+                          })
+                        );
+                      }
+                    });
+                    client.setVCardStanza(`${user.firstName} ${user.lastName}`);
+                  }
+                  setClient(client);
+                  initCustomRooms(client);
+                });
             });
             setInited(true);
+            initCustomRooms(client);
             {
               config?.refreshTokens?.enabled && refresh();
             }
           } else {
             setInited(true);
+            initCustomRooms(client);
             {
               config?.refreshTokens?.enabled && refresh();
             }
@@ -205,10 +230,11 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
         }
         dispatch(setIsLoading({ loading: false }));
       } catch (error) {
-        setShowModal(true);
-        setInited(false);
+        console.log("here, wrapper error:", error);
+        initCustomRooms(client);
+        setShowModal(false);
+        setInited(true);
         dispatch(setIsLoading({ loading: false }));
-        console.log(error);
       }
     };
 
@@ -267,18 +293,11 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
     isInited
   );
 
-  if (user.xmppPassword === "" && user.xmppUsername === "")
-    return <LoginForm config={config} />;
+  // if (user.xmppPassword === '' && user.xmppUsername === '')
+  //   return <LoginForm config={config} />;
 
   return (
     <View>
-      {showModal && (
-        <Overlay>
-          <StyledModal>
-            There was an error. Please, refresh the page
-          </StyledModal>
-        </Overlay>
-      )}
       <>
         {isInited ? (
           <ChatWrapperBox

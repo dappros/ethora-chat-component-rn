@@ -24,7 +24,9 @@
     "react-native-audio-recorder-player": "^3.6.12",
     "react-native-document-picker": "^9.3.1",
     "react-native-fs": "^2.20.0",
+    "react-native-image-crop-picker": "^0.42.0",
     "react-native-image-picker": "^7.2.3",
+    "react-native-permissions": "^5.2.5",
     "react-native-reanimated": "^3.16.5",
     "react-native-share": "^12.0.3",
     "react-native-svg": "^15.10.1",
@@ -35,6 +37,13 @@
     "rn-fetch-blob": "^0.12.0",
     "styled-components": "^6.1.13"
   },
+  "reactNativePermissionsIOS": [
+    "Camera",
+    "MediaLibrary",
+    "Microphone",
+    "PhotoLibrary",
+    "PhotoLibraryAddOnly"
+  ],
   "devDependencies": {
     "@babel/core": "^7.25.2",
     "@babel/preset-env": "^7.25.3",

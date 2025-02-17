@@ -2,6 +2,7 @@
 
 import React, { useCallback } from "react";
 import {
+  CenterContainer,
   ChatContainerHeader,
   ChatContainerHeaderBoxInfo,
   ChatContainerHeaderInfo,
@@ -11,7 +12,7 @@ import RoomList from "./RoomList";
 import { IRoom } from "../../types/types";
 import { ProfileImagePlaceholder } from "./ProfileImagePlaceholder";
 import Button from "../styled/Button";
-import { BackIcon } from "../../assets/icons";
+import { BackIcon, BurgerMenuIcon } from "../../assets/icons";
 import { useDispatch } from "react-redux";
 import Composing from "../styled/StyledInputComponents/Composing";
 import {
@@ -25,7 +26,7 @@ import { MODAL_TYPES } from "../../helpers/constants/MODAL_TYPES";
 import { RoomMenu } from "../MenuRoom/MenuRoom";
 import { useRoomState } from "../../hooks/useRoomState";
 import { useChatSettingState } from "../../hooks/useChatSettingState";
-import { View, StyleSheet, Text } from "react-native";
+import { View, StyleSheet, Text, Keyboard } from "react-native";
 
 interface ChatHeaderProps {
   currentRoom: IRoom;
@@ -49,8 +50,8 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   };
 
   const handleLeaveClick = useCallback(() => {
-    client.leaveTheRoomStanza(activeRoomJID);
-    dispatch(deleteRoom({ jid: activeRoomJID }));
+    client.leaveTheRoomStanza(activeRoomJID!);
+    dispatch(deleteRoom({ jid: activeRoomJID! }));
 
     const nextRoomJID = Object.keys(roomsList)[0] || null;
     if (nextRoomJID) {
@@ -58,10 +59,14 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
     }
   }, [activeRoomJID, roomsList, dispatch, client]);
 
+  const handleHeaderChatMenu = () => {
+    Keyboard.dismiss();
+    config?.headerChatMenu && config?.headerChatMenu();
+  };
+
   return (
     <ChatContainerHeader>
-      {/* todo add here list of rooms */}
-      {handleBackClick ? (
+      {handleBackClick && !config?.headerChatMenu ? (
         <View style={styles.leftContainer}>
           <Button
             EndIcon={<BackIcon />}
@@ -69,9 +74,20 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
           />
         </View>
       ) : (
-        <View style={styles.leftContainer} />
+        <View style={styles.leftContainer}>
+          <Button
+            style={styles.menuButton}
+            color="black"
+            unstyled
+            EndIcon={<BurgerMenuIcon color={config?.colors?.primary} />}
+            onPress={handleHeaderChatMenu}
+          />
+        </View>
       )}
-      <View style={styles.centerContainer}>
+      <CenterContainer
+        rightSpace={config?.disableRoomConfig}
+        leftSpace={!!config?.headerChatMenu}
+      >
         {config?.chatHeaderBurgerMenu && roomsList && (
           <RoomList
             chats={Object.values(roomsList)}
@@ -81,23 +97,24 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
         )}
         <ChatContainerHeaderBoxInfo
           onPress={() => dispatch(setActiveModal(MODAL_TYPES.CHAT_PROFILE))}
+          disabled={config?.disableProfilesInteractions}
         >
           <View>
             <ProfileImagePlaceholder
               name={currentRoom.name}
               size={40}
               icon={currentRoom?.icon}
-              active={true}
+              active={!config?.disableProfilesInteractions || true}
             />
           </View>
           <ChatContainerHeaderInfo>
-            <ChatContainerHeaderLabel>
+            <ChatContainerHeaderLabel numberOfLines={1} ellipsizeMode="tail">
               {currentRoom?.title}
             </ChatContainerHeaderLabel>
             <View>
               {composing ? (
                 <Composing usersTyping={currentRoom?.composingList} />
-              ) : (
+              ) : config?.disableUserCount ? undefined : (
                 <ChatContainerHeaderLabel style={styles.subLabel}>
                   <Text>{`${currentRoom?.usersCnt} users`}</Text>
                 </ChatContainerHeaderLabel>
@@ -105,12 +122,15 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
             </View>
           </ChatContainerHeaderInfo>
         </ChatContainerHeaderBoxInfo>
-      </View>
+      </CenterContainer>
 
-      <View style={styles.rightContainer}>
-        {/* <SearchInput animated icon={<SearchIcon />} /> */}
-        <RoomMenu handleLeaveClick={handleLeaveClick} />
-      </View>
+      {!config?.disableRoomConfig ? (
+        <View style={styles.rightContainer}>
+          <RoomMenu handleLeaveClick={handleLeaveClick} />
+        </View>
+      ) : (
+        <View style={styles.rightContainer} />
+      )}
     </ChatContainerHeader>
   );
 };
@@ -120,21 +140,18 @@ const styles = StyleSheet.create({
     color: "#8C8C8C",
     fontSize: 14,
   },
-
-  leftContainer: {
-    flex: 1,
-    alignItems: "flex-start",
+  menuButton: {
+    padding: 8,
+    borderRadius: 16,
+    backgroundColor: "transparent",
   },
-  centerContainer: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    alignItems: "center",
-    justifyContent: "center",
+  leftContainer: {
+    alignItems: "flex-start",
+    width: "15%",
   },
   rightContainer: {
-    flex: 1,
     alignItems: "flex-end",
+    width: "15%",
   },
 });
 

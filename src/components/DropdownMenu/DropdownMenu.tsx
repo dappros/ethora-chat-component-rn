@@ -6,10 +6,19 @@ import {
   StyleSheet,
   Animated,
   TextStyle,
+  TouchableWithoutFeedback,
+  Modal,
 } from "react-native";
 import { BurgerMenuIcon } from "../../assets/icons";
 import { IConfig } from "../../types/types";
 import Button from "../styled/Button";
+
+const positionMenu = {
+  right: { top: 55, right: 10 },
+  left: { top: 55, left: 0 },
+  rightBottom: { bottom: 55, right: 10 },
+  leftBottom: { bottom: 55, left: 10 },
+};
 
 interface MenuOption {
   label: string;
@@ -22,7 +31,7 @@ interface DropdownMenuProps {
   options: MenuOption[];
   onClose?: any;
   openButton?: ReactElement;
-  position?: "left" | "right";
+  position?: "left" | "right" | "rightBottom" | "leftBottom";
   config?: IConfig;
   menuIcon?: React.ReactNode;
 }
@@ -33,42 +42,15 @@ const DropdownMenu: React.FC<DropdownMenuProps> = ({
   position = "right",
   menuIcon,
   config,
+  onClose,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<View>(null);
-
-  const menuPosition =
-    position === "right" ? { top: 55, right: 10 } : { top: 55, left: 0 };
 
   const fadeAnim = useRef(new Animated.Value(0)).current; // For fade-in effect
   const translateYAnim = useRef(new Animated.Value(-10)).current;
 
   const toggleMenu = () => setIsOpen((prev) => !prev);
-
-  // useEffect(() => {
-  //   const handleClickOutside = (event: any) => {
-  //     if (
-  //       menuRef.current &&
-  //       !menuRef.current.contains(event.target) &&
-  //       buttonRef.current &&
-  //       !buttonRef.current.contains(event.target)
-  //     ) {
-  //       setIsOpen(false);
-  //     }
-  //   };
-
-  //   if (isOpen) {
-  //     Animated.timing(fadeAnim, {
-  //       toValue: 1,
-  //       duration: 200,
-  //       useNativeDriver: true,
-  //     }).start();
-  //   }
-
-  //   return () => {
-  //     // Clean up
-  //   };
-  // }, [isOpen]);
 
   useEffect(() => {
     if (isOpen) {
@@ -114,39 +96,56 @@ const DropdownMenu: React.FC<DropdownMenuProps> = ({
         />
       )}
       {isOpen && (
-        <Animated.View
-          ref={menuRef}
-          style={[
-            styles.menu,
-            menuPosition,
-            { opacity: fadeAnim, transform: [{ translateY: translateYAnim }] },
-          ]}
-        >
-          {options.map((option, index) => (
-            <View key={index} style={styles.menuItemWrapper}>
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => {
-                  option.onClick();
-                  setIsOpen(false);
-                }}
-              >
-                <View
-                  style={{
-                    width: 22,
-                    alignItems: "center",
-                  }}
-                >
-                  {option.icon}
+        <Modal transparent visible={isOpen} animationType="fade">
+          <TouchableOpacity
+            style={styles.overlay}
+            activeOpacity={1}
+            onPress={() => {
+              setIsOpen(false);
+              onClose && onClose();
+            }}
+          >
+            <Animated.View
+              ref={menuRef}
+              style={[
+                styles.menu,
+                positionMenu[position],
+                {
+                  opacity: fadeAnim,
+                  transform: [{ translateY: translateYAnim }],
+                },
+              ]}
+            >
+              {options.map((option, index) => (
+                <View key={index} style={styles.menuItemWrapper}>
+                  <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={() => {
+                      option.onClick();
+                      setIsOpen(false);
+                      onClose && onClose();
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 22,
+                        alignItems: "center",
+                      }}
+                    >
+                      {option.icon}
+                    </View>
+                    <Text style={[styles.label, option?.styles]}>
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                  {index < options.length - 1 && (
+                    <View style={styles.divider} />
+                  )}
                 </View>
-                <Text style={[styles.label, option?.styles]}>
-                  {option.label}
-                </Text>
-              </TouchableOpacity>
-              {index < options.length - 1 && <View style={styles.divider} />}
-            </View>
-          ))}
-        </Animated.View>
+              ))}
+            </Animated.View>
+          </TouchableOpacity>
+        </Modal>
       )}
     </View>
   );
@@ -157,6 +156,19 @@ export default DropdownMenu;
 const styles = StyleSheet.create({
   container: {
     position: "relative",
+    zIndex: 100,
+  },
+  overlay: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
   },
   button: {
     padding: 10,

@@ -4,15 +4,17 @@ import { store } from '../roomStore';
 import { logout, refreshTokens } from '../roomStore/chatSettingsSlice';
 import { useChatSettingState } from '../hooks/useChatSettingState';
 
-// const baseURL = 'https://api.ethoradev.com/v1';
+const baseURL = 'https://api.ethoradev.com/v1';
 
-const getBaseURL = (): string => {
-  const {config} = useChatSettingState();
+// const getBaseURL = (): string => {
+//   const {config} = useChatSettingState();
 
-  return config && config.baseUrl ? config?.baseUrl : 'https://api.ethoradev.com/v1';
-};
+//   console.log('apiClient', config && config.baseUrl ? config?.baseUrl : 'https://api.ethoradev.com/v1')
 
-const baseURL = getBaseURL();
+//   return config && config.baseUrl ? config?.baseUrl : 'https://api.ethoradev.com/v1';
+// };
+
+// const baseURL = getBaseURL();
 
 const http = axios.create({
   baseURL,
@@ -33,7 +35,7 @@ export function refresh(): Promise<{
         .then((response) => {
           store.dispatch(
             refreshTokens({
-              token: response.data.token,
+              token: response.data.token || response.data.accessToken,
               refreshToken: response.data.refreshToken,
             })
           );

@@ -5,14 +5,23 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { View, StyleSheet, FlatList, Image } from "react-native";
+import {
+  View,
+  StyleSheet,
+  FlatList,
+  Image,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
+  TouchableOpacity,
+  Keyboard,
+} from "react-native";
 import { IMessage, User, IConfig } from "../../types/types";
 import Composing from "../styled/StyledInputComponents/Composing";
 import TreadLabel from "../styled/TreadLabel";
 import { MessageContainer } from "./MessageContainer";
 import { useRoomState } from "../../hooks/useRoomState";
 import Loader from "../styled/Loader";
-import { SvgUri } from "react-native-svg";
+import { ArowDownIcon } from "../../assets/icons";
 
 interface MessageListProps<TMessage extends IMessage> {
   CustomMessage?: React.ComponentType<{
@@ -44,9 +53,13 @@ const MessageList = <TMessage extends IMessage>({
   activeMessage,
 }: MessageListProps<TMessage>) => {
   const { composing, messages } = useRoomState(roomJID).room;
+  const [isUserAtBottom, setIsUserAtBottom] = useState(true);
+  const [showNewMessageIndicator, setShowNewMessageIndicator] = useState(false);
+  const [isContentOffset, setIsContentOffset] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [isScrollBlocked, setIsScrollBlocked] = useState(false);
 
-  let lastDateLabel: string | null = null;
+  const flatListRef = useRef<FlatList<IMessage>>(null);
 
   const addReplyMessages = useMemo(() => {
     return messages.map((message) => {
@@ -63,63 +76,58 @@ const MessageList = <TMessage extends IMessage>({
 
   const memoizedMessages = useMemo(() => {
     if (isReply) {
-      return addReplyMessages
-        .filter(
-          (item: IMessage) =>
-            item.roomJid === roomJID &&
-            item.isReply &&
-            item.isReply === "true" &&
-            item.mainMessage &&
-            JSON.parse(item.mainMessage).id === activeMessage?.id
-        )
-        .reverse();
+      return addReplyMessages.filter(
+        (item: IMessage) =>
+          item.roomJid === roomJID &&
+          item.isReply &&
+          item.isReply === "true" &&
+          item.mainMessage &&
+          JSON.parse(item.mainMessage).id === activeMessage?.id
+      );
     } else {
-      return addReplyMessages
-        .filter(
-          (item: IMessage) =>
-            item.showInChannel === "true" ||
-            ((!item.isReply || item.isReply === "false") && !item.mainMessage)
-        )
-        .reverse();
+      return addReplyMessages.filter(
+        (item: IMessage) =>
+          item.showInChannel === "true" ||
+          ((!item.isReply || item.isReply === "false") && !item.mainMessage)
+      );
     }
   }, [addReplyMessages, isReply, roomJID, activeMessage]);
 
-  const flatListRef = useRef<FlatList<IMessage>>(null);
-  const scrollPosition = useRef(0);
-  const previousMessageCount = useRef(memoizedMessages.length);
-
   const handleLoadMore = useCallback(async () => {
-    if (isLoadingMore || loading || !memoizedMessages.length) return;
+    if (loading || !memoizedMessages.length || isScrollBlocked) return;
 
     setIsLoadingMore(true);
+    setIsScrollBlocked(true);
+
     try {
-      await loadMoreMessages(
-        memoizedMessages[0].roomJid,
-        15,
-        Number(memoizedMessages[memoizedMessages.length - 1].id)
-      );
+      await loadMoreMessages(messages[0].roomJid, 15, Number(messages[0].id));
     } catch (error) {
       console.error("Error loading more messages:", error);
     } finally {
       setIsLoadingMore(false);
+      setIsScrollBlocked(false);
+      setIsContentOffset(false);
     }
-  }, [memoizedMessages, isLoadingMore, loadMoreMessages]);
+  }, [messages, loadMoreMessages, loading, isScrollBlocked]);
 
-  const handleScroll = (event: any) => {
-    const currentOffset = event.nativeEvent.contentOffset.y;
-    const direction = currentOffset > scrollPosition.current ? "down" : "up";
-    scrollPosition.current = currentOffset;
-  
-    if (direction === "up" && currentOffset < 350) {
-      handleLoadMore();
-    }
-  };
+  const dataMessages = useMemo(() => {
+    return memoizedMessages.slice().reverse();
+  }, [memoizedMessages]);
 
   const renderMessage = useCallback(
-    ({ item }: { item: IMessage }) => {
+    ({ item, index }: { item: IMessage; index: number }) => {
       const messageDate = new Date(item.date).toDateString();
-      const showDateLabel = messageDate !== lastDateLabel;
-      lastDateLabel = messageDate;
+      let showDateLabel = false;
+
+      const nextMessage =
+        index < dataMessages.length - 1 ? dataMessages[index + 1] : null;
+      const nextMessageDate = nextMessage
+        ? new Date(nextMessage.date).toDateString()
+        : null;
+
+      if (!nextMessage || messageDate !== nextMessageDate) {
+        showDateLabel = true;
+      }
 
       return (
         <MessageContainer
@@ -133,18 +141,71 @@ const MessageList = <TMessage extends IMessage>({
         />
       );
     },
-    [CustomMessage, activeMessage, config, user.walletAddress, isReply]
+    [
+      activeMessage,
+      config,
+      user.walletAddress,
+      isReply,
+      memoizedMessages.length,
+    ]
   );
 
-  // useEffect(() => {
-  //   if (
-  //     flatListRef.current &&
-  //     previousMessageCount.current !== memoizedMessages.length
-  //   ) {
-  //     flatListRef.current.scrollToOffset({ animated: false, offset: 0 });
-  //   }
-  //   previousMessageCount.current = memoizedMessages.length;
-  // }, [memoizedMessages]);
+  const scrollToBottom = useCallback(() => {
+    if (flatListRef.current) {
+      flatListRef.current.scrollToOffset({
+        offset: 0,
+        animated: true,
+      });
+    }
+  }, [flatListRef]);
+
+  const handleContentSizeChange = useCallback(() => {
+    if (isContentOffset) {
+      scrollToBottom();
+      setIsContentOffset(false);
+    }
+    if (!isLoadingMore && flatListRef.current && isUserAtBottom) {
+      scrollToBottom();
+    } else if (!isLoadingMore) {
+      setShowNewMessageIndicator(true);
+    }
+  }, [isUserAtBottom, scrollToBottom, isLoadingMore]);
+
+  const handleScroll = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const contentOffset = event.nativeEvent.contentOffset.y;
+
+      Keyboard.dismiss();
+
+      if (contentOffset < 150) {
+        setIsContentOffset(true);
+        setShowNewMessageIndicator(false);
+        setIsUserAtBottom(true);
+      } else {
+        setIsContentOffset(false);
+        setShowNewMessageIndicator(true);
+        setIsUserAtBottom(false);
+      }
+    },
+    []
+  );
+
+  const handleLayout = () => {
+    setIsContentOffset(true);
+    setIsUserAtBottom(true);
+  };
+
+  const handleNewMessageIndicatorPress = () => {
+    setShowNewMessageIndicator(false);
+    setIsUserAtBottom(true);
+    scrollToBottom();
+  };
+
+  useEffect(() => {
+    setIsUserAtBottom(
+      messages[messages.length - 1].user.id === user.walletAddress
+    );
+  }, [messages.length]);
 
   const BackgroundImage = useMemo(() => {
     const image = config?.backgroundChat?.image;
@@ -152,22 +213,9 @@ const MessageList = <TMessage extends IMessage>({
     if (image) {
       if (typeof image === "function") {
         const SvgComponent = image as React.FC<React.SVGProps<SVGSVGElement>>;
-        return (
-          <SvgComponent
-            width="100%"
-            height="100%"
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-            }}
-          />
-        );
-        // return <image width="100%" height="100%" />
+        return <SvgComponent width="100%" />;
       } else {
-        return <Image source={image} style={styles.image} />;
+        return <Image source={image} />;
       }
     }
 
@@ -181,18 +229,7 @@ const MessageList = <TMessage extends IMessage>({
         { backgroundColor: config?.backgroundChat?.color || "#F3F6FC" },
       ]}
     >
-      {BackgroundImage}
-      {/* {config?.backgroundChat?.image &&
-      config?.backgroundChat?.image.endsWith(".svg") ? (
-        <SvgUri
-          width={"100%"}
-          height={"100%"}
-          uri={config?.backgroundChat?.image}
-        />
-      ) : (
-        <Image source={config?.backgroundChat?.image} style={styles.image} />
-      )} */}
-      {loading && <Loader color={config?.colors?.primary} />}
+      <View style={styles.backgroundImageContainer}>{BackgroundImage}</View>
       {activeMessage && (
         <View>
           {CustomMessage && (
@@ -207,14 +244,33 @@ const MessageList = <TMessage extends IMessage>({
       )}
       <FlatList
         ref={flatListRef}
-        data={memoizedMessages}
+        data={memoizedMessages.slice().reverse()}
         renderItem={renderMessage}
         keyExtractor={(item) => item.id.toString()}
         onEndReached={handleLoadMore}
         onScroll={handleScroll}
+        onContentSizeChange={handleContentSizeChange}
         onEndReachedThreshold={0.5}
-        inverted
+        scrollEventThrottle={16}
+        onLayout={handleLayout}
+        inverted={true}
+        ListFooterComponent={
+          loading && memoizedMessages.length > 15 ? (
+            <Loader color={config?.colors?.primary} />
+          ) : null
+        }
       />
+      {showNewMessageIndicator && (
+        <TouchableOpacity
+          style={[
+            styles.newMessageIndicator,
+            { backgroundColor: config?.colors?.secondary },
+          ]}
+          onPress={handleNewMessageIndicatorPress}
+        >
+          <ArowDownIcon />
+        </TouchableOpacity>
+      )}
       {composing && config?.disableHeader && (
         <Composing usersTyping={["User"]} />
       )}
@@ -233,11 +289,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     flexGrow: 1,
   },
+  backgroundImageContainer: {
+    width: "100%",
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: -1,
+  },
   image: {
     position: "absolute",
     top: 0,
     left: 0,
     width: "100%",
     height: "100%",
+  },
+  newMessageIndicator: {
+    position: "absolute",
+    width: 40,
+    height: 40,
+    bottom: 20,
+    right: 20,
+    backgroundColor: "#007AFF",
+    padding: 10,
+    borderRadius: 20,
+  },
+  newMessageText: {
+    color: "#fff",
+    fontWeight: "bold",
   },
 });

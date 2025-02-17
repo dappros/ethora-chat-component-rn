@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 	<dict>
+		<key>NSMicrophoneAddUsageDescription</key>
+		<string>This app requires microphone access to provide voice-based features.</string>
+		<key>NSCameraUsageDescription</key>
+		<string>This app requires camera access to provide camera-based features.</string>
 		<key>NSPhotoLibraryAddUsageDescription</key>
 		<string>We need access to your photo library to save files to your gallery.</string>
 		<key>NSPhotoLibraryUsageDescription</key>
@@ -13,6 +17,12 @@
 			<string>twitter</string>
 			<string>tiktoksharesdk</string>
 		</array>
+		<key>NSAppleMusicUsageDescription</key>
+		<string>This app requires permission for voice-base features.</string>
+		<key>UIFileSharingEnabled</key>
+		<true />
+		<key>LSSupportsOpeningDocumentsInPlace</key>
+		<true />
 		<key>NSMicrophoneUsageDescription</key>
 		<string>We need access to your microphone to record audio.</string>
 		<key>CFBundleDevelopmentRegion</key>

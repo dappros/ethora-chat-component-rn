@@ -3,7 +3,7 @@ import { IConfig, MessageProps, User } from "../../types/types";
 import { ChatWrapper } from "./ChatWrapper";
 import { RootState } from "../../roomStore";
 import { useDispatch, useSelector } from "react-redux";
-import { setUser } from "../../roomStore/chatSettingsSlice";
+import { logout, setConfig, setUser } from "../../roomStore/chatSettingsSlice";
 import { loginEmail } from "../../networking/api-requests/auth.api";
 import { OrDelimiter } from "../styled/StyledComponents";
 import { Text, View, ViewStyle } from "react-native";
@@ -11,6 +11,7 @@ import Button from "../styled/Button";
 import LoginForm from "../AuthForms/Login";
 import { useLocalStorage } from "../../hooks/useLocalStorage";
 import { localStorageConstants } from "../../helpers/constants/LOCAL_STORAGE";
+import { setLogoutState } from "../../roomStore/roomsSlice";
 
 interface LoginWrapperProps {
   user?: { email: string; password: string };
@@ -21,9 +22,10 @@ interface LoginWrapperProps {
 }
 
 const LoginWrapper: React.FC<LoginWrapperProps> = ({ ...props }) => {
-  const [showModal, setShowModal] = useState(false);
-
+  const dispatch = useDispatch();
   const { user } = useSelector((state: RootState) => state.chatSettingStore);
+
+  const [showModal, setShowModal] = useState(false);
 
   const loginUserFunction = useCallback(async () => {
     try {
@@ -43,7 +45,13 @@ const LoginWrapper: React.FC<LoginWrapperProps> = ({ ...props }) => {
     }
   }, []);
 
-  const dispatch = useDispatch();
+  useEffect(() => {
+    if (props.config?.clearStoreBeforeInit) {
+      dispatch(setLogoutState());
+      dispatch(logout());
+      dispatch(setConfig(props.config));
+    }
+  }, []);
 
   useEffect(() => {
     if (
@@ -73,7 +81,6 @@ const LoginWrapper: React.FC<LoginWrapperProps> = ({ ...props }) => {
     }
 
     if (props?.config?.userLogin?.enabled && props?.config?.userLogin?.user) {
-      console.log("hehrehre", props.config.userLogin.user);
       dispatch(setUser(props.config.userLogin.user));
       return;
     }
@@ -119,7 +126,7 @@ const LoginWrapper: React.FC<LoginWrapperProps> = ({ ...props }) => {
   }, []);
 
   return (
-    <View style={{ backgroundColor: "red" }}>
+    <View>
       {showModal ? (
         <View
           style={{

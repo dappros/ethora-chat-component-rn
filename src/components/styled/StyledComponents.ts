@@ -1,6 +1,9 @@
 /** @format */
 
-import styled from "styled-components/native";
+import styled from 'styled-components/native';
+import {Dimensions} from 'react-native';
+
+const {width, height} = Dimensions.get('window');
 
 // General Containers
 export const ChatContainer = styled.View`
@@ -22,19 +25,49 @@ export const ThreadContainer = styled.View`
 
 export const ChatContainerHeader = styled.View`
   flex-direction: row;
-  padding: 16px;
+  padding: 16px 8px;
   background-color: #fff;
   align-items: center;
   justify-content: space-between;
+  border-bottom-width: 1px;
+  border-bottom-color: #f5f5f5;
+  border-style: solid;
+  z-index: 1000;
+`;
+
+export const CenterContainer = styled.View<{
+  rightSpace?: boolean;
+  leftSpace?: boolean;
+}>`
+  align-items: center;
+  justify-content: center;
+  width: ${({rightSpace, leftSpace}) =>
+    rightSpace && !leftSpace
+      ? '100%'
+      : rightSpace || !leftSpace
+      ? '90%'
+      : '70%'};
+  padding-right: ${rightSpace => (rightSpace ? '16' : '0')}px;
+  padding-left: ${leftSpace => (leftSpace ? '0' : '16')}px;
 `;
 
 export const ChatContainerHeaderBoxInfo = styled.TouchableOpacity`
+  flex: 1;
   flex-direction: row;
   align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  max-width: 90%;
   gap: 16px;
+  flex: 1;
 `;
 
 export const ChatContainerHeaderInfo = styled.View`
+  flex: 1;
+  gap: 2px;
+  align-items: left;
+  justify-content: center;
+  overflow: hidden;
   text-align: left;
   flex-direction: column;
   gap: 2px;
@@ -44,10 +77,13 @@ export const ChatContainerHeaderLabel = styled.Text`
   color: #141414;
   font-weight: 600;
   font-size: 16px;
+  text-align: left;
+  overflow: hidden;
+  max-width: 100%;
 `;
 
 // Messages
-export const NonRoomChat = styled.Text`
+export const NonRoomChat = styled.View`
   flex: 1;
   width: 100%;
   align-items: center;
@@ -75,14 +111,14 @@ export const MessageTimestamp = styled.Text`
   margin-bottom: 5px;
 `;
 
-export const Message = styled.View<{ isUser: boolean }>`
-  background-color: ${(props) => (props.isUser ? "#dcf8c6" : "#f1f1f1")};
+export const Message = styled.View<{isUser: boolean}>`
+  background-color: ${props => (props.isUser ? '#dcf8c6' : '#f1f1f1')};
   padding: 10px;
   margin: 10px 0;
   border-radius: 8px;
   max-width: 60%;
   flex-direction: row;
-  align-self: ${(props) => (props.isUser ? "flex-end" : "flex-start")};
+  align-self: ${props => (props.isUser ? 'flex-end' : 'flex-start')};
 `;
 
 export const MessageText = styled.Text`
@@ -128,45 +164,45 @@ export const AvatarCircle = styled.TouchableOpacity<{
   size?: number;
   isClickable: boolean;
 }>`
-  width: ${({ size }) => `${size}px` || "64px"};
-  height: ${({ size }) => `${size}px` || "64px"};
+  width: ${({size}) => `${size}px` || '64px'};
+  height: ${({size}) => `${size}px` || '64px'};
   border-radius: 60px;
-  background-color: ${({ bgColor }) => bgColor};
+  background-color: ${({bgColor}) => bgColor};
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
 `;
 
-export const AvatarImage = styled.Image<{ size?: number }>`
-width: 100%;
-height: 100%;
-border-radius: 50px;
-object-fit: cover;
+export const AvatarImage = styled.Image<{size?: number}>`
+  width: 100%;
+  height: 100%;
+  border-radius: 50px;
+  object-fit: cover;
 `;
 
 export const RemoveButton = styled.TouchableOpacity`
-position: absolute;
-top: -4px;
-right: -4px;
-width: 20px;
-height: 20px;
-background-color: rgba(0, 0, 0, 0.5);
-border-radius: 50px;
-justify-content: center;
-align-items: center;
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 20px;
+  height: 20px;
+  background-color: rgba(0, 0, 0, 0.5);
+  border-radius: 50px;
+  justify-content: center;
+  align-items: center;
 `;
 
 export const RemoveButtonText = styled.Text`
-color: #fff;
-font-size: 12px;
-font-weight: bold;
+  color: #fff;
+  font-size: 12px;
+  font-weight: bold;
 `;
 
-export const InitialsText = styled.Text<{ size?: number; color?: string }>`
-font-size: ${({ size }) => (size && size >= 64 ? "24px" : "18px")};
-color: ${({ color }) => (color ? color : "#fff")};
-font-weight: bold;
+export const InitialsText = styled.Text<{size?: number; color?: string}>`
+  font-size: ${({size}) => (size && size >= 64 ? '24px' : '18px')};
+  color: ${({color}) => (color ? color : '#fff')};
+  font-weight: bold;
 `;
 
 export const Overlay = styled.View`
@@ -182,18 +218,23 @@ export const Overlay = styled.View`
   border-radius: 50%;
 `;
 
+export const CustomMessageText = styled.Text<{
+  isUser?: boolean;
+  color?: string;
+  colorUser: string;
+}>`
+  margin: 0px;
+  color: ${({color, isUser, colorUser}) =>
+    isUser ? colorUser || '#000' : color || '#000'};
+`;
+
 export const FileInput = styled.TextInput`
   display: none;
 `;
 
-export const CustomMessageText = styled.Text`
-  margin: 0px;
-  word-wrap: break-word;
-  color: #fff
-`;
-
 export const StyledLoaderWrapper = styled.View`
-  flex: 1;
+  width: ${width}px;
+  height: ${height}px;
   justify-content: center;
   align-items: center;
 `;
@@ -213,13 +254,13 @@ export const OrDelimiterText = styled.Text`
 export const Line = styled.View`
   width: 100%;
   height: 1px;
-  background-color: #0052CD0D;
+  background-color: #0052cd0d;
 `;
 
-export const AlsoCheckbox = styled.TouchableOpacity<{ accentColor: string }>`
+export const AlsoCheckbox = styled.TouchableOpacity<{accentColor: string}>`
   width: 16px;
   height: 16px;
-  background-color: ${(props) => props.accentColor};
+  background-color: ${props => props.accentColor};
   border-radius: 4px;
 `;
 
@@ -238,11 +279,11 @@ export const Wrapper = styled.View<{
   size?: number;
   isClickable: boolean;
 }>`
-  width: ${({ size }) => `${size}px` || "64px"};
-  height: ${({ size }) => `${size}px` || "64px"};
+  width: ${({size}) => `${size}px` || '64px'};
+  height: ${({size}) => `${size}px` || '64px'};
   margin: 8px 0 8px 8px;
   border-radius: 60px;
-  background-color: ${({ bgColor }) => bgColor};
+  background-color: ${({bgColor}) => bgColor};
   display: flex;
   align-items: center;
   justify-content: center;
