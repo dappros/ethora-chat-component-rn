@@ -1,7 +1,8 @@
-import { ImageSourcePropType, ViewStyle } from 'react-native';
-import { MODAL_TYPES } from '../helpers/constants/MODAL_TYPES';
-import { Client } from '@xmpp/client';
-import { TranslationObject } from '../helpers/transformTranslation';
+import {ImageSourcePropType, ViewStyle} from 'react-native';
+import {MODAL_TYPES} from '../helpers/constants/MODAL_TYPES';
+import {Client} from '@xmpp/client';
+import {TranslationObject} from '../helpers/transformTranslatations';
+import {SvgProps} from 'react-native-svg';
 
 export interface IUser extends Partial<User> {
   id: string;
@@ -36,12 +37,13 @@ export interface IMessage {
   fileName?: string;
   translations?: TranslationObject;
   langSource?: string;
+  size?: string;
 }
 
 export interface IReply extends IMessage {}
 
 export interface IRoom {
-  id: string;
+  id?: string;
   name: string;
   jid: string;
   title: string;
@@ -165,6 +167,7 @@ export interface IConfig {
     enabled: boolean;
     loginFunction: any; //() => Promise<User>
   };
+  baseUrl?: string;
   xmppSettings?: xmppSettingsInterface;
   disableRooms?: boolean;
   defaultLogin?: boolean;
@@ -179,23 +182,38 @@ export interface IConfig {
   refreshTokens?: {enabled: boolean; refreshFunction?: any};
   backgroundChat?: {
     color?: string;
-    image?: ImageSourcePropType | React.FC<React.SVGProps<SVGSVGElement>>;
-
+    image?:
+      | ImageSourcePropType
+      | React.FC<React.SVGProps<SVGSVGElement>>
+      | React.FC<SvgProps>;
   };
-  messageColor?: {
+  bubleMessage?: {
     backgroundMessageUser?: string;
     backgroundMessage?: string;
     colorUser?: string;
-    color?: string; 
+    color?: string;
+    borderRadius?: number;
   };
-  headerLogo?: ImageSourcePropType | React.FC<React.SVGProps<SVGSVGElement>>;
+  headerLogo?:
+    | ImageSourcePropType
+    | React.FC<React.SVGProps<SVGSVGElement>>
+    | React.FC<SvgProps>;
   headerMenu?: () => void;
+  headerChatMenu?: () => void;
   customRooms?: {
-    rooms: IRoom[];
-    disableGetRooms: boolean;
+    rooms: PartialRoomWithMandatoryKeys[];
+    disableGetRooms?: boolean;
+    singleRoom: boolean;
   };
-  enableTranslates?: boolean;
+  enableTranslates?: string;
+  disableRoomConfig?: boolean;
+  disableProfilesInteractions?: boolean;
+  disableUserCount?: boolean;
+  clearStoreBeforeInit?: boolean;
 }
+
+type PartialRoomWithMandatoryKeys = Partial<IRoom> &
+  Pick<IRoom, 'jid' | 'title'>;
 
 export interface xmppSettingsInterface {
   devServer: string;
@@ -227,6 +245,12 @@ export interface StorageUser {
   isAllowedNewAppCreate?: boolean;
   isAssetsOpen?: boolean;
   isProfileOpen?: boolean;
+}
+
+export interface xmppSettingsInterface {
+  devServer: string;
+  host: string;
+  conference?: string;
 }
 
 export interface MessageProps {
@@ -285,7 +309,7 @@ export interface XmppClientInterface {
   createRoomStanza(
     title: string,
     description: string,
-    to?: string
+    to?: string,
   ): Promise<any>;
   inviteRoomRequestStanza(to: string, roomJid: string): Promise<void>;
   leaveTheRoomStanza(roomJID: string): void;
@@ -294,14 +318,14 @@ export interface XmppClientInterface {
     chatJID: string,
     max: number,
     before?: number,
-    otherStanzaId?: string
+    otherStanzaId?: string,
   ): Promise<any>;
   getLastMessageArchiveStanza(roomJID: string): void;
   setRoomImageStanza(
     roomJid: string,
     roomThumbnail: string,
     type: string,
-    roomBackground?: string
+    roomBackground?: string,
   ): void;
   getRoomInfoStanza(roomJID: string): void;
   getRoomMembersStanza(roomJID: string): void;
@@ -317,33 +341,26 @@ export interface XmppClientInterface {
     notDisplayedValue?: string,
     isReply?: boolean,
     showInChannel?: boolean,
-    mainMessage?: string
-  ): void;
-  sendMessageReactionStanza(
-    messageId: string,
-    roomJid: string,
-    reactionsList: string[],
-    data: any,
-    reactionSymbol?: any
+    mainMessage?: string,
   ): void;
   deleteMessageStanza(room: string, msgId: string): void;
   editMessageStanza(room: string, msgId: string, text: string): void;
   sendTypingRequestStanza(
     chatId: string,
     fullName: string,
-    start: boolean
+    start: boolean,
   ): void;
   getChatsPrivateStoreRequestStanza(): Promise<any>;
   actionSetTimestampToPrivateStoreStanza(
     chatId: string,
     timestamp: number,
-    chats?: string[]
+    chats?: string[],
   ): Promise<void>;
   sendMediaMessageStanza(roomJID: string, data: any): void;
   createPrivateRoomStanza(
     title: string,
     description: string,
-    to: string
+    to: string,
   ): Promise<string>;
 }
 
@@ -357,4 +374,10 @@ export interface Language {
 export type LanguageOptions = {
   languages: Array<Language>;
   language?: Iso639_1Codes;
+};
+
+export type MediaFile = {
+  uri: string;
+  type: string;
+  name: string;
 };

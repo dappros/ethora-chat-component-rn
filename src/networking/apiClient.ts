@@ -2,8 +2,17 @@ import axios from 'axios';
 import { store } from '../roomStore';
 
 import { logout, refreshTokens } from '../roomStore/chatSettingsSlice';
+import { useChatSettingState } from '../hooks/useChatSettingState';
 
-const baseURL = 'https://api.ethoradev.com/v1';
+// const baseURL = 'https://api.ethoradev.com/v1';
+
+const getBaseURL = (): string => {
+  const {config} = useChatSettingState();
+
+  return config && config.baseUrl ? config?.baseUrl : 'https://api.ethoradev.com/v1';
+};
+
+const baseURL = getBaseURL();
 
 const http = axios.create({
   baseURL,
