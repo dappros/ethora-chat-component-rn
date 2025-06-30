@@ -1,15 +1,13 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { WritableDraft } from 'immer';
 import {
   DeleteModal,
-  EditAction,
   IConfig,
+  Iso639_1Codes,
   IUser,
   ModalFile,
   ModalType,
   User,
 } from '../types/types';
-import XmppClient from '../networking/xmppClient';
 import { localStorageConstants } from '../helpers/constants/LOCAL_STORAGE';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { walletToUsername } from '../helpers/walletUsername';
@@ -21,8 +19,7 @@ interface ChatState {
   deleteModal?: DeleteModal;
   selectedUser?: IUser;
   activeFile?: ModalFile;
-  client?: XmppClient;
-  langSource?: string;
+  langSource?: Iso639_1Codes;
 }
 
 const unpackAndTransform = (input?: User): User => {
@@ -33,6 +30,10 @@ const unpackAndTransform = (input?: User): User => {
     _id: input?._id || '',
     walletAddress: input?.defaultWallet?.walletAddress || '',
     xmppPassword: input?.xmppPassword || '',
+    xmppUsername:
+      input?.xmppUsername ||
+      walletToUsername(input?.defaultWallet?.walletAddress || '') ||
+      '',
     refreshToken: input?.refreshToken || '',
     firstName: input?.firstName || '',
     lastName: input?.lastName || '',
@@ -48,10 +49,6 @@ const unpackAndTransform = (input?: User): User => {
     authMethod: input?.authMethod || '',
     resetPasswordExpires: input?.resetPasswordExpires || '',
     resetPasswordToken: input?.resetPasswordToken || '',
-    xmppUsername:
-      input?.xmppUsername ||
-      walletToUsername(input?.defaultWallet?.walletAddress || "") ||
-      '',
     roles: input?.roles || [],
     tags: input?.tags || [],
     __v: input?.__v || 0,
@@ -121,7 +118,7 @@ export const chatSlice = createSlice({
       }
     },
     setConfig: (state, action: PayloadAction<IConfig | undefined>) => {
-      state.config = action.payload as WritableDraft<IConfig> | undefined;
+      state.config = action.payload;
     },
     setActiveModal: (state, action: PayloadAction<ModalType | undefined>) => {
       state.activeModal = action.payload;
@@ -132,20 +129,19 @@ export const chatSlice = createSlice({
     setDeleteModal: (state, action: PayloadAction<DeleteModal | undefined>) => {
       state.deleteModal = action.payload;
     },
-    setStoreClient: (state, action: PayloadAction<any>) => {
-      state.client = action.payload;
-    },
     setSelectedUser: (state, action: PayloadAction<IUser | undefined>) => {
       state.selectedUser = action.payload;
     },
-    setLangSource: (state, action: PayloadAction<string | undefined>) => {
+    setLangSource: (
+      state,
+      action: PayloadAction<Iso639_1Codes | undefined>
+    ) => {
       state.langSource = action.payload;
     },
     refreshTokens: (
       state,
       action: PayloadAction<{ token: string; refreshToken: string }>
     ) => {
-      console.log('changing tokens');
       state.user.refreshToken = action.payload.refreshToken;
       state.user.token = action.payload.token;
 
@@ -154,7 +150,6 @@ export const chatSlice = createSlice({
     logout: (state) => {
       state.user = unpackAndTransform();
       state.config = undefined;
-      state.client = undefined;
 
       useLocalStorage(localStorageConstants.ETHORA_USER).remove();
     },
@@ -171,7 +166,6 @@ export const {
   setSelectedUser,
   updateUser,
   setActiveFile,
-  setStoreClient,
   setLangSource,
 } = chatSlice.actions;
 

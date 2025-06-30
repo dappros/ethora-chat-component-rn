@@ -61,6 +61,8 @@ const MessageList = <TMessage extends IMessage>({
 
   const flatListRef = useRef<FlatList<IMessage>>(null);
 
+  console.log("messages", messages)
+
   const addReplyMessages = useMemo(() => {
     return messages.map((message) => {
       const newMessage = {

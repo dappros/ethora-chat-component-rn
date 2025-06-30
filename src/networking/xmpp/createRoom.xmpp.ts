@@ -20,7 +20,6 @@ export async function createRoom(
     await createRoomPresence(roomId, client);
     await setMeAsOwner(roomId, client);
     await roomConfig(roomId, title, description, client);
-
   } catch (error) {
     console.log(error);
   }

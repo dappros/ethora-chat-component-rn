@@ -1,6 +1,5 @@
 import ChatProfileModal from '../../components/Modals/ChatProfileModal/ChatProfileModal';
 import FilePreviewModal from '../../components/Modals/FilePreviewModal/FilePreviewModal';
-import NewChatModal from '../../components/Modals/NewChatModal/NewChatModal';
 import BlockedUsersModal from '../../components/Modals/SettingsModals/BlockedUsers/BlockedUsersModal';
 import DocumentSharesModal from '../../components/Modals/SettingsModals/DocumentShares/DocumentSharesModal';
 import ManageDataModal from '../../components/Modals/SettingsModals/ManageDataModal/ManageDataModal';
@@ -14,7 +13,6 @@ export const MODAL_TYPES = {
   SETTINGS: 'settings',
   PROFILE: 'profile',
   CHAT_PROFILE: 'chatprofile',
-  NEW_CHAT: 'new_chat',
   MANAGE_DATA: 'managedata',
   VISIBILITY: 'visibility',
 
@@ -45,7 +43,6 @@ export const MODAL_COMPONENTS: Record<
   [MODAL_TYPES.SETTINGS]: UserSettingsModal,
   [MODAL_TYPES.PROFILE]: UserProfileModal,
   [MODAL_TYPES.CHAT_PROFILE]: ChatProfileModal,
-  [MODAL_TYPES.NEW_CHAT]: NewChatModal,
   [MODAL_TYPES.MANAGE_DATA]: ManageDataModal,
   [MODAL_TYPES.VISIBILITY]: VisibilityModal,
   [MODAL_TYPES.REFERRALS]: ReferralsModal,

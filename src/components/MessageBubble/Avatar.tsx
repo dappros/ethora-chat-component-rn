@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import styled from "styled-components/native";
-import { nameToColor } from "../../helpers/constants/hashcolor";
+import { nameToColor } from '../../helpers/hashcolor';
 
 interface AvatarProps {
   username?: string | null;
@@ -35,7 +35,12 @@ export const Avatar: React.FC<AvatarProps> = ({
   lastName,
   style,
 }) => {
-  const backgroundColor = nameToColor(username ? username : firstName);
+  const backgroundColor = useMemo(() => {
+      if (!username && !firstName) {
+        return { backgroundColor: "transparent" };
+      }
+      return nameToColor(username ? username : firstName || "");
+    }, [username, firstName]);
 
   const getInitials = () => {
     const isAlphabetic = (char: string) => /^[a-zA-Zа-яА-ЯёЁ]$/.test(char);

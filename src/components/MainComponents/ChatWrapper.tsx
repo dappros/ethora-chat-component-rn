@@ -39,7 +39,9 @@ import { CONFERENCE_DOMAIN } from "../../helpers/constants/PLATFORM_CONSTANTS";
 import { AppState, Linking, StatusBar, View, ViewStyle } from "react-native";
 import useMessageLoaderQueue from "../../hooks/useMessageLoaderQueue";
 import { useRoomState } from "../../hooks/useRoomState";
-import { createIRoomRoom } from "../../helpers/createRoom.ts";
+import useChatWrapperInit from "../../hooks/useChatWrapperInit.ts";
+import { useQRCodeChat } from "../../hooks/useQRCodeChatHandler.ts";
+import { RootState } from "../../roomStore/index.ts";
 
 interface ChatWrapperProps {
   token?: string;
@@ -59,41 +61,52 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
   roomJID,
 }) => {
   const { user, activeModal, deleteModal } = useChatSettingState();
-  const { roomsList, loading, globalLoading, activeRoomJID } = useRoomState();
-
-  const [isInited, setInited] = useState(false);
-  const [showModal, setShowModal] = useState(false);
-  // const [isModalDeleteOpen, setIsModalDeleteOpen] = useState(false);
 
   const [isChatVisible, setIsChatVisible] = useState(false);
-
+  
   const handleItemClick = (value: boolean) => {
     setIsChatVisible(value);
   };
 
+  const conferenceServer = config?.xmppSettings?.conference;
+
   const dispatch = useDispatch();
-  const { client, initializeClient, setClient } = useXmppClient();
+  const { wasAutoSelected } = useQRCodeChat(
+    (params) => dispatch(setCurrentRoom(params)),
+    conferenceServer
+  );
+
+  const { rooms, activeRoomJID, reportRoom } = useSelector(
+    (state: RootState) => state.rooms
+  );
+  const { roomsList, loading, globalLoading, loadingText } = useRoomState();
 
   const activeMessage = useMemo(() => {
-    if (activeRoomJID && roomsList?.[activeRoomJID]?.messages) {
-      return roomsList[activeRoomJID]?.messages?.find(
+    if (activeRoomJID) {
+      return rooms[activeRoomJID]?.messages?.find(
         (message) => message?.activeMessage
       );
-    } else {
-      return null;
     }
-  }, [roomsList, activeRoomJID]);
+  }, [rooms, activeRoomJID]);
 
   const handleChangeChat = (chat: IRoom) => {
-    dispatch(setCurrentRoom({ roomJID: chat.jid }));
-    activeRoomJID !== chat.jid &&
+    if (activeRoomJID !== chat.jid) {
       dispatch(setIsLoading({ chatJID: chat.jid, loading: true }));
-    dispatch(setEditAction({ isEdit: false }));
-    handleItemClick(true);
+      dispatch(setCurrentRoom({ roomJID: chat.jid }));
+      dispatch(setEditAction({ isEdit: false }));
+      handleItemClick(true);
+    }
   };
 
   const handleDeleteClick = () => {
-    client.deleteMessageStanza(deleteModal?.roomJid!, deleteModal?.messageId!);
+    if(!deleteModal || !client) {
+      return;
+    }
+
+    if(deleteModal.roomJid && deleteModal.messageId) {
+      client.deleteMessageStanza(deleteModal.roomJid, deleteModal.messageId);
+    }
+
     dispatch(setDeleteModal({ isDeleteModal: false }));
   };
 
@@ -101,205 +114,65 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
     dispatch(setDeleteModal({ isDeleteModal: false }));
   };
 
-  useEffect(() => {
-    return () => {
-      if (client && user.xmppPassword === "") {
-        console.log("closing client");
-        client.close();
-        setClient(null);
-      }
-    };
-  }, [user.xmppPassword]);
+  const { client, inited, isRetrying, showModal } = useChatWrapperInit({
+    roomJID,
+    wasAutoSelected,
+    config,
+  });
 
-  useEffect(() => {
-    const handleUrl = (url: string | null) => {
-      if (url) {
-        const urlObj = new URL(url);
-        const searchParams = urlObj.searchParams;
-        const chatId = searchParams.get("chatId");
-
-        if (chatId) {
-          const cleanChatId = chatId.split("@")[0];
-          dispatch(
-            setCurrentRoom({ roomJID: cleanChatId + CONFERENCE_DOMAIN })
-          );
-        }
-      }
-    };
-
-    Linking.getInitialURL()
-      .then(handleUrl)
-      .catch((err) => {
-        console.error("Error fetching initial URL:", err);
-      });
-
-    const subscription = Linking.addEventListener("url", (event) => {
-      handleUrl(event.url);
-    });
-
-    return () => {
-      subscription.remove();
-    };
-  }, []);
-
-  const initCustomRooms = async (client: XmppClientInterface) => {
-    setIsChatVisible(true);
-    config?.customRooms?.rooms &&
-      config?.customRooms?.rooms.length > 0 &&
-      config?.customRooms?.rooms.forEach((room) => {
-        const IRoomTypedRoom = createIRoomRoom(room);
-        dispatch(addRoom({ roomData: IRoomTypedRoom }));
-        client.presenceInRoomStanza(room.jid);
-        dispatch(setCurrentRoom({ roomJID: room.jid }));
-      });
-  };
-
-  useEffect(() => {
-    dispatch(setConfig(config));
-  }, [config, config?.enableTranslates]);
-
-  useEffect(() => {
-    if (roomJID) {
-      dispatch(setCurrentRoom({ roomJID: roomJID }));
-    }
-
-    const initXmmpClient = async () => {
-      dispatch(setConfig(config));
-      try {
-        if (!user.defaultWallet || user?.defaultWallet.walletAddress === "") {
-          setShowModal(true);
-          console.log("Error, no user");
-        } else {
-          if (!client) {
-            setShowModal(false);
-
-            console.log("No client, so initing one");
-            await initializeClient(
-              user.defaultWallet?.walletAddress,
-              user.xmppPassword,
-              config?.xmppSettings
-            ).then(async (client) => {
-              await client.getRoomsStanza();
-              await client
-                ?.getChatsPrivateStoreRequestStanza()
-                .then((roomTimestampObject) => {
-                  const typedObject = roomTimestampObject as
-                    | [jid: string, timestamp: string]
-                    | null;
-
-                  if (!typedObject) {
-                    setClient(client);
-                    return;
-                  }
-                  const roomTimestampArray = Object.entries(typedObject).map(
-                    ([jid, timestamp]) => ({
-                      jid,
-                      timestamp,
-                    })
-                  );
-
-                  if (roomTimestampArray && roomTimestampArray.length) {
-                    roomTimestampArray.forEach(({ jid, timestamp }) => {
-                      if (jid) {
-                        dispatch(
-                          setLastViewedTimestamp({
-                            chatJID: jid,
-                            timestamp: Number(timestamp || 0),
-                          })
-                        );
-                      }
-                    });
-                    client.setVCardStanza(`${user.firstName} ${user.lastName}`);
-                  }
-                  setClient(client);
-                  initCustomRooms(client);
-                });
-            });
-            setInited(true);
-            initCustomRooms(client);
-            {
-              config?.refreshTokens?.enabled && refresh();
-            }
-          } else {
-            setInited(true);
-            initCustomRooms(client);
-            {
-              config?.refreshTokens?.enabled && refresh();
-            }
-          }
-        }
-        dispatch(setIsLoading({ loading: false }));
-      } catch (error) {
-        console.log("here, wrapper error:", error);
-        initCustomRooms(client);
-        setShowModal(false);
-        setInited(true);
-        dispatch(setIsLoading({ loading: false }));
-      }
-    };
-
-    initXmmpClient();
-  }, [user.xmppPassword, user.defaultWallet.walletAddress]);
-
-  // functionality to handle unreadmessages if user leaves tab
-  const updateLastReadTimeStamp = () => {
-    if (client) {
-      client.actionSetTimestampToPrivateStoreStanza(
-        room?.jid || roomJID || "",
-        new Date().getTime()
-      );
-    }
-    dispatch(
-      setLastViewedTimestamp({
-        chatJID: room?.jid || roomJID,
-        timestamp: new Date().getTime(),
-      })
-    );
-  };
-
-  useEffect(() => {
-    const handleAppStateChange = (nextAppState: string) => {
-      if (nextAppState === "background") {
-        updateLastReadTimeStamp();
-      }
-    };
-
-    const subscription = AppState.addEventListener(
-      "change",
-      handleAppStateChange
-    );
-
-    return () => {
-      subscription.remove();
-    };
-  }, [client, room?.jid]);
 
   const queueMessageLoader = useCallback(
     async (chatJID: string, max: number) => {
       try {
-        client?.getHistoryStanza(chatJID, max);
+        return await client?.getHistoryStanza(chatJID, max);
       } catch (error) {
-        console.log("Error in loading queue messages");
+        console.log('Error in loading queue messages', error);
       }
     },
-    [globalLoading, loading, isInited]
+    [globalLoading, loading, !!client]
   );
 
   useMessageLoaderQueue(
     Object.keys(roomsList),
+    roomsList,
     globalLoading,
     loading,
-    queueMessageLoader,
-    isInited
+    queueMessageLoader
   );
 
-  // if (user.xmppPassword === '' && user.xmppUsername === '')
-  //   return <LoginForm config={config} />;
+  if (config?.enableRoomsRetry?.enabled && isRetrying === 'norooms') {
+    return (
+      <StyledLoaderWrapper
+        style={{ alignItems: 'center', flexDirection: 'column', gap: '10px' }}
+      >
+        {config.enableRoomsRetry.helperText ||
+          'We couldn’t create any chat room.'}
+      </StyledLoaderWrapper>
+    );
+  }
+
+  if (config?.enableRoomsRetry?.enabled && isRetrying) {
+    return (
+      <StyledLoaderWrapper
+        style={{ alignItems: 'center', flexDirection: 'column', gap: '10px' }}
+      >
+        <Loader color={config?.colors?.primary} />
+        {loadingText && <div>{loadingText}</div>}
+      </StyledLoaderWrapper>
+    );
+  }
+
+  console.log("LoginWrapper user", user);
+  console.log("LoginWrapper roomsList", rooms);
+  
+
+  if (user.xmppPassword === '' && user.xmppUsername === '')
+    return <LoginForm config={config} />;
 
   return (
     <View>
       <>
-        {isInited ? (
+        {inited ? (
           <ChatWrapperBox
             style={{
               ...MainComponentStyles,

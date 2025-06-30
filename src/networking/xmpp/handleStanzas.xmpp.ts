@@ -9,9 +9,12 @@ import {
   onChatInvite,
   onPresenceInRoom,
   onGetChatRooms,
-  onGetMembers,
+  // onGetMembers,
   onGetRoomInfo,
   onNewRoomCreated,
+  onReactionMessage,
+  onReactionHistory,
+  onRoomKicked,
 } from '../stanzaHandlers';
 import XmppClient from '../xmppClient';
 
@@ -19,23 +22,28 @@ export function handleStanza(stanza: Element, xmppWs: XmppClient) {
   if (stanza?.attrs?.type === 'headline') return;
   switch (stanza.name) {
     case 'message':
+      onReactionMessage(stanza);
+      onReactionHistory(stanza);
       onDeleteMessage(stanza);
       onEditMessage(stanza);
       onRealtimeMessage(stanza);
       onMessageHistory(stanza);
-      onGetLastMessageArchive(stanza, xmppWs);
       handleComposing(stanza, xmppWs.username);
       onChatInvite(stanza, xmppWs);
+      onReactionMessage(stanza);
+      onReactionHistory(stanza);
       break;
     case 'presence':
+      onRoomKicked(stanza);
       onPresenceInRoom(stanza);
       break;
     case 'iq':
       onGetChatRooms(stanza, xmppWs);
       onRealtimeMessage(stanza);
       onPresenceInRoom(stanza);
-      onGetMembers(stanza);
+      // onGetMembers(stanza);
       onGetRoomInfo(stanza);
+      onGetLastMessageArchive(stanza);
       break;
     case 'room-config':
       onNewRoomCreated(stanza, xmppWs);

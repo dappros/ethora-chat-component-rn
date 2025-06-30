@@ -1,30 +1,35 @@
-import xmpp, {Client, xml} from '@xmpp/client';
-import {walletToUsername} from '../helpers/walletUsername';
-
-import {sendMediaMessage} from './xmpp/sendMediaMessage.xmpp';
-import {getChatsPrivateStoreRequest} from './xmpp/getChatsPrivateStoreRequest.xmpp';
-import {actionSetTimestampToPrivateStore} from './xmpp/actionSetTimestampToPrivateStore.xmpp';
-import {sendTypingRequest} from './xmpp/sendTypingRequest.xmpp';
-import {getHistory} from './xmpp/getHistory.xmpp';
-import {sendTextMessage} from './xmpp/sendTextMessage.xmpp';
-import {deleteMessage} from './xmpp/deleteMessage.xmpp';
-import {presenceInRoom} from './xmpp/presenceInRoom.xmpp';
-import {getLastMessage} from './xmpp/getLastMessageArchive.xmpp';
-import {createRoom} from './xmpp/createRoom.xmpp';
-import {setRoomImage} from './xmpp/setRoomImage.xmpp';
-import {getRoomMembers} from './xmpp/getRoomMembers.xmpp';
-import {getRoomInfo} from './xmpp/getRoomInfo.xmpp';
-import {leaveTheRoom} from './xmpp/leaveTheRoom.xmpp';
-import {editMessage} from './xmpp/editMessage.xmpp';
-import {inviteRoomRequest} from './xmpp/inviteRoomRequest.xmpp';
-import {getRooms} from './xmpp/getRooms.xmpp';
-import {handleStanza} from './xmpp/handleStanzas.xmpp';
-import {setVcard} from './xmpp/setVCard.xmpp';
-import { XmppClientInterface, xmppSettingsInterface } from '../types/types';
+import xmpp, { Client, xml } from '@xmpp/client';
+import { sendMediaMessage } from './xmpp/sendMediaMessage.xmpp';
+import { getChatsPrivateStoreRequest } from './xmpp/getChatsPrivateStoreRequest.xmpp';
+import { actionSetTimestampToPrivateStore } from './xmpp/actionSetTimestampToPrivateStore.xmpp';
+import { sendTypingRequest } from './xmpp/sendTypingRequest.xmpp';
+import { getHistory } from './xmpp/getHistory.xmpp';
+import { sendTextMessage } from './xmpp/sendTextMessage.xmpp';
+import { deleteMessage } from './xmpp/deleteMessage.xmpp';
+import { presenceInRoom } from './xmpp/presenceInRoom.xmpp';
+import { getLastMessage } from './xmpp/getLastMessageArchive.xmpp';
+import { createRoom } from './xmpp/createRoom.xmpp';
+import { setRoomImage } from './xmpp/setRoomImage.xmpp';
+import { getRoomMembers } from './xmpp/getRoomMembers.xmpp';
+import { getRoomInfo } from './xmpp/getRoomInfo.xmpp';
+import { leaveTheRoom } from './xmpp/leaveTheRoom.xmpp';
+import { editMessage } from './xmpp/editMessage.xmpp';
+import { inviteRoomRequest } from './xmpp/inviteRoomRequest.xmpp';
+import { getRooms } from './xmpp/getRooms.xmpp';
+import { handleStanza } from './xmpp/handleStanzas.xmpp';
+import { setVcard } from './xmpp/setVCard.xmpp';
+import {
+  Iso639_1Codes,
+  XmppClientInterface,
+  xmppSettingsInterface,
+} from '../types/types';
 import { createPrivateRoom } from './xmpp/createPrivateRoom.xmpp';
+import { sendMessageReaction } from './xmpp/sendMessageReaction.xmpp';
 import { sendTextMessageWithTranslateTag } from './xmpp/sendTextMessageWithTranslateTag.xmpp';
+import { getRoomsPaged } from './xmpp/getRoomsPaged.xmpp';
+import { allRoomPresences } from './xmpp/allRoomPresences.xmpp';
 
-export class XmppClient {
+export class XmppClient implements XmppClientInterface {
   client!: Client;
   devServer: string | undefined;
   host: string;
@@ -45,49 +50,61 @@ export class XmppClient {
   constructor(
     username: string,
     password: string,
-    xmppSettings?: xmppSettingsInterface,
+    xmppSettings?: xmppSettingsInterface
   ) {
     this.devServer =
       xmppSettings?.devServer || `wss://xmpp.ethoradev.com:5443/ws`;
-    this.host = xmppSettings?.host || '';
-    this.service = xmppSettings?.conference || '';
+      console.log('xmppSettings', xmppSettings);
+    this.host = xmppSettings?.host || 'dev.xmpp.ethoradev.com';
+    this.service =
+      xmppSettings?.conference || 'conference.dev.xmpp.ethoradev.com';
 
-    console.log(xmppSettings);
-
-    const url = this.devServer || `wss://xmpp.ethoradev.com:5443/ws`;
-    // if (url.startsWith("wss")) {
-    //   this.host = url.match(/wss:\/\/([^:/]+)/)[1];
-    // } else {
-    //   this.host = url.match(/ws:\/\/([^:/]+)/)[1];
-    // }
     this.conference = `conference.${this.host}`;
     this.username = username;
     this.password = password;
     this.initializeClient();
   }
 
-  initializeClient() {
+  async initializeClient() {
     try {
       const url = this.devServer || `wss://xmpp.ethoradev.com:5443/ws`;
 
-      this.service = url;
+
       this.host = url.match(/wss:\/\/([^:/]+)/)?.[1] || '';
       this.conference = `conference.${this.host}`;
-      console.log('+-+-+-+-+-+-+-+-+ ', {username: this.username});
-      this.service = url;
+      console.log('+-+-+-+-+-+-+-+-+ ', { username: this.username, password: this.password });
+      this.devServer = url;
 
       this.client = xmpp.client({
         service: url,
-        username: walletToUsername(this.username),
+        username: this.username,
         password: this.password,
+      });
+      console.log('Initializing XMPP client with:', {
+        client: this.client,
+        devServer: url,
+        host: this.host,
+        conference: this.conference,
       });
 
       this.attachEventListeners();
-      this.client.start().catch(error => {
+      this.client.start().catch((error) => {
         console.error('Error starting client:', error);
       });
     } catch (error) {
       console.error('Error initializing client:', error);
+    }
+  }
+
+  async disconnect() {
+    if (!this.client) return;
+
+    try {
+      await this.client.stop();
+      this.client = null;
+      console.log('Client disconnected');
+    } catch (error) {
+      console.error('Error disconnecting client:', error);
     }
   }
 
@@ -104,11 +121,14 @@ export class XmppClient {
       this.client.send(xml('presence'));
     });
 
+    this.client.on('connecting', () => {
+      console.log('Client is connecting...');
+      this.status = 'connecting';
+    });
+
     this.client.on('error', (error) => {
       console.error('XMPP client error:', error);
-      // if (this.status !== 'online') {
-      //   this.scheduleReconnect();
-      // }
+      this.status = 'error';
     });
 
     this.client.on('stanza', (stanza) => {
@@ -116,63 +136,153 @@ export class XmppClient {
     });
   }
 
-  scheduleReconnect() {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('Max reconnect attempts reached. Giving up.');
+  async reconnect() {
+    const now = Date.now();
+    if (this.status === 'connecting') {
+      console.log(
+        'Already attempting to connect or too soon after last attempt, skipping reconnect'
+      );
       return;
     }
 
-    this.reconnectAttempts++;
-    console.log(`Reconnecting attempt ${this.reconnectAttempts}...`);
-    setTimeout(() => this.reconnect(), this.reconnectDelay);
+    console.log('Attempting to reconnect...');
+    try {
+      if (this.client) {
+        await this.client.stop();
+      }
+      this.initializeClient();
+      this.allRoomPresencesStanza();
+
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Connection timeout'));
+        }, 10000);
+
+        const checkStatus = () => {
+          if (this.status === 'online') {
+            clearTimeout(timeout);
+            resolve();
+          } else if (this.status === 'error') {
+            clearTimeout(timeout);
+            reject(new Error('Connection error'));
+          } else {
+            setTimeout(checkStatus, 500);
+          }
+        };
+        checkStatus();
+      });
+
+      console.log('Reconnection successful');
+    } catch (error) {
+      console.error('Reconnection failed:', error);
+
+      const backoffDelay =
+        this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
+      console.log(`Will try again in ${backoffDelay / 1000} seconds`);
+
+      throw error;
+    }
   }
 
-  reconnect() {
-    console.log('Attempting to reconnect...');
-    if (this.client) {
-      this.client.stop().finally(() => {
-        this.initializeClient();
+  allRoomPresencesStanza() {
+    allRoomPresences(this.client);
+  }
+
+  async ensureConnected(timeout: number = 10000): Promise<void> {
+    if (this.status === 'online') {
+      return;
+    }
+
+    if (this.status === 'offline' || this.status === 'error') {
+      await this.reconnect();
+    }
+
+    if (this.status === 'connecting') {
+      await new Promise<void>((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+          reject(
+            new Error('Connection timeout while waiting for XMPP connection')
+          );
+        }, timeout);
+
+        const checkStatus = () => {
+          if (this.status === 'online') {
+            clearTimeout(timeoutId);
+            resolve();
+          } else if (this.status === 'error' || this.status === 'offline') {
+            clearTimeout(timeoutId);
+            reject(new Error('Connection error while waiting'));
+          } else {
+            setTimeout(checkStatus, 500);
+          }
+        };
+
+        checkStatus();
       });
-    } else {
-      this.initializeClient();
     }
   }
 
   async close() {
     if (this.client) {
-      await this.client
-        .stop()
-        .then(() => {
-          console.log('Client connection closed.');
-        })
-        .catch((error) => {
-          console.error('Error closing the client:', error);
-        });
-    } else {
-      console.log('No client to close.');
+      this.status = 'offline';
+      try {
+        await this.client.stop();
+        console.log('Client connection closed.');
+      } catch (error) {
+        console.error('Error closing the client:', error);
+      }
     }
   }
 
-  getRoomsStanza = async () => {
-    await getRooms(this.client);
+  async wrapWithConnectionCheck<T>(operation: () => Promise<T>): Promise<T> {
+    try {
+      await this.ensureConnected();
+      return await operation();
+    } catch (error) {
+      console.error('Operation failed due to connection issues:', error);
+      throw error;
+    }
+  }
+
+  getRoomsStanza = async (disableGetRooms?: boolean) => {
+    return this.wrapWithConnectionCheck(async () => {
+      !disableGetRooms && (await getRooms(this.client));
+    });
   };
+
+  async getRoomsPagedStanza(
+    maxResults?: number,
+    after?: string | null
+  ): Promise<void> {
+    return this.wrapWithConnectionCheck(async () => {
+      await getRoomsPaged(this.client);
+    });
+  }
 
   //room functions
 
   async createRoomStanza(title: string, description: string) {
-    return await createRoom(title, description, this.client);
+    return this.wrapWithConnectionCheck(async () => {
+      return await createRoom(title, description, this.client);
+    });
   }
 
   async inviteRoomRequestStanza(to: string, roomJid: string) {
-    await inviteRoomRequest(this.client, to, roomJid);
+    return this.wrapWithConnectionCheck(async () => {
+      await inviteRoomRequest(this.client, to, roomJid);
+    });
   }
 
   leaveTheRoomStanza = (roomJID: string) => {
-    leaveTheRoom(roomJID, this.client);
+    this.wrapWithConnectionCheck(async () => {
+      leaveTheRoom(roomJID, this.client);
+    });
   };
 
-  presenceInRoomStanza = (roomJID: string) => {
-    presenceInRoom(this.client, roomJID);
+  presenceInRoomStanza = async (roomJID: string, settleDelay = 0) => {
+    return this.wrapWithConnectionCheck(async () => {
+      await presenceInRoom(this.client, roomJID, settleDelay);
+    });
   };
 
   getHistoryStanza = async (
@@ -181,11 +291,15 @@ export class XmppClient {
     before?: number,
     otherStanzaId?: string
   ) => {
-    return await getHistory(this.client, chatJID, max, before, otherStanzaId);
+    return this.wrapWithConnectionCheck(async () => {
+      return await getHistory(this.client, chatJID, max, before, otherStanzaId);
+    });
   };
 
   getLastMessageArchiveStanza(roomJID: string) {
-    getLastMessage(this.client, roomJID);
+    this.wrapWithConnectionCheck(async () => {
+      getLastMessage(this.client, roomJID);
+    });
   }
 
   setRoomImageStanza = (
@@ -194,19 +308,27 @@ export class XmppClient {
     type: string,
     roomBackground?: string
   ) => {
-    setRoomImage(roomJid, roomThumbnail, type, this.client, roomBackground);
+    this.wrapWithConnectionCheck(async () => {
+      setRoomImage(roomJid, roomThumbnail, type, this.client, roomBackground);
+    });
   };
 
   getRoomInfoStanza = (roomJID: string) => {
-    getRoomInfo(roomJID, this.client);
+    this.wrapWithConnectionCheck(async () => {
+      getRoomInfo(roomJID, this.client);
+    });
   };
 
   getRoomMembersStanza = (roomJID: string) => {
-    getRoomMembers(roomJID, this.client);
+    this.wrapWithConnectionCheck(async () => {
+      getRoomMembers(roomJID, this.client);
+    });
   };
 
   setVCardStanza(xmppUsername: string) {
-    setVcard(xmppUsername, this.client);
+    this.wrapWithConnectionCheck(async () => {
+      setVcard(xmppUsername, this.client);
+    });
   }
 
   //messages
@@ -220,22 +342,26 @@ export class XmppClient {
     notDisplayedValue?: string,
     isReply?: boolean,
     showInChannel?: boolean,
-    mainMessage?: string
+    mainMessage?: string,
+    customId?: string
   ) => {
-    sendTextMessage(
-      this.client,
-      roomJID,
-      firstName,
-      lastName,
-      photo,
-      walletAddress,
-      userMessage,
-      notDisplayedValue,
-      isReply,
-      showInChannel,
-      mainMessage,
-      this.devServer || `wss://xmpp.ethoradev.com:5443/ws`,
-    );
+    this.wrapWithConnectionCheck(async () => {
+      sendTextMessage(
+        this.client,
+        roomJID,
+        firstName,
+        lastName,
+        photo,
+        walletAddress,
+        userMessage,
+        notDisplayedValue,
+        isReply,
+        showInChannel,
+        mainMessage,
+        this.devServer || `wss://'xmpp.ethoradev.com:5443'/ws`,
+        customId
+      );
+    });
   };
 
   sendTextMessageWithTranslateTagStanza = (
@@ -248,46 +374,74 @@ export class XmppClient {
     notDisplayedValue?: string,
     isReply?: boolean,
     showInChannel?: boolean,
-    mainMessage?: string
+    mainMessage?: string,
+    langSource?: Iso639_1Codes
   ) => {
-    sendTextMessageWithTranslateTag(
-      this.client,
-      {
-        roomJID,
-        firstName,
-        lastName,
-        photo,
-        walletAddress,
-        userMessage,
-        notDisplayedValue,
-        isReply,
-        showInChannel,
-        mainMessage,
-        devServer: this.devServer || 'xmpp.ethoradev.com:5443',
-      },
-      'es'
-    );
+    this.wrapWithConnectionCheck(async () => {
+      sendTextMessageWithTranslateTag(
+        this.client,
+        {
+          roomJID,
+          firstName,
+          lastName,
+          photo,
+          walletAddress,
+          userMessage,
+          notDisplayedValue,
+          isReply,
+          showInChannel,
+          mainMessage,
+          devServer: this.devServer || 'xmpp.ethoradev.com:5443',
+        },
+        langSource
+      );
+    });
   };
 
   deleteMessageStanza(room: string, msgId: string) {
-    deleteMessage(this.client, room, msgId);
+    this.wrapWithConnectionCheck(async () => {
+      deleteMessage(this.client, room, msgId);
+    });
   }
 
   editMessageStanza(room: string, msgId: string, text: string) {
-    editMessage(this.client, room, msgId, text);
+    this.wrapWithConnectionCheck(async () => {
+      editMessage(this.client, room, msgId, text);
+    });
+  }
+
+  sendMessageReactionStanza(
+    messageId: string,
+    roomJid: string,
+    reactionsList: string[],
+    reactionSymbol?: any
+  ) {
+    this.wrapWithConnectionCheck(async () => {
+      sendMessageReaction(
+        this.client,
+        messageId,
+        roomJid,
+        reactionsList,
+        reactionSymbol
+      );
+    });
   }
 
   sendTypingRequestStanza(chatId: string, fullName: string, start: boolean) {
-    sendTypingRequest(this.client, chatId, fullName, start);
+    this.wrapWithConnectionCheck(async () => {
+      sendTypingRequest(this.client, chatId, fullName, start);
+    });
   }
 
   getChatsPrivateStoreRequestStanza = async () => {
-    try {
-      return await getChatsPrivateStoreRequest(this.client);
-    } catch (error) {
-      console.log(error);
-      return null;
-    }
+    return this.wrapWithConnectionCheck(async () => {
+      try {
+        return await getChatsPrivateStoreRequest(this.client);
+      } catch (error) {
+        console.log('error getChatsPrivateStoreRequest', error);
+        return null;
+      }
+    });
   };
 
   async actionSetTimestampToPrivateStoreStanza(
@@ -295,14 +449,16 @@ export class XmppClient {
     timestamp: number,
     chats?: string[]
   ) {
-    try {
-      await actionSetTimestampToPrivateStore(
-        this.client,
-        chatId,
-        timestamp,
-        chats
-      );
-    } catch (error) {}
+    return this.wrapWithConnectionCheck(async () => {
+      try {
+        await actionSetTimestampToPrivateStore(
+          this.client,
+          chatId,
+          timestamp,
+          chats
+        );
+      } catch (error) {}
+    });
   }
 
   async createPrivateRoomStanza(
@@ -310,11 +466,15 @@ export class XmppClient {
     description: string,
     to: string
   ) {
-    return await createPrivateRoom(title, description, to, this.client);
+    return this.wrapWithConnectionCheck(async () => {
+      return await createPrivateRoom(title, description, to, this.client);
+    });
   }
 
   sendMediaMessageStanza(roomJID: string, data: any) {
-    sendMediaMessage(this.client, roomJID, data);
+    this.wrapWithConnectionCheck(async () => {
+      sendMediaMessage(this.client, roomJID, data);
+    });
   }
 }
 

@@ -11,7 +11,7 @@ import {
   RemoveButtonText,
   Wrapper,
 } from "../styled/StyledComponents";
-import { nameToColor } from "../../helpers/constants/hashcolor";
+import { nameToColor } from '../../helpers/hashcolor';
 
 interface ProfileImagePlaceholderProps {
   name?: string;
@@ -49,7 +49,12 @@ export const ProfileImagePlaceholder: React.FC<
   placeholderIcon,
   disableOverlay,
 }) => {
-  const backgroundColor = nameToColor(name);
+  const backgroundColor = useMemo(() => {
+    if(!name) {
+      return { backgroundColor: "transparent" };
+    }
+    nameToColor(name);
+  }, [name]);
 
   const getTwoUppercaseLetters = (fullName: string) => {
     if (!fullName) return "";

@@ -1,9 +1,11 @@
-import { useMemo } from "react";
-import { useSelector } from "react-redux";
-import { RootState } from "../roomStore";
+import { useMemo } from 'react';
+import { useSelector } from 'react-redux';
+import { RootState } from '../roomStore';
 
 export const useRoomState = (roomJID?: string) => {
-  const room = useSelector((state: RootState) => state.rooms.rooms[roomJID!]);
+  const room = useSelector(
+    (state: RootState) => (roomJID ? state.rooms.rooms[roomJID] : undefined)
+  );
   const roomsList = useSelector((state: RootState) => state.rooms.rooms);
   const activeRoomJID = useSelector(
     (state: RootState) => state.rooms.activeRoomJID
@@ -13,12 +15,21 @@ export const useRoomState = (roomJID?: string) => {
     (state: RootState) => state.rooms.isLoading
   );
   const loading = useSelector(
-    (state: RootState) =>
-      state.rooms.rooms[state.rooms.activeRoomJID]?.isLoading || false
+    (state: RootState) => {
+      const activeJID = state.rooms.activeRoomJID;
+      return activeJID ? state.rooms.rooms[activeJID]?.isLoading || false : false;
+    }
   );
+  const loadingText = useSelector(
+    (state: RootState) => state.rooms.loadingText
+  );
+  const usersSet = useSelector((state: RootState) => state.rooms.usersSet);
 
   const roomMessages = useMemo(
-    () => roomsList[activeRoomJID]?.messages || [],
+    () =>
+      activeRoomJID && roomsList[activeRoomJID]
+        ? roomsList[activeRoomJID].messages || []
+        : [],
     [roomsList, activeRoomJID]
   );
 
@@ -28,7 +39,9 @@ export const useRoomState = (roomJID?: string) => {
     activeRoomJID,
     editAction,
     globalLoading,
+    loadingText,
     loading,
     roomMessages,
+    usersSet,
   };
 };

@@ -1,30 +1,37 @@
 import axios from 'axios';
 import { store } from '../roomStore';
+import { appToken as betaAppToken } from '../../api.config';
 
 import { logout, refreshTokens } from '../roomStore/chatSettingsSlice';
-import { useChatSettingState } from '../hooks/useChatSettingState';
 
-const baseURL = 'https://api.ethoradev.com/v1';
-
-// const getBaseURL = (): string => {
-//   const {config} = useChatSettingState();
-
-//   console.log('apiClient', config && config.baseUrl ? config?.baseUrl : 'https://api.ethoradev.com/v1')
-
-//   return config && config.baseUrl ? config?.baseUrl : 'https://api.ethoradev.com/v1';
-// };
-
-// const baseURL = getBaseURL();
+let baseURL =
+  store.getState().chatSettingStore?.config?.baseUrl ||
+  'https://api.ethoradev.com/v1';
 
 const http = axios.create({
   baseURL,
 });
 
+let appToken = betaAppToken;
+
+export function setBaseURL(newBaseURL?: string, customAppToken?: string) {
+  if (newBaseURL) {
+    baseURL = newBaseURL;
+    http.defaults.baseURL = newBaseURL;
+  }
+  if (customAppToken) {
+    appToken = customAppToken;
+  }
+}
+
 export function refresh(): Promise<{
   data: { refreshToken: string; token: string };
 }> {
   return new Promise((resolve, reject) => {
-    const user = store.getState().chatSettingStore.user;
+    const user = store.getState().chatSettingStore?.user;
+
+    if(!user) return;
+    
     try {
       http
         .post(
@@ -35,12 +42,13 @@ export function refresh(): Promise<{
         .then((response) => {
           store.dispatch(
             refreshTokens({
-              token: response.data.token || response.data.accessToken,
+              token: response.data.token,
               refreshToken: response.data.refreshToken,
             })
           );
         })
         .catch((error) => {
+          // store.dispatch(logout());
           reject(error);
         });
     } catch (error) {
@@ -79,7 +87,7 @@ http.interceptors.response.use(
         store.getState().chatSettingStore?.config?.refreshTokens
           ?.refreshFunction
       ) {
-        const { refreshToken, accessToken } = store
+        const { refreshToken, accessToken } = await store
           .getState()
           .chatSettingStore?.config?.refreshTokens?.refreshFunction();
         store.dispatch(
@@ -112,7 +120,6 @@ http.interceptors.response.use(
           isRefreshing = true;
           try {
             const tokens = await refresh();
-            console.log('tokens', tokens);
             isRefreshing = false;
             originalRequest.headers['Authorization'] = tokens.data.token;
             processQueue(tokens.data.token);
@@ -128,3 +135,4 @@ http.interceptors.response.use(
 );
 
 export default http;
+export { appToken };

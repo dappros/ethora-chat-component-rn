@@ -1,13 +1,12 @@
 # Resolve react_native_pods.rb with node to allow for hoisting
-pod 'ffmpeg-kit-react-native', :subspecs => ['audio'], :podspec => '../node_modules/ffmpeg-kit-react-native/ffmpeg-kit-react-native.podspec'
 require Pod::Executable.execute_command('node', ['-p',
   'require.resolve(
     "react-native/scripts/react_native_pods.rb",
     {paths: [process.argv[1]]},
   )', __dir__]).strip
 
-node_require('react-native/scripts/react_native_pods.rb')
-node_require('react-native-permissions/scripts/setup.rb')  
+require_relative '../node_modules/react-native/scripts/react_native_pods.rb'
+require_relative '../node_modules/react-native-permissions/scripts/setup.rb' 
 
 platform :ios, min_ios_version_supported
 prepare_react_native_project!

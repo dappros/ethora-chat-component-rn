@@ -1,14 +1,13 @@
-import { FC, useCallback } from "react";
-import { useXmppClient } from "../context/xmppProvider";
-import { useDispatch, useSelector } from "react-redux";
-import { setEditAction } from "../roomStore/roomsSlice";
-import { uploadFile } from "../networking/api-requests/auth.api";
-import { RootState } from "../roomStore";
-import { Platform } from "react-native";
-import { useChatSettingState } from "./useChatSettingState";
+import { FC, useCallback } from 'react';
+import { useXmppClient } from '../context/xmppProvider';
+import { useDispatch, useSelector } from 'react-redux';
+import { addRoomMessage, setEditAction } from '../roomStore/roomsSlice';
+import { uploadFile } from '../networking/api-requests/auth.api';
+import { RootState } from '../roomStore';
+import { useChatSettingState } from './useChatSettingState';
 
 export const useSendMessage = () => {
-  const { config } = useChatSettingState();
+  const { config, langSource } = useChatSettingState();
   const { client } = useXmppClient();
   const dispatch = useDispatch();
 
@@ -20,6 +19,7 @@ export const useSendMessage = () => {
     activeRoomJID: state.rooms.activeRoomJID,
     user: state.chatSettingStore.user,
     editAction: state.rooms.editAction,
+    config: state.chatSettingStore.config,
   }));
 
   const sendMessage = useCallback(
@@ -30,7 +30,7 @@ export const useSendMessage = () => {
       isChecked?: boolean,
       mainMessage?: string
     ) => {
-      if (editAction.isEdit && editAction.roomJid && editAction.messageId) {
+      if (editAction.isEdit) {
         client?.editMessageStanza(
           editAction.roomJid,
           editAction.messageId,
@@ -40,52 +40,94 @@ export const useSendMessage = () => {
         dispatch(setEditAction({ isEdit: false }));
         return;
       } else {
-        if (config?.enableTranslates) {
+        if (config?.translates?.enabled) {
+          if (!config?.disableSentLogic) {
+            const id = `send-translate-message-${Date.now().toString()}`;
+            dispatch(
+              addRoomMessage({
+                roomJID: activeRoomJID,
+                message: {
+                  user: {
+                    ...user,
+                    id: user.xmppUsername,
+                    name: user.firstName + ' ' + user.lastName,
+                  },
+                  date: new Date().toISOString(),
+                  body: message,
+                  roomJid: activeRoomJID,
+                  pending: config?.disableSentLogic ? false : true,
+                  xmppFrom: `${activeRoomJID}/${user.xmppUsername}`,
+                  id: id,
+                },
+              })
+            );
+          }
+
           client?.sendTextMessageWithTranslateTagStanza(
             activeRoomJID,
             user.firstName,
             user.lastName,
-            "",
+            '',
             user.walletAddress,
             message,
-            "",
+            '',
             isReply || false,
             isChecked || false,
-            mainMessage || ""
+            mainMessage || '',
+            langSource || 'en'
           );
         } else {
+          const id = `send-text-message-${Date.now().toString()}`;
+          if (!config?.disableSentLogic) {
+            dispatch(
+              addRoomMessage({
+                roomJID: activeRoomJID,
+                message: {
+                  id: id,
+                  user: {
+                    ...user,
+                    id: user.xmppUsername,
+                    name: user.firstName + ' ' + user.lastName,
+                  },
+                  date: new Date().toISOString(),
+                  body: message,
+                  roomJid: activeRoomJID,
+                  pending: true,
+                  xmppFrom: `${activeRoomJID}/${user.xmppUsername}`,
+                },
+              })
+            );
+          }
+
           client?.sendMessage(
             activeRoomJID,
             user.firstName,
             user.lastName,
-            "",
+            '',
             user.walletAddress,
             message,
-            "",
+            '',
             isReply || false,
             isChecked || false,
-            mainMessage || ""
+            mainMessage || '',
+            id
           );
         }
       }
+    },
+    [editAction]
+  );
 
-      // dispatch(
-      //   addRoomMessage({
-      //     roomJID: currentRoom.jid,
-      //     message: {
-      //       id: getHighResolutionTimestamp(),
-      //       user: {
-      //         ...user,
-      //         id: user.walletAddress,
-      //         name: user.firstName + " " + user.lastName,
-      //       },
-      //       date: new Date().toISOString(),
-      //       body: message,
-      //       roomJID: currentRoom.jid,
-      //       // pending: true,
-      //     },
-      //   })
-      // );
+  const sendEditMessage = useCallback(
+    (message: string) => {
+      client?.editMessageStanza(
+        editAction.roomJid,
+        editAction.messageId,
+        message
+      );
+
+      dispatch(setEditAction({ isEdit: false }));
+      return;
     },
     [editAction]
   );
@@ -100,17 +142,11 @@ export const useSendMessage = () => {
       mainMessage?: string
     ) => {
       let mediaData: FormData | null = new FormData();
-
-      mediaData.append("files", {
-        uri: data.uri,
-        type: type || "image/png",
-        name:
-          data.name || data.uri.split("/").pop() || `file_${Date.now()}.jpg`,
-      });
+      mediaData.append('files', data);
 
       uploadFile(mediaData)
         .then((response) => {
-          console.log("Upload successful", response);
+          console.log('Upload successful', response);
           response.data.results.map(async (item: any) => {
             const data = {
               firstName: user.firstName,
@@ -134,16 +170,15 @@ export const useSendMessage = () => {
               roomJid: activeRoomJID,
               showInChannel: isChecked || false,
               isReply: isReply || false,
-              mainMessage: mainMessage || "",
+              mainMessage: mainMessage || '',
               isPrivate: item?.isPrivate,
               __v: item.__v,
             };
-            console.log(data, "data to send media");
             client?.sendMediaMessageStanza(activeRoomJID, data);
           });
         })
         .catch((error) => {
-          console.error("Upload failed", error);
+          console.error('Upload failed', error);
         });
     },
     [client]
@@ -152,5 +187,6 @@ export const useSendMessage = () => {
   return {
     sendMessage,
     sendMedia,
+    sendEditMessage,
   };
 };

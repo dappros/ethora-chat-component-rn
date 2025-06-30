@@ -6,43 +6,42 @@ import {
   StyleSheet,
   ScrollView,
 } from "react-native";
-import { FFmpegKit, ReturnCode } from "ffmpeg-kit-react-native";
 import RNFetchBlob from "rn-fetch-blob";
 
 const AudioMessage = ({ src }: { src: string }) => {
   const [amplitudes, setAmplitudes] = useState<number[]>([]);
 
   const fetchAndConvertAudio = async (url: string) => {
-    try {
-      const res = await RNFetchBlob.config({ fileCache: true }).fetch(
-        "GET",
-        url
-      );
+    // try {
+    //   const res = await RNFetchBlob.config({ fileCache: true }).fetch(
+    //     "GET",
+    //     url
+    //   );
 
-      console.log("res---!!!", res);
-      const audioPath = res.path();
-      console.log("Audio file downloaded to:", audioPath);
+    //   console.log("res---!!!", res);
+    //   const audioPath = res.path();
+    //   console.log("Audio file downloaded to:", audioPath);
 
-      const pcmPath = `${RNFetchBlob.fs.dirs.CacheDir}/audio.pcm`;
+    //   const pcmPath = `${RNFetchBlob.fs.dirs.CacheDir}/audio.pcm`;
 
-      await FFmpegKit.executeAsync(
-        `-i ${audioPath} -f s16le -ar 44100 -ac 1 ${pcmPath}`,
-        async (session) => {
-          const returnCode = await session.getReturnCode();
-          if (ReturnCode.isSuccess(returnCode)) {
-            const pcmData = await RNFetchBlob.fs.readFile(pcmPath, "ascii");
-            const amplitudes = pcmData
-              .split("")
-              .map((char) => char.charCodeAt(0));
-            setAmplitudes(amplitudes.slice(0, 100)); // Ограничиваем количество баров
-          } else {
-            console.error("FFmpeg execution failed.");
-          }
-        }
-      );
-    } catch (error) {
-      console.error("Error processing audio file:", error);
-    }
+    //   await FFmpegKit.executeAsync(
+    //     `-i ${audioPath} -f s16le -ar 44100 -ac 1 ${pcmPath}`,
+    //     async (session) => {
+    //       const returnCode = await session.getReturnCode();
+    //       if (ReturnCode.isSuccess(returnCode)) {
+    //         const pcmData = await RNFetchBlob.fs.readFile(pcmPath, "ascii");
+    //         const amplitudes = pcmData
+    //           .split("")
+    //           .map((char) => char.charCodeAt(0));
+    //         setAmplitudes(amplitudes.slice(0, 100)); // Ограничиваем количество баров
+    //       } else {
+    //         console.error("FFmpeg execution failed.");
+    //       }
+    //     }
+    //   );
+    // } catch (error) {
+    //   console.error("Error processing audio file:", error);
+    // }
   };
 
   useEffect(() => {

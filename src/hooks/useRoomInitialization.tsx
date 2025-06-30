@@ -1,41 +1,63 @@
-import { useEffect } from "react";
-import { setIsLoading } from "../roomStore/roomsSlice";
-import { useXmppClient } from "../context/xmppProvider";
-import { IConfig, IRoom } from "../types/types";
-import { useDispatch } from "react-redux";
+import { useEffect } from 'react';
+import { setIsLoading } from '../roomStore/roomsSlice';
+import { useXmppClient } from '../context/xmppProvider';
+import { IConfig, IMessage, IRoom } from '../types/types';
+import { useDispatch } from 'react-redux';
+import useGetNewArchRoom from './useGetNewArchRoom';
 
-const countUndefinedText = (arr: { text?: string }[]) =>
-  arr.filter((item) => item.text === undefined).length;
+const countUndefinedText = (arr: IMessage[]) =>
+  arr.filter((item) => item?.body === undefined)?.length;
 
 export const useRoomInitialization = (
   activeRoomJID: string,
   roomsList: Record<string, IRoom>,
-  messageLength: number,
-  config?: IConfig
+  config: IConfig,
+  messageLength: number
 ) => {
   const { client } = useXmppClient();
   const dispatch = useDispatch();
 
+  console.log('useRoomInitialization', {
+    activeRoomJID,
+    roomsList,
+    config,
+    messageLength,
+    client,
+  });
+
+  const syncRooms = useGetNewArchRoom();
+
   useEffect(() => {
     const getDefaultHistory = async () => {
+      if (!client) return;
       dispatch(setIsLoading({ loading: true, chatJID: activeRoomJID }));
       const res = await client.getHistoryStanza(activeRoomJID, 30);
       if (res && countUndefinedText(res) > 0) {
+        dispatch(setIsLoading({ loading: false, chatJID: activeRoomJID }));
         // make it more optimized
         await client.getHistoryStanza(
           activeRoomJID,
           20 + countUndefinedText(res),
-          res[0].id
+          Number(res[0].id)
         );
       }
-      dispatch(setIsLoading({ loading: false, chatJID: activeRoomJID }));
+      dispatch(
+        setIsLoading({
+          loading: false,
+          chatJID: activeRoomJID,
+          loadingText: undefined,
+        })
+      );
     };
 
     const initialPresenceAndHistory = async () => {
-      if (!roomsList[activeRoomJID]) {
-        // console.log('bug1'); here is bug when deleting last room
-        client.presenceInRoomStanza(activeRoomJID);
-        await client.getRoomsStanza();
+      if (!roomsList[activeRoomJID] && activeRoomJID && client) {
+        await client.presenceInRoomStanza(activeRoomJID);
+        if (config?.newArch) {
+          await syncRooms(client, config);
+        } else {
+          await client.getRoomsStanza();
+        }
         await getDefaultHistory();
       } else {
         await getDefaultHistory();
@@ -43,10 +65,19 @@ export const useRoomInitialization = (
     };
 
     if (Object.keys(roomsList)?.length > 0) {
-      if (!roomsList?.[activeRoomJID] && Object.keys(roomsList).length > 0) {
+      if (
+        activeRoomJID &&
+        !roomsList?.[activeRoomJID] &&
+        Object.keys(roomsList).length > 0
+      ) {
         dispatch(setIsLoading({ loading: true, chatJID: activeRoomJID }));
         initialPresenceAndHistory();
-      } else if (messageLength < 20) {
+      } else if (
+        activeRoomJID &&
+        messageLength < 1 &&
+        !roomsList?.[activeRoomJID].historyComplete
+      ) {
+        dispatch(setIsLoading({ loading: true, chatJID: activeRoomJID }));
         getDefaultHistory();
       } else {
         dispatch(setIsLoading({ loading: false, chatJID: activeRoomJID }));
@@ -55,12 +86,20 @@ export const useRoomInitialization = (
       initialPresenceAndHistory();
     }
 
-    if (config?.defaultRooms) {
-      config?.defaultRooms.map((room) => {
-        client.presenceInRoomStanza(room.jid as string);
-      });
-      client.getRoomsStanza();
-      getDefaultHistory();
+    if (client && config?.defaultRooms) {
+      const allExist = config?.defaultRooms.every(
+        (room) => roomsList[room.jid] !== undefined
+      );
+      if (roomsList && !allExist) {
+        config?.defaultRooms.map(async (room) => {
+          client.presenceInRoomStanza(room.jid);
+        });
+        if (config?.newArch) {
+          // syncRooms(client, config);
+        } else {
+          client.getRoomsStanza();
+        }
+      }
     }
   }, [activeRoomJID, Object.keys(roomsList).length]);
 };

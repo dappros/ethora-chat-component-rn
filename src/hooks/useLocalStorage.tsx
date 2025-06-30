@@ -1,23 +1,36 @@
+import { useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export function useLocalStorage<T>(key: string) {
-  const get = async (): Promise<T | null> => {
+  const get = useCallback(async (): Promise<T | null> => {
     try {
       const storedValue = await AsyncStorage.getItem(key);
       if (!storedValue) return null;
       return JSON.parse(storedValue) as T;
     } catch (error) {
-      console.error('Failed to parse AsyncStorage value', error);
+      console.error('Failed to read from AsyncStorage', error);
       return null;
     }
-  };
+  }, [key]);
 
-  const set = async (value: T) => {
+  const set = useCallback(async (value: T) => {
     try {
       const stringValue = JSON.stringify(value);
       await AsyncStorage.setItem(key, stringValue);
     } catch (error) {
-      console.error('Failed to store value in AsyncStorage', error);
+      console.error('Failed to write to AsyncStorage', error);
+    }
+  }, [key]);
+
+  const update = async (updates: Partial<T>) => {
+    try {
+      const currentValue = await get();
+      const newValue = currentValue
+        ? { ...currentValue, ...updates }
+        : (updates as T);
+      await set(newValue);
+    } catch (error) {
+      console.error('Failed to update AsyncStorage value', error);
     }
   };
 
@@ -25,9 +38,9 @@ export function useLocalStorage<T>(key: string) {
     try {
       await AsyncStorage.removeItem(key);
     } catch (error) {
-      console.error('Failed to remove value from AsyncStorage', error);
+      console.error('Failed to remove AsyncStorage value', error);
     }
   };
 
-  return {get, set, remove};
+  return { get, set, update, remove };
 }

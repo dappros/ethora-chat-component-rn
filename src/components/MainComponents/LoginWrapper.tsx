@@ -4,7 +4,7 @@ import { ChatWrapper } from "./ChatWrapper";
 import { RootState } from "../../roomStore";
 import { useDispatch, useSelector } from "react-redux";
 import { logout, setConfig, setUser } from "../../roomStore/chatSettingsSlice";
-import { loginEmail } from "../../networking/api-requests/auth.api";
+import { loginEmail, loginViaJwt } from "../../networking/api-requests/auth.api";
 import { OrDelimiter } from "../styled/StyledComponents";
 import { Text, View, ViewStyle } from "react-native";
 import Button from "../styled/Button";
@@ -12,6 +12,7 @@ import LoginForm from "../AuthForms/Login";
 import { useLocalStorage } from "../../hooks/useLocalStorage";
 import { localStorageConstants } from "../../helpers/constants/LOCAL_STORAGE";
 import { setLogoutState } from "../../roomStore/roomsSlice";
+import { setBaseURL } from "../../networking/apiClient";
 
 interface LoginWrapperProps {
   user?: { email: string; password: string };
@@ -22,16 +23,15 @@ interface LoginWrapperProps {
 }
 
 const LoginWrapper: React.FC<LoginWrapperProps> = ({ ...props }) => {
-  const dispatch = useDispatch();
-  const { user } = useSelector((state: RootState) => state.chatSettingStore);
-
   const [showModal, setShowModal] = useState(false);
+
+  const { user } = useSelector((state: RootState) => state.chatSettingStore);
 
   const loginUserFunction = useCallback(async () => {
     try {
       const authData = await loginEmail(
-        props?.user?.email || "yukiraze9@gmail.com",
-        props?.user?.password || "Qwerty123"
+        props?.user?.email || 'yukiraze9@gmail.com',
+        props?.user?.password || 'Qwerty123'
       );
 
       return {
@@ -40,70 +40,62 @@ const LoginWrapper: React.FC<LoginWrapperProps> = ({ ...props }) => {
         refreshToken: authData.data.refreshToken,
       };
     } catch (error) {
-      console.error("Login failed:", error);
+      console.error('Login failed:', error);
       return null;
     }
   }, []);
 
-  useEffect(() => {
-    if (props.config?.clearStoreBeforeInit) {
-      dispatch(setLogoutState());
-      dispatch(logout());
-      dispatch(setConfig(props.config));
-    }
-  }, []);
+  const dispatch = useDispatch();
 
   useEffect(() => {
-    if (
-      props?.config?.customLogin?.enabled &&
-      typeof props?.config?.customLogin?.loginFunction === "function"
-    ) {
-      // const performCustomLogin = async (
-      //   loginFunction: () => Promise<User>,
-      // ): Promise<User | null> => {
-      //   try {
-      //     const user = await loginFunction();
-      //     console.log(user, 'herrerre')
-      //     return user;
-      //   } catch (error) {
-      //     console.error('Custom login failed', error);
-      //     return null;
-      //   }
-      // };
-      // (async () => {
-      //   const customLoginUser = await performCustomLogin(
-      //     props?.config?.customLogin?.loginFunction,
-      //   );
-      //   if (customLoginUser) {
-      //     dispatch(setUser(customLoginUser));
-      //   }
-      // })();
+    if (props.config?.baseUrl) {
+      setBaseURL(props.config?.baseUrl, props.config?.customAppToken);
     }
-
     if (props?.config?.userLogin?.enabled && props?.config?.userLogin?.user) {
       dispatch(setUser(props.config.userLogin.user));
       return;
     }
 
-    //if no login config - default user login
-    const initializeStoredUser = async () => {
-      const storedUser: User = (await useLocalStorage(
-        localStorageConstants.ETHORA_USER
-      ).get()) as User;
+    //use localStorage, to check for user was already logged
+
+    const checkStoredUser = async () => {
+      const storedUser = (await useLocalStorage(
+        '@ethora/chat-component-user'
+      ).get()) as User | null;
       if (storedUser) {
-        console.log("Login data storedUser", storedUser);
         dispatch(setUser(storedUser));
       }
     };
+    checkStoredUser();
 
-    initializeStoredUser();
+    //if jwt send api req with jwt and get user data
+
+    if (props.config?.jwtLogin?.enabled) {
+      const jwtLogin = async () => {
+        try {
+          if(!props.config?.jwtLogin?.token) return;
+          
+          const loginData = await loginViaJwt(props.config.jwtLogin.token);
+          if (loginData) {
+            dispatch(setUser(loginData));
+          }
+        } catch (error) {
+          console.log('error with jwt login', error);
+          setShowModal(true);
+          console.log('Error, no user');
+        }
+      };
+      jwtLogin();
+    }
+
+    //if no login config - default user login
 
     if (
       !props.config?.googleLogin &&
       !props.config?.defaultLogin &&
       !props.config?.jwtLogin &&
       !props.config?.userLogin &&
-      user.xmppUsername === ""
+      user.xmppUsername === ''
     ) {
       const defaultLogin = async () => {
         try {
@@ -112,7 +104,7 @@ const LoginWrapper: React.FC<LoginWrapperProps> = ({ ...props }) => {
             dispatch(setUser(loginData));
           }
         } catch (error) {
-          console.log("error with default login", error);
+          console.log('error with default login', error);
           setShowModal(true);
         }
       };

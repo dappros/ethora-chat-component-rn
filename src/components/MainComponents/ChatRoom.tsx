@@ -8,7 +8,6 @@ import SendInput from "../styled/SendInput";
 import {
   deleteRoomMessage,
   setEditAction,
-  setIsLoading,
   setLastViewedTimestamp,
 } from "../../roomStore/roomsSlice";
 import Loader from "../styled/Loader";
@@ -26,8 +25,6 @@ import { useRoomState } from "../../hooks/useRoomState";
 import { useChatSettingState } from "../../hooks/useChatSettingState";
 // import {PanGestureHandler} from 'react-native-gesture-handler';
 import { FlatList } from "react-native";
-import { IMessage } from "../../types/types";
-import useAppState from "../../hooks/useAppState.tsx";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -56,12 +53,24 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
       globalLoading,
       roomMessages,
     } = useRoomState();
-    const { sendMessage: sendMs, sendMedia: sendMessageMedia } =
-      useSendMessage();
+    const {
+      sendMessage: sendMs,
+      sendMedia: sendMessageMedia,
+      sendEditMessage,
+    } = useSendMessage();
 
     const sendMessage = useCallback(
       (message: string) => {
-        sendMs(message, activeRoomJID || "");
+        if(!activeRoomJID) {
+          return;
+        }
+        dispatch(
+          setLastViewedTimestamp({
+            chatJID: activeRoomJID,
+            timestamp: 0,
+          })
+        );
+        sendMs(message, activeRoomJID);
       },
       [activeRoomJID]
     );
@@ -75,14 +84,22 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
 
     const loadMoreMessages = useCallback(
       async (chatJID: string, max: number, idOfMessageBefore?: number) => {
-        if (!isLoadingMore) {
+        if (!isLoadingMore && !roomsList?.[chatJID]?.historyComplete) {
+          const lastMsgId =
+            typeof idOfMessageBefore !== 'string'
+              ? idOfMessageBefore
+              : Number(
+                  roomsList[chatJID].messages[
+                    roomsList[chatJID].messages.length - 2
+                  ].id
+                );
           setIsLoadingMore(true);
-          client?.getHistoryStanza(chatJID, max, idOfMessageBefore).then(() => {
+          client?.getHistoryStanza(chatJID, max, lastMsgId).then(() => {
             setIsLoadingMore(false);
           });
         }
       },
-      [client, isLoadingMore]
+      [client?.client?.jid]
     );
 
     const onCloseEdit = () => {
@@ -90,48 +107,57 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
     };
 
     useEffect(() => {
+      if(!activeRoomJID) {
+        return;
+      };
+
       dispatch(
         setLastViewedTimestamp({
-          chatJID: activeRoomJID || "",
+          chatJID: activeRoomJID,
           timestamp: 0,
         })
       );
+      setIsLoadingMore(false);
       return () => {
+        
+
         if (client) {
           client.actionSetTimestampToPrivateStoreStanza(
-            activeRoomJID || "",
+            activeRoomJID,
             new Date().getTime(),
             Object.keys(roomsList)
           );
         }
         dispatch(
           setLastViewedTimestamp({
-            chatJID: activeRoomJID || "",
+            chatJID: activeRoomJID,
             timestamp: new Date().getTime(),
           })
         );
         dispatch(
           deleteRoomMessage({
-            roomJID: activeRoomJID || "",
-            messageId: "delimiter-new",
+            roomJID: activeRoomJID,
+            messageId: 'delimiter-new',
           })
         );
+        setIsLoadingMore(false);
       };
     }, [activeRoomJID]);
 
-    useAppState({
-      client: client,
-      roomsList: roomsList,
-      activeRoomJID: activeRoomJID,
-    });
-
+    // hooks useEffects
     useRoomUrl(activeRoomJID || "", roomsList, config);
+
+    console.log("ChatRoom render", {
+      activeRoomJID,
+      roomsList,
+      config,
+      roomMessages});
 
     useRoomInitialization(
       activeRoomJID || "",
       roomsList,
+      config,
       roomMessages.length,
-      config
     );
 
     if (Object.keys(roomsList)?.length < 1 && !loading && !globalLoading) {
@@ -154,9 +180,11 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
         keyboardVerticalOffset={Platform.OS === "ios" ? 42 : 0}
       >
         <ChatContainer
-          style={{
-            ...config?.chatRoomStyles,
-          }}
+          style={
+            config?.chatRoomStyles
+              ? (config.chatRoomStyles as import('react-native').ViewStyle)
+              : undefined
+          }
         >
           {!config?.disableHeader && (
             <ChatHeader
@@ -181,11 +209,11 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
               isReply={false}
             />
           )}
-          {editAction.isEdit && (
+          {editAction && editAction.isEdit && (
             <EditWrapper text={editAction.text || ""} onClose={onCloseEdit} />
           )}
           <SendInput
-            editMessage={editAction.text}
+            editMessage={editAction && editAction.text}
             sendMessage={sendMessage}
             sendMedia={sendMedia}
             config={config}
