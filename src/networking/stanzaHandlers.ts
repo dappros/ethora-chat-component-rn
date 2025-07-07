@@ -351,6 +351,8 @@ const onGetChatRooms = (stanza: Element, xmpp: any) => {
     stanza.getChild('query')?.children.forEach(async (result: any) => {
       const currentChatRooms = store.getState().rooms.rooms;
 
+
+
       const isRoomAlreadyAdded = Object.values(currentChatRooms).some(
         (element) => element.jid === result?.attrs?.jid
       );

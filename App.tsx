@@ -31,7 +31,7 @@ function App(): React.JSX.Element {
             conference: 'conference.xmpp.ethoradev.com',
           },
           baseUrl: 'https://api.ethoradev.com/v1',
-          newArch: true,
+          newArch: false,
           setRoomJidInPath: true,
           qrUrl: 'https://beta.ethora.com/app/chat/?qrChatId=',
           // secondarySendButton: {
@@ -43,6 +43,7 @@ function App(): React.JSX.Element {
           //     width: '60px',
           //   },
           // },
+          initBeforeLoad: true,
           ...config,
         }}
       />

@@ -4,6 +4,7 @@ import React, {
   useContext,
   useState,
   useEffect,
+  FC,
 } from 'react';
 import XmppClient from '../networking/xmppClient';
 import { IConfig, IRoom, xmppSettingsInterface } from '../types/types';
@@ -30,7 +31,7 @@ interface XmppProviderProps {
   config?: IConfig;
 }
 
-export const XmppProvider: React.FC<XmppProviderProps> = ({
+export const XmppProvider: FC<XmppProviderProps> = ({
   children,
   config,
 }) => {
@@ -111,6 +112,7 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({
 
   useEffect(() => {
     const initBeforeLoad = async () => {
+      console.log('XmppProvider: Client initialized successfully 2');
       initializeClient(
         walletToUsername(config?.userLogin?.user?.defaultWallet?.walletAddress),
         config?.userLogin?.user?.xmppPassword,
@@ -125,7 +127,10 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({
       });
     };
 
+    console.log('config?.initBeforeLoad', config?.initBeforeLoad);
+
     if (config?.initBeforeLoad) {
+      console.log('XmppProvider: Client initialized successfully 1');
       initBeforeLoad();
     }
     return () => {};

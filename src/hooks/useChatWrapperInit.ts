@@ -88,6 +88,8 @@ const useChatWrapperInit = ({
     return rooms;
   };
 
+  console.log("clientChatWrapperInit: ", client)
+
   useEffect(() => {
     const initXmmpClient = async () => {
       if (config?.translates?.enabled && !config?.translates?.translations) {
@@ -100,6 +102,7 @@ const useChatWrapperInit = ({
           console.log('Error, no user');
         } else {
           // chatAutoEnterer({ roomJID, wasAutoSelected, config, dispatch });
+          console.log('Not Error, no user');
 
           if (!client) {
             setInited(false);
@@ -194,7 +197,7 @@ const useChatWrapperInit = ({
     };
 
     initXmmpClient();
-  }, [user.xmppPassword, user.defaultWallet?.walletAddress]);
+  }, [user.xmppPassword, user.defaultWallet?.walletAddress, client]);
 
   return {
     client,

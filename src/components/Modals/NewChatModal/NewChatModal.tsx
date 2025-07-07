@@ -11,18 +11,21 @@ import {
   ModalContainer,
   ModalTitle,
 } from "../styledModalComponents";
-import { setCurrentRoom, updateRoom } from "../../../roomStore/roomsSlice";
+import { addRoomViaApi, setCurrentRoom, updateRoom } from "../../../roomStore/roomsSlice";
 import InputWithLabel from "../../styled/StyledInput";
 import { uploadFile } from "../../../networking/api-requests/auth.api";
 import { ProfileImagePlaceholder } from "../../MainComponents/ProfileImagePlaceholder";
 import { Text } from "react-native";
+import { ApiRoom, ChatAccessOption, RoomMember } from "../../../types/models/room.model";
+import { createRoomFromApi } from "../../../helpers/createRoomFromApi";
+import { postRoom } from "../../../networking/api-requests/rooms.api";
 
 interface NewChatModalProps {
   handleCloseModal?: any;
 }
 
-const NewChatModal: React.FC<NewChatModalProps> = ({ handleCloseModal }) => {
-  const config = useSelector(
+const NewChatModal: React.FC<NewChatModalProps> = () => {
+ const config = useSelector(
     (state: RootState) => state.chatSettingStore.config
   );
 
@@ -30,33 +33,41 @@ const NewChatModal: React.FC<NewChatModalProps> = ({ handleCloseModal }) => {
   const { client } = useXmppClient();
 
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
-  const [roomName, setRoomName] = useState<string>("");
-  const [roomDescription, setRoomDescription] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<'0' | '1' | null>('0');
+
+  const [roomName, setRoomName] = useState<string>('');
+  const [roomDescription, setRoomDescription] = useState<string>('');
+  const [chatType, setChatType] = useState<ChatAccessOption>({
+    name: 'Public',
+    id: 'public',
+  });
   const [profileImage, setProfileImage] = useState<string | File | null>(null);
-  const [errors, setErrors] = useState({ name: "", description: "" });
+  const [errors, setErrors] = useState({ name: '', description: '' });
+  const [selectedUsers, setSelectedUsers] = useState<RoomMember[]>([]);
 
   const isValid = useMemo(
-    () => roomName.length >= 3 && roomDescription.length >= 5,
+    // () => roomName.length >= 3 && roomDescription.length >= 5,
+    () => roomName.length >= 3,
     [roomName, roomDescription]
   );
 
   const validateRoomName = (name: string) => {
     if (name.trim().length < 3) {
-      return "Room name must be at least 3 characters.";
+      return 'Room name must be at least 3 characters.';
     }
-    return "";
+    return '';
   };
 
-  const validateRoomDescription = (description: string) => {
-    if (description.trim().length < 5) {
-      return "Room description must be at least 5 characters.";
-    }
-    return "";
-  };
+  // const validateRoomDescription = (description: string) => {
+  //   if (description.trim().length < 5) {
+  //     return 'Room description must be at least 5 characters.';
+  //   }
+  //   return '';
+  // };
 
-  const handleRoomNameChange = (text: string) => {
-    console.log("adsasd");
-    const name = text;
+  const handleRoomNameChange = (e: string) => {
+    const name = e;
     setRoomName(name);
     setErrors((prevErrors) => ({
       ...prevErrors,
@@ -64,19 +75,24 @@ const NewChatModal: React.FC<NewChatModalProps> = ({ handleCloseModal }) => {
     }));
   };
 
-  const handleRoomDescriptionChange = (text: string) => {
-    const description = text;
+  const handleRoomDescriptionChange = (
+    e: string
+  ) => {
+    const description = e;
     setRoomDescription(description);
     setErrors((prevErrors) => ({
       ...prevErrors,
-      description: validateRoomDescription(description),
+      // description: validateRoomDescription(description),
     }));
   };
 
   const handleOpenModal = () => setIsModalOpen(true);
-  // const handleCloseModal = () =>{
-  //    setIsModalOpen(false)
-  // };
+  const handleCloseModal = () => {
+    setActiveTab('0');
+    setIsModalOpen(false);
+    setRoomName('');
+    setSelectedUsers([]);
+  };
 
   const onUpload = async (file: File) => {
     setProfileImage(file);
@@ -86,32 +102,80 @@ const NewChatModal: React.FC<NewChatModalProps> = ({ handleCloseModal }) => {
     setProfileImage(null);
   };
 
+  const handleRoomCreation = async (
+    newChat: ApiRoom,
+    usersArrayLength: number
+  ) => {
+    try {
+      const normalizedChat = createRoomFromApi(
+        newChat,
+        config?.xmppSettings?.conference,
+        usersArrayLength
+      );
+
+      dispatch(
+        addRoomViaApi({
+          room: normalizedChat,
+          xmpp: client,
+        })
+      );
+
+      dispatch(setCurrentRoom({ roomJID: normalizedChat.jid }));
+    } catch (error) {
+      console.error('Error handling room creation:', error);
+    }
+  };
+
   const handleCreateRoom = async () => {
+    setLoading(true);
     if (isValid) {
-      console.log("11111111111", roomName);
       let mediaData: FormData | null = new FormData();
-      mediaData.append("files", profileImage);
+      mediaData.append('files', profileImage);
 
       const uploadResult = await uploadFile(mediaData);
 
       const location = uploadResult?.data?.results?.[0]?.location;
-      if (!location) {
-        throw new Error("No location found in upload result.");
+
+      if (config?.newArch) {
+        const namesArray = selectedUsers.map((user) => user.xmppUsername);
+        const newChat: ApiRoom = await postRoom({
+          title: roomName,
+          description:
+            roomDescription && roomDescription !== ''
+              ? roomDescription
+              : 'No description',
+          picture: location || '',
+          type: chatType.id || 'public',
+          members: namesArray,
+        });
+
+        handleRoomCreation(newChat, namesArray.length);
+      } else {
+        const newChatJid = await client.createRoomStanza(
+          roomName,
+          roomDescription && roomDescription !== ''
+            ? roomDescription
+            : 'No description'
+        );
+
+        client.getRoomsStanza();
+
+        dispatch(setCurrentRoom({ roomJID: newChatJid }));
+
+        if (location) {
+          client.setRoomImageStanza(newChatJid, location, 'icon', 'none');
+          dispatch(
+            updateRoom({ jid: newChatJid, updates: { icon: location } })
+          );
+        }
       }
 
-      const newChatJid = await client.createRoomStanza(
-        roomName,
-        roomDescription
-      );
-
-      client.setRoomImageStanza(newChatJid, location, "icon", "none");
-      client.getRoomsStanza();
-      dispatch(setCurrentRoom({ roomJID: newChatJid }));
-      dispatch(updateRoom({ jid: newChatJid, updates: { icon: location } }));
       setIsModalOpen(false);
-      setErrors({ name: "", description: "" });
-      setRoomName("");
-      setRoomDescription("");
+      setErrors({ name: '', description: '' });
+      setProfileImage(null);
+      setRoomName('');
+      setRoomDescription('');
+      setLoading(false);
     }
   };
 

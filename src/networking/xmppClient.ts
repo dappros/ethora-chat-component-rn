@@ -53,8 +53,7 @@ export class XmppClient implements XmppClientInterface {
     xmppSettings?: xmppSettingsInterface
   ) {
     this.devServer =
-      xmppSettings?.devServer || `wss://xmpp.ethoradev.com:5443/ws`;
-      console.log('xmppSettings', xmppSettings);
+      xmppSettings?.devServer || `wss://dev.xmpp.ethoradev.com:5443/ws`;
     this.host = xmppSettings?.host || 'dev.xmpp.ethoradev.com';
     this.service =
       xmppSettings?.conference || 'conference.dev.xmpp.ethoradev.com';
@@ -69,22 +68,15 @@ export class XmppClient implements XmppClientInterface {
     try {
       const url = this.devServer || `wss://xmpp.ethoradev.com:5443/ws`;
 
-
       this.host = url.match(/wss:\/\/([^:/]+)/)?.[1] || '';
       this.conference = `conference.${this.host}`;
-      console.log('+-+-+-+-+-+-+-+-+ ', { username: this.username, password: this.password });
+      console.log('+-+-+-+-+-+-+-+-+ ', { username: this.username });
       this.devServer = url;
 
       this.client = xmpp.client({
         service: url,
         username: this.username,
         password: this.password,
-      });
-      console.log('Initializing XMPP client with:', {
-        client: this.client,
-        devServer: url,
-        host: this.host,
-        conference: this.conference,
       });
 
       this.attachEventListeners();

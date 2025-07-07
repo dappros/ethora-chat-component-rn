@@ -15,7 +15,7 @@ import { nameToColor } from '../../helpers/hashcolor';
 
 interface ProfileImagePlaceholderProps {
   name?: string;
-  icon?: string | { uri: string };
+  icon?: string | { uri: string } | string | File | null;
   click?: {
     onPress: () => void;
     isClick: boolean;

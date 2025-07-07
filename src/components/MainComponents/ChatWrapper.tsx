@@ -42,6 +42,7 @@ import { useRoomState } from "../../hooks/useRoomState";
 import useChatWrapperInit from "../../hooks/useChatWrapperInit.ts";
 import { useQRCodeChat } from "../../hooks/useQRCodeChatHandler.ts";
 import { RootState } from "../../roomStore/index.ts";
+import { Overlay, StyledModal } from "../styled/MediaModal.tsx";
 
 interface ChatWrapperProps {
   token?: string;
@@ -140,6 +141,8 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
     queueMessageLoader
   );
 
+  console.log("roomsList", roomsList)
+
   if (config?.enableRoomsRetry?.enabled && isRetrying === 'norooms') {
     return (
       <StyledLoaderWrapper
@@ -162,15 +165,18 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
     );
   }
 
-  console.log("LoginWrapper user", user);
-  console.log("LoginWrapper roomsList", rooms);
-  
-
   if (user.xmppPassword === '' && user.xmppUsername === '')
     return <LoginForm config={config} />;
 
   return (
     <View>
+      {showModal && (
+        <Overlay>
+          <StyledModal>
+            There was an error. Please, refresh the page
+          </StyledModal>
+        </Overlay>
+      )}
       <>
         {inited ? (
           <ChatWrapperBox
