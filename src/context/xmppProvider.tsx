@@ -127,8 +127,6 @@ export const XmppProvider: FC<XmppProviderProps> = ({
       });
     };
 
-    console.log('config?.initBeforeLoad', config?.initBeforeLoad);
-
     if (config?.initBeforeLoad) {
       console.log('XmppProvider: Client initialized successfully 1');
       initBeforeLoad();

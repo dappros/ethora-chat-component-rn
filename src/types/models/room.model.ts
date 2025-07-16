@@ -25,7 +25,7 @@ export interface IRoom {
   usersCnt: number;
   messages: IMessage[];
   isLoading: boolean;
-  roomBg: string;
+  roomBg: string | null;
 
   members?: RoomMember[];
   type?: 'public' | 'group' | 'private';
@@ -45,7 +45,7 @@ export interface IRoom {
   lastMessage?: LastMessage;
   lastMessageTimestamp?: number;
   lastRoomMessage?: RoomLastMessage;
-  icon?: string;
+  icon?: string | null;
   composing?: boolean;
   composingList?: string[];
   lastViewedTimestamp?: number;

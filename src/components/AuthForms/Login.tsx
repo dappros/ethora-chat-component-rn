@@ -13,7 +13,7 @@ import {
 } from "../../networking/api-requests/auth.api";
 import { useDispatch } from "react-redux";
 import { useLocalStorage } from "../../hooks/useLocalStorage";
-import { setUser } from "../../roomStore/chatSettingsSlice";
+import { setUser, unpackAndTransform } from "../../roomStore/chatSettingsSlice";
 import { localStorageConstants } from "../../helpers/constants/LOCAL_STORAGE";
 import { Text, TextInput, View } from "react-native";
 
@@ -23,6 +23,7 @@ interface LoginFormProps {
 
 const LoginForm: React.FC<LoginFormProps> = ({ config }) => {
   const dispatch = useDispatch();
+  const { set } = useLocalStorage(localStorageConstants.ETHORA_USER);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -46,7 +47,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ config }) => {
 
   const handleRegularLogin = useCallback(async () => {
     setIsLoading(true);
-    console.log("LOG:", email, password);
+    
     try {
       const authData = await loginEmail(email, password);
 
@@ -65,7 +66,8 @@ const LoginForm: React.FC<LoginFormProps> = ({ config }) => {
         refreshToken: authData.data.refreshToken,
       };
       dispatch(setUser(user));
-      useLocalStorage(localStorageConstants.ETHORA_USER).set(user);
+
+      await set(unpackAndTransform(user));
     } catch (error) {
       console.error("Login failed:", error);
       setIsLoading(false);

@@ -120,7 +120,7 @@ export const getHistory = async (
       responsePromise as Promise<IMessage[] | null>,
       timeoutPromise as Promise<null>,
     ]);
-    return res;
+    return res === null ? [] : res;
   } catch (e) {
     console.log('=-> error in', fixedChatJid, e);
     return [];

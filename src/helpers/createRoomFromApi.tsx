@@ -4,7 +4,7 @@ export const createRoomFromApi = (
   room: ApiRoom,
   service: string = 'conference.dev.xmpp.ethoradev.com',
   usersArrayLength: number = 0
-): IRoom => {
+): IRoom | null => {
   try {
     const roomData: IRoom = {
       ...room,

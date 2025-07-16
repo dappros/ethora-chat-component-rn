@@ -53,7 +53,7 @@ export class XmppClient implements XmppClientInterface {
     xmppSettings?: xmppSettingsInterface
   ) {
     this.devServer =
-      xmppSettings?.devServer || `wss://dev.xmpp.ethoradev.com:5443/ws`;
+      xmppSettings?.devServer;
     this.host = xmppSettings?.host || 'dev.xmpp.ethoradev.com';
     this.service =
       xmppSettings?.conference || 'conference.dev.xmpp.ethoradev.com';

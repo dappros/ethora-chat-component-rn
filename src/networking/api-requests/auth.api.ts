@@ -26,6 +26,8 @@ export async function loginEmail(email: string, password: string) {
     { headers: { Authorization: appToken } }
   );
 
+  console.log('loginEmail res', res.data);
+
   return res;
 }
 

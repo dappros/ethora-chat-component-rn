@@ -36,6 +36,11 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
     return `${hours}:${minutes}` || "";
   };
 
+  console.log("ChatRoomItem render", {
+    name: chat.name,
+    icon: chat.icon,
+  })
+
   return (
     <ChatItem key={index}>
       <ProfileImagePlaceholder name={chat.name} icon={chat?.icon} />

@@ -265,6 +265,7 @@ const onChatInvite = async (stanza: Element, client: XmppClient) => {
         client.presenceInRoomStanza(chatId);
 
         const rooms = await getRooms();
+        console.log('onChatInvite rooms', rooms);
         rooms.items.map((room) => {
           store.dispatch(
             addRoomViaApi({

@@ -80,6 +80,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
   const { rooms, activeRoomJID, reportRoom } = useSelector(
     (state: RootState) => state.rooms
   );
+  console.log('ChatWrapper rooms', rooms);
   const { roomsList, loading, globalLoading, loadingText } = useRoomState();
 
   const activeMessage = useMemo(() => {

@@ -22,7 +22,7 @@ interface ChatState {
   langSource?: Iso639_1Codes;
 }
 
-const unpackAndTransform = (input?: User): User => {
+export const unpackAndTransform = (input?: User): User => {
   return {
     description: '',
     token: input?.token || '',
@@ -103,9 +103,9 @@ export const chatSlice = createSlice({
   reducers: {
     setUser: (state, action: PayloadAction<User>) => {
       state.user = unpackAndTransform(action.payload);
-      useLocalStorage(localStorageConstants.ETHORA_USER).set(
-        unpackAndTransform(action.payload)
-      );
+      // useLocalStorage(localStorageConstants.ETHORA_USER).set(
+      //   unpackAndTransform(action.payload)
+      // );
     },
     updateUser(state, action: PayloadAction<{ updates: Partial<User> }>) {
       const { updates } = action.payload;

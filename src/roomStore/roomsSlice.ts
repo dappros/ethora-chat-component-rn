@@ -155,6 +155,8 @@ export const roomsStore = createSlice({
     addRoomMessage(state, action: PayloadAction<AddRoomMessageAction>) {
       const { roomJID, message, start } = action.payload;
 
+      console.log('addRoomMessage', { roomJID, message, start });
+
       if (!message?.body) return;
 
       const roomMessages = state.rooms[roomJID]?.messages;

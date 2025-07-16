@@ -11,6 +11,10 @@ import http from '../apiClient';
 
 export async function getRooms(): Promise<{ items: ApiRoom[] }> {
   const token = store.getState().chatSettingStore?.user?.token || '';
+  const useer = store.getState().chatSettingStore?.user || '';
+
+  console.log('getRooms token', token);
+  console.log('getRooms useer', useer);
 
   try {
     const response = await http.get('/chats/my', {
