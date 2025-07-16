@@ -6,6 +6,7 @@ import {
   findNodeHandle,
   UIManager,
   Dimensions,
+  Text,
 } from "react-native";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState } from "../../roomStore";
@@ -26,6 +27,7 @@ import { IUser, MessageProps } from "../../types/types";
 import MediaMessage from "../MainComponents/MediaMessage";
 import MessageTranslations from "./MessageTranslations";
 import { useChatSettingState } from "../../hooks/useChatSettingState";
+import { parseMessageBody } from '../../helpers/parseMessageBody';
 
 const CustomMessageContainer = styled.View<{ isUser: boolean; reply?: number }>`
   flex-direction: row;
@@ -255,7 +257,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
                     colorUser={config?.messageColor?.colorUser}
                     color={config?.messageColor?.color}
                   >
-                    {message.body}
+                    <Text>{parseMessageBody(message.body)}</Text>
                   </CustomMessageText>
                 )}
               </>

@@ -23,11 +23,13 @@ export const ReduxWrapper: React.FC<ChatWrapperProps> = React.memo(
     }, [props.config]);
 
     return (
-      <XmppProvider>
-        <Provider store={store}>
-          <LoginWrapper config={memoizedConfig} {...props} />
-        </Provider>
-      </XmppProvider>
+      <React.StrictMode>
+        <XmppProvider>
+          <Provider store={store}>
+            <LoginWrapper config={memoizedConfig} {...props} />
+          </Provider>
+        </XmppProvider>
+      </React.StrictMode>
     );
   }
 );

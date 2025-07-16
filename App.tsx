@@ -23,7 +23,7 @@ function App(): React.JSX.Element {
   return (
     <SafeAreaView>
       <ReduxWrapper
-        roomJID="646cc8dc96d4a4dc8f7b2f2d_6824685682d635dba7522423@conference.xmpp.ethoradev.com"
+        // roomJID="646cc8dc96d4a4dc8f7b2f2d_6824685682d635dba7522423@conference.xmpp.ethoradev.com"
         config={{
           xmppSettings: {
             devServer: 'wss://xmpp.ethoradev.com:5443/ws',
