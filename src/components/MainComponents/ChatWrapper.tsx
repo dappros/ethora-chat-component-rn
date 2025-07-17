@@ -43,6 +43,7 @@ import useChatWrapperInit from "../../hooks/useChatWrapperInit.ts";
 import { useQRCodeChat } from "../../hooks/useQRCodeChatHandler.ts";
 import { RootState } from "../../roomStore/index.ts";
 import { Overlay, StyledModal } from "../styled/MediaModal.tsx";
+import { useHeapSender } from '../../hooks/useHeapSender';
 
 interface ChatWrapperProps {
   token?: string;
@@ -122,6 +123,14 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
     config,
   });
 
+  const { sendHeapMessages } = useHeapSender(client);
+
+  useEffect(() => {
+    if (inited && client) {
+      sendHeapMessages();
+    }
+  }, [inited, client]);
+
 
   const queueMessageLoader = useCallback(
     async (chatJID: string, max: number) => {
@@ -150,7 +159,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
         style={{ alignItems: 'center', flexDirection: 'column', gap: '10px' }}
       >
         {config.enableRoomsRetry.helperText ||
-          'We couldn’t create any chat room.'}
+          "We couldn't create any chat room."}
       </StyledLoaderWrapper>
     );
   }

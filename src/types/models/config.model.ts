@@ -102,4 +102,5 @@ export interface IConfig {
     enabled: boolean;
     filterFunction: (text: string) => string;
   };
+  disableTypingIndicator?: boolean;
 }

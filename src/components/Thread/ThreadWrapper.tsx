@@ -122,6 +122,9 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
   );
 
   const sendStartComposing = useCallback(() => {
+    if (config?.disableTypingIndicator) {
+      return;
+    }
     client.sendTypingRequestStanza(
       activeMessage.roomJid,
       `${user.firstName} ${user.lastName}`,
@@ -130,6 +133,9 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
   }, []);
 
   const sendEndComposing = useCallback(() => {
+    if (config?.disableTypingIndicator) {
+      return;
+    }
     client.sendTypingRequestStanza(
       activeMessage.roomJid,
       `${user.firstName} ${user.lastName}`,

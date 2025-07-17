@@ -6,10 +6,10 @@ import { unreadMiddleware } from './Middleware/unreadMidlleware';
 import { newMessageMidlleware } from './Middleware/newMessageMidlleware';
 import { logoutMiddleware } from './Middleware/logoutMiddleware';
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { persistReducer, persistStore, createTransform } from 'redux-persist';
 import CryptoJS from 'crypto-js';
-import type { PersistPartial } from 'redux-persist/es/persistReducer';
+import storage from 'redux-persist/lib/storage';
+import roomHeapSlice from './roomHeapSlice';
 
 const SECRET_KEY = 'hey-this-is-dappros';
 
@@ -61,7 +61,7 @@ const limitMessagesTransform = createTransform(
 
 const chatSettingPersistConfig = {
   key: 'chatSettingStore',
-  storage: AsyncStorage,
+  storage,
   blacklist: [
     'activeModal',
     'deleteModal',
@@ -76,14 +76,19 @@ const chatSettingPersistConfig = {
 
 const roomsPersistConfig = {
   key: 'roomMessages',
-  storage: AsyncStorage,
+  storage,
   blacklist: ['editAction', 'activeRoomJID', 'loadingText'],
   transforms: [limitMessagesTransform],
 };
 
+const roomHeapSliceConfig = {
+  key: 'roomHeapSlice',
+  storage,
+};
+
 const persistConfig = {
   key: 'root',
-  storage: AsyncStorage,
+  storage,
   whitelist: ['chatSettingStore', 'roomMessages'],
   blacklist: ['routing'],
   transforms: [encryptTransform],
@@ -92,6 +97,7 @@ const persistConfig = {
 const rootReducer = combineReducers({
   chatSettingStore: persistReducer(chatSettingPersistConfig, chatSettingsReducer),
   rooms: persistReducer(roomsPersistConfig, roomsSlice),
+  roomHeapSlice: persistReducer(roomHeapSliceConfig, roomHeapSlice),
 });
 
 export type RootState = ReturnType<typeof rootReducer>;

@@ -28,6 +28,8 @@ import MediaMessage from "../MainComponents/MediaMessage";
 import MessageTranslations from "./MessageTranslations";
 import { useChatSettingState } from "../../hooks/useChatSettingState";
 import { parseMessageBody } from '../../helpers/parseMessageBody';
+import { useMessageHeapState } from '../../hooks/useMessageHeapState';
+import { DoubleTick } from '../../assets/icons';
 
 const CustomMessageContainer = styled.View<{ isUser: boolean; reply?: number }>`
   flex-direction: row;
@@ -105,6 +107,7 @@ const CustomMessageTimestamp = styled.Text<{
 const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   const dispatch = useDispatch();
   const { config, langSource } = useChatSettingState();
+  const { heap } = useMessageHeapState();
 
   const [isPressed, setIsPressed] = useState(false);
 
@@ -190,6 +193,8 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
     ? parseMessageBody(config?.messageTextFilter.filterFunction(message.body))
     : parseMessageBody(message.body);
 
+  const isPending = heap.has(message.id) || message?.pending || false;
+
   return (
     <View>
       {isPressed && <View style={styles.overlay} />}\
@@ -273,17 +278,16 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
                 langSource={langSource}
               />
             )}
-            <CustomMessageTimestamp
-              isUser={isUser}
-              colorUser={config?.messageColor?.colorUser}
-              color={config?.messageColor?.color}
-            >
-              {message?.pending && "sending..."}
-              {new Date(message.date).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </CustomMessageTimestamp>
+            <CustomMessageTimestamp>
+            {!config?.disableSentLogic && isUser && isPending && 'sending...'}
+            {new Date(message.date).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+            {!config?.disableSentLogic && isUser && !isPending && (
+              <DoubleTick />
+            )}
+          </CustomMessageTimestamp>
             {message?.reply?.length && message?.reply?.length > 0 ? (
               <BottomReplyContainer
                 isUser={isUser}

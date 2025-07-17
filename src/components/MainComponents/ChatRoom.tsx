@@ -31,6 +31,7 @@ import {
   TouchableWithoutFeedback,
   Keyboard,
 } from "react-native";
+import useComposing from "../../hooks/useComposing";
 
 interface ChatRoomProps {
   CustomMessageComponent?: any;
@@ -58,7 +59,8 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
       sendMedia: sendMessageMedia,
       sendEditMessage,
     } = useSendMessage();
-
+    const { sendStartComposing, sendEndComposing } = useComposing(config);
+    
     const sendMessage = useCallback(
       (message: string) => {
         if(!activeRoomJID) {
@@ -220,6 +222,8 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
             sendMedia={sendMedia}
             config={config}
             isLoading={loading}
+            onFocus={sendStartComposing}
+            onBlur={sendEndComposing}
           />
         </ChatContainer>
       </KeyboardAvoidingView>

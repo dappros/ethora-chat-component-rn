@@ -16,6 +16,7 @@ interface MessageContainerProps {
     message: IMessage;
     isUser: boolean;
     isReply: boolean;
+    className?: string;
   }>;
   message: IMessage;
   activeMessage?: IMessage;
@@ -23,6 +24,7 @@ interface MessageContainerProps {
   walletAddress: string;
   isReply: boolean;
   showDateLabel: boolean;
+  className?: string;
 }
 
 export const MessageContainer: FC<MessageContainerProps> = ({
@@ -33,6 +35,7 @@ export const MessageContainer: FC<MessageContainerProps> = ({
   walletAddress,
   showDateLabel,
   isReply,
+  className,
 }) => {
   const isUser = message.user.id === walletAddress;
 
@@ -60,7 +63,12 @@ export const MessageContainer: FC<MessageContainerProps> = ({
       {showDateLabel && !activeMessage && message.id !== "delimiter-new" ? (
         <DateLabel date={messageDate} colors={config?.colors} />
       ) : null}
-      <MessageComponent message={message} isUser={isUser} isReply={isReply}>
+      <MessageComponent
+        message={message}
+        isUser={isUser}
+        isReply={isReply}
+        className={className}
+      >
         {!CustomMessage ? (
           <>
             <MessageTimestamp>
