@@ -82,7 +82,7 @@ export interface IConfig {
     enabled: boolean;
     messageEdit: string;
     buttonText: string;
-    label: ReactNode;
+    label?: ReactNode;
     buttonStyles?: ViewStyle;
     hideInputSendButton?: boolean;
     overwriteEnterClick?: true;
