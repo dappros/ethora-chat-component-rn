@@ -44,6 +44,7 @@ function App(): React.JSX.Element {
           //   },
           // },
           initBeforeLoad: true,
+          disableMedia: true,
           ...config,
         }}
       />

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import Button from "../../styled/Button";
 import { AddNewIcon, AddPhotoIcon } from "../../../assets/icons";
-import { useDispatch, useSelector } from "react-redux";
 import { RootState } from "../../../roomStore";
 import { useXmppClient } from "../../../context/xmppProvider";
 import {
@@ -19,18 +18,21 @@ import { Text } from "react-native";
 import { ApiRoom, ChatAccessOption, RoomMember } from "../../../types/models/room.model";
 import { createRoomFromApi } from "../../../helpers/createRoomFromApi";
 import { postRoom } from "../../../networking/api-requests/rooms.api";
+import { useAppDispatch, useAppSelector } from "../../../hooks/hooks";
+import { useChatSettingState } from "../../../hooks/useChatSettingState";
 
 interface NewChatModalProps {
   handleCloseModal?: any;
 }
 
 const NewChatModal: React.FC<NewChatModalProps> = () => {
- const config = useSelector(
+ const config = useAppSelector(
     (state: RootState) => state.chatSettingStore.config
   );
 
-  const dispatch = useDispatch();
+  const dispatch = useAppDispatch();
   const { client } = useXmppClient();
+  const { user } = useChatSettingState();
 
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);

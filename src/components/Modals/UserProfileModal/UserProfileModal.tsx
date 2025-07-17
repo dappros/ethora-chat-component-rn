@@ -12,7 +12,7 @@ import {
 } from "../styledModalComponents";
 import { ChatIcon, EditIcon, LeaveIcon, MoreIcon } from "../../../assets/icons";
 import ModalHeaderComponent from "../ModalHeaderComponent";
-import { useDispatch, useSelector } from "react-redux";
+import { useSelector } from "react-redux";
 import { RootState } from "../../../roomStore";
 import { ProfileImagePlaceholder } from "../../MainComponents/ProfileImagePlaceholder";
 import Button from "../../styled/Button";
@@ -30,6 +30,7 @@ import { useXmppClient } from "../../../context/xmppProvider";
 import Loader from "../../styled/Loader";
 import { Iso639_1Codes } from "../../../types/types";
 import Select from "../../MainComponents/Select";
+import { useAppDispatch, useAppSelector } from "../../../hooks/hooks";
 
 interface UserProfileModalProps {
   handleCloseModal: any;
@@ -38,11 +39,11 @@ interface UserProfileModalProps {
 const UserProfileModal: React.FC<UserProfileModalProps> = ({
   handleCloseModal,
 }) => {
-  const dispatch = useDispatch();
+  const dispatch = useAppDispatch();
 
   const { client } = useXmppClient();
 
-  const { config, user, selectedUser } = useSelector(
+  const { config, user, selectedUser } = useAppSelector(
     (state: RootState) => state.chatSettingStore
   );
 

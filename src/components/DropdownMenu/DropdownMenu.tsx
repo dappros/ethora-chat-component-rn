@@ -117,7 +117,7 @@ const DropdownMenu: React.FC<DropdownMenuProps> = ({
               ]}
             >
               {options.map((option, index) => (
-                <View key={index} style={styles.menuItemWrapper}>
+                <View key={`${option.label}-${index}`} style={styles.menuItemWrapper}>
                   <TouchableOpacity
                     style={styles.menuItem}
                     onPress={() => {

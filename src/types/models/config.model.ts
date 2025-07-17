@@ -3,7 +3,7 @@ import { xmppSettingsInterface } from './xmpp.model';
 import { PartialRoomWithMandatoryKeys, ConfigRoom } from './room.model';
 import { MessageBubble } from './message.model';
 import { Iso639_1Codes } from './language.model';
-import React from 'react'; // Assuming React types are globally available or managed by the project's tsconfig
+import React, { ReactNode } from 'react'; // Assuming React types are globally available or managed by the project's tsconfig
 import { ViewStyle } from 'react-native';
 
 export interface FBConfig {
@@ -82,8 +82,10 @@ export interface IConfig {
     enabled: boolean;
     messageEdit: string;
     buttonText: string;
+    label: ReactNode;
     buttonStyles?: ViewStyle;
     hideInputSendButton?: boolean;
+    overwriteEnterClick?: true;
   };
   enableRoomsRetry?: { enabled: boolean; helperText: string };
   disableNewChatButton?: boolean;

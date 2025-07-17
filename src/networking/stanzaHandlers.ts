@@ -31,7 +31,7 @@ import { checkSingleUser } from '../helpers/checkUniqueUsers';
 // XMPP parsing will be done universally as a pre-processing step
 // then handlers for different types will work with a Javascript object
 // types: standard, coin transfer, is composing, attachment (media), token (nft) or smart contract
-// types can be added into our chat protocol (XMPP stanza add field type="") to make it easier to parse here
+// types can be added into our chat protocisRoomAlreadyAdded(XMPP stanza add field type="") to make it easier to parse here
 
 //core default
 const onRealtimeMessage = async (stanza: Element) => {
@@ -373,9 +373,9 @@ const onGetChatRooms = (stanza: Element, xmpp: any) => {
 
 
 
-      const isRoomAlreadyAdded = Object.values(currentChatRooms).some(
-        (element) => element.jid === result?.attrs?.jid
-      );
+      const isRoomAlreadyAdded = (
+        Object.values(currentChatRooms) as IRoom[]
+      ).some((element: IRoom) => element.jid === result?.attrs?.jid);
 
       if (!isRoomAlreadyAdded) {
         try {

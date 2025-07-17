@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
-import { useDispatch } from 'react-redux';
+import { useAppDispatch } from './hooks';
+import { useXmppClient } from '../context/xmppProvider';
 import { createRoomFromApi } from '../helpers/createRoomFromApi';
 import { getRooms } from '../networking/api-requests/rooms.api';
 import {
@@ -10,26 +11,22 @@ import {
 import { ApiRoom } from '../types/types';
 
 const useGetNewArchRoom = () => {
-  const dispatch = useDispatch();
-      console.log('useGetNewArchRoom initialized 1');
-  
+  const { client } = useXmppClient();
+  const dispatch = useAppDispatch();
+
   const syncRooms = useCallback(
     async (client: any, config: any): Promise<ApiRoom[]> => {
-      console.log('useGetNewArchRoom initialized 2');
       const rooms = await getRooms();
-
-      if (!rooms || !Array.isArray(rooms.items)) {
-        console.warn('rooms.items is undefined or not an array:', rooms);
-        return [];
-      }
-
       rooms?.items?.forEach((room) => {
-        dispatch(
-          addRoomViaApi({
-            room: createRoomFromApi(room, config?.xmppSettings?.conference),
-            xmpp: client,
-          })
-        );
+        const createdRoom = createRoomFromApi(room, config?.xmppSettings?.conference);
+        if (createdRoom) {
+          dispatch(
+            addRoomViaApi({
+              room: createdRoom,
+              xmpp: client,
+            })
+          );
+        }
       });
       dispatch(setIsLoading({ loading: false, loadingText: undefined }));
       dispatch(updateUsersSet({ rooms: rooms.items }));

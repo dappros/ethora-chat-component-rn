@@ -13,7 +13,6 @@ export const useSendMessage = () => {
 
   const {
     user,
-    // activeRoomJID,
     editAction,
   } = useSelector((state: RootState) => ({
     activeRoomJID: state.rooms.activeRoomJID,
