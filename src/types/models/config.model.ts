@@ -92,4 +92,5 @@ export interface IConfig {
     color: string;
   };
   enableTranslates?: boolean;
+  chatHeaderAdditional?: { enabled: boolean; element: any };
 }

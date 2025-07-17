@@ -10,6 +10,8 @@ import {
 } from "../styled/RoomListComponents";
 import Composing from "../styled/StyledInputComponents/Composing";
 import { Text, View } from "react-native";
+import LastMessageItem from "./LastMessageItem";
+import { LastRoomMessageText } from "./styled/StyledRoomComponents";
 
 interface ChatRoomItemProps {
   chat: IRoom;
@@ -88,7 +90,7 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
               usersTyping={chat.composingList}
               style={{ color: "#141414" }}
             />
-          ) : lastMessage?.body ? (
+            ) : lastMessage?.body ? (
             <View
               style={{
                 display: "flex",
@@ -125,6 +127,16 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
               </View>
             </View>
           ) : null}
+          {chat.composing ? (
+            <Composing
+              usersTyping={chat.composingList}
+              // style={{ color: !isChatActive ? '#141414' : '#fff' }}
+            />
+          ) : lastMessage?.body ? (
+            <LastMessageItem lastMessage={lastMessage} />
+          ) : chat.messages.length === 0 && chat.historyComplete ? (
+            <LastRoomMessageText>Room created</LastRoomMessageText>
+          ) : undefined}
           {chat.unreadMessages && chat.unreadMessages > 0 ? (
             <View
               style={{

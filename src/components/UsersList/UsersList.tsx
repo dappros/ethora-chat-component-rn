@@ -18,6 +18,7 @@ import { RoomMember } from '../../types/types';
 import { debounce } from '../../helpers/debounce';
 import { StyledInput } from '../styled/StyledInputComponents/StyledInputComponents';
 import { useRoomState } from '../../hooks/useRoomState';
+import { Text, View } from 'react-native';
 
 interface UsersListProps {
   selectedUsers: RoomMember[];
@@ -68,13 +69,13 @@ const UsersList: React.FC<UsersListProps> = ({
   }, [usersSet]);
 
   return (
-    <div style={{ maxHeight: '100px', ...style }}>
+    <View style={{ maxHeight: '100px', ...style }}>
       {headerElement ? (
         <ModalTitle>Select Users (max 20)</ModalTitle>
       ) : (
-        <div style={{ fontSize: '14px', fontWeight: 600 }}>
+        <Text style={{ fontSize: 14, fontWeight: '600' }}>
           Select Users (max 20)
-        </div>
+        </Text>
       )}
 
       <StyledInput
@@ -96,14 +97,14 @@ const UsersList: React.FC<UsersListProps> = ({
               onValueChange={() => handleUserSelect(user)}
               disabled={selectedUsers.length === 20}
             />
-            <div>
+            <View>
               <Label>{`${user.firstName} ${user.lastName}`}</Label>
               {/* <LabelData>{user.xmppUsername}</LabelData> */}
-            </div>
+            </View>
           </UserItem>
         ))}
       </ScrollableContainer>
-    </div>
+    </View>
   );
 };
 

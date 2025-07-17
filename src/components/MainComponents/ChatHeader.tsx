@@ -41,7 +41,8 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   const { client } = useXmppClient();
 
   const { roomsList, activeRoomJID } = useRoomState(currentRoom.jid);
-  const { composing } = useRoomState(currentRoom.jid).room;
+  const roomState = useRoomState(currentRoom.jid).room;
+  const composing = roomState?.composing;
   const { config } = useChatSettingState();
 
   const handleChangeChat = (chat: IRoom) => {
@@ -65,73 +66,77 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   };
 
   return (
-    <ChatContainerHeader>
-      {handleBackClick && !config?.headerChatMenu ? (
-        <View style={styles.leftContainer}>
-          <Button
-            EndIcon={<BackIcon />}
-            onPress={() => handleBackClick(false)}
-          />
-        </View>
-      ) : (
-        <View style={styles.leftContainer}>
-          <Button
-            style={styles.menuButton}
-            color="black"
-            unstyled
-            EndIcon={<BurgerMenuIcon color={config?.colors?.primary} />}
-            onPress={handleHeaderChatMenu}
-          />
-        </View>
-      )}
-      <CenterContainer
-        rightSpace={config?.disableRoomConfig}
-        leftSpace={!!config?.headerChatMenu}
-      >
-        {config?.chatHeaderBurgerMenu && roomsList && (
-          <RoomList
-            chats={Object.values(roomsList)}
-            burgerMenu
-            onRoomClick={handleChangeChat}
-          />
-        )}
-        <ChatContainerHeaderBoxInfo
-          onPress={() => dispatch(setActiveModal(MODAL_TYPES.CHAT_PROFILE))}
-          disabled={config?.disableProfilesInteractions}
-        >
-          <View>
-            <ProfileImagePlaceholder
-              name={currentRoom.name}
-              size={40}
-              icon={currentRoom?.icon}
-              active={!config?.disableProfilesInteractions || true}
+    <>
+      <ChatContainerHeader>
+        {handleBackClick && !config?.headerChatMenu ? (
+          <View style={styles.leftContainer}>
+            <Button
+              EndIcon={<BackIcon />}
+              onPress={() => handleBackClick(false)}
             />
           </View>
-          <ChatContainerHeaderInfo>
-            <ChatContainerHeaderLabel numberOfLines={1} ellipsizeMode="tail">
-              {currentRoom?.title}
-            </ChatContainerHeaderLabel>
+        ) : (
+          <View style={styles.leftContainer}>
+            <Button
+              style={styles.menuButton}
+              color="black"
+              unstyled
+              EndIcon={<BurgerMenuIcon color={config?.colors?.primary} />}
+              onPress={handleHeaderChatMenu}
+            />
+          </View>
+        )}
+        <CenterContainer
+          rightSpace={config?.disableRoomConfig}
+          leftSpace={!!config?.headerChatMenu}
+        >
+          {config?.chatHeaderBurgerMenu && roomsList && (
+            <RoomList
+              chats={Object.values(roomsList)}
+              burgerMenu
+              onRoomClick={handleChangeChat}
+            />
+          )}
+          <ChatContainerHeaderBoxInfo
+            onPress={() => dispatch(setActiveModal(MODAL_TYPES.CHAT_PROFILE))}
+            disabled={config?.disableProfilesInteractions}
+          >
             <View>
-              {composing ? (
-                <Composing usersTyping={currentRoom?.composingList} />
-              ) : config?.disableUserCount ? undefined : (
-                <ChatContainerHeaderLabel style={styles.subLabel}>
-                  <Text>{`${currentRoom?.usersCnt} users`}</Text>
-                </ChatContainerHeaderLabel>
-              )}
+              <ProfileImagePlaceholder
+                name={currentRoom.name}
+                size={40}
+                icon={currentRoom?.icon}
+                active={!config?.disableProfilesInteractions || true}
+              />
             </View>
-          </ChatContainerHeaderInfo>
-        </ChatContainerHeaderBoxInfo>
-      </CenterContainer>
+            <ChatContainerHeaderInfo>
+              <ChatContainerHeaderLabel numberOfLines={1} ellipsizeMode="tail">
+                {currentRoom?.title}
+              </ChatContainerHeaderLabel>
+              <View>
+                {composing ? (
+                  <Composing usersTyping={currentRoom?.composingList} />
+                ) : config?.disableUserCount ? undefined : (
+                  <ChatContainerHeaderLabel style={styles.subLabel}>
+                    <Text>{`${currentRoom?.usersCnt} users`}</Text>
+                  </ChatContainerHeaderLabel>
+                )}
+              </View>
+            </ChatContainerHeaderInfo>
+          </ChatContainerHeaderBoxInfo>
+        </CenterContainer>
 
-      {!config?.disableRoomConfig ? (
-        <View style={styles.rightContainer}>
-          <RoomMenu handleLeaveClick={handleLeaveClick} />
-        </View>
-      ) : (
-        <View style={styles.rightContainer} />
-      )}
-    </ChatContainerHeader>
+        {!config?.disableRoomConfig ? (
+          <View style={styles.rightContainer}>
+            <RoomMenu handleLeaveClick={handleLeaveClick} />
+          </View>
+        ) : (
+          <View style={styles.rightContainer} />
+        )}
+      </ChatContainerHeader>
+      {config?.chatHeaderAdditional?.enabled &&
+          config.chatHeaderAdditional.element()}
+    </>
   );
 };
 

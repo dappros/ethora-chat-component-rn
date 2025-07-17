@@ -36,7 +36,7 @@ import ThreadWrapper from "../Thread/ThreadWrapper";
 import { ModalWrapper } from "../Modals/ModalWrapper/ModalWrapper";
 import { useChatSettingState } from "../../hooks/useChatSettingState";
 import { CONFERENCE_DOMAIN } from "../../helpers/constants/PLATFORM_CONSTANTS";
-import { AppState, Linking, StatusBar, View, ViewStyle } from "react-native";
+import { AppState, Linking, StatusBar, Text, View, ViewStyle } from "react-native";
 import useMessageLoaderQueue from "../../hooks/useMessageLoaderQueue";
 import { useRoomState } from "../../hooks/useRoomState";
 import useChatWrapperInit from "../../hooks/useChatWrapperInit.ts";
@@ -161,7 +161,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
         style={{ alignItems: 'center', flexDirection: 'column', gap: '10px' }}
       >
         <Loader color={config?.colors?.primary} />
-        {loadingText && <div>{loadingText}</div>}
+        {loadingText && <Text>{loadingText}</Text>}
       </StyledLoaderWrapper>
     );
   }
