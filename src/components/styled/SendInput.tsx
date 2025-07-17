@@ -110,7 +110,7 @@ const SendInput: React.FC<SendInputProps> = ({
               />
             </>
           )}
-          {
+          {config?.secondarySendButton?.hideInputSendButton ? null : (
             <Button
               onPress={handleSendClick}
               EndIcon={
@@ -128,7 +128,7 @@ const SendInput: React.FC<SendInputProps> = ({
                     : "transparent",
               }}
             />
-          }
+          )}
         </MessageInputContainer>
         <View
           style={{

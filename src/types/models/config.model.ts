@@ -4,6 +4,7 @@ import { PartialRoomWithMandatoryKeys, ConfigRoom } from './room.model';
 import { MessageBubble } from './message.model';
 import { Iso639_1Codes } from './language.model';
 import React from 'react'; // Assuming React types are globally available or managed by the project's tsconfig
+import { ViewStyle } from 'react-native';
 
 export interface FBConfig {
   apiKey: string;
@@ -81,7 +82,8 @@ export interface IConfig {
     enabled: boolean;
     messageEdit: string;
     buttonText: string;
-    buttonStyles?: React.CSSProperties;
+    buttonStyles?: ViewStyle;
+    hideInputSendButton?: boolean;
   };
   enableRoomsRetry?: { enabled: boolean; helperText: string };
   disableNewChatButton?: boolean;
@@ -93,4 +95,9 @@ export interface IConfig {
   };
   enableTranslates?: boolean;
   chatHeaderAdditional?: { enabled: boolean; element: any };
+  botMessageAutoScroll?: boolean;
+  messageTextFilter?: {
+    enabled: boolean;
+    filterFunction: (text: string) => string;
+  };
 }

@@ -186,6 +186,10 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
     setIsPressed(true);
   };
 
+  const messageText = config?.messageTextFilter?.enabled
+    ? parseMessageBody(config?.messageTextFilter.filterFunction(message.body))
+    : parseMessageBody(message.body);
+
   return (
     <View>
       {isPressed && <View style={styles.overlay} />}\
@@ -257,7 +261,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
                     colorUser={config?.messageColor?.colorUser}
                     color={config?.messageColor?.color}
                   >
-                    <Text>{parseMessageBody(message.body)}</Text>
+                    <Text>{messageText}</Text>
                   </CustomMessageText>
                 )}
               </>
