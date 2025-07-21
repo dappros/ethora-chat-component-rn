@@ -182,7 +182,7 @@ export const useSendMessage = () => {
               fileName: data.name,
               location: '',
               locationPreview: '',
-              mimetype: data.type,
+              mimetype: type,
               originalName: data.name,
               size: data.size.toString(),
               isReply,
