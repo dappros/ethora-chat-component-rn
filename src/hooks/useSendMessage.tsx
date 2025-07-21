@@ -6,6 +6,7 @@ import { uploadFile } from '../networking/api-requests/auth.api';
 import { RootState } from '../roomStore';
 import { useChatSettingState } from './useChatSettingState';
 import { addMessageToHeap } from '../roomStore/roomHeapSlice';
+import { v4 as uuidv4 } from 'uuid';
 
 export const useSendMessage = () => {
   const { config, langSource } = useChatSettingState();
@@ -42,7 +43,7 @@ export const useSendMessage = () => {
       } else {
         if (config?.translates?.enabled) {
           if (!config?.disableSentLogic) {
-            const id = `send-translate-message-${Date.now().toString()}`;
+            const id = `send-translate-message-${uuidv4()}`;
             dispatch(
               addRoomMessage({
                 roomJID: activeRoomJID,
@@ -77,7 +78,7 @@ export const useSendMessage = () => {
             langSource || 'en'
           );
         } else {
-          const id = `send-text-message-${Date.now().toString()}`;
+          const id = `send-text-message-${uuidv4()}`;
           if (!config?.disableSentLogic) {
             dispatch(
               addRoomMessage({
@@ -157,7 +158,7 @@ export const useSendMessage = () => {
       isChecked = false,
       mainMessage = ''
     ) => {
-      const id = `send-media-message:${Date.now()}`;
+      const id = `send-media-message:${uuidv4()}`;
 
       if (!config?.disableSentLogic) {
         dispatch(

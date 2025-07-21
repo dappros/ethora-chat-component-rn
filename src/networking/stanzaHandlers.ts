@@ -63,6 +63,7 @@ const onRealtimeMessage = async (stanza: Element) => {
       const { data } = await getDataFromXml(stanza);
     } catch (error) {
       handleErrorMessageStanza(stanza);
+      console.log('err', error);
       return;
     }
     const { data, id, body, ...rest } = await getDataFromXml(stanza);
