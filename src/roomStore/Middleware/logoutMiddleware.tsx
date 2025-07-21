@@ -1,30 +1,22 @@
 import { Middleware } from '@reduxjs/toolkit';
+import { DeviceEventEmitter } from 'react-native';
 
 export const logoutMiddleware: Middleware =
   (storeAPI) => (next) => (action: any) => {
+    if (!action || !action.type) {
+      console.error('Invalid action in logoutMiddleware:', action);
+      return next(action);
+    }
+
     const result = next(action);
 
     if (action.type === 'chatSettingStore/logout') {
-      if (typeof window !== 'undefined') {
-        try {
-          setTimeout(() => {
-            const xmppProviderElement = document.querySelector(
-              '[data-xmpp-provider="true"]'
-            );
-            if (xmppProviderElement) {
-              const client = (xmppProviderElement as any).__xmppClient;
-              if (client && typeof client.disconnect === 'function') {
-                console.log('Disconnecting XMPP client due to logout');
-                client.disconnect();
-              }
-            }
-
-            const logoutEvent = new CustomEvent('ethora-xmpp-logout');
-            window.dispatchEvent(logoutEvent);
-          }, 0);
-        } catch (error) {
-          console.error('Error disconnecting XMPP client:', error);
-        }
+      try {
+        setTimeout(() => {
+          DeviceEventEmitter.emit('ethora-xmpp-logout');
+        }, 0);
+      } catch (error) {
+        console.error('Error dispatching ethora-xmpp-logout event:', error);
       }
     }
 

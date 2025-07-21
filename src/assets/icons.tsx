@@ -20,14 +20,14 @@ export const AddNewIcon = ({ color = "#0052CD", ...props }) => (
       fill={color}
     />
     <Path
-      fill-rule="evenodd"
-      clip-rule="evenodd"
+      fillRule="evenodd"
+      clipRule="evenodd"
       d="M10 4C10.4142 4 10.75 4.33579 10.75 4.75V11.75C10.75 12.1642 10.4142 12.5 10 12.5C9.58579 12.5 9.25 12.1642 9.25 11.75V4.75C9.25 4.33579 9.58579 4 10 4Z"
       fill={color}
     />
     <Path
-      fill-rule="evenodd"
-      clip-rule="evenodd"
+      fillRule="evenodd"
+      clipRule="evenodd"
       d="M14.25 8.25C14.25 8.66421 13.9142 9 13.5 9L6.5 9C6.08579 9 5.75 8.66421 5.75 8.25C5.75 7.83579 6.08579 7.5 6.5 7.5L13.5 7.5C13.9142 7.5 14.25 7.83579 14.25 8.25Z"
       fill={color}
     />
@@ -59,15 +59,15 @@ export const CloseIcon = (props: any) => (
       d="M3 21.32L21 3.32001"
       stroke="#000000"
       strokeWidth="1.5"
-      stroke-linecap="round"
-      stroke-linejoin="round"
+      strokeLinecap="round"
+      strokeLinejoin="round"
     />
     <Path
       d="M3 3.32001L21 21.32"
       stroke="#000000"
       strokeWidth="1.5"
-      stroke-linecap="round"
-      stroke-linejoin="round"
+      strokeLinecap="round"
+      strokeLinejoin="round"
     />
   </Svg>
 );
@@ -124,19 +124,19 @@ export const RemoveIcon = (props: any) => (
       d="M2.00391 12.6699V26.3797C2.00391 30.5862 5.41398 33.9963 9.62051 33.9963H18.3795C22.586 33.9963 25.9961 30.5862 25.9961 26.3797V12.6699"
       stroke="#9F0000"
       strokeWidth="2.5"
-      stroke-linecap="round"
+      strokeLinecap="round"
     />
     <Path
       d="M2.00391 7.3355H8.00195M25.9961 7.3355H19.998M8.00195 7.3355V5.81221C8.00195 3.70894 9.70699 2.00391 11.8103 2.00391H16.1897C18.293 2.00391 19.998 3.70894 19.998 5.81221V7.3355M8.00195 7.3355H19.998"
       stroke="#9F0000"
       strokeWidth="2.5"
-      stroke-linecap="round"
+      strokeLinecap="round"
     />
     <Path
       d="M9.99902 15.334V25.9972M17.9964 15.334V25.9972"
       stroke="#9F0000"
       strokeWidth="2.5"
-      stroke-linecap="round"
+      strokeLinecap="round"
     />
   </Svg>
 );
@@ -288,16 +288,16 @@ export const ReportIcon = ({ color = "#8C8C8C", ...props }) => (
     <Path
       d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z"
       stroke="#E53935"
-      stroke-width="1.5"
-      stroke-linecap="round"
-      stroke-linejoin="round"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
     />
     <Path
       d="M12 7V13M12 16H12.01"
       stroke="#E53935"
-      stroke-width="1.5"
-      stroke-linecap="round"
-      stroke-linejoin="round"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
     />
   </Svg>
 );
@@ -322,16 +322,16 @@ export const CopyIcon = ({ color = "#8C8C8C", ...props }) => (
     <Path
       d="M8 4V16C8 16.5304 8.21071 17.0391 8.58579 17.4142C8.96086 17.7893 9.46957 18 10 18H18C18.5304 18 19.0391 17.7893 19.4142 17.4142C19.7893 17.0391 20 16.5304 20 16V7.242C20 6.97556 19.9467 6.71181 19.8433 6.46624C19.7399 6.22068 19.5885 5.99824 19.398 5.812L16.083 2.57C15.7094 2.20466 15.2076 2.00007 14.685 2H10C9.46957 2 8.96086 2.21071 8.58579 2.58579C8.21071 2.96086 8 3.46957 8 4Z"
       stroke="#1F1F1F"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
     />
     <Path
       d="M16 18V20C16 20.5304 15.7893 21.0391 15.4142 21.4142C15.0391 21.7893 14.5304 22 14 22H6C5.46957 22 4.96086 21.7893 4.58579 21.4142C4.21071 21.0391 4 20.5304 4 20V9C4 8.46957 4.21071 7.96086 4.58579 7.58579C4.96086 7.21071 5.46957 7 6 7H8"
       stroke="#1F1F1F"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
     />
   </Svg>
 );
@@ -351,7 +351,7 @@ export const SendItemIcon = ({ color = "#8C8C8C", ...props }) => (
       d="M4.50577 7.6732L12 3.34641L19.4942 7.67321V16.3268L12 20.6536L4.50577 16.3268V7.6732Z"
       fill="url(#pattern0_846_13873)"
       stroke="#0052CD"
-      stroke-width="0.6"
+      strokeWidth="0.6"
     />
     <Defs>
       <Pattern
@@ -380,13 +380,13 @@ export const SendCoinIcon = ({ color = "#8C8C8C", ...props }) => (
       r="8.7"
       fill="url(#paint0_linear_846_13863)"
       stroke="#DB8828"
-      stroke-width="0.6"
+      strokeWidth="0.6"
     />
     <Path
       d="M14.9181 8.98771H15.0681V8.83771V7.37825V7.22825H14.9181H13.2438V6.40527V6.25527H13.0938H11.391H11.241V6.40527V7.22825H8.59375H8.23162L8.48768 7.48431L12.8816 11.8782L8.48768 16.2722L8.23162 16.5282H8.59375H11.241V17.5945V17.7445H11.391H13.0938H13.2438V17.5945V16.5282H14.9181H15.0681V16.3782V14.9188V14.7688H14.9181H12.5943L15.2695 11.9821L15.3693 11.8782L15.2695 11.7744L12.5943 8.98771H14.9181Z"
       fill="white"
       stroke="#DB8828"
-      stroke-width="0.3"
+      strokeWidth="0.3"
     />
     <Defs>
       <LinearGradient
@@ -397,9 +397,9 @@ export const SendCoinIcon = ({ color = "#8C8C8C", ...props }) => (
         y2="17.5"
         gradientUnits="userSpaceOnUse"
       >
-        <Stop stop-color="#FFD100" />
-        <Stop offset="0.505208" stop-color="#FB8E3A" />
-        <Stop offset="1" stop-color="#FFD100" />
+        <Stop stopColor="#FFD100" />
+        <Stop offset="0.505208" stopColor="#FB8E3A" />
+        <Stop offset="1" stopColor="#FFD100" />
       </LinearGradient>
     </Defs>
   </Svg>
@@ -442,9 +442,9 @@ export const BurgerMenuIcon = ({ color = "#fff", ...props }) => (
     <Path
       d="M3 6H21M3 12H15M3 18H21"
       stroke="#8C8C8C"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
     />
   </Svg>
 );
@@ -454,16 +454,16 @@ export const LeaveIcon = ({ color = "#fff", ...props }) => (
     <Path
       d="M14 8V6C14 5.46957 13.7893 4.96086 13.4142 4.58579C13.0391 4.21071 12.5304 4 12 4H5C4.46957 4 3.96086 4.21071 3.58579 4.58579C3.21071 4.96086 3 5.46957 3 6V18C3 18.5304 3.21071 19.0391 3.58579 19.4142C3.96086 19.7893 4.46957 20 5 20H12C12.5304 20 13.0391 19.7893 13.4142 19.4142C13.7893 19.0391 14 18.5304 14 18V16"
       stroke="#E53935"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
     />
     <Path
       d="M9 12H21M21 12L18 9M21 12L18 15"
       stroke="#E53935"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
     />
   </Svg>
 );
@@ -474,9 +474,9 @@ export const BackIcon = ({ color = "#fff", ...props }) => (
     <Path
       d="M5 12H19M5 12L9 8M5 12L9 16"
       stroke="#8C8C8C"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
     />
   </Svg>
 );
@@ -508,9 +508,9 @@ export const EditIcon = ({ color = "#000", ...props }) => (
     <Path
       d="M15 5.9997L18 8.9997M13 19.9997H21M5 15.9997L4 19.9997L8 18.9997L19.586 7.4137C19.9609 7.03864 20.1716 6.53003 20.1716 5.9997C20.1716 5.46937 19.9609 4.96075 19.586 4.5857L19.414 4.4137C19.0389 4.03876 18.5303 3.82812 18 3.82812C17.4697 3.82813 16.9611 4.03876 16.586 4.4137L5 15.9997Z"
       stroke={color}
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
     />
   </Svg>
 );
@@ -521,16 +521,16 @@ export const InfoIcon = ({ color = "#004AC2", ...props }) => (
       <Path
         d="M7.9987 14.6654C11.6806 14.6654 14.6654 11.6806 14.6654 7.9987C14.6654 4.3168 11.6806 1.33203 7.9987 1.33203C4.3168 1.33203 1.33203 4.3168 1.33203 7.9987C1.33203 11.6806 4.3168 14.6654 7.9987 14.6654Z"
         stroke={color}
-        stroke-width="1.33333"
-        stroke-linecap="round"
-        stroke-linejoin="round"
+        strokeWidth="1.33333"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
       <Path
         d="M8 10.6654V7.9987M8 5.33203H8.00667"
         stroke={color}
-        stroke-width="1.33333"
-        stroke-linecap="round"
-        stroke-linejoin="round"
+        strokeWidth="1.33333"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </G>
     <Defs>
@@ -555,9 +555,9 @@ export const SaveIcon = ({ color = "#8C8C8C", ...props }) => (
     <Path
       d="M1.00207 13V14C1.00207 14.7956 0.939344 15.9374 1.50195 16.5C2.06456 17.0626 3.20643 17 4.00207 17H14.0021C14.7977 17 15.9395 17.0626 16.5021 16.5C17.0647 15.9374 17.0021 14.7956 17.0021 14V13M13.0021 9L9.00208 13M9.00208 13L5.00208 9M9.00208 13V1"
       stroke={color}
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
     />
   </Svg>
 );
@@ -580,12 +580,12 @@ export const SettingIcon = ({ color = "#8C8C8C", ...props }) => (
     <Path
       d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z"
       stroke={color}
-      stroke-width="2"
+      strokeWidth="2"
     />
     <Path
       d="M13.7655 2.152C13.3985 2 12.9325 2 12.0005 2C11.0685 2 10.6025 2 10.2355 2.152C9.99263 2.25251 9.772 2.3999 9.58617 2.58572C9.40035 2.77155 9.25296 2.99218 9.15245 3.235C9.06045 3.458 9.02345 3.719 9.00945 4.098C9.00294 4.37193 8.92705 4.63973 8.78889 4.87635C8.65073 5.11298 8.45481 5.31069 8.21945 5.451C7.98026 5.58477 7.71104 5.65567 7.43698 5.65707C7.16293 5.65847 6.893 5.59032 6.65245 5.459C6.31645 5.281 6.07345 5.183 5.83245 5.151C5.30677 5.08187 4.77515 5.22431 4.35445 5.547C4.04045 5.79 3.80645 6.193 3.34045 7C2.87445 7.807 2.64045 8.21 2.58945 8.605C2.55509 8.86545 2.57237 9.13012 2.64032 9.38389C2.70826 9.63767 2.82554 9.87556 2.98545 10.084C3.13345 10.276 3.34045 10.437 3.66145 10.639C4.13445 10.936 4.43845 11.442 4.43845 12C4.43845 12.558 4.13445 13.064 3.66145 13.36C3.34045 13.563 3.13245 13.724 2.98545 13.916C2.82554 14.1244 2.70826 14.3623 2.64032 14.6161C2.57237 14.8699 2.55509 15.1345 2.58945 15.395C2.64145 15.789 2.87445 16.193 3.33945 17C3.80645 17.807 4.03945 18.21 4.35445 18.453C4.56289 18.6129 4.80078 18.7302 5.05456 18.7981C5.30833 18.8661 5.573 18.8834 5.83345 18.849C6.07345 18.817 6.31645 18.719 6.65245 18.541C6.893 18.4097 7.16293 18.3415 7.43698 18.3429C7.71104 18.3443 7.98026 18.4152 8.21945 18.549C8.70245 18.829 8.98945 19.344 9.00945 19.902C9.02345 20.282 9.05945 20.542 9.15245 20.765C9.25296 21.0078 9.40035 21.2284 9.58617 21.4143C9.772 21.6001 9.99263 21.7475 10.2355 21.848C10.6025 22 11.0685 22 12.0005 22C12.9325 22 13.3985 22 13.7655 21.848C14.0083 21.7475 14.2289 21.6001 14.4147 21.4143C14.6006 21.2284 14.7479 21.0078 14.8484 20.765C14.9404 20.542 14.9775 20.282 14.9915 19.902C15.0115 19.344 15.2985 18.828 15.7815 18.549C16.0206 18.4152 16.2899 18.3443 16.5639 18.3429C16.838 18.3415 17.1079 18.4097 17.3484 18.541C17.6844 18.719 17.9274 18.817 18.1674 18.849C18.4279 18.8834 18.6926 18.8661 18.9463 18.7981C19.2001 18.7302 19.438 18.6129 19.6465 18.453C19.9615 18.211 20.1944 17.807 20.6604 17C21.1264 16.193 21.3604 15.79 21.4114 15.395C21.4458 15.1345 21.4285 14.8699 21.3606 14.6161C21.2926 14.3623 21.1754 14.1244 21.0154 13.916C20.8674 13.724 20.6605 13.563 20.3395 13.361C20.1054 13.2184 19.9113 13.0187 19.7754 12.7807C19.6395 12.5427 19.5663 12.2741 19.5625 12C19.5625 11.442 19.8665 10.936 20.3395 10.64C20.6605 10.437 20.8684 10.276 21.0154 10.084C21.1754 9.87556 21.2926 9.63767 21.3606 9.38389C21.4285 9.13012 21.4458 8.86545 21.4114 8.605C21.3594 8.211 21.1264 7.807 20.6614 7C20.1944 6.193 19.9615 5.79 19.6465 5.547C19.438 5.38709 19.2001 5.26981 18.9463 5.20187C18.6926 5.13392 18.4279 5.11664 18.1674 5.151C17.9274 5.183 17.6845 5.281 17.3475 5.459C17.107 5.59014 16.8373 5.6582 16.5634 5.6568C16.2896 5.6554 16.0205 5.58459 15.7815 5.451C15.5461 5.31069 15.3502 5.11298 15.212 4.87635C15.0738 4.63973 14.998 4.37193 14.9915 4.098C14.9775 3.718 14.9414 3.458 14.8484 3.235C14.7479 2.99218 14.6006 2.77155 14.4147 2.58572C14.2289 2.3999 14.0083 2.25251 13.7655 2.152Z"
       stroke={color}
-      stroke-width="2"
+      strokeWidth="2"
     />
   </Svg>
 );
@@ -596,9 +596,9 @@ export const FileIcon = ({ width = 46, height = 46, ...props }) => (
     <Path
       d="M27 17V27C27 28.1046 26.1046 29 25 29H15C13.8954 29 13 28.1046 13 27V26V13C13 11.8954 13.8954 11 15 11H21M27 17L21 11M27 17H23C21.8954 17 21 16.1046 21 15V11"
       stroke="#60269E"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
     />
   </Svg>
 );
@@ -617,8 +617,8 @@ export const MediaIcon = ({ width = 13.3, height = 11.4, ...props }) => (
     <Path
       d="M1.33398 8L2.50198 6.978C2.79474 6.72205 3.17381 6.58689 3.56247 6.59989C3.95112 6.61288 4.32031 6.77306 4.59532 7.048L7.45532 9.908C7.67726 10.1299 7.97035 10.2664 8.28302 10.2935C8.59568 10.3205 8.90788 10.2364 9.16465 10.056L9.36399 9.916C9.73438 9.65586 10.1821 9.52905 10.6339 9.55629C11.0857 9.58354 11.5149 9.76323 11.8513 10.066L14.0007 12M1.33398 7C1.33398 4.17175 1.33398 2.75725 2.11532 1.879C2.89598 1 4.15332 1 6.66732 1H9.33398C11.848 1 13.1053 1 13.886 1.879C14.6673 2.75725 14.6673 4.17175 14.6673 7C14.6673 9.82825 14.6673 11.2427 13.886 12.121C13.1053 13 11.848 13 9.33398 13H6.66732C4.15332 13 2.89598 13 2.11532 12.121C1.33398 11.2427 1.33398 9.82825 1.33398 7ZM12.6673 4.66667C12.6673 5.21895 12.2196 5.66667 11.6673 5.66667C11.115 5.66667 10.6673 5.21895 10.6673 4.66667C10.6673 4.11438 11.115 3.66667 11.6673 3.66667C12.2196 3.66667 12.6673 4.11438 12.6673 4.66667Z"
       stroke="#53575A"
-      stroke-width="1.333"
-      stroke-linecap="round"
+      strokeWidth="1.333"
+      strokeLinecap="round"
     />
   </Svg>
 );
@@ -628,9 +628,9 @@ export const DocumentIcon = ({ width = 46, height = 46, ...props }) => (
     <Path
       d="M1.33398 5V11.6667C1.33398 12.403 1.93094 13 2.66732 13H9.33398C10.0704 13 10.6673 12.403 10.6673 11.6667V11V2.33333C10.6673 1.59695 10.0704 1 9.33398 1H5.33398M1.33398 5L5.33398 1M1.33398 5H4.00065C4.73703 5 5.33398 4.40305 5.33398 3.66667V1"
       stroke="#53575A"
-      stroke-width="1.333"
-      stroke-linecap="round"
-      stroke-linejoin="round"
+      strokeWidth="1.333"
+      strokeLinecap="round"
+      strokeLinejoin="round"
     />
   </Svg>
 );
@@ -640,28 +640,27 @@ export const ArowDownIcon = ({ width = 46, height = 46, ...props }) => (
     <Path
       d="M7 10L12 15L17 10"
       stroke="#000000"
-      stroke-width="1.5"
-      stroke-linecap="round"
-      stroke-linejoin="round"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
     />
   </Svg>
 );
 
 export const DoubleTick = ({ fill = '#fff', color = '#0052CD', ...props }) => (
-  <svg
+  <Svg
     width="16"
     height="16"
     viewBox="0 0 16 16"
     fill="none"
-    xmlns="http://www.w3.org/2000/svg"
     {...props}
   >
-    <path
+    <Path
       d="M1.75 9.75L4.25 12.25M7.75 8.25L10.25 5.75M5.75 9.75L8.25 12.25L14.25 5.75"
       stroke="#16A34A"
       strokeWidth="1.5"
       strokeLinecap="round"
       strokeLinejoin="round"
     />
-  </svg>
+  </Svg>
 );

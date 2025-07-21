@@ -4,9 +4,20 @@ import { IRoom } from '../../types/types';
 
 export const newMessageMidlleware: Middleware =
   (storeAPI) => (next) => (action: any) => {
+    if (!action || !action.type) {
+      console.error('Invalid action in newMessageMiddleware:', action);
+      return next(action);
+    }
+    
     if (action.type !== 'roomMessages/addRoomMessage') {
       return next(action);
     }
+
+    if (!action.payload || typeof action.payload !== 'object') {
+      console.error('Invalid action payload for addRoomMessage:', action);
+      return next(action);
+    }
+
     const result = next(action);
     const state = storeAPI.getState();
     const rooms: { [jid: string]: IRoom } = state.rooms.rooms;
