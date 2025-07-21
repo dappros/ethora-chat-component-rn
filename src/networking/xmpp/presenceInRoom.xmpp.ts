@@ -1,6 +1,7 @@
 import { Client, xml } from '@xmpp/client';
 import { createTimeoutPromise } from './createTimeoutPromise.xmpp';
 import { Element } from '@xmpp/xml';
+
 export const presenceInRoom = async (
   client: Client,
   roomJID: string,
@@ -52,8 +53,18 @@ export const presenceInRoom = async (
       return reject(err);
     }
 
-    await createTimeoutPromise(2000, () =>
-      finish(reject, new Error('Presence in room timeout'))
-    ).catch(() => {});
+    const timeoutPromise = createTimeoutPromise(2000, () => {
+      if (!settled) {
+        finish(reject, new Error('Presence in room timeout'));
+      }
+    });
+
+    try {
+      await timeoutPromise;
+    } catch (error) {
+      if (!settled) {
+        finish(reject, new Error('Presence in room timeout'));
+      }
+    }
   });
 };
