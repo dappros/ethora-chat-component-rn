@@ -102,6 +102,7 @@ export interface IConfig {
     enabled: boolean;
     filterFunction: (text: string) => string;
   };
+  additionalFuncSendMessage?: (args: any) => any;
   disableTypingIndicator?: boolean;
   blockMessageSendingWhenProcessing?: boolean;
   customTypingIndicator?: {
