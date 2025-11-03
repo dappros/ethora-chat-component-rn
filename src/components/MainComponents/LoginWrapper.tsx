@@ -5,7 +5,7 @@ import { RootState } from "../../roomStore";
 import { useDispatch, useSelector } from "react-redux";
 import { logout, setConfig, setUser } from "../../roomStore/chatSettingsSlice";
 import { loginEmail, loginViaJwt } from "../../networking/api-requests/auth.api";
-import { OrDelimiter } from "../styled/StyledComponents";
+import { OrDelimiter, StyledLoaderWrapper } from "../styled/StyledComponents";
 import { Text, View, ViewStyle } from "react-native";
 import Button from "../styled/Button";
 import LoginForm from "../AuthForms/Login";
@@ -142,7 +142,11 @@ const LoginWrapper: React.FC<LoginWrapperProps> = ({ ...props }) => {
       ) : user && user.xmppPassword !== "" ? (
         <ChatWrapper {...props} />
         ) : config && config.jwtLogin && config.jwtLogin.enabled ? (
-        <Loader />
+          <StyledLoaderWrapper
+            style={{ alignItems: 'center', flexDirection: 'column', gap: '10px' }}
+          >
+            <Loader color={config?.colors?.primary}/>
+          </StyledLoaderWrapper>
       ) : (
         <LoginForm {...props} />
       )}

@@ -21,8 +21,10 @@ export const HeaderRoomList: FC<HeaderRoomListProps> = ({ setDrawerOpen }) => {
       if (typeof image === "function") {
         const SvgComponent = image as React.FC<React.SVGProps<SVGSVGElement>>;
         return <SvgComponent />;
+      } else if (typeof image === "string") {
+        return <Image source={{ uri: image }} />;
       } else {
-        return <Image source={image} />;
+        return image;
       }
     }
 

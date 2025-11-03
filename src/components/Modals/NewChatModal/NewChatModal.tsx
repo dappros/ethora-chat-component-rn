@@ -25,7 +25,7 @@ interface NewChatModalProps {
   handleCloseModal?: any;
 }
 
-const NewChatModal: React.FC<NewChatModalProps> = () => {
+const NewChatModal: React.FC<NewChatModalProps> = ({ handleCloseModal: handleClose }) => {
  const config = useAppSelector(
     (state: RootState) => state.chatSettingStore.config
   );
@@ -90,6 +90,7 @@ const NewChatModal: React.FC<NewChatModalProps> = () => {
 
   const handleOpenModal = () => setIsModalOpen(true);
   const handleCloseModal = () => {
+    handleClose();
     setActiveTab('0');
     setIsModalOpen(false);
     setRoomName('');
