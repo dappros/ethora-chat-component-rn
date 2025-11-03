@@ -22,6 +22,7 @@ import { MessageContainer } from "./MessageContainer";
 import { useRoomState } from "../../hooks/useRoomState";
 import Loader from "../styled/Loader";
 import { ArowDownIcon } from "../../assets/icons";
+import CustomTypingIndicator from "../styled/StyledInputComponents/CustomTypingIndicator";
 
 interface MessageListProps<TMessage extends IMessage> {
   CustomMessage?: React.ComponentType<{
@@ -52,7 +53,7 @@ const MessageList = <TMessage extends IMessage>({
   isReply,
   activeMessage,
 }: MessageListProps<TMessage>) => {
-  const { composing, messages } = useRoomState(roomJID).room;
+  const { composing, messages, composingList } = useRoomState(roomJID).room;
   const [isUserAtBottom, setIsUserAtBottom] = useState(true);
   const [showNewMessageIndicator, setShowNewMessageIndicator] = useState(false);
   const [isContentOffset, setIsContentOffset] = useState(false);
@@ -271,9 +272,20 @@ const MessageList = <TMessage extends IMessage>({
           <ArowDownIcon />
         </TouchableOpacity>
       )}
-      {composing && config?.disableHeader && (
-        <Composing usersTyping={["User"]} />
-      )}
+      {config?.customTypingIndicator?.enabled && composing && (
+          <CustomTypingIndicator
+            usersTyping={composingList || ['User']}
+            text={config.customTypingIndicator.text}
+            position={config.customTypingIndicator.position || 'bottom'}
+            styles={config.customTypingIndicator.styles}
+            customComponent={config.customTypingIndicator.customComponent}
+            isVisible={composing}
+          />
+        )}
+
+        {!config?.customTypingIndicator?.enabled &&
+          config?.disableHeader &&
+          composing && <Composing usersTyping={composingList || ['User']} />}
     </View>
   );
 };

@@ -22,6 +22,7 @@ interface SendInputProps {
   config?: IConfig;
   onFocus?: () => void;
   onBlur?: () => void;
+  isMessageProcessing?: boolean;
 }
 
 const SendInput: React.FC<SendInputProps> = ({
@@ -32,6 +33,7 @@ const SendInput: React.FC<SendInputProps> = ({
   onBlur,
   editMessage,
   isLoading,
+  isMessageProcessing,
 }) => {
   const [message, setMessage] = useState("");
   const [isRecording, setIsRecording] = useState(false);
@@ -93,7 +95,7 @@ const SendInput: React.FC<SendInputProps> = ({
                 onBlur={() => {
                   setIsFocused(false);
                 }}
-                editable={!isLoading}
+                editable={!isLoading || !isMessageProcessing}
                 multiline={true}
                 maxHeight={72}
                 onContentSizeChange={(event) => {

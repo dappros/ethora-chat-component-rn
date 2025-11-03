@@ -29,6 +29,7 @@ import {
   StyleSheet,
   PanResponder,
 } from "react-native";
+import CustomTypingIndicator from "../styled/StyledInputComponents/CustomTypingIndicator";
 
 interface ThreadWrapperProps {
   activeMessage: IMessage;
@@ -50,7 +51,7 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
 
   const { loading, roomsList, editAction, activeRoomJID } = useRoomState();
   const { config } = useChatSettingState();
-  const { sendMessage: sendMs, sendMedia: sendMessageMedia } = useSendMessage();
+  const { sendMessage: sendMs, sendMedia: sendMessageMedia, isLastMessageFromUserAndProcessing } = useSendMessage();
 
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
   const [isChecked, setIsChecked] = useState<boolean>(false);
@@ -222,7 +223,26 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
         onFocus={sendStartComposing}
         onBlur={sendEndComposing}
         isLoading={loading}
+        isMessageProcessing={isLastMessageFromUserAndProcessing(
+          activeMessage.roomJid
+        )}
       />
+
+      {config?.customTypingIndicator?.enabled &&
+        (config.customTypingIndicator.position === 'overlay' ||
+          config.customTypingIndicator.position === 'floating') &&
+        roomsList[activeMessage.roomJid]?.composing && (
+          <CustomTypingIndicator
+            usersTyping={
+              roomsList[activeMessage.roomJid]?.composingList || ['User']
+            }
+            text={config.customTypingIndicator.text}
+            position={config.customTypingIndicator.position}
+            styles={config.customTypingIndicator.styles}
+            customComponent={config.customTypingIndicator.customComponent}
+            isVisible={roomsList[activeMessage.roomJid]?.composing || false}
+          />
+      )}
     </Animated.View>
   );
 };

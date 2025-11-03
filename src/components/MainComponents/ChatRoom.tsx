@@ -23,6 +23,7 @@ import { useSendMessage } from "../../hooks/useSendMessage";
 import { useRoomInitialization } from "../../hooks/useRoomInitialization";
 import { useRoomState } from "../../hooks/useRoomState";
 import { useChatSettingState } from "../../hooks/useChatSettingState";
+import CustomTypingIndicator from '../styled/StyledInputComponents/CustomTypingIndicator';
 // import {PanGestureHandler} from 'react-native-gesture-handler';
 import { FlatList } from "react-native";
 import {
@@ -58,6 +59,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
       sendMessage: sendMs,
       sendMedia: sendMessageMedia,
       sendEditMessage,
+      isLastMessageFromUserAndProcessing,
     } = useSendMessage();
     const { sendStartComposing, sendEndComposing } = useComposing(config);
     
@@ -224,7 +226,24 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
             isLoading={loading}
             onFocus={sendStartComposing}
             onBlur={sendEndComposing}
+            isMessageProcessing={isLastMessageFromUserAndProcessing(
+              activeRoomJID
+            )}
           />
+
+          {config?.customTypingIndicator?.enabled &&
+            (config.customTypingIndicator.position === 'overlay' ||
+              config.customTypingIndicator.position === 'floating') &&
+                roomsList[activeRoomJID]?.composing && (
+                  <CustomTypingIndicator
+                    usersTyping={roomsList[activeRoomJID]?.composingList || ['User']}
+                    text={config.customTypingIndicator.text}
+                    position={config.customTypingIndicator.position}
+                    styles={config.customTypingIndicator.styles}
+                    customComponent={config.customTypingIndicator.customComponent}
+                    isVisible={roomsList[activeRoomJID]?.composing || false}
+                  />
+          )}
         </ChatContainer>
       </KeyboardAvoidingView>
     );
