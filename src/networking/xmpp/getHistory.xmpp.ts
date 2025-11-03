@@ -57,7 +57,11 @@ export const getHistory = async (
           const text = msg.getChild('body')?.getText();
 
           if (text || reactions) {
-            const { data, id, body, ...rest } = await getDataFromXml(msg);
+            const result = await getDataFromXml(msg);
+            if (!result) {
+              return;
+            }
+            const { data, id, body, ...rest } = result;
 
             if (!data) {
               console.log('No data in stanza');

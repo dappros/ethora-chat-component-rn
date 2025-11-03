@@ -73,8 +73,8 @@ export const XmppProvider: FC<XmppProviderProps> = ({
       setEmail(email);
       setClient(newClient);
       setReconnectAttempts(0);
-      {
-        roomsList && initRoomsPresence(client, roomsList);
+      if (roomsList) {
+        await initRoomsPresence(client, roomsList);
       }
       return newClient;
     } catch (error) {

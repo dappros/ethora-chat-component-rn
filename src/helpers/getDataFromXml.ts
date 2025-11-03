@@ -1,12 +1,12 @@
 import { Element } from 'ltx';
-import { IUser } from '../types/types';
+import { Iso639_1Codes, IUser } from '../types/types';
 import { transformArrayToObject } from './transformTranslatations';
 
 const extractTimestamp = (str: string, stanza?: any): string | null => {
-  if (!str) return;
+  if (!str) return null;
   if (typeof str !== 'string') {
     console.log(str, stanza.toString());
-    return undefined;
+    return null;
   }
   const timestamp = str.slice(-16);
   return timestamp;
@@ -14,18 +14,18 @@ const extractTimestamp = (str: string, stanza?: any): string | null => {
 
 interface DataXml {
   id: string;
-  body: string;
+  body?: string;
   roomJid: string;
   date: string;
   user: IUser;
   deleted?: boolean;
   translations?: any;
-  langSource?: string;
+  langSource?: Iso639_1Codes;
   xmppId?: string;
   xmppFrom?: string;
   data: { [x: string]: any };
 }
-export const getDataFromXml = async (stanza: Element): Promise<DataXml> => {
+export const getDataFromXml = async (stanza: Element): Promise<DataXml | undefined> => {
   const fullData =
     stanza.getChild('result')?.getChild('forwarded')?.getChild('message') ||
     stanza;

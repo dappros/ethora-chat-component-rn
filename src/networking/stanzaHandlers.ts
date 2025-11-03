@@ -26,7 +26,7 @@ import { createRoomFromApi } from '../helpers/createRoomFromApi';
 import XmppClient from './xmppClient';
 import { checkSingleUser } from '../helpers/checkUniqueUsers';
 import { presenceInRoom } from './xmpp/presenceInRoom.xmpp';
-import { popMessageFromHeap } from '../roomStore/roomHeapSlice';
+import { popMessageFromHeap, removeMessageFromHeapById } from '../roomStore/roomHeapSlice';
 import { xml } from '@xmpp/client';
 // import { DOMParser as XmldomParser } from 'xmldom';
 
@@ -93,7 +93,12 @@ const onRealtimeMessage = async (stanza: Element) => {
         message,
       })
     );
-    store.dispatch(popMessageFromHeap());
+    
+    const removeId = message?.xmppId || message?.id;
+    if (removeId) {
+      store.dispatch(removeMessageFromHeapById(removeId));
+    }
+    
     return message;
   }
 };
@@ -466,13 +471,12 @@ const onMessageError = async (stanza: Element, client: XmppClient) => {
         console.log(
           `Sent presence to room ${roomJID} due to error: Only occupants are allowed to send messages to the conference.`
         );
-        const heapArray: [string, IMessage][] = store.getState().rooms.roomHeap;
-        const heapMap: Map<string, IMessage> = new Map(heapArray);
+        const queue = store.getState().roomHeapSlice.messageHeap as IMessage[];
 
         await Promise.all(
-          Array.from(heapMap).map(([jid, msg]: [string, IMessage]) =>
+          queue.map((msg: IMessage) =>
             client.sendMessage(
-              jid,
+              msg.roomJid,
               msg.user.firstName,
               msg.user.lastName,
               '',
@@ -482,7 +486,7 @@ const onMessageError = async (stanza: Element, client: XmppClient) => {
               !!msg.isReply,
               !!msg.showInChannel,
               msg.mainMessage,
-              jid
+              msg.id
             )
           )
         );

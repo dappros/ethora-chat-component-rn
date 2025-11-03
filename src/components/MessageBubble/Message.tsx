@@ -109,7 +109,7 @@ const CustomMessageTimestamp = styled.Text<{
 const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   const dispatch = useDispatch();
   const { config, langSource } = useChatSettingState();
-  const { heap } = useMessageHeapState();
+  const { idSet } = useMessageHeapState();
 
   const [isPressed, setIsPressed] = useState(false);
 
@@ -195,7 +195,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
     ? parseMessageBody(config?.messageTextFilter.filterFunction(message.body))
     : parseMessageBody(message.body);
 
-  const isPending = heap.has(message.id) || message?.pending || false;
+  const isPending = idSet.has(message.id) || message?.pending || false;
 
   return (
     <View>
