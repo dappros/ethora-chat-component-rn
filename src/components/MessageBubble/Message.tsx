@@ -46,9 +46,11 @@ const CustomMessageBubble = styled.View<{
   backgroundMessage?: string;
 }>`
   position: relative;
-  max-width: 90%;
+  max-width: 85%;
   min-width: 30%;
   padding: 10px;
+  margin-right: ${({isUser}) => isUser ? '0' : '10px'};
+  margin-left: ${({isUser}) => isUser ? '10px' : '0'};
   border-radius: 10px;
   border-bottom-left-radius: ${({ isUser }) => (isUser ? "10" : "0")}px;
   border-bottom-right-radius: ${({ isUser }) => (isUser ? "0" : "10")}px;

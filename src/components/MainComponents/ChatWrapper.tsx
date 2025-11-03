@@ -153,8 +153,6 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
   //   queueMessageLoader
   // );
 
-  console.log("roomsList", roomsList)
-
   if (config?.enableRoomsRetry?.enabled && isRetrying === 'norooms') {
     return (
       <StyledLoaderWrapper

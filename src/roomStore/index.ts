@@ -8,7 +8,7 @@ import { logoutMiddleware } from './Middleware/logoutMiddleware';
 
 import { persistReducer, persistStore, createTransform } from 'redux-persist';
 import CryptoJS from 'crypto-js';
-import storage from 'redux-persist/lib/storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import roomHeapSlice from './roomHeapSlice';
 import { reactionsMiddleware } from './Middleware/reactionsMiddleware';
 
@@ -92,7 +92,7 @@ const limitMessagesTransform = createTransform(
 
 const chatSettingPersistConfig = {
   key: 'chatSettingStore',
-  storage,
+  storage: AsyncStorage,
   blacklist: [
     'activeModal',
     'deleteModal',
@@ -107,19 +107,19 @@ const chatSettingPersistConfig = {
 
 const roomsPersistConfig = {
   key: 'roomMessages',
-  storage,
+  storage: AsyncStorage,
   blacklist: ['editAction', 'activeRoomJID', 'loadingText'],
   transforms: [limitMessagesTransform],
 };
 
 const roomHeapSliceConfig = {
   key: 'roomHeapSlice',
-  storage,
+  storage: AsyncStorage,
 };
 
 const persistConfig = {
   key: 'root',
-  storage,
+  storage: AsyncStorage,
   whitelist: ['chatSettingStore', 'roomMessages'],
   blacklist: ['routing'],
   transforms: [encryptTransform],
