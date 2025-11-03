@@ -33,6 +33,7 @@ import { sendPing } from './xmpp/sendPing.xmpp';
 import { store } from '../roomStore';
 import { IMessage } from '../types/types';
 import NetInfo, { NetInfoSubscription } from '@react-native-community/netinfo';
+import { AppState, AppStateStatus } from 'react-native';
 
 export class XmppClient implements XmppClientInterface {
   client!: Client;
@@ -59,13 +60,16 @@ export class XmppClient implements XmppClientInterface {
   private inFlightIds: Set<string> = new Set();
   private processingQueue: boolean = false;
   private unsubscribeNetInfo?: NetInfoSubscription | null;
+  
+  private appStateSub?: { remove: () => void } | null;
+  private appState: AppStateStatus = 'active';
 
   checkOnline() {
     return this.client && this.client.status === 'online';
   }
 
-  pingInterval: any = null;
-  pingTimeout: any = null;
+  pingInterval: ReturnType<typeof setInterval> | null = null;
+pingTimeout: ReturnType<typeof setTimeout> | null = null;
   lastPingId: string | null = null;
   pingIntervalMs = 60000;
   pongTimeoutMs = 1000;
@@ -75,7 +79,7 @@ export class XmppClient implements XmppClientInterface {
   lastActivityTs: number = Date.now();
   pingInFlight: boolean = false;
 
-  private idlePingTimeout: NodeJS.Timeout | null = null;
+  private idlePingTimeout: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     username: string,
@@ -130,6 +134,22 @@ export class XmppClient implements XmppClientInterface {
     }
   }
 
+  private installAppStateListener() {
+    if (this.appStateSub) return;
+    this.appStateSub = AppState.addEventListener('change', (next) => {
+      this.appState = next;
+      if (next === 'active') {
+        this.markActivity();
+        if (this.status !== 'online') this.reconnect();
+      } else {
+        if (this.pingTimeout) clearTimeout(this.pingTimeout);
+        if (this.idlePingTimeout) clearTimeout(this.idlePingTimeout as any);
+        this.pingInFlight = false;
+      }
+    });
+  }
+  
+
   async disconnect() {
     if (!this.client) return;
     try {
@@ -139,6 +159,11 @@ export class XmppClient implements XmppClientInterface {
       if (this.unsubscribeNetInfo) {
         this.unsubscribeNetInfo();
         this.unsubscribeNetInfo = null;
+      }
+
+      if (this.appStateSub) {
+        this.appStateSub.remove();
+        this.appStateSub = null;
       }
 
       if (this.client.removeAllListeners) {
@@ -224,14 +249,23 @@ export class XmppClient implements XmppClientInterface {
       handleStanza.bind(this, stanza, this)();
     });
 
-    this.startAdaptivePing();
+    if (!this.unsubscribeNetInfo) {
+      this.unsubscribeNetInfo = NetInfo.addEventListener((state) => {
+        const online = state.isConnected && (state.isInternetReachable ?? true);
+        if (online) this.onBrowserOnline();
+        else this.onBrowserOffline();
+      });
 
-    try {
-      if (typeof window !== 'undefined') {
-        window.addEventListener('online', this.onBrowserOnline);
-        window.addEventListener('offline', this.onBrowserOffline);
-      }
-    } catch {}
+      NetInfo.fetch().then((state) => {
+        const online = state.isConnected && (state.isInternetReachable ?? true);
+        if (online) this.onBrowserOnline();
+        else this.onBrowserOffline();
+      });
+    }
+
+    this.installAppStateListener();
+
+    this.startAdaptivePing();
   }
 
   private scheduleAdaptivePing() {
@@ -318,14 +352,26 @@ export class XmppClient implements XmppClientInterface {
 
   async reconnect() {
     this.presencesReady = false;
-    if (this.reconnecting) {
-      return this.reconnectPromise;
-    }
+    if (this.reconnecting) return this.reconnectPromise;
+  
     this.reconnecting = true;
     this.reconnectPromise = (async () => {
       try {
         this.logStep('reconnect:start');
         await this.disconnect();
+  
+        if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+          this.logStep('reconnect:giveup');
+          return;
+        }
+  
+        const delay = Math.min(
+          this.reconnectDelay * Math.pow(2, this.reconnectAttempts),
+          30000
+        );
+        this.reconnectAttempts += 1;
+        await new Promise(r => setTimeout(r, delay));
+  
         await this.initializeClient();
       } finally {
         this.reconnecting = false;
@@ -335,6 +381,7 @@ export class XmppClient implements XmppClientInterface {
     })();
     return this.reconnectPromise;
   }
+  
 
   async allRoomPresencesStanza() {
     await allRoomPresences(this.client);
@@ -462,11 +509,11 @@ export class XmppClient implements XmppClientInterface {
 
   private onBrowserOnline = () => {
     this.logStep('browser:online');
+    this.reconnectAttempts = 0;
     this.processQueue().catch(() => {});
-    if (this.status !== 'online') {
-      this.reconnect();
-    }
+    if (this.status !== 'online') this.reconnect();
   };
+  
 
   private onBrowserOffline = () => {
     this.logStep('browser:offline');
@@ -611,7 +658,7 @@ export class XmppClient implements XmppClientInterface {
               isReply,
               showInChannel,
               mainMessage,
-              this.devServer || `wss://'xmpp.ethoradev.com:5443'/ws`,
+              this.devServer || `wss://xmpp.ethoradev.com:5443/ws`,
               customId
             );
           });
@@ -813,7 +860,8 @@ export class XmppClient implements XmppClientInterface {
       store.dispatch({ type: 'roomHeapStore/clearHeap' });
     } catch {}
   }
-  
 }
+
+
 
 export default XmppClient;
