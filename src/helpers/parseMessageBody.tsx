@@ -1,330 +1,516 @@
 import React from 'react';
-import { Text, View, Pressable, Linking, Platform, ScrollView } from 'react-native';
+import {
+  Text,
+  View,
+  Pressable,
+  Linking,
+  Platform,
+  ScrollView,
+  StyleProp,
+  ViewStyle,
+} from 'react-native';
 
-export const parseMessageBody = (text: string): (string | JSX.Element)[] => {
-  if (typeof text !== 'string') return [text];
+let elementKeyCounter = 0;
 
-  let key = 0;
-  const elements: (string | JSX.Element)[] = [];
-  const lines = text.split('\n');
+export const decodeHTMLEntities = (text: string) => {
+  const entities: Record<string, string> = {
+    '&amp;': '&',
+    '&lt;': '<',
+    '&gt;': '>',
+    '&quot;': '"',
+    '&#39;': "'",
+    '&nbsp;': ' ',
+    '&ndash;': '–',
+    '&mdash;': '—',
+    '&hellip;': '…',
+    '&#8209;': '-',
+  };
+  return text.replace(/&[a-zA-Z0-9#]+;/g, (m) => entities[m] || m);
+};
 
-  let inCodeBlock = false;
-  let codeLanguage = '';
-  const codeBuffer: string[] = [];
+const styles = {
+  bold: { fontWeight: 'bold' as const },
+  italic: { fontStyle: 'italic' as const },
+  strike: { textDecorationLine: 'line-through' as const },
+  link: { color: '#0a66c2', textDecorationLine: 'underline' as const },
 
-  const styles = {
-    bold: { fontWeight: 'bold' as const },
-    italic: { fontStyle: 'italic' as const },
-    strike: { textDecorationLine: 'line-through' as const },
-    codeInline: {
-      backgroundColor: '#eee',
-      paddingVertical: 1,
-      paddingHorizontal: 4,
-      borderRadius: 4,
-      fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
-    },
-    codeBlock: {
-      backgroundColor: '#f0f0f0',
-      padding: 10,
-      borderRadius: 8,
-      marginVertical: 4,
-    },
-    h: [
-      { fontWeight: 'bold' as const, fontSize: 24, marginVertical: 6 }, // h1
-      { fontWeight: 'bold' as const, fontSize: 20, marginVertical: 6 }, // h2
-      { fontWeight: 'bold' as const, fontSize: 18, marginVertical: 6 }, // h3
-      { fontWeight: 'bold' as const, fontSize: 16, marginVertical: 6 }, // h4
-      { fontWeight: 'bold' as const, fontSize: 15, marginVertical: 6 }, // h5
-      { fontWeight: 'bold' as const, fontSize: 14, marginVertical: 6 }, // h6
-    ],
-    quote: {
-      borderLeftWidth: 3,
-      borderLeftColor: '#ccc',
-      paddingLeft: 10,
-      marginVertical: 2,
-    },
-    listItemRow: { flexDirection: 'row' as const, alignItems: 'flex-start' as const },
-    listMarker: { minWidth: 20 },
-    link: { color: 'blue', textDecorationLine: 'underline' as const },
-    paragraph: { marginVertical: 2 },
-    tableContainer: { marginVertical: 8 },
-  tableInner: { borderWidth: 1, borderColor: '#ccc', borderRadius: 6, overflow: 'hidden' as const },
+  codeInlineBox: {
+    backgroundColor: '#f1f3f4',
+    borderRadius: 3,
+    paddingVertical: 1,
+    paddingHorizontal: 4,
+  },
+  codeInlineText: {
+    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
+    fontSize: 13,
+    color: '#333',
+  },
+
+  codeBlock: {
+    backgroundColor: '#f6f8fa',
+    padding: 12,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#e1e4e8',
+    marginVertical: 8,
+  } as const,
+  codeBlockText: {
+    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
+    fontSize: 14,
+    color: '#24292f',
+    lineHeight: 20,
+  },
+
+  h: [
+    { fontWeight: 'bold' as const, fontSize: 32, marginTop: 24, marginBottom: 16 },
+    { fontWeight: 'bold' as const, fontSize: 24, marginTop: 20, marginBottom: 14 },
+    { fontWeight: 'bold' as const, fontSize: 20, marginTop: 16, marginBottom: 12 },
+    { fontWeight: 'bold' as const, fontSize: 18, marginTop: 14, marginBottom: 10 },
+    { fontWeight: 'bold' as const, fontSize: 16, marginTop: 12, marginBottom: 8 },
+    { fontWeight: 'bold' as const, fontSize: 14, marginTop: 12, marginBottom: 8 },
+  ],
+
+  quote: {
+    borderLeftWidth: 3,
+    borderLeftColor: '#ccc',
+    paddingLeft: 10,
+    marginVertical: 4,
+  },
+
+  paragraph: { marginVertical: 6 },
+
+  hr: { height: 1, backgroundColor: '#e1e4e8', marginVertical: 20 },
+
+  listItemRow: { flexDirection: 'row' as const, alignItems: 'flex-start' as const },
+  listMarker: { minWidth: 22, paddingTop: 2 },
+
+  checkboxRow: { flexDirection: 'row' as const, alignItems: 'flex-start' as const },
+  checkboxBox: {
+    width: 16,
+    height: 16,
+    marginRight: 8,
+    marginTop: 2,
+    borderRadius: 3,
+    borderWidth: 1,
+    borderColor: '#bbb',
+    backgroundColor: '#fff',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  checkboxTick: { fontSize: 12, color: '#0a66c2' },
+
+  tableContainer: { marginVertical: 12 } as StyleProp<ViewStyle>,
+  tableInner: {
+    borderWidth: 1,
+    borderColor: '#d0d7de',
+    borderRadius: 6,
+    overflow: 'hidden' as const,
+    backgroundColor: '#fff',
+  },
   tableRow: { flexDirection: 'row' as const },
   th: {
     flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 6,
-    backgroundColor: '#f9f9f9',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: '#f6f8fa',
     borderRightWidth: 1,
-    borderRightColor: '#ccc',
+    borderRightColor: '#d0d7de',
   },
   td: {
     flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     borderTopWidth: 1,
-    borderTopColor: '#e3e3e3',
+    borderTopColor: '#e7e9ec',
     borderRightWidth: 1,
-    borderRightColor: '#eee',
+    borderRightColor: '#eef0f2',
   },
   lastCell: { borderRightWidth: 0 },
-  cellText: { color: '#333' as const, fontSize: 14 },
-  };
+  cellText: { color: '#24292f', fontSize: 14, lineHeight: 20 } as const,
+};
 
-  const parseInline = (input: string): (string | JSX.Element)[] => {
-    const output: (string | JSX.Element)[] = [];
-    const regex =
-      /(\*\*\*[^*]+?\*\*\*|\*\*[^*]+?\*\*|\*[^*]+?\*|~~[^~]+?~~|`[^`]+?`|https?:\/\/[\w.-]+(?:\.[\w.-]+)+[\w\-._~:/?#[\]@!$&'()*+,;=]+)/g;
+const renderTextWithLinks = (text: string) => {
+  const urlRegex =
+    /(https?:\/\/[\w.-]+(?:\.[\w.-]+)+[\w\-\._~:\/?#[\]@!\$&'()\*\+,;=.]+)/g;
+  const nodes: Array<string | JSX.Element> = [];
+  let lastIndex = 0;
 
-    let lastIndex = 0, match;
-    while ((match = regex.exec(input)) !== null) {
-      if (match.index > lastIndex) output.push(input.slice(lastIndex, match.index));
-      const token = match[0];
-      if (/^\*\*\*.*\*\*\*$/.test(token)) {
-        output.push(
-          <Text key={`b-${key++}`} style={[styles.bold, styles.italic]}>
-            {token.slice(3, -3)}
-          </Text>
-        );
-      } else if (/^\*\*.*\*\*$/.test(token)) {
-        output.push(
-          <Text key={`b-${key++}`} style={styles.bold}>
-            {token.slice(2, -2)}
-          </Text>
-        );
-      } else if (/^\*.*\*$/.test(token)) {
-        output.push(
-          <Text key={`i-${key++}`} style={styles.italic}>
-            {token.slice(1, -1)}
-          </Text>
-        );
-      } else if (/^~~.*~~$/.test(token)) {
-        output.push(
-          <Text key={`s-${key++}`} style={styles.strike}>
-            {token.slice(2, -2)}
-          </Text>
-        );
-      } else if (/^`.*`$/.test(token)) {
-        output.push(
-          <Text key={`code-${key++}`} style={styles.codeInline}>
-            {token.slice(1, -1).trim()}
-          </Text>
-        );
-      } else if (/^https?:\/\//.test(token)) {
-        output.push(
-          <Pressable key={`link-${key++}`} onPress={() => Linking.openURL(token)}>
-            <Text style={styles.link}>{token}</Text>
-          </Pressable>
-        );
-      }
-      lastIndex = match.index + token.length;
-    }
-    if (lastIndex < input.length) output.push(input.slice(lastIndex));
-    return output;
-  };
+  if (!text) return nodes;
 
-  const parseList = (
-    startIndex: number
-  ): { list: JSX.Element; newIndex: number } => {
-    const items: JSX.Element[] = [];
-    const line = lines[startIndex].trim();
-    const match = line.match(/^(\d+)\./);
-    const isOrdered = !!match;
-    let listItemNumber = isOrdered ? parseInt(match?.[1] ?? '1', 10) : 1;
+  let match: RegExpExecArray | null;
+  while ((match = urlRegex.exec(text)) !== null) {
+    const url = match[0];
+    const start = match.index;
 
-    let i = startIndex;
-    while (i < lines.length) {
-      const currentLine = lines[i];
-      if (/^(\d+\.\s+|\-\s+)/.test(currentLine)) {
-        const itemText = currentLine.replace(/^(\d+\.\s+|\-\s+)/, '');
-        items.push(
-          <View key={`li-${key++}`} style={styles.listItemRow}>
-            <Text style={styles.listMarker}>{isOrdered ? `${listItemNumber++}.` : '\u2022'}</Text>
-            <Text style={{ flex: 1 }}>{parseInline(itemText)}</Text>
-          </View>
-        );
-      } else if (currentLine.trim() === '') {
-        break;
-      } else {
-        break;
-      }
-      i++;
+    if (start > lastIndex) nodes.push(text.slice(lastIndex, start));
+
+    nodes.push(
+      <Pressable key={`link-${elementKeyCounter++}`} onPress={() => Linking.openURL(url)}>
+        <Text style={styles.link}>{url}</Text>
+      </Pressable>
+    );
+
+    lastIndex = start + url.length;
+  }
+
+  if (lastIndex < text.length) nodes.push(text.slice(lastIndex));
+  return nodes;
+};
+
+const parseInline = (txt: string): (string | JSX.Element)[] => {
+  const elements: (string | JSX.Element)[] = [];
+  let remaining = decodeHTMLEntities(txt);
+
+  const pattern = /(\*\*\*|\*\*|\*|`)(.*?)\1/;
+
+  while (remaining.length > 0) {
+    const match = remaining.match(pattern);
+    if (!match) {
+      elements.push(...renderTextWithLinks(remaining));
+      break;
     }
 
-    return {
-      list: (
-        <View key={`list-${key++}`} style={{ marginVertical: 3 }}>
-          {items}
+    const fullMatch = match[0];
+    const matchIndex = match.index ?? 0;
+    const delimiter = match[1];
+    const content = match[2];
+
+    if (matchIndex > 0) {
+      elements.push(...renderTextWithLinks(remaining.substring(0, matchIndex)));
+    }
+
+    if (delimiter === '`') {
+      elements.push(
+        <View key={`code-${elementKeyCounter++}`} style={styles.codeInlineBox}>
+          <Text style={styles.codeInlineText}>{content}</Text>
         </View>
-      ),
-      newIndex: i - 1,
-    };
-  };
-
-  const parseTable = (
-    startIndex: number
-  ): { table: JSX.Element; newIndex: number } | null => {
-    const rows: string[][] = [];
-    let i = startIndex;
-  
-    while (i < lines.length && /^\|.*\|$/.test(lines[i].trim())) {
-      const cols = lines[i]
-        .trim()
-        .slice(1, -1)
-        .split('|')
-        .map((c) => c.trim());
-      rows.push(cols);
-      i++;
+      );
+    } else if (delimiter === '***') {
+      elements.push(
+        <Text key={`bi-${elementKeyCounter++}`} style={styles.bold}>
+          <Text key={`i-${elementKeyCounter++}`} style={styles.italic}>
+            {parseInline(content)}
+          </Text>
+        </Text>
+      );
+    } else if (delimiter === '**') {
+      elements.push(
+        <Text key={`b-${elementKeyCounter++}`} style={styles.bold}>
+          {parseInline(content)}
+        </Text>
+      );
+    } else if (delimiter === '*') {
+      elements.push(
+        <Text key={`i-${elementKeyCounter++}`} style={styles.italic}>
+          {parseInline(content)}
+        </Text>
+      );
     }
-  
-    if (rows.length < 2) return null;
-  
-    const headers = rows[0];
-    const separator = rows[1] ?? [];
-    const dataRows = rows.slice(2);
-  
-    const aligns: Array<'left' | 'center' | 'right'> = headers.map((_, idx) => {
-      const seg = (separator[idx] || '').trim();
-      const left = seg.startsWith(':');
-      const right = seg.endsWith(':');
-      if (left && right) return 'center';
-      if (right) return 'right';
-      return 'left';
-    });
-  
-    const tableEl = (
-      <ScrollView
-        key={`table-${key++}`}
-        horizontal
-        bounces={false}
-        showsHorizontalScrollIndicator={false}
-        style={styles.tableContainer}
-      >
-        <View style={styles.tableInner}>
-          <View style={styles.tableRow}>
-            {headers.map((h, cIdx) => (
-              <View
-                key={`th-${key++}-${cIdx}`}
-                style={[styles.th, cIdx === headers.length - 1 && styles.lastCell]}
+
+    remaining = remaining.substring(matchIndex + fullMatch.length);
+  }
+
+  return elements;
+};
+
+const isTableSeparatorLine = (line: string) => {
+  const trimmed = line.trim();
+  return (
+    /^\|?[\s]*[\-\:]+[\s\|\-\:]*\|?[\s]*$/.test(trimmed) && trimmed.includes('-')
+  );
+};
+
+const parseTableRow = (line: string) => {
+  const decodedLine = decodeHTMLEntities(line.trim()).replace(/\u00A0/g, ' ');
+  const cleaned = decodedLine.replace(/^\||\|$/g, '');
+  const cells = cleaned
+    .split(/(?<!\\)\|/)
+    .map((c) => c.replace(/\\\|/g, '|').trim());
+  return cells.length > 0 ? cells : [''];
+};
+
+const renderMarkdownTableRN = (
+  headers: string[],
+  separator: string[],
+  dataRows: string[][]
+) => {
+  const aligns: Array<'left' | 'center' | 'right'> = headers.map((_, idx) => {
+    const seg = (separator[idx] || '').trim();
+    const left = seg.startsWith(':');
+    const right = seg.endsWith(':');
+    if (left && right) return 'center';
+    if (right) return 'right';
+    return 'left';
+  });
+
+  return (
+    <ScrollView
+      key={`table-${elementKeyCounter++}`}
+      horizontal
+      bounces={false}
+      showsHorizontalScrollIndicator={false}
+      style={styles.tableContainer}
+    >
+      <View style={styles.tableInner}>
+        <View style={styles.tableRow}>
+          {headers.map((h, cIdx) => (
+            <View
+              key={`th-${elementKeyCounter++}-${cIdx}`}
+              style={[styles.th, cIdx === headers.length - 1 && styles.lastCell]}
+            >
+              <Text
+                style={[
+                  styles.cellText,
+                  { fontWeight: '700', textAlign: aligns[cIdx] },
+                ]}
               >
-                <Text
-                  style={[
-                    styles.cellText,
-                    { fontWeight: '700', textAlign: aligns[cIdx] },
-                  ]}
-                >
-                  {parseInline(h)}
-                </Text>
-              </View>
-            ))}
-          </View>
-  
-          {dataRows.map((row, rIdx) => (
-            <View key={`tr-${key++}-${rIdx}`} style={styles.tableRow}>
-              {headers.map((_, cIdx) => {
-                const cell = row[cIdx] ?? '';
-                return (
-                  <View
-                    key={`td-${key++}-${cIdx}`}
-                    style={[styles.td, cIdx === headers.length - 1 && styles.lastCell]}
-                  >
-                    <Text style={[styles.cellText, { textAlign: aligns[cIdx] }]}>
-                      {parseInline(cell)}
-                    </Text>
-                  </View>
-                );
-              })}
+                {parseInline(h)}
+              </Text>
             </View>
           ))}
         </View>
-      </ScrollView>
+
+        {dataRows.map((row, rIdx) => (
+          <View key={`tr-${elementKeyCounter++}-${rIdx}`} style={styles.tableRow}>
+            {headers.map((_, cIdx) => {
+              const cell = row[cIdx] ?? '';
+              return (
+                <View
+                  key={`td-${elementKeyCounter++}-${cIdx}`}
+                  style={[styles.td, cIdx === headers.length - 1 && styles.lastCell]}
+                >
+                  <Text style={[styles.cellText, { textAlign: aligns[cIdx] }]}>
+                    {parseInline(cell)}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        ))}
+      </View>
+    </ScrollView>
+  );
+};
+
+export const parseMessageBody = (text: string): JSX.Element => {
+  if (typeof text !== 'string') {
+    return <View />;
+  }
+
+  const lines = text.split('\n');
+  const elements: JSX.Element[] = [];
+  elementKeyCounter = 0;
+
+  let listBuffer: Array<{
+    type: 'ul' | 'checkbox';
+    content: string;
+    depth: number;
+    checked?: boolean;
+  }> = [];
+
+  let inCodeBlock = false;
+  let codeLang = '';
+  let codeLines: string[] = [];
+
+  const flushList = () => {
+    if (listBuffer.length === 0) return;
+
+    const renderListItems = (items: typeof listBuffer, depth: number): JSX.Element[] => {
+      const result: JSX.Element[] = [];
+      let i = 0;
+
+      while (i < items.length) {
+        const item = items[i];
+
+        if (item.depth === depth) {
+          const subItems: typeof listBuffer = [];
+          let j = i + 1;
+          while (j < items.length && items[j].depth > depth) {
+            subItems.push(items[j]);
+            j++;
+          }
+
+          const nested = subItems.length > 0 ? renderListItems(subItems, depth + 1) : null;
+
+          let contentEl: JSX.Element;
+          if (item.type === 'checkbox') {
+            contentEl = (
+              <View key={`checkbox-${elementKeyCounter++}`} style={styles.checkboxRow}>
+                <View style={[styles.checkboxBox, item.checked && { backgroundColor: '#e8f3ff', borderColor: '#0a66c2' }]}>
+                  {item.checked ? <Text style={styles.checkboxTick}>✓</Text> : null}
+                </View>
+                <Text style={{ flex: 1 }}>{parseInline(item.content)}</Text>
+              </View>
+            );
+          } else {
+            contentEl = (
+              <View key={`ulitem-${elementKeyCounter++}`} style={styles.listItemRow}>
+                <Text style={styles.listMarker}>{'\u2022'}</Text>
+                <Text style={{ flex: 1 }}>{parseInline(item.content)}</Text>
+              </View>
+            );
+          }
+
+          result.push(
+            <View key={`liwrap-${elementKeyCounter++}`} style={{ marginBottom: 6, marginLeft: depth * 16 }}>
+              {contentEl}
+              {nested}
+            </View>
+          );
+          i = j;
+        } else {
+          i++;
+        }
+      }
+      return result;
+    };
+
+    const listContent = renderListItems(listBuffer, 0);
+    elements.push(
+      <View key={`list-${elementKeyCounter++}`} style={{ marginVertical: 8 }}>
+        {listContent}
+      </View>
     );
-  
-    return { table: tableEl, newIndex: i - 1 };
+
+    listBuffer = [];
   };
 
-  for (let idx = 0; idx < lines.length; idx++) {
-    const line = lines[idx];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmedLine = line.trim();
 
-    if (!inCodeBlock && line.trim().startsWith('```')) {
-      const match = line.trim().match(/^```(?:\s*(\w+))?/);
-      inCodeBlock = true;
-      codeLanguage = match?.[1] || '';
+    if (trimmedLine.startsWith('```')) {
+      flushList();
+      inCodeBlock = !inCodeBlock;
+      if (!inCodeBlock) {
+        elements.push(
+          <View key={`pre-${elementKeyCounter++}`} style={styles.codeBlock}>
+            <Text style={styles.codeBlockText} selectable>
+              {codeLines.join('\n')}
+            </Text>
+          </View>
+        );
+        codeLang = '';
+      } else {
+        codeLang = trimmedLine.slice(3).trim();
+        codeLines = [];
+      }
       continue;
     }
-
-    if (inCodeBlock && line.trim() === '```') {
-      inCodeBlock = false;
-      elements.push(
-        <View key={`pre-${key++}`} style={styles.codeBlock}>
-          <Text
-            style={{
-              fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
-              fontSize: 13,
-              color: '#333',
-            }}
-            selectable
-          >
-            {codeBuffer.join('\n')}
-          </Text>
-        </View>
-      );
-      codeBuffer.length = 0;
-      codeLanguage = '';
-      continue;
-    }
-
     if (inCodeBlock) {
-      codeBuffer.push(line);
+      codeLines.push(line);
       continue;
     }
 
-    if (/^#{1,6}\s/.test(line)) {
-      const level = (line.match(/^#+/)![0].length || 1) - 1;
-      const content = line.replace(/^#{1,6}\s/, '');
+    const headingMatch = trimmedLine.match(/^(#{1,6})\s+(.*)/);
+    if (headingMatch) {
+      flushList();
+      const level = Math.min(6, Math.max(1, headingMatch[1].length));
+      const content = headingMatch[2];
       elements.push(
-        <Text key={`h-${key++}`} style={styles.h[level]}>
+        <Text key={`h-${elementKeyCounter++}`} style={styles.h[level - 1]}>
           {parseInline(content)}
         </Text>
       );
       continue;
     }
 
-    if (line.startsWith('>')) {
-      elements.push(
-        <View key={`quote-${key++}`} style={styles.quote}>
-          <Text>{parseInline(line.replace(/^>\s*/, ''))}</Text>
-        </View>
-      );
+    if (/^(\*|\-|\_){3,}$/.test(trimmedLine)) {
+      flushList();
+      elements.push(<View key={`hr-${elementKeyCounter++}`} style={styles.hr} />);
       continue;
     }
-    
-    if (/^\|.*\|$/.test(line.trim())) {
-      const tableResult = parseTable(idx);
-      if (tableResult) {
-        elements.push(tableResult.table);
-        idx = tableResult.newIndex;
+
+    if (
+      trimmedLine.includes('|') &&
+      trimmedLine !== '' &&
+      !isTableSeparatorLine(trimmedLine) &&
+      !trimmedLine.match(/^\s*-?\s*\[[\sxX]\]/)
+    ) {
+      let separatorIndex = i + 1;
+      while (separatorIndex < lines.length && lines[separatorIndex].trim() === '') {
+        separatorIndex++;
+      }
+
+      if (separatorIndex < lines.length && isTableSeparatorLine(lines[separatorIndex].trim())) {
+        flushList();
+
+        const rows: string[][] = [];
+        const headers = parseTableRow(trimmedLine);
+        const headerCount = headers.length;
+        rows.push(headers);
+
+        const sep = parseTableRow(lines[separatorIndex].trim());
+
+        let current = separatorIndex + 1;
+        while (current < lines.length) {
+          const nextLine = lines[current].trim();
+          if (nextLine === '') {
+            current++;
+            continue;
+          }
+          if (
+            nextLine.includes('|') &&
+            !isTableSeparatorLine(nextLine) &&
+            !nextLine.match(/^\s*-?\s*\[[\sxX]\]/)
+          ) {
+            let rowCells = parseTableRow(nextLine);
+            while (rowCells.length < headerCount) rowCells.push('');
+            rowCells = rowCells.slice(0, headerCount);
+            rows.push(rowCells);
+            current++;
+          } else {
+            break;
+          }
+        }
+
+        const dataRows = rows.slice(1);
+        elements.push(renderMarkdownTableRN(headers, sep, dataRows));
+        i = current - 1;
         continue;
       }
     }
 
-    if (/^(\-|\d+\.)\s+/.test(line) || /^\[\s?\]/.test(line)) {
-      const { list, newIndex } = parseList(idx);
-      elements.push(list);
-      idx = newIndex;
+    const listMatch = line.match(/^(\s*)(?:-|\*|\+)?\s*(\[[\sxX]\])\s*(.*)/);
+    if (listMatch) {
+      const leadingSpace = listMatch[1];
+      const checkboxPart = listMatch[2];
+      const content = listMatch[3];
+      const depth = Math.floor(leadingSpace.length / 2);
+      const checked = checkboxPart.toLowerCase() === '[x]';
+      listBuffer.push({ type: 'checkbox', content: decodeHTMLEntities(content), depth, checked });
       continue;
     }
 
-    if (line.trim() === '') {
-      elements.push(<View key={`br-${key++}`} />);
-    } else {
+    const bulletMatch = line.match(/^(\s*)([-*+])\s+(.*)/);
+    if (bulletMatch && bulletMatch[3].trim() !== '') {
+      const depth = Math.floor(bulletMatch[1].length / 2);
+      listBuffer.push({ type: 'ul', content: decodeHTMLEntities(bulletMatch[3]), depth });
+      continue;
+    }
+
+    if (trimmedLine !== '') {
+      flushList();
       elements.push(
-        <View key={`p-${key++}`} style={styles.paragraph}>
-          <Text>{parseInline(line)}</Text>
+        <View key={`p-${elementKeyCounter++}`} style={styles.paragraph}>
+          <Text>{parseInline(trimmedLine)}</Text>
         </View>
       );
+    } else {
+      flushList();
     }
   }
 
-  return elements;
+  flushList();
+
+  return (
+    <View
+      style={{
+      }}
+    >
+      {elements}
+    </View>
+  );
 };
+
+export default parseMessageBody;

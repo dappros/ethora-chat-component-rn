@@ -60,6 +60,7 @@ export class XmppClient implements XmppClientInterface {
   private inFlightIds: Set<string> = new Set();
   private processingQueue: boolean = false;
   private unsubscribeNetInfo?: NetInfoSubscription | null;
+  private isOnline: boolean = false;
   
   private appStateSub?: { remove: () => void } | null;
   private appState: AppStateStatus = 'active';
@@ -69,7 +70,7 @@ export class XmppClient implements XmppClientInterface {
   }
 
   pingInterval: ReturnType<typeof setInterval> | null = null;
-pingTimeout: ReturnType<typeof setTimeout> | null = null;
+  pingTimeout: ReturnType<typeof setTimeout> | null = null;
   lastPingId: string | null = null;
   pingIntervalMs = 60000;
   pongTimeoutMs = 1000;
@@ -80,6 +81,11 @@ pingTimeout: ReturnType<typeof setTimeout> | null = null;
   pingInFlight: boolean = false;
 
   private idlePingTimeout: ReturnType<typeof setTimeout> | null = null;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private offlineReconnectAttempts: number = 0;
+  private maxOfflineReconnectAttempts: number = 10;
+  private reconnectBaseDelayMs: number = 1000;
+  private pausedDueToOfflineCap: boolean = false;
 
   constructor(
     username: string,
@@ -125,6 +131,21 @@ pingTimeout: ReturnType<typeof setTimeout> | null = null;
       }
 
       this.attachEventListeners();
+      
+      // Проверяем состояние сети перед запуском клиента
+      try {
+        const state = await NetInfo.fetch();
+        this.isOnline = !!(state.isConnected && (state.isInternetReachable ?? true));
+      } catch (error) {
+        console.error('Error fetching network state:', error);
+        this.isOnline = true; // По умолчанию считаем что онлайн, если не удалось проверить
+      }
+      
+      if (!this.isOnline) {
+        this.logStep('initializeClient:skipped-offline');
+        return;
+      }
+      
       this.client.start().catch((error) => {
         console.error('Error starting client:', error);
       });
@@ -155,6 +176,11 @@ pingTimeout: ReturnType<typeof setTimeout> | null = null;
     try {
       if (this.pingInterval) clearInterval(this.pingInterval);
       if (this.pingTimeout) clearTimeout(this.pingTimeout);
+      if (this.idlePingTimeout) clearTimeout(this.idlePingTimeout as any);
+      if (this.reconnectTimer) {
+        clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = null;
+      }
       
       if (this.unsubscribeNetInfo) {
         this.unsubscribeNetInfo();
@@ -208,6 +234,7 @@ pingTimeout: ReturnType<typeof setTimeout> | null = null;
       this.presencesReady = false;
       this.logStep('event:disconnect');
       if (this.pingInterval) clearInterval(this.pingInterval);
+      this.scheduleReconnect('event:disconnect');
     });
 
     this.client.on('online', async (jid) => {
@@ -216,6 +243,12 @@ pingTimeout: ReturnType<typeof setTimeout> | null = null;
         console.log('Client is online.', new Date());
         this.status = 'online';
         this.reconnectAttempts = 0;
+        this.offlineReconnectAttempts = 0;
+        this.pausedDueToOfflineCap = false;
+        if (this.reconnectTimer) {
+          clearTimeout(this.reconnectTimer);
+          this.reconnectTimer = null;
+        }
         this.client.send(xml('presence'));
         await this.sendAllPresencesAndMarkReady();
         this.logStep('event:online');
@@ -237,6 +270,7 @@ pingTimeout: ReturnType<typeof setTimeout> | null = null;
       console.error('XMPP client error:', error);
       this.status = 'error';
       this.logStep('event:error');
+      this.scheduleReconnect('event:error');
     });
 
     this.client.on('stanza', (stanza) => {
@@ -251,15 +285,30 @@ pingTimeout: ReturnType<typeof setTimeout> | null = null;
 
     if (!this.unsubscribeNetInfo) {
       this.unsubscribeNetInfo = NetInfo.addEventListener((state) => {
-        const online = state.isConnected && (state.isInternetReachable ?? true);
-        if (online) this.onBrowserOnline();
-        else this.onBrowserOffline();
+        const online = !!(state.isConnected && (state.isInternetReachable ?? true));
+        const wasOnline = this.isOnline;
+        this.isOnline = online;
+        
+        // Вызываем обработчики только если состояние изменилось
+        if (online && !wasOnline) {
+          this.onBrowserOnline();
+        } else if (!online && wasOnline) {
+          this.onBrowserOffline();
+        }
       });
 
+      // Первоначальная проверка выполняется в initializeClient(), здесь не нужно
       NetInfo.fetch().then((state) => {
-        const online = state.isConnected && (state.isInternetReachable ?? true);
-        if (online) this.onBrowserOnline();
-        else this.onBrowserOffline();
+        const online = !!(state.isConnected && (state.isInternetReachable ?? true));
+        const wasOnline = this.isOnline;
+        this.isOnline = online;
+        
+        // Вызываем обработчики только если состояние изменилось
+        if (online && !wasOnline) {
+          this.onBrowserOnline();
+        } else if (!online && wasOnline) {
+          this.onBrowserOffline();
+        }
       });
     }
 
@@ -301,9 +350,8 @@ pingTimeout: ReturnType<typeof setTimeout> | null = null;
           this.client.removeListener('stanza', pongListener);
           this.lastPingId = null;
           this.pingInFlight = false;
-          console.warn('Ping timeout, reconnecting...');
-          await this.reconnect();
-          await this.drainHeap();
+          console.warn('Ping timeout, scheduling reconnect...');
+          this.scheduleReconnect('ping-timeout');
         }
       }, pongWait);
     }, idleTime);
@@ -354,6 +402,14 @@ pingTimeout: ReturnType<typeof setTimeout> | null = null;
     this.presencesReady = false;
     if (this.reconnecting) return this.reconnectPromise;
   
+    if (!this.isBrowserOnline()) {
+      this.logStep('reconnect:skipped-offline');
+      return Promise.resolve();
+    }
+    if (this.pausedDueToOfflineCap) {
+      this.logStep('reconnect:paused-due-to-cap');
+      return Promise.resolve();
+    }
     this.reconnecting = true;
     this.reconnectPromise = (async () => {
       try {
@@ -394,7 +450,8 @@ pingTimeout: ReturnType<typeof setTimeout> | null = null;
 
     if (this.status === 'offline' || this.status === 'error') {
       this.logStep(`ensureConnected:trigger-reconnect:${this.status}`);
-      await this.reconnect();
+      this.scheduleReconnect('ensure-connected');
+      throw new Error('Not connected');
     }
 
     if (this.status === 'connecting') {
@@ -485,7 +542,7 @@ pingTimeout: ReturnType<typeof setTimeout> | null = null;
       this.processingQueue = false;
     }
 
-    if (this.messageQueue.length > 0) {
+    if (this.messageQueue.length > 0 && this.status === 'online') {
       setTimeout(() => this.processQueue().catch(() => {}), 1000);
     }
   }
@@ -509,14 +566,20 @@ pingTimeout: ReturnType<typeof setTimeout> | null = null;
 
   private onBrowserOnline = () => {
     this.logStep('browser:online');
+    this.offlineReconnectAttempts = 0;
+    this.pausedDueToOfflineCap = false;
     this.reconnectAttempts = 0;
     this.processQueue().catch(() => {});
-    if (this.status !== 'online') this.reconnect();
+    if (this.status !== 'online') this.scheduleReconnect('browser:online');
   };
   
 
   private onBrowserOffline = () => {
     this.logStep('browser:offline');
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
   };
 
   getConnectionSteps(): Array<{ ts: number; step: string }> {
@@ -810,7 +873,7 @@ pingTimeout: ReturnType<typeof setTimeout> | null = null;
 
   handlePingTimeout() {
     console.warn('No pong received, forcing reconnect...');
-    this.reconnect();
+    this.scheduleReconnect('ping-timeout');
   }
 
   private async drainHeap(): Promise<void> {
@@ -860,8 +923,41 @@ pingTimeout: ReturnType<typeof setTimeout> | null = null;
       store.dispatch({ type: 'roomHeapStore/clearHeap' });
     } catch {}
   }
+  
+  private isBrowserOnline(): boolean {
+    return this.isOnline;
+  }
+
+  private scheduleReconnect(reason: string) {
+    if (this.status === 'online') return;
+    if (this.reconnectTimer) return;
+    if (!this.isBrowserOnline()) {
+      this.logStep(`scheduleReconnect:skip-offline:${reason}`);
+      return;
+    }
+    if (this.pausedDueToOfflineCap) {
+      this.logStep(`scheduleReconnect:paused-cap:${reason}`);
+      return;
+    }
+
+    if (this.offlineReconnectAttempts >= this.maxOfflineReconnectAttempts) {
+      this.pausedDueToOfflineCap = true;
+      this.logStep(`scheduleReconnect:cap-reached:${reason}`);
+      return;
+    }
+
+    const attempt = this.offlineReconnectAttempts + 1;
+    const delay = Math.min(this.reconnectBaseDelayMs * attempt, 10000);
+    this.logStep(`scheduleReconnect:${reason}:in:${delay}`);
+    this.reconnectTimer = setTimeout(async () => {
+      this.reconnectTimer = null;
+      if (!this.isBrowserOnline() || this.pausedDueToOfflineCap) {
+        return;
+      }
+      this.offlineReconnectAttempts += 1;
+      await this.reconnect();
+    }, delay);
+  }
 }
-
-
 
 export default XmppClient;

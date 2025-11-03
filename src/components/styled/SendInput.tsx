@@ -23,6 +23,11 @@ interface SendInputProps {
   onFocus?: () => void;
   onBlur?: () => void;
   isMessageProcessing?: boolean;
+  formatMessage?: (text: string) => string;
+  multiline?: boolean;
+  inputHeight?: number;
+  showPreview?: boolean;
+  previewParser?: (text: string) => (string | JSX.Element)[];
 }
 
 const SendInput: React.FC<SendInputProps> = ({

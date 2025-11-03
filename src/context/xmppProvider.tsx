@@ -8,6 +8,7 @@ import React, {
   useRef,
 } from 'react';
 import XmppClient from '../networking/xmppClient';
+import { setGlobalXmppClient } from '../utils/clientRegistry';
 import { IConfig, IRoom, xmppSettingsInterface } from '../types/types';
 import initXmppRooms from '../helpers/initXmppRooms';
 import { walletToUsername } from '../helpers/walletUsername';
@@ -62,6 +63,7 @@ export const XmppProvider: FC<XmppProviderProps> = ({
       const initPromise = (async () => {
         const newClient = new XmppClient(username, password, xmppSettings);
       setClient(newClient);
+      setGlobalXmppClient(newClient);
 
       await new Promise<void>((resolve, reject) => {
         const checkStatus = () => {
@@ -92,6 +94,7 @@ export const XmppProvider: FC<XmppProviderProps> = ({
     } catch (error) {
       console.error('Error initializing client:', error);
       setClient(null);
+      setGlobalXmppClient(null);
       initializingRef.current = null;
       throw error;
     }
