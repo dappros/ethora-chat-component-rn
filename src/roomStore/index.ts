@@ -13,7 +13,7 @@ import roomHeapSlice from './roomHeapSlice';
 import { reactionsMiddleware } from './Middleware/reactionsMiddleware';
 import { ETHORA_CHAT_COMPONENT_VERSION } from '../version';
 
-const debugMiddleware = (storeAPI) => (next) => (action) => {
+const debugMiddleware = (storeAPI: any) => (next: any) => (action: any) => {
   if (typeof action !== 'object' || action === null) {
     console.error('Non-plain object action detected:', action);
     console.error('Action type:', typeof action);
@@ -134,6 +134,7 @@ const rootReducer = combineReducers({
 
 export type RootState = ReturnType<typeof rootReducer>;
 
+// @ts-ignore - redux-persist typing issue with nested persist reducers
 const persistedReducer = persistReducer(persistConfig, rootReducer);
 
 export const store = configureStore({

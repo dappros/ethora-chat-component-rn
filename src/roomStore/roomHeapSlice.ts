@@ -16,11 +16,6 @@ export const roomHeapSlice = createSlice({
     addMessageToHeap: (state, action: PayloadAction<IMessage>) => {
       state.messageHeap.push(action.payload);
     },
-    popMessageFromHeap: (state) => {
-      if (state.messageHeap.length > 0) {
-        state.messageHeap.shift();
-      }
-    },
     removeMessageFromHeapById: (state, action: PayloadAction<string>) => {
       const index = state.messageHeap.findIndex((m) => m.id === action.payload);
       if (index !== -1) {
@@ -35,7 +30,6 @@ export const roomHeapSlice = createSlice({
 
 export const {
   addMessageToHeap,
-  popMessageFromHeap,
   clearHeap,
   removeMessageFromHeapById,
 } = roomHeapSlice.actions;
