@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text, View, Pressable, Linking, Platform } from 'react-native';
+import { Text, View, Pressable, Linking, Platform, ScrollView } from 'react-native';
 
 export const parseMessageBody = (text: string): (string | JSX.Element)[] => {
   if (typeof text !== 'string') return [text];
@@ -47,6 +47,28 @@ export const parseMessageBody = (text: string): (string | JSX.Element)[] => {
     listMarker: { minWidth: 20 },
     link: { color: 'blue', textDecorationLine: 'underline' as const },
     paragraph: { marginVertical: 2 },
+    tableContainer: { marginVertical: 8 },
+  tableInner: { borderWidth: 1, borderColor: '#ccc', borderRadius: 6, overflow: 'hidden' as const },
+  tableRow: { flexDirection: 'row' as const },
+  th: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    backgroundColor: '#f9f9f9',
+    borderRightWidth: 1,
+    borderRightColor: '#ccc',
+  },
+  td: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    borderTopWidth: 1,
+    borderTopColor: '#e3e3e3',
+    borderRightWidth: 1,
+    borderRightColor: '#eee',
+  },
+  lastCell: { borderRightWidth: 0 },
+  cellText: { color: '#333' as const, fontSize: 14 },
   };
 
   const parseInline = (input: string): (string | JSX.Element)[] => {
@@ -139,6 +161,88 @@ export const parseMessageBody = (text: string): (string | JSX.Element)[] => {
     };
   };
 
+  const parseTable = (
+    startIndex: number
+  ): { table: JSX.Element; newIndex: number } | null => {
+    const rows: string[][] = [];
+    let i = startIndex;
+  
+    while (i < lines.length && /^\|.*\|$/.test(lines[i].trim())) {
+      const cols = lines[i]
+        .trim()
+        .slice(1, -1)
+        .split('|')
+        .map((c) => c.trim());
+      rows.push(cols);
+      i++;
+    }
+  
+    if (rows.length < 2) return null;
+  
+    const headers = rows[0];
+    const separator = rows[1] ?? [];
+    const dataRows = rows.slice(2);
+  
+    const aligns: Array<'left' | 'center' | 'right'> = headers.map((_, idx) => {
+      const seg = (separator[idx] || '').trim();
+      const left = seg.startsWith(':');
+      const right = seg.endsWith(':');
+      if (left && right) return 'center';
+      if (right) return 'right';
+      return 'left';
+    });
+  
+    const tableEl = (
+      <ScrollView
+        key={`table-${key++}`}
+        horizontal
+        bounces={false}
+        showsHorizontalScrollIndicator={false}
+        style={styles.tableContainer}
+      >
+        <View style={styles.tableInner}>
+          <View style={styles.tableRow}>
+            {headers.map((h, cIdx) => (
+              <View
+                key={`th-${key++}-${cIdx}`}
+                style={[styles.th, cIdx === headers.length - 1 && styles.lastCell]}
+              >
+                <Text
+                  style={[
+                    styles.cellText,
+                    { fontWeight: '700', textAlign: aligns[cIdx] },
+                  ]}
+                >
+                  {parseInline(h)}
+                </Text>
+              </View>
+            ))}
+          </View>
+  
+          {dataRows.map((row, rIdx) => (
+            <View key={`tr-${key++}-${rIdx}`} style={styles.tableRow}>
+              {headers.map((_, cIdx) => {
+                const cell = row[cIdx] ?? '';
+                return (
+                  <View
+                    key={`td-${key++}-${cIdx}`}
+                    style={[styles.td, cIdx === headers.length - 1 && styles.lastCell]}
+                  >
+                    <Text style={[styles.cellText, { textAlign: aligns[cIdx] }]}>
+                      {parseInline(cell)}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+    );
+  
+    return { table: tableEl, newIndex: i - 1 };
+  };
+
   for (let idx = 0; idx < lines.length; idx++) {
     const line = lines[idx];
 
@@ -194,8 +298,17 @@ export const parseMessageBody = (text: string): (string | JSX.Element)[] => {
       );
       continue;
     }
+    
+    if (/^\|.*\|$/.test(line.trim())) {
+      const tableResult = parseTable(idx);
+      if (tableResult) {
+        elements.push(tableResult.table);
+        idx = tableResult.newIndex;
+        continue;
+      }
+    }
 
-    if (/^(\-|\d+\.)\s+/.test(line)) {
+    if (/^(\-|\d+\.)\s+/.test(line) || /^\[\s?\]/.test(line)) {
       const { list, newIndex } = parseList(idx);
       elements.push(list);
       idx = newIndex;
