@@ -33,11 +33,13 @@ export const getDataFromXml = async (stanza: Element): Promise<DataXml | undefin
   const xmppId = fullData?.attrs.id;
   const xmppFrom = fullData?.attrs?.from;
   const [roomJid, userWallet] = xmppFrom.split('/');
-  const id =
+  let id =
     stanza.getChild('result')?.attrs.id ||
     extractTimestamp(stanza?.getChild('stanza-id')?.attrs?.id, stanza);
 
-  if (!id) return;
+  if (!id) {
+    id = xmppId || Date.now().toString();
+  }
 
   const body = fullData?.getChild('body')?.getText() || undefined;
   const deleted = !!fullData?.getChild('deleted');
@@ -47,7 +49,10 @@ export const getDataFromXml = async (stanza: Element): Promise<DataXml | undefin
       )
     : undefined;
   const langSource = fullData?.getChild('translate')?.attrs?.source;
-  const date = new Date(+id?.slice(0, 13)).toISOString();
+  const numericPart = /\d{13,}/.exec(id || '')?.[0];
+  const date = numericPart
+    ? new Date(+numericPart.slice(0, 13)).toISOString()
+    : new Date().toISOString();
 
   const data = fullData?.getChild('data') || stanza?.getChild('data');
   const photoURL = data?.attrs?.['photo'];

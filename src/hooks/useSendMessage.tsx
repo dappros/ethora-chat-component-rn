@@ -88,7 +88,8 @@ export const useSendMessage = () => {
             isReply || false,
             isChecked || false,
             mainMessage || '',
-            (langSource as any) || 'en'
+            (langSource as any) || 'en',
+            id
           );
         } else {
           const id = `send-text-message-${uuidv4()}`;
