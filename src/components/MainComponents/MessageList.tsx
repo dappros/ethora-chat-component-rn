@@ -136,7 +136,7 @@ const MessageList = <TMessage extends IMessage>({
           message={item}
           activeMessage={activeMessage}
           config={config}
-          walletAddress={user.walletAddress}
+          walletAddress={user.xmppUsername || user.walletAddress}
           isReply={isReply}
           showDateLabel={showDateLabel}
         />
@@ -145,6 +145,7 @@ const MessageList = <TMessage extends IMessage>({
     [
       activeMessage,
       config,
+      user.xmppUsername,
       user.walletAddress,
       isReply,
       memoizedMessages.length,
