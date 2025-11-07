@@ -9,7 +9,7 @@ import {
   User,
 } from '../types/types';
 import { localStorageConstants } from '../helpers/constants/LOCAL_STORAGE';
-import { useLocalStorage } from '../hooks/useLocalStorage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { walletToUsername } from '../helpers/walletUsername';
 
 interface ChatState {
@@ -118,7 +118,7 @@ export const chatSlice = createSlice({
       }
     },
     setConfig: (state, action: PayloadAction<IConfig | undefined>) => {
-      state.config = action.payload;
+      state.config = action.payload as any;
     },
     setActiveModal: (state, action: PayloadAction<ModalType | undefined>) => {
       state.activeModal = action.payload;
@@ -145,13 +145,20 @@ export const chatSlice = createSlice({
       state.user.refreshToken = action.payload.refreshToken;
       state.user.token = action.payload.token;
 
-      useLocalStorage(localStorageConstants.ETHORA_USER).set(JSON.stringify(state.user))
+      AsyncStorage.setItem(
+        localStorageConstants.ETHORA_USER,
+        JSON.stringify(state.user)
+      ).catch((error) => {
+        console.error('Failed to save user to AsyncStorage:', error);
+      });
     },
     logout: (state) => {
       state.user = unpackAndTransform();
       state.config = undefined;
 
-      useLocalStorage(localStorageConstants.ETHORA_USER).remove();
+      AsyncStorage.removeItem(localStorageConstants.ETHORA_USER).catch((error) => {
+        console.error('Failed to remove user from AsyncStorage:', error);
+      });
     },
   },
 });

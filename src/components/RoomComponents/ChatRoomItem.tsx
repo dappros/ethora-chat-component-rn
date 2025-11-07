@@ -38,10 +38,9 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
     return `${hours}:${minutes}` || "";
   };
 
-  console.log("ChatRoomItem render", {
-    name: chat.name,
-    icon: chat.icon,
-  })
+  console.log("ChatRoomItem render", 
+    lastMessage?.body
+  )
 
   return (
     <ChatItem key={index}>
@@ -85,7 +84,7 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
             alignItems: "flex-start",
           }}
         >
-          {chat.composing ? (
+          {/* {chat.composing ? (
             <Composing
               usersTyping={chat.composingList}
               style={{ color: "#141414" }}
@@ -126,7 +125,7 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
                 </Text>
               </View>
             </View>
-          ) : null}
+          ) : null} */}
           {chat.composing ? (
             <Composing
               usersTyping={chat.composingList}
