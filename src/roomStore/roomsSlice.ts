@@ -58,8 +58,9 @@ export const addRoomViaApi = createAsyncThunk(
         xmpp.presenceInRoomStanza(room.jid);
         xmpp?.getHistoryStanza(room.jid, 10);
       }
-      dispatch(roomsStore.actions.addRoomFromApi({ room }));
     }
+    
+    dispatch(roomsStore.actions.addRoomFromApi({ room }));
   }
 );
 
@@ -361,7 +362,31 @@ export const roomsStore = createSlice({
     },
     addRoomFromApi: (state, action: PayloadAction<{ room: IRoom }>) => {
       const { room } = action.payload;
-      state.rooms[room.jid] = room;
+      const existingRoom = state.rooms[room.jid];
+      
+      if (existingRoom) {
+        const preservedUnreadMessages = existingRoom.unreadMessages ?? 0;
+        const preservedLastViewedTimestamp = existingRoom.lastViewedTimestamp ?? 0;
+        const preservedMessages = existingRoom.messages?.length > 0 
+          ? existingRoom.messages 
+          : room.messages;
+        
+        state.rooms[room.jid] = {
+          ...room,
+          unreadMessages: preservedUnreadMessages,
+          lastViewedTimestamp: preservedLastViewedTimestamp,
+          messages: preservedMessages,
+        };
+        
+        if (preservedLastViewedTimestamp > 0 && preservedMessages.length > 0) {
+          state.rooms[room.jid].unreadMessages = countNewerMessages(
+            preservedMessages,
+            preservedLastViewedTimestamp
+          );
+        }
+      } else {
+        state.rooms[room.jid] = room;
+      }
     },
     updateUsersSet: (state, action: PayloadAction<{ rooms: ApiRoom[] }>) => {
       const { rooms } = action.payload;
@@ -392,9 +417,13 @@ const countNewerMessages = (
   messages: IMessage[],
   timestamp: number
 ): number => {
-  if (timestamp !== 0) {
+  if (timestamp !== 0 && messages && messages.length > 0) {
     return messages.filter((message) => {
-      return Number(message.id) < timestamp;
+      if (message.id === 'delimiter-new') {
+        return false;
+      }
+      const messageDate = new Date(message.date).getTime();
+      return messageDate > timestamp;
     }).length;
   } else return 0;
 };
