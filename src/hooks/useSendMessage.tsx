@@ -279,22 +279,29 @@ export const useSendMessage = () => {
 
   const sendMedia = useCallback(
     async (
-      data: File,
+      data: any, // MediaFile с uri, name, type
       type: string,
       activeRoomJID: string,
       isReply = false,
       isChecked = false,
       mainMessage = ''
     ) => {
-      console.log("sendMedia");
+      
+      if (!activeRoomJID) {
+        console.error("sendMedia - no activeRoomJID");
+        return;
+      }
+      
       if (isLastMessageFromUserAndProcessing(activeRoomJID)) {
         console.log('Cannot send media: Last message is still processing');
         return;
       }
 
       const id = `send-media-message:${uuidv4()}`;
+      const fileName = data.name || `file_${Date.now()}`;
+      const fileSize = data.size || 0;
+      
       if (!config?.disableSentLogic) {
-        console.log("config?.disableSentLogic");
         dispatch(
           addRoomMessage({
             roomJID: activeRoomJID,
@@ -311,16 +318,15 @@ export const useSendMessage = () => {
               pending: true,
               isDeleted: false,
               xmppId: id,
-              // xmppFrom: `${activeRoomJID}/${user.id}`,
-              xmppFrom: `${activeRoomJID}/${user._id}`,
+              xmppFrom: `${activeRoomJID}/${user.xmppUsername || user._id}`,
               isSystemMessage: 'false',
               isMediafile: 'true',
-              fileName: data.name,
+              fileName: fileName,
               location: '',
               locationPreview: '',
               mimetype: type,
-              originalName: data.name,
-              size: data.size.toString(),
+              originalName: fileName,
+              size: fileSize.toString(),
               isReply,
               showInChannel: `${isChecked}`,
               mainMessage,
@@ -331,9 +337,14 @@ export const useSendMessage = () => {
 
       try {
         const mediaData = new FormData();
-        mediaData.append('files', data);
-
-        console.log("mediaData!!!!", mediaData);
+        
+        const fileObject = {
+          uri: data.uri,
+          type: type,
+          name: fileName,
+        };
+        
+        mediaData.append('files', fileObject as any);
 
         const response = await uploadFile(mediaData);
 

@@ -61,7 +61,7 @@ const SendInput: React.FC<SendInputProps> = ({
   const handleSendClick = useCallback(() => {
     if (filePreviews.length > 0) {
       filePreviews.forEach((file) => {
-        sendMedia({ uri: file.uri, name: file.name }, file.type);
+        sendMedia(file, file.type);
       });
     } else if (message) {
       sendMessage(message);
