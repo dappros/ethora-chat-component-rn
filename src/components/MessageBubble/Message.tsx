@@ -199,7 +199,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
 
   return (
     <View>
-      {isPressed && <View style={styles.overlay} />}\
+      {isPressed && <View style={styles.overlay} />}
       <View
         ref={messageRef}
         style={[
@@ -281,7 +281,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
               />
             )}
             <CustomMessageTimestamp>
-            {!config?.disableSentLogic && isUser && isPending && 'sending...'}
+            {!config?.disableSentLogic && isUser && isPending && <Text>sending...</Text>}
             {new Date(message.date).toLocaleTimeString([], {
               hour: '2-digit',
               minute: '2-digit',
