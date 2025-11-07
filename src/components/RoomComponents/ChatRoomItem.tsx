@@ -78,10 +78,11 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
         </View>
         <View
           style={{
-            // textAlign: "right",
             width: "100%",
+            flexDirection: "row",
             justifyContent: "space-between",
             alignItems: "flex-start",
+            minHeight: 40,
           }}
         >
           {/* {chat.composing ? (

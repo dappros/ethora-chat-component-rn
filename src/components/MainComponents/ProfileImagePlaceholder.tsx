@@ -22,7 +22,7 @@ interface ProfileImagePlaceholderProps {
   };
   size?: number;
   upload?: {
-    onUpload: (image: any) => void; // Replace `any` with a proper type if available
+    onUpload: (image: any) => void;
     active: boolean;
   };
   remove?: {
@@ -53,22 +53,43 @@ export const ProfileImagePlaceholder: React.FC<
     if(!name) {
       return { backgroundColor: "transparent" };
     }
-    nameToColor(name);
+    return nameToColor(name);
   }, [name]);
 
   const getTwoUppercaseLetters = (fullName: string) => {
     if (!fullName) return "";
 
-    const words = fullName.trim().split(" ");
+    const words = fullName.trim().split(" ").filter(word => word.length > 0);
 
-    const firstLetter = /^[a-zA-Zа-яА-ЯёЁ]$/.test(words[0]?.[0] || "")
-      ? words[0][0].toUpperCase()
-      : "";
-    const secondLetter = /^[a-zA-Zа-яА-ЯёЁ]$/.test(words[1]?.[0] || "")
-      ? words[1][0].toUpperCase()
-      : "";
+    if (words.length === 0) return "";
 
-    return firstLetter + secondLetter;
+    if (words.length >= 2) {
+      const firstLetter = /^[a-zA-Zа-яА-ЯёЁ]$/.test(words[0]?.[0] || "")
+        ? words[0][0].toUpperCase()
+        : "";
+      const secondLetter = /^[a-zA-Zа-яА-ЯёЁ]$/.test(words[1]?.[0] || "")
+        ? words[1][0].toUpperCase()
+        : "";
+      return firstLetter + secondLetter;
+    }
+
+    if (words.length === 1 && words[0].length >= 2) {
+      const firstLetter = /^[a-zA-Zа-яА-ЯёЁ]$/.test(words[0][0] || "")
+        ? words[0][0].toUpperCase()
+        : "";
+      const secondLetter = /^[a-zA-Zа-яА-ЯёЁ]$/.test(words[0][1] || "")
+        ? words[0][1].toUpperCase()
+        : "";
+      return firstLetter + secondLetter;
+    }
+
+    if (words.length === 1 && words[0].length === 1) {
+      return /^[a-zA-Zа-яА-ЯёЁ]$/.test(words[0][0] || "")
+        ? words[0][0].toUpperCase()
+        : "";
+    }
+
+    return "";
   };
 
   const getInitials = () => (!icon && name ? getTwoUppercaseLetters(name) : "");

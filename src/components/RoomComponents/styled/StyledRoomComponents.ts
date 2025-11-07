@@ -3,27 +3,21 @@ import styled from 'styled-components/native';
 
 export const LastRoomMessageContainer = styled.View`
   display: flex;
-  width: 80%;
-  max-width: 190px;
+  flex: 1;
   flex-direction: column;
   align-items: flex-start;
+  margin-right: 8px;
 `;
 
 export const LastRoomMessageName = styled.Text`
-  height: 20px;
   font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   max-width: 190px;
 `;
 
 export const LastRoomMessageText = styled.Text`
-  height: 20px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   max-width: 190px;
+  flex-shrink: 1;
+  flex-wrap: nowrap;
 `;
 
 export const NewMessageMarker = styled.View`
