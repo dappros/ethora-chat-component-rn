@@ -220,13 +220,14 @@ export const ModalSelectMedia: FC<ModalSelectMediaProps> = ({
     <DropdownMenu
       position="leftBottom"
       options={menuOptions}
-      openButton={
+      openButton={(onPress) => (
         <Button
           style={{ padding: 8, maxHeight: 40 }}
           EndIcon={<AttachIcon />}
           unstyled
+          onPress={onPress}
         />
-      }
+      )}
     />
   );
 };

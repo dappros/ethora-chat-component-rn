@@ -14,10 +14,10 @@ import { IConfig } from "../../types/types";
 import Button from "../styled/Button";
 
 const positionMenu = {
-  right: { top: 55, right: 10 },
-  left: { top: 55, left: 0 },
-  rightBottom: { bottom: 55, right: 10 },
-  leftBottom: { bottom: 55, left: 10 },
+  right: { top: 95, right: 10 },
+  left: { top: 95, left: 0 },
+  rightBottom: { bottom: 95, right: 10 },
+  leftBottom: { bottom: 95, left: 10 },
 };
 
 interface MenuOption {
@@ -30,7 +30,7 @@ interface MenuOption {
 interface DropdownMenuProps {
   options: MenuOption[];
   onClose?: any;
-  openButton?: ReactElement;
+  openButton?: ReactElement | ((onPress: () => void) => ReactElement);
   position?: "left" | "right" | "rightBottom" | "leftBottom";
   config?: IConfig;
   menuIcon?: React.ReactNode;
@@ -47,13 +47,19 @@ const DropdownMenu: React.FC<DropdownMenuProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<View>(null);
 
-  const fadeAnim = useRef(new Animated.Value(0)).current; // For fade-in effect
+  const fadeAnim = useRef(new Animated.Value(0)).current;
   const translateYAnim = useRef(new Animated.Value(-10)).current;
 
-  const toggleMenu = () => setIsOpen((prev) => !prev);
+  const toggleMenu = () => {
+    setIsOpen((prev) => {
+      return !prev;
+    });
+  };
 
   useEffect(() => {
     if (isOpen) {
+      fadeAnim.setValue(1);
+      translateYAnim.setValue(0);
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
@@ -78,7 +84,14 @@ const DropdownMenu: React.FC<DropdownMenuProps> = ({
   return (
     <View style={styles.container}>
       {openButton ? (
-        React.cloneElement(openButton, { onPress: toggleMenu })
+        typeof openButton === 'function' ? (
+          openButton(toggleMenu)
+        ) : (
+          React.cloneElement(openButton as React.ReactElement<any>, { 
+            onPress: toggleMenu,
+            key: 'dropdown-button'
+          })
+        )
       ) : (
         // <TouchableOpacity onPress={toggleMenu} style={styles.button}>
         //   {menuIcon ?? <Text style={styles.icon}>☰</Text>}
@@ -96,7 +109,14 @@ const DropdownMenu: React.FC<DropdownMenuProps> = ({
         />
       )}
       {isOpen && (
-        <Modal transparent visible={isOpen} animationType="fade">
+        <Modal 
+          transparent 
+          visible={isOpen} 
+          animationType="fade"
+          onRequestClose={() => {
+            setIsOpen(false);
+          }}
+        >
           <TouchableOpacity
             style={styles.overlay}
             activeOpacity={1}
@@ -105,17 +125,19 @@ const DropdownMenu: React.FC<DropdownMenuProps> = ({
               onClose && onClose();
             }}
           >
-            <Animated.View
-              ref={menuRef}
-              style={[
-                styles.menu,
-                positionMenu[position],
-                {
-                  opacity: fadeAnim,
-                  transform: [{ translateY: translateYAnim }],
-                },
-              ]}
-            >
+            <View style={styles.menuContainer} pointerEvents="box-none">
+              <TouchableWithoutFeedback onPress={() => {}}>
+                <Animated.View
+                  ref={menuRef}
+                  style={[
+                    styles.menu,
+                    positionMenu[position],
+                    {
+                      opacity: fadeAnim,
+                      transform: [{ translateY: translateYAnim }],
+                    },
+                  ]}
+                >
               {options.map((option, index) => (
                 <View key={`${option.label}-${index}`} style={styles.menuItemWrapper}>
                   <TouchableOpacity
@@ -143,7 +165,9 @@ const DropdownMenu: React.FC<DropdownMenuProps> = ({
                   )}
                 </View>
               ))}
-            </Animated.View>
+                </Animated.View>
+              </TouchableWithoutFeedback>
+            </View>
           </TouchableOpacity>
         </Modal>
       )}
@@ -162,13 +186,13 @@ const styles = StyleSheet.create({
     flex: 1,
     width: "100%",
     height: "100%",
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
+  },
+  menuContainer: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    position: "relative",
   },
   button: {
     padding: 10,
@@ -187,10 +211,10 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     minWidth: 150,
     zIndex: 1000,
-    elevation: 4, // Android
+    elevation: 10, // Android
     shadowColor: "#121219", // iOS
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.3,
     shadowRadius: 6,
   },
   menuItemWrapper: {
