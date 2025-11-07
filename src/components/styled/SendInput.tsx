@@ -48,6 +48,8 @@ const SendInput: React.FC<SendInputProps> = ({
 
   useComposing(message);
 
+  console.log("filePreviews", filePreviews);
+
   const handleFileSelect = (files: MediaFile[]) => {
     setFilePreviews([...files]);
   };

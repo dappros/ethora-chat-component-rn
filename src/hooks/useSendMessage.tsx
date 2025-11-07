@@ -286,6 +286,7 @@ export const useSendMessage = () => {
       isChecked = false,
       mainMessage = ''
     ) => {
+      console.log("sendMedia");
       if (isLastMessageFromUserAndProcessing(activeRoomJID)) {
         console.log('Cannot send media: Last message is still processing');
         return;
@@ -293,6 +294,7 @@ export const useSendMessage = () => {
 
       const id = `send-media-message:${uuidv4()}`;
       if (!config?.disableSentLogic) {
+        console.log("config?.disableSentLogic");
         dispatch(
           addRoomMessage({
             roomJID: activeRoomJID,
@@ -330,6 +332,8 @@ export const useSendMessage = () => {
       try {
         const mediaData = new FormData();
         mediaData.append('files', data);
+
+        console.log("mediaData!!!!", mediaData);
 
         const response = await uploadFile(mediaData);
 

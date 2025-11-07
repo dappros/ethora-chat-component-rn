@@ -49,7 +49,6 @@ export const ModalSelectMedia: FC<ModalSelectMediaProps> = ({
     } else if (status === RESULTS.UNAVAILABLE) {
       return status;
     } else {
-      console.log(status);
       return status;
     }
   };
@@ -94,48 +93,72 @@ export const ModalSelectMedia: FC<ModalSelectMediaProps> = ({
         name: originalName || `camera_${Date.now()}.jpg`,
       };
       onFileSelect([file]);
-    } catch (error) {
-      console.error("Camera error:", error);
+    } catch (error: any) {
+      const errorMessage = error?.message || String(error);
+      const isSimulatorError = 
+        errorMessage.includes("simulator") || 
+        errorMessage.includes("Cannot run camera") ||
+        errorMessage.includes("Camera not available");
+      
+      if (isSimulatorError) {
+        Alert.alert(
+          "Camera unavailable",
+          "Camera is not available on iOS Simulator. Please test on a real device.",
+          [{ text: "OK" }]
+        );
+      } else if (error?.code !== "E_PICKER_CANCELLED") {
+        console.error("Camera error:", error);
+        Alert.alert(
+          "Camera error",
+          errorMessage || "Failed to open camera. Please try again.",
+          [{ text: "OK" }]
+        );
+      }
     }
   };
 
   const handleGallerySelection = async () => {
-    let permission: Permission;
-
-    if (Platform.OS === "ios") {
-      permission = PERMISSIONS.IOS.PHOTO_LIBRARY;
-    } else if (Number(Platform.Version) >= 33) {
-      permission = PERMISSIONS.ANDROID.READ_MEDIA_IMAGES;
-    } else {
-      permission = PERMISSIONS.ANDROID.READ_EXTERNAL_STORAGE;
-    }
-
-    const permissionStatus = await checkPermission(permission);
-
-    if (permissionStatus !== RESULTS.GRANTED) {
-      Alert.alert(
-        "Permission required",
-        "Gallery permission is needed to select photos.",
-        [
-          {
-            text: "Cancel",
-            onPress: () => console.log("Gallery permission cancelled"),
-            style: "cancel",
-          },
-          {
-            text: "Open Settings",
-            onPress: () => Linking.openSettings(),
-          },
-        ]
-      );
-      return;
-    }
-
     try {
+      let permission: Permission;
+
+      if (Platform.OS === "ios") {
+        permission = PERMISSIONS.IOS.PHOTO_LIBRARY;
+      } else if (Number(Platform.Version) >= 33) {
+        permission = PERMISSIONS.ANDROID.READ_MEDIA_IMAGES;
+      } else {
+        permission = PERMISSIONS.ANDROID.READ_EXTERNAL_STORAGE;
+      }
+
+      console.log("handleGallerySelection - checking permission:", permission);
+      const permissionStatus = await checkPermission(permission);
+      console.log("handleGallerySelection - permission status:", permissionStatus);
+
+      if (permissionStatus !== RESULTS.GRANTED) {
+        console.log("handleGallerySelection - permission not granted, showing alert");
+        Alert.alert(
+          "Permission required",
+          "Gallery permission is needed to select photos.",
+          [
+            {
+              text: "Cancel",
+              onPress: () => console.log("Gallery permission cancelled"),
+              style: "cancel",
+            },
+            {
+              text: "Open Settings",
+              onPress: () => Linking.openSettings(),
+            },
+          ]
+        );
+        return;
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 300));
       const image = await ImagePicker.openPicker({
         multiple: false,
         mediaType: "any",
       });
+      console.log("handleGallerySelection - image selected:", image);
 
       const originalName = image.path.split("/").pop();
       const file = {
@@ -149,8 +172,21 @@ export const ModalSelectMedia: FC<ModalSelectMediaProps> = ({
       };
 
       onFileSelect([file]);
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.code === "E_PICKER_CANCELLED") {
+        return;
+      }
+      
       console.error("Gallery error:", error);
+      console.error("Gallery error code:", error?.code);
+      console.error("Gallery error message:", error?.message);
+      
+      const errorMessage = error?.message || String(error);
+      Alert.alert(
+        "Gallery error",
+        errorMessage || "Failed to open gallery. Please try again.",
+        [{ text: "OK" }]
+      );
     }
   };
 
@@ -171,11 +207,17 @@ export const ModalSelectMedia: FC<ModalSelectMediaProps> = ({
       });
 
       onFileSelect(files);
-    } catch (err) {
+    } catch (err: any) {
       if (DocumentPicker.isCancel(err)) {
         console.log("User cancelled file picker");
       } else {
         console.error("DocumentPicker Error:", err);
+        const errorMessage = err?.message || String(err);
+        Alert.alert(
+          "File selection error",
+          errorMessage || "Failed to select file. Please try again.",
+          [{ text: "OK" }]
+        );
       }
     }
   };
@@ -188,7 +230,6 @@ export const ModalSelectMedia: FC<ModalSelectMediaProps> = ({
         onClick: async () => {
           setTimeout(async () => {
             await handleCameraSelection();
-            console.log("Open camera");
           }, 500);
         },
       },
@@ -196,10 +237,7 @@ export const ModalSelectMedia: FC<ModalSelectMediaProps> = ({
         label: "Media File",
         icon: <MediaIcon />,
         onClick: async () => {
-          setTimeout(async () => {
-            await handleGallerySelection();
-            console.log("Open gallery");
-          }, 500);
+          await handleGallerySelection();
         },
       },
       {
@@ -207,7 +245,6 @@ export const ModalSelectMedia: FC<ModalSelectMediaProps> = ({
         icon: <DocumentIcon />,
         onClick: async () => {
           setTimeout(async () => {
-            console.log("document");
             await handleFileSelection();
           }, 500);
         },

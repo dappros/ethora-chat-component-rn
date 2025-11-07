@@ -142,10 +142,16 @@ const DropdownMenu: React.FC<DropdownMenuProps> = ({
                 <View key={`${option.label}-${index}`} style={styles.menuItemWrapper}>
                   <TouchableOpacity
                     style={styles.menuItem}
-                    onPress={() => {
-                      option.onClick();
+                    onPress={async () => {
                       setIsOpen(false);
                       onClose && onClose();
+                      setTimeout(() => {
+                        try {
+                          option.onClick();
+                        } catch (error) {
+                          console.error("Error in option.onClick:", error);
+                        }
+                      }, 200);
                     }}
                   >
                     <View
