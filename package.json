@@ -1,12 +1,26 @@
 {
   "name": "@ethora/chat-component",
   "version": "1.0.0",
+  "description": "React Native chat component with XMPP support for both Expo and React Native CLI projects",
+  "main": "src/main.ts",
+  "types": "src/main.ts",
+  "files": [
+    "src",
+    "app.plugin.js",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "android": "react-native run-android",
     "ios": "react-native run-ios",
     "lint": "eslint .",
     "start": "react-native start",
-    "test": "jest"
+    "test": "jest",
+    "prepublishOnly": "npm run lint"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-native": ">=0.70.0"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",
@@ -22,8 +36,6 @@
     "emoji-mart": "^5.6.0",
     "firebase": "^11.9.1",
     "js-sha256": "^0.11.0",
-    "react": "18.3.1",
-    "react-native": "0.76.5",
     "react-native-audio-recorder-player": "^3.6.12",
     "react-native-document-picker": "^9.3.1",
     "react-native-dotenv": "^3.4.11",
@@ -46,17 +58,11 @@
     "styled-components": "^6.1.13",
     "uuid": "^11.1.0"
   },
-  "reactNativePermissionsIOS": [
-    "Camera",
-    "MediaLibrary",
-    "Microphone",
-    "PhotoLibrary",
-    "PhotoLibraryAddOnly"
-  ],
   "devDependencies": {
     "@babel/core": "^7.25.2",
     "@babel/preset-env": "^7.25.3",
     "@babel/runtime": "^7.25.0",
+    "@expo/config-plugins": "^8.0.0",
     "@react-native-community/cli": "15.0.1",
     "@react-native-community/cli-platform-android": "15.0.1",
     "@react-native-community/cli-platform-ios": "15.0.1",
@@ -75,12 +81,31 @@
     "react-test-renderer": "18.3.1",
     "typescript": "5.0.4"
   },
+  "reactNativePermissionsIOS": [
+    "Camera",
+    "MediaLibrary",
+    "Microphone",
+    "PhotoLibrary",
+    "PhotoLibraryAddOnly"
+  ],
   "engines": {
     "node": ">=18"
   },
-  "directories": {
-    "lib": "lib"
+  "expo": {
+    "name": "@ethora/chat-component",
+    "slug": "ethora-chat-component",
+    "version": "1.0.0",
+    "platforms": ["ios", "android"],
+    "plugin": "./app.plugin.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ethora/ethora-chat-component-rn.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ethora/ethora-chat-component-rn/issues"
+  },
+  "homepage": "https://github.com/ethora/ethora-chat-component-rn#readme",
   "author": "Ethora",
   "license": "AGPL",
   "keywords": [
@@ -88,6 +113,8 @@
     "messaging",
     "react",
     "react-component",
+    "react-native",
+    "expo",
     "messenger",
     "reactjs",
     "web3",

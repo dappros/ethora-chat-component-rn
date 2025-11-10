@@ -1,0 +1,58 @@
+# Build artifacts
+android/
+ios/
+build/
+dist/
+*.log
+
+# Development files
+.git/
+.gitignore
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Test files
+__tests__/
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+coverage/
+
+# Config files (keep only what's needed)
+.env
+.env.local
+.env.*.local
+babel.config.js
+metro.config.js
+jest.config.js
+tsconfig.json
+
+# Example and demo files
+App.tsx
+index.js
+app.json
+gesture-handler.js
+gesture-handler.native.js
+
+# Metro bundler
+.metro/
+
+# Node modules (will be installed by users)
+node_modules/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Package files
+*.tgz
+package-lock.json
+
+# Firebase config (if sensitive)
+firebase-config.ts
+env.d.ts
+
