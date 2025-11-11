@@ -51,7 +51,7 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
 
   const { loading, roomsList, editAction, activeRoomJID } = useRoomState();
   const { config } = useChatSettingState();
-  const { sendMessage: sendMs, sendMedia: sendMessageMedia, isLastMessageFromUserAndProcessing } = useSendMessage();
+  const { sendMessage: sendMs, sendMedia: sendMessageMedia, sendEditMessage, isLastMessageFromUserAndProcessing } = useSendMessage();
 
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
   const [isChecked, setIsChecked] = useState<boolean>(false);
@@ -94,6 +94,8 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
     },
     [client]
   );
+
+  console.log('ThreadWrapper', isChecked);
 
   const sendMessage = useCallback(
     (message: string) => {
@@ -212,13 +214,13 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
           </Text>
         </TouchableOpacity>
       </AlsoContainer>
-      {editAction.isEdit && (
+      {editAction && editAction.isEdit && (
         <EditWrapper text={editAction.text || ""} onClose={onCloseEdit} />
       )}
       <SendInput
-        editMessage={editAction.text}
+        editMessage={editAction &&editAction.text}
         sendMedia={sendMedia}
-        sendMessage={sendMessage}
+        sendMessage={editAction && editAction.isEdit ? sendEditMessage : sendMessage}
         config={config}
         onFocus={sendStartComposing}
         onBlur={sendEndComposing}

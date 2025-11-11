@@ -220,7 +220,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
           )}
           <SendInput
             editMessage={editAction && editAction.text}
-            sendMessage={sendMessage}
+            sendMessage={editAction &&editAction.isEdit ? sendEditMessage : sendMessage}
             sendMedia={sendMedia}
             config={config}
             isLoading={loading}
