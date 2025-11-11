@@ -97,8 +97,9 @@ export const roomsStore = createSlice({
       action: PayloadAction<{ roomJID: string; messages: IMessage[] }>
     ) {
       const { roomJID, messages } = action.payload;
+
       if (state.rooms[roomJID]) {
-        state.rooms[roomJID].messages = messages;
+        state.rooms[roomJID].messages = messages.filter((message) => !message.deleted);
       }
     },
     deleteRoomMessage(
@@ -180,6 +181,8 @@ export const roomsStore = createSlice({
       console.log('addRoomMessage', { roomJID, message, start });
 
       if (!message?.body) return;
+      
+      if (message.deleted || message.isDeleted) return;
 
       const roomMessages = state.rooms[roomJID]?.messages;
 
@@ -203,6 +206,10 @@ export const roomsStore = createSlice({
       );
       
       if (existingIndex !== -1) {
+        if (message.deleted || message.isDeleted) {
+          roomMessages.splice(existingIndex, 1);
+          return;
+        }
         roomMessages[existingIndex] = deepMerge(
           { ...roomMessages[existingIndex] },
           { ...message, pending: false }
@@ -363,13 +370,17 @@ export const roomsStore = createSlice({
     addRoomFromApi: (state, action: PayloadAction<{ room: IRoom }>) => {
       const { room } = action.payload;
       const existingRoom = state.rooms[room.jid];
-      
+
+      const filteredMessages = room.messages?.filter(
+        (msg) => !msg.deleted && !msg.isDeleted
+      ) || [];
+
       if (existingRoom) {
         const preservedUnreadMessages = existingRoom.unreadMessages ?? 0;
         const preservedLastViewedTimestamp = existingRoom.lastViewedTimestamp ?? 0;
         const preservedMessages = existingRoom.messages?.length > 0 
-          ? existingRoom.messages 
-          : room.messages;
+          ? existingRoom.messages.filter((msg) => !msg.deleted && !msg.isDeleted)
+          : filteredMessages;
         
         state.rooms[room.jid] = {
           ...room,
@@ -385,7 +396,10 @@ export const roomsStore = createSlice({
           );
         }
       } else {
-        state.rooms[room.jid] = room;
+        state.rooms[room.jid] = {
+          ...room,
+          messages: filteredMessages,
+        };
       }
     },
     updateUsersSet: (state, action: PayloadAction<{ rooms: ApiRoom[] }>) => {
@@ -433,10 +447,14 @@ export const getLastMessageTimestamp = (
   jid: string
 ): string | null => {
   const room = state.rooms[jid];
+  
   if (!room || room.messages.length === 0) {
     return null;
   }
-  const lastMessage = room.messages[room.messages.length - 1];
+
+  const messagesFilter = room.messages.filter((message) => !message.deleted);
+
+  const lastMessage = messagesFilter[messagesFilter.length - 1];
   return lastMessage.id;
 };
 

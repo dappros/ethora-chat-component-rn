@@ -27,6 +27,7 @@ export function setBaseURL(newBaseURL?: string, customAppToken?: string) {
 export function refresh(): Promise<{
   data: { refreshToken: string; token: string };
 }> {
+  console.log('refresh function');
   return new Promise((resolve, reject) => {
     const user = store.getState().chatSettingStore.user;
     try {
@@ -79,7 +80,9 @@ const processQueue = (newAccessToken: string) => {
 http.interceptors.response.use(
   (response) => response,
   async (error) => {
+    console.log('interceptors 0', !store.getState().chatSettingStore?.config?.refreshTokens?.enabled);
     if (!store.getState().chatSettingStore?.config?.refreshTokens?.enabled) {
+      console.log('interceptors 1');
       if (
         store.getState().chatSettingStore?.config?.refreshTokens
           ?.refreshFunction

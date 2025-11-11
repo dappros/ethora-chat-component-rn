@@ -34,7 +34,7 @@ function App(): React.JSX.Element {
           newArch: true,
           setRoomJidInPath: true,
           qrUrl: 'https://beta.ethora.com/app/chat/?qrChatId=',
-          refreshTokens: { enabled: true },
+          refreshTokens: { enabled: false },
           // secondarySendButton: {
           //   enabled: true,
           //   messageEdit: `videoId:${window.location.href}`,

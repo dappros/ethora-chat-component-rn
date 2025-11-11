@@ -68,7 +68,10 @@ const MessageList = <TMessage extends IMessage>({
         ...message,
         reply: messages.filter(
           (mess) =>
-            !!mess.mainMessage && JSON.parse(mess.mainMessage).id === message.id
+            !!mess.mainMessage && 
+            JSON.parse(mess.mainMessage).id === message.id &&
+            !mess.deleted && 
+            !mess.isDeleted
         ),
       };
       return newMessage;
@@ -76,8 +79,12 @@ const MessageList = <TMessage extends IMessage>({
   }, [messages]);
 
   const memoizedMessages = useMemo(() => {
+    const nonDeletedMessages = addReplyMessages.filter(
+      (item: IMessage) => !item.deleted && !item.isDeleted
+    );
+
     if (isReply) {
-      return addReplyMessages.filter(
+      return nonDeletedMessages.filter(
         (item: IMessage) =>
           item.roomJid === roomJID &&
           item.isReply &&
@@ -86,13 +93,15 @@ const MessageList = <TMessage extends IMessage>({
           JSON.parse(item.mainMessage).id === activeMessage?.id
       );
     } else {
-      return addReplyMessages.filter(
+      return nonDeletedMessages.filter(
         (item: IMessage) =>
           item.showInChannel === "true" ||
           ((!item.isReply || item.isReply === "false") && !item.mainMessage)
       );
     }
   }, [addReplyMessages, isReply, roomJID, activeMessage]);
+
+  console.log('memoizedMessages', memoizedMessages);
 
   const handleLoadMore = useCallback(async () => {
     if (loading || !memoizedMessages.length || isScrollBlocked) return;

@@ -639,8 +639,10 @@ export class XmppClient implements XmppClientInterface {
     max: number,
     before?: number,
     otherStanzaId?: string
-  ) => {
-    return await getHistory(this.client, chatJID, max, before, otherStanzaId);
+  ): Promise<IMessage[]> => {
+    const result = await getHistory(this.client, chatJID, max, before, otherStanzaId);
+
+    return result?.filter((message) => !message.deleted) ?? [];
   };
 
   getLastMessageArchiveStanza(roomJID: string) {

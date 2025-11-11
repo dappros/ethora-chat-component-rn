@@ -26,10 +26,18 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
   isDriver,
   config,
 }) => {
-  const lastMessage = useMemo(
-    () => chat?.messages?.[chat?.messages.length - 1],
-    [chat?.messages?.length]
-  );
+  const lastMessage = useMemo(() => {
+    if (!chat?.messages || chat.messages.length === 0) return undefined;
+    
+    // Находим последнее не удаленное сообщение
+    for (let i = chat.messages.length - 1; i >= 0; i--) {
+      const msg = chat.messages[i];
+      if (!msg.deleted && !msg.isDeleted) {
+        return msg;
+      }
+    }
+    return undefined;
+  }, [chat?.messages]);
 
   const formatTimeToHHMM = (isoTime: string | Date): string => {
     const date = new Date(isoTime);

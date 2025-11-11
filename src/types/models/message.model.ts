@@ -32,6 +32,7 @@ export interface IMessage {
   size?: string;
   xmppId?: string;
   xmppFrom?: string;
+  deleted?: boolean;
 }
 
 export interface ReactionMessage {

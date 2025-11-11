@@ -240,6 +240,8 @@ const onMessageHistory = async (stanza: any) => {
       ...rest,
     });
 
+    console.log('onMessageHistory', message);
+
     const fixedUser = await checkSingleUser(
       store.getState().rooms.usersSet,
       message.user.id
