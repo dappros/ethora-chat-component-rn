@@ -22,7 +22,7 @@ import {
   StyleSheet,
 } from "react-native";
 import Clipboard from "@react-native-clipboard/clipboard";
-import Toast from "../Toast/Toast";
+import { useToast } from "../../context/ToastContext";
 
 interface MessageInteractionsProps {
   isReply?: boolean;
@@ -47,8 +47,8 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
 }) => {
   const { client } = useXmppClient();
   const dispatch = useDispatch();
-  const [toastVisible, setToastVisible] = useState(false);
-
+  const { showToast } = useToast();
+  
   // const handleDeleteMessage = (roomJid: string, messageId: string) => {
   //   // dispatch(deleteRoomMessage({ roomJID: room, messageId: msgId }));
   //   client.deleteMessageStanza(roomJid, messageId);
@@ -65,9 +65,14 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
   };
 
   const handleCopyMessage = (text: string) => {
-    setToastVisible(true);
     Clipboard.setString(text);
-    setTimeout(() => setToastVisible(false), 2000);
+    showToast({
+      id: Date.now().toString(),
+      title: 'Success',
+      message: 'Copied to clipboard!',
+      type: 'success',
+    });
+    closeMenu();
   };
 
   const handleReplyMessage = () => {
@@ -151,11 +156,6 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
         </Overlay>
       )}
 
-      <Toast
-        visible={toastVisible}
-        message="Copied to clipboard!"
-        duration={1500}
-      />
     </Modal>
   );
 };

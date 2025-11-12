@@ -151,11 +151,6 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
     // hooks useEffects
     // useRoomUrl(activeRoomJID || "", roomsList, config);
 
-    console.log("ChatRoom render", {
-      activeRoomJID,
-      roomsList,
-      config,
-      roomMessages});
 
     useRoomInitialization(
       activeRoomJID || "",

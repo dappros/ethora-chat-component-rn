@@ -21,7 +21,7 @@ import { createRoomFromApi } from '../../../helpers/createRoomFromApi';
 import { useChatSettingState } from '../../../hooks/useChatSettingState';
 import { useAppDispatch } from '../../../hooks/hooks';
 import { Text } from 'react-native';
-import Toast from '../../Toast/Toast';
+import { useToast } from '../../../context/ToastContext';
 
 const AddMembersModal: React.FC = () => {
   const { config } = useChatSettingState();
@@ -29,6 +29,7 @@ const AddMembersModal: React.FC = () => {
 
   const dispatch = useAppDispatch();
   const { client } = useXmppClient();
+  const { showToast } = useToast();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [userName, setUserName] = useState('');
@@ -65,17 +66,19 @@ const AddMembersModal: React.FC = () => {
         );
       }
 
-      Toast({
-        visible: true,
-        duration: 2000,
+      showToast({
+        id: Date.now().toString(),
+        title: 'Success',
         message: `${userName} has been added to the room.`,
+        type: 'success',
       });
     } catch (error) {
       console.error('Failed to add user:', error);
-      Toast({
-        visible: true,
-        duration: 2000,
+      showToast({
+        id: Date.now().toString(),
+        title: 'Error',
         message: 'Failed to add user.',
+        type: 'error',
       });
     }
   };

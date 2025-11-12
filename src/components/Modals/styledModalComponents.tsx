@@ -167,3 +167,9 @@ export const Viewider = styled.View`
   width: 100%;
   background-color: #0052cd0d;
 `;
+
+export const Divider = styled.View`
+  height: 1px;
+  width: 100%;
+  background-color: #0052cd0d;
+`;

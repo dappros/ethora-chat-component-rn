@@ -14,10 +14,9 @@ const useComposing = (config?: IConfig) => {
     if (config?.disableTypingIndicator) {
       return;
     }
-    
     if (client) {
       client.sendTypingRequestStanza(
-        activeRoomJID,
+        activeRoomJID || '',
         `${user.firstName} ${user.lastName}`,
         true
       );
@@ -28,10 +27,9 @@ const useComposing = (config?: IConfig) => {
     if (config?.disableTypingIndicator) {
       return;
     }
-    
     if (client) {
       client.sendTypingRequestStanza(
-        activeRoomJID,
+        activeRoomJID || '',
         `${user.firstName} ${user.lastName}`,
         false
       );

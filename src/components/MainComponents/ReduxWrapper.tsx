@@ -5,6 +5,7 @@ import { ConfigUser, IConfig, MessageProps } from "../../types/types";
 import { XmppProvider } from "../../context/xmppProvider.tsx";
 import LoginWrapper from "./LoginWrapper.tsx";
 import { ViewStyle } from "react-native";
+import { ToastProvider } from "../../context/ToastContext.tsx";
 
 interface ChatWrapperProps {
   token?: string;
@@ -26,7 +27,9 @@ export const ReduxWrapper: React.FC<ChatWrapperProps> = React.memo(
       <React.StrictMode>
         <XmppProvider>
           <Provider store={store}>
-            <LoginWrapper config={memoizedConfig} {...props} />
+            <ToastProvider>
+              <LoginWrapper config={memoizedConfig} {...props} />
+            </ToastProvider>
           </Provider>
         </XmppProvider>
       </React.StrictMode>

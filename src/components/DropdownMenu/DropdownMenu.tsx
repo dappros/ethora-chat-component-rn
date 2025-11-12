@@ -20,7 +20,7 @@ const positionMenu = {
   leftBottom: { bottom: 95, left: 10 },
 };
 
-interface MenuOption {
+export interface MenuOption {
   label: string;
   icon: React.ReactNode;
   onClick: () => void;

@@ -10,7 +10,6 @@ import { IConfig, MediaFile } from "../../types/types";
 import Button from "./Button";
 import { SendIcon } from "../../assets/icons";
 import { KeyboardAvoidingView, Platform, View } from "react-native";
-import useComposing from "../../hooks/useComposing";
 import { ModalSelectMedia } from "../Modals/ModalSelectMedia/ModalSelectMedia.tsx";
 import { MediaFilePreview } from "./MediaFilePreview";
 
@@ -45,8 +44,6 @@ const SendInput: React.FC<SendInputProps> = ({
   const [isFocused, setIsFocused] = useState(false);
   const [filePreviews, setFilePreviews] = useState<MediaFile[]>([]);
   const [inputHeight, setInputHeight] = useState(40);
-
-  useComposing(message);
 
   console.log("filePreviews", filePreviews);
 
@@ -97,14 +94,16 @@ const SendInput: React.FC<SendInputProps> = ({
                 value={message}
                 onChangeText={setMessage}
                 onFocus={() => {
+                  onFocus?.();
                   setIsFocused(true);
                 }}
                 onBlur={() => {
+                  onBlur?.();
                   setIsFocused(false);
                 }}
                 editable={!isLoading || !isMessageProcessing}
                 multiline={true}
-                maxHeight={72}
+                // maxHeight={72}
                 onContentSizeChange={(event) => {
                   setInputHeight(
                     Math.min(

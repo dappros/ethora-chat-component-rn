@@ -14,8 +14,8 @@ import { setActiveFile } from "../../../roomStore/chatSettingsSlice";
 import { Alert, Text, View, PermissionsAndroid, Platform } from "react-native";
 import Video from "react-native-video";
 import RNFS from "react-native-fs";
-import Toast from "../../Toast/Toast";
 import { CameraRoll } from "@react-native-camera-roll/camera-roll";
+import { useToast } from "../../../context/ToastContext";
 
 export const FullScreenVideo = styled.View`
   width: 100%;
@@ -31,13 +31,11 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   handleCloseModal,
 }) => {
   const dispatch = useDispatch();
+  const { showToast } = useToast();
+  
   const { activeFile } = useSelector(
     (state: RootState) => state.chatSettingStore
   );
-  const [toastVisible, setToastVisible] = useState({
-    isStatus: false,
-    message: "",
-  });
 
   if (!activeFile) return;
 
@@ -149,9 +147,11 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           });
         }
 
-        setToastVisible({
-          isStatus: true,
-          message: "Save successful",
+        showToast({
+          id: Date.now().toString(),
+          title: 'Success',
+          message: 'Save successful',
+          type: 'success',
         });
       } else {
         Alert.alert("Error", "Failed to save the file.");
@@ -182,9 +182,11 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
       }).promise;
 
       if (res.statusCode === 200) {
-        setToastVisible({
-          isStatus: true,
-          message: "Save successful",
+        showToast({
+          id: Date.now().toString(),
+          title: 'Success',
+          message: 'Save successful',
+          type: 'success',
         });
       } else {
         Alert.alert("Error", "Failed to save the file one.");
@@ -288,11 +290,6 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
         {getMediaComponent}
       </CenterContainer>
 
-      <Toast
-        visible={toastVisible.isStatus}
-        message={toastVisible.message}
-        duration={1500}
-      />
     </ModalContainerFullScreen>
   );
 };
