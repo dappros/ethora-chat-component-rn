@@ -74,8 +74,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
         message: 'Document deleted successfully',
         type: 'success',
       });
-      handleGetDocs();
-      setShowDelete(false);
+      // handleGetDocs();
     } catch (error) {
       console.error('Error deleting document', error);
       showToast({
@@ -84,6 +83,8 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
         message: 'Failed to delete document',
         type: 'error',
       });
+    } finally {
+      setShowDelete(false);
     }
   }
 
@@ -346,39 +347,6 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
             </>
           )}
           {/* <EmptySection /> */}
-
-        { showDelete && (
-          <ModalBackground>
-            <ModalContainer>
-              <CloseButton onPress={() => setShowDelete(false)}>
-                <Text style={{ fontSize: 24 }}>&times;</Text>
-              </CloseButton>
-              <ModalTitle>Delete this chat ?</ModalTitle>
-
-              <GroupContainer>
-                <Button
-                  onPress={() => setShowDelete(false)}
-                  text={'Cancel'}
-                  style={{ width: '100%' }}
-                  unstyled
-                  variant="filled"
-                />
-                <Button
-                  onPress={handleDeleteDocument}
-                  text={'Delete'}
-                  style={{
-                    width: '100%',
-                    borderWidth: 1,
-                    borderColor: 'red',
-                }}
-                  color="red"
-                  unstyled
-                  variant="outlined"
-                />
-              </GroupContainer>
-            </ModalContainer>
-          </ModalBackground>
-        )}
         </CenterContainer>
       </>
     ),
@@ -397,9 +365,45 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
   );
 
   return (
-    <ModalContainerFullScreen>
-      {!isEditing ? DefaultBody : EditingBody}
-    </ModalContainerFullScreen>
+    <>
+      <ModalContainerFullScreen>
+        {!isEditing ? DefaultBody : EditingBody}
+      </ModalContainerFullScreen>
+      
+      {showDelete && (
+        <ModalBackground style={{ position: 'absolute', zIndex: 9999 }}>
+          <ModalContainer>
+            <CloseButton onPress={() => setShowDelete(false)}>
+              <Text style={{ fontSize: 24 }}>&times;</Text>
+            </CloseButton>
+            <ModalTitle>Delete this document?</ModalTitle>
+
+            <GroupContainer>
+              <Button
+                onPress={() => setShowDelete(false)}
+                text={'Cancel'}
+                style={{ width: '100%' }}
+                unstyled
+                variant="filled"
+                color="white"
+              />
+              <Button
+                onPress={handleDeleteDocument}
+                text={'Delete'}
+                style={{
+                  width: '100%',
+                  borderWidth: 1,
+                  borderColor: 'red',
+                }}
+                color="red"
+                unstyled
+                variant="outlined"
+              />
+            </GroupContainer>
+          </ModalContainer>
+        </ModalBackground>
+      )}
+    </>
   );
 };
 
