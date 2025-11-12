@@ -71,6 +71,7 @@ interface SelectProps {
   placeholder: string;
   onSelect: (selected: { name: string; id: Iso639_1Codes }) => void;
   accentColor?: string;
+  selectedValue: { name: string; id: string } | null;
 }
 
 const Select: React.FC<SelectProps> = ({
@@ -78,10 +79,11 @@ const Select: React.FC<SelectProps> = ({
   placeholder,
   onSelect,
   accentColor,
+  selectedValue = null
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [selected, setSelected] = useState<{ name: string; id: string } | null>(
-    null
+    selectedValue
   );
   const [searchTerm, setSearchTerm] = useState("");
   const rotationAnim = useRef(new Animated.Value(0)).current;

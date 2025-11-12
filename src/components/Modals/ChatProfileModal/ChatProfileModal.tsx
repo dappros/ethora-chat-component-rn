@@ -264,7 +264,8 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
               >
                 <View
                   style={{
-                    justifyContent: 'space-between',
+                    flexDirection: 'row',
+                    justifyContent: 'flex-start',
                     paddingHorizontal: 8,
                     paddingVertical: 0,
                     alignItems: 'center',
@@ -272,7 +273,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
                   }}
                 >
                   <Pressable
-                    style={{ display: 'flex', gap: 8, cursor: 'pointer' }}
+                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', gap: 16 }}
                     onPress={() => handleUserAvatarClick(user)}
                   >
                     <ProfileImagePlaceholder
