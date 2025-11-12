@@ -12,6 +12,7 @@ interface HeaderRoomListProps {
 export const HeaderRoomList: FC<HeaderRoomListProps> = ({ setDrawerOpen }) => {
   const { config, user, selectedUser } = useChatSettingState();
 
+
   const modalUser: any = selectedUser ?? user;
 
   const HeaderLogo = useMemo(() => {

@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CenterContainer,
   UserInfo,
@@ -9,8 +9,13 @@ import {
   Label,
   BorderedContainer,
   LabelData,
+  ModalBackground,
+  ModalContainer,
+  CloseButton,
+  ModalTitle,
+  GroupContainer,
 } from "../styledModalComponents";
-import { ChatIcon, EditIcon, LeaveIcon, MoreIcon } from "../../../assets/icons";
+import { ChatIcon, DeleteIcon, DownloadIcon, EditIcon, IconDoc, LeaveIcon, MoreIcon } from "../../../assets/icons";
 import ModalHeaderComponent from "../ModalHeaderComponent";
 import { useSelector } from "react-redux";
 import { RootState } from "../../../roomStore";
@@ -31,11 +36,14 @@ import Loader from "../../styled/Loader";
 import { ApiRoom, IRoom, Iso639_1Codes } from "../../../types/types";
 import Select from "../../MainComponents/Select";
 import { useAppDispatch, useAppSelector } from "../../../hooks/hooks";
-import { Text } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import { postPrivateRoom } from "../../../networking/api-requests/rooms.api";
 import { createRoomFromApi } from "../../../helpers/createRoomFromApi";
 import { useToast } from "../../../context/ToastContext";
 import { LANGUAGE_OPTIONS } from "../../../helpers/constants/LANGUAGE_OPTIONS";
+import { deleteDocument, getDocuments } from "../../../networking/api-requests/user.api";
+import { useChatSettingState } from "../../../hooks/useChatSettingState";
+import { DateTime } from "luxon";
 
 interface UserProfileModalProps {
   handleCloseModal: any;
@@ -49,19 +57,50 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const { client } = useXmppClient();
   const { showToast } = useToast();
 
-  const { config, user, selectedUser, langSource } = useSelector(
-    (state: RootState) => state.chatSettingStore
-  );
+  const { config, user, selectedUser, langSource } = useChatSettingState();
 
   const [isEditing, setIsEditing] = useState<boolean>(false);
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [deleteDocumentId, setDeleteDocumentId] = useState<string>('');
+  const [showDelete, setShowDelete] = useState<boolean>(false);
 
-  const languageOptions: { name: string; id: Iso639_1Codes }[] = [
-    { name: "English", id: "en" },
-    { name: "Spanish", id: "es" },
-    { name: "Portuguese", id: "pt" },
-    { name: "Haitian Creole", id: "ht" },
-    { name: "Chinese", id: "zh" },
-  ];
+  const handleDeleteDocument = async () => {
+    try {
+      await deleteDocument(deleteDocumentId);
+      setDocuments(documents.filter((doc) => doc._id !== deleteDocumentId));
+      showToast({
+        id: Date.now().toString(),
+        title: 'Success',
+        message: 'Document deleted successfully',
+        type: 'success',
+      });
+      handleGetDocs();
+      setShowDelete(false);
+    } catch (error) {
+      console.error('Error deleting document', error);
+      showToast({
+        id: Date.now().toString(),
+        title: 'Error',
+        message: 'Failed to delete document',
+        type: 'error',
+      });
+    }
+  }
+
+  const handleGetDocs = async () => {
+    try {
+      const { data } = await getDocuments(user?.defaultWallet?.walletAddress);
+      const items = data.results.filter((el: {locations: unknown[]}) => el.locations[0]);
+
+      setDocuments(items);
+    } catch (error) {
+      console.error('Error getting docs', error);
+    }
+  }
+
+  useEffect(() => {
+    handleGetDocs();
+  }, []);
 
   const handleBackClick = useCallback(() => {
     dispatch(setSelectedUser());
@@ -184,6 +223,13 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     return language || null;
   };
 
+  const showDeleteModal = (docId: string) => {
+    setDeleteDocumentId(docId);
+    setShowDelete(true)
+  };
+
+  console.log('setShowDelete', showDelete);
+
   const DefaultBody = useMemo(
     () => (
       <>
@@ -238,6 +284,49 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 : 'No description'}
             </LabelData>
           </BorderedContainer>
+
+          <BorderedContainer>
+            <ScrollView
+              style={{ maxHeight: 400 }}
+              showsVerticalScrollIndicator={true}
+              nestedScrollEnabled={true}
+            >
+            {documents.map((doc) => (
+              <View
+                key={doc._id}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 24,
+                  backgroundColor: '#F3F6FC',
+                  marginBottom: 8,
+                  paddingVertical: 8,
+                  paddingHorizontal: 16,
+                  borderRadius: 8,
+                }}
+              >
+                <View style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 24,
+                }}>
+                <View><IconDoc/></View>
+                <View>
+                  <Label style={{ paddingBottom: 4 }}>{doc.documentName}</Label>
+                  <LabelData>
+                    {DateTime.fromISO(doc.createdAt).toFormat('dd LLL yyyy t')}
+                  </LabelData>
+                </View>
+                </View>
+                <Button onPress={() => showDeleteModal(doc._id)}>
+                  <DeleteIcon/>
+                </Button>
+              </View>
+            ))}
+            </ScrollView>
+          </BorderedContainer>
+
           {selectedUser && (
             <>
               <ActionButton
@@ -257,10 +346,43 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
             </>
           )}
           {/* <EmptySection /> */}
+
+        { showDelete && (
+          <ModalBackground>
+            <ModalContainer>
+              <CloseButton onPress={() => setShowDelete(false)}>
+                <Text style={{ fontSize: 24 }}>&times;</Text>
+              </CloseButton>
+              <ModalTitle>Delete this chat ?</ModalTitle>
+
+              <GroupContainer>
+                <Button
+                  onPress={() => setShowDelete(false)}
+                  text={'Cancel'}
+                  style={{ width: '100%' }}
+                  unstyled
+                  variant="filled"
+                />
+                <Button
+                  onPress={handleDeleteDocument}
+                  text={'Delete'}
+                  style={{
+                    width: '100%',
+                    borderWidth: 1,
+                    borderColor: 'red',
+                }}
+                  color="red"
+                  unstyled
+                  variant="outlined"
+                />
+              </GroupContainer>
+            </ModalContainer>
+          </ModalBackground>
+        )}
         </CenterContainer>
       </>
     ),
-    [modalUser]
+    [modalUser, documents]
   );
 
   const EditingBody = useMemo(

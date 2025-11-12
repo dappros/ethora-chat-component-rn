@@ -2,14 +2,23 @@ import http from '../apiClient';
 import { store } from '../../roomStore';
 import { User } from '../../types/types';
 
-export function getDocuments(walletAddress: string) {
-  const token = store.getState().chatSettingStore.user.token || '';
-  return http.get(`/docs/${walletAddress}`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-}
+  export function getDocuments(walletAddress: string) {
+    const token = store.getState().chatSettingStore.user.token || '';
+    return http.get(`/docs/${walletAddress}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  }
+
+  export function deleteDocument(id: string) {
+    const token = store.getState().chatSettingStore.user.token || '';
+    return http.delete(`/docs/${id}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  }
 
 export function getExportMyData() {
   const token = store.getState().chatSettingStore.user.token || '';

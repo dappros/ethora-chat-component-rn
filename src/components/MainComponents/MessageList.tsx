@@ -14,6 +14,7 @@ import {
   NativeScrollEvent,
   TouchableOpacity,
   Keyboard,
+  ImageSourcePropType,
 } from "react-native";
 import { IMessage, User, IConfig, IRoom } from "../../types/types";
 import Composing from "../styled/StyledInputComponents/Composing";
@@ -238,7 +239,7 @@ const MessageList = <TMessage extends IMessage>({
         const SvgComponent = image as React.FC<React.SVGProps<SVGSVGElement>>;
         return <SvgComponent width="100%" />;
       } else {
-        return <Image source={image} />;
+        return <Image source={image as ImageSourcePropType} />;
       }
     }
 
