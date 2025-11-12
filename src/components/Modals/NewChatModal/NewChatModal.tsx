@@ -14,12 +14,21 @@ import { addRoomViaApi, setCurrentRoom, updateRoom } from "../../../roomStore/ro
 import InputWithLabel from "../../styled/StyledInput";
 import { uploadFile } from "../../../networking/api-requests/auth.api";
 import { ProfileImagePlaceholder } from "../../MainComponents/ProfileImagePlaceholder";
-import { Text } from "react-native";
+import { Text, Alert, Linking, Platform } from "react-native";
+import ImagePicker from "react-native-image-crop-picker";
+import {
+  check,
+  request,
+  PERMISSIONS,
+  RESULTS,
+  Permission,
+} from "react-native-permissions";
 import { ApiRoom, ChatAccessOption, RoomMember } from "../../../types/models/room.model";
 import { createRoomFromApi } from "../../../helpers/createRoomFromApi";
 import { postRoom } from "../../../networking/api-requests/rooms.api";
 import { useAppDispatch, useAppSelector } from "../../../hooks/hooks";
 import { useChatSettingState } from "../../../hooks/useChatSettingState";
+import { useToast } from "../../../context/ToastContext";
 
 interface NewChatModalProps {
   handleCloseModal?: any;
@@ -33,6 +42,7 @@ const NewChatModal: React.FC<NewChatModalProps> = ({ handleCloseModal: handleClo
   const dispatch = useAppDispatch();
   const { client } = useXmppClient();
   const { user } = useChatSettingState();
+  const { showToast } = useToast();
 
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
@@ -44,7 +54,7 @@ const NewChatModal: React.FC<NewChatModalProps> = ({ handleCloseModal: handleClo
     name: 'Public',
     id: 'public',
   });
-  const [profileImage, setProfileImage] = useState<string | File | null>(null);
+  const [profileImage, setProfileImage] = useState<string | { uri: string; type: string; name: string } | null>(null);
   const [errors, setErrors] = useState({ name: '', description: '' });
   const [selectedUsers, setSelectedUsers] = useState<RoomMember[]>([]);
 
@@ -97,8 +107,68 @@ const NewChatModal: React.FC<NewChatModalProps> = ({ handleCloseModal: handleClo
     setSelectedUsers([]);
   };
 
-  const onUpload = async (file: File) => {
-    setProfileImage(file);
+  const checkPermission = async (permission: Permission) => {
+    const status = await check(permission);
+    if (status === RESULTS.GRANTED) {
+      return status;
+    } else if (status === RESULTS.DENIED) {
+      const requestStatus = await request(permission);
+      return requestStatus;
+    }
+    return status;
+  };
+
+  const onUpload = async () => {
+    try {
+      const permission =
+        Platform.OS === "ios"
+          ? PERMISSIONS.IOS.PHOTO_LIBRARY
+          : PERMISSIONS.ANDROID.READ_EXTERNAL_STORAGE;
+      const permissionStatus = await checkPermission(permission);
+
+      if (permissionStatus !== RESULTS.GRANTED) {
+        Alert.alert(
+          "Permission required",
+          "Photo library permission is needed to select images.",
+          [
+            {
+              text: "Cancel",
+              onPress: () => console.log("Photo permission cancelled"),
+              style: "cancel",
+            },
+            {
+              text: "Open Settings",
+              onPress: () => Linking.openSettings(),
+            },
+          ]
+        );
+        return;
+      }
+
+      const image = await ImagePicker.openPicker({
+        width: 300,
+        height: 300,
+        cropping: true,
+        cropperCircleOverlay: true,
+        compressImageQuality: 0.8,
+      });
+
+      const originalName = image.path.split("/").pop();
+      const fileObject = {
+        uri: image.path,
+        type: image.mime || 'image/jpeg',
+        name: originalName || `profile_${Date.now()}.jpg`,
+      };
+
+      setProfileImage(fileObject);
+    } catch (error: any) {
+      if (error?.code === 'E_PICKER_CANCELLED' || error?.code === 'E_NO_CAMERA_PERMISSION') {
+        console.log('User cancelled image selection');
+        return;
+      }
+      console.error('Image selection failed:', error);
+      Alert.alert('Error', 'Failed to select image');
+    }
   };
 
   const onRemoveClick = async () => {
@@ -124,20 +194,41 @@ const NewChatModal: React.FC<NewChatModalProps> = ({ handleCloseModal: handleClo
       );
 
       dispatch(setCurrentRoom({ roomJID: normalizedChat.jid }));
+
+      showToast({
+        id: Date.now().toString(),
+        title: 'Success',
+        message: 'Room created successfully',
+        type: 'success',
+      });
     } catch (error) {
       console.error('Error handling room creation:', error);
+      showToast({
+        id: Date.now().toString(),
+        title: 'Error',
+        message: 'Failed to create room',
+        type: 'error',
+      });
     }
   };
 
   const handleCreateRoom = async () => {
     setLoading(true);
     if (isValid) {
-      let mediaData: FormData | null = new FormData();
-      mediaData.append('files', profileImage);
-
-      const uploadResult = await uploadFile(mediaData);
-
-      const location = uploadResult?.data?.results?.[0]?.location;
+      let location: string | undefined;
+      
+      if (profileImage && typeof profileImage === 'object' && 'uri' in profileImage) {
+        try {
+          const mediaData = new FormData();
+          mediaData.append('files', profileImage as any);
+          const uploadResult = await uploadFile(mediaData);
+          location = uploadResult?.data?.results?.[0]?.location;
+        } catch (error) {
+          console.error('Failed to upload image:', error);
+          setLoading(false);
+          return;
+        }
+      }
 
       if (config?.newArch) {
         const namesArray = selectedUsers.map((user) => user.xmppUsername);
@@ -153,23 +244,42 @@ const NewChatModal: React.FC<NewChatModalProps> = ({ handleCloseModal: handleClo
         });
 
         handleRoomCreation(newChat, namesArray.length);
+        handleCloseModal();
       } else {
-        const newChatJid = await client.createRoomStanza(
-          roomName,
-          roomDescription && roomDescription !== ''
-            ? roomDescription
-            : 'No description'
-        );
-
-        client.getRoomsStanza();
-
-        dispatch(setCurrentRoom({ roomJID: newChatJid }));
-
-        if (location) {
-          client.setRoomImageStanza(newChatJid, location, 'icon', 'none');
-          dispatch(
-            updateRoom({ jid: newChatJid, updates: { icon: location } })
+        try {
+          const newChatJid = await client.createRoomStanza(
+            roomName,
+            roomDescription && roomDescription !== ''
+              ? roomDescription
+              : 'No description'
           );
+  
+          client.getRoomsStanza();
+  
+          dispatch(setCurrentRoom({ roomJID: newChatJid }));
+  
+          if (location) {
+            client.setRoomImageStanza(newChatJid, location, 'icon', 'none');
+            dispatch(
+              updateRoom({ jid: newChatJid, updates: { icon: location } })
+            );
+          }
+
+          showToast({
+            id: Date.now().toString(),
+            title: 'Success',
+            message: 'Room created successfully',
+            type: 'success',
+          });
+          handleCloseModal();
+        } catch (error) {
+          console.error('Failed to create room:', error);
+          showToast({
+            id: Date.now().toString(),
+            title: 'Error',
+            message: 'Failed to create room',
+            type: 'error',
+          });
         }
       }
 
@@ -212,7 +322,11 @@ const NewChatModal: React.FC<NewChatModalProps> = ({ handleCloseModal: handleClo
             upload={{ active: true, onUpload }}
             remove={{ enabled: true, onRemoveClick }}
             placeholderIcon={<AddPhotoIcon color="#0052CD" />}
-            icon={profileImage}
+            icon={
+              profileImage && typeof profileImage === 'object' && 'uri' in profileImage
+                ? { uri: profileImage.uri }
+                : profileImage
+            }
             disableOverlay={!profileImage}
             role="user"
           />
