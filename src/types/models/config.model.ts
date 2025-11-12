@@ -44,8 +44,8 @@ export interface IConfig {
   disableInteractions?: boolean;
   chatHeaderBurgerMenu?: boolean;
   forceSetRoom?: boolean;
-  roomListStyles?: React.CSSProperties;
-  chatRoomStyles?: React.CSSProperties;
+  roomListStyles?: ViewStyle;
+  chatRoomStyles?: ViewStyle;
   setRoomJidInPath?: boolean;
   disableRoomMenu?: boolean;
   defaultRooms?: ConfigRoom[];
@@ -129,7 +129,7 @@ export interface IConfig {
     enabled: boolean;
     text?: string | ((usersTyping: string[]) => string);
     position?: 'bottom' | 'top' | 'overlay' | 'floating';
-    styles?: React.CSSProperties;
+    styles?: ViewStyle;
     customComponent?: React.ComponentType<{
       usersTyping: string[];
       text: string;

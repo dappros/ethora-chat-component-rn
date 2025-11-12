@@ -15,7 +15,7 @@ import {
   TouchableOpacity,
   Keyboard,
 } from "react-native";
-import { IMessage, User, IConfig } from "../../types/types";
+import { IMessage, User, IConfig, IRoom } from "../../types/types";
 import Composing from "../styled/StyledInputComponents/Composing";
 import TreadLabel from "../styled/TreadLabel";
 import { MessageContainer } from "./MessageContainer";
@@ -53,7 +53,7 @@ const MessageList = <TMessage extends IMessage>({
   isReply,
   activeMessage,
 }: MessageListProps<TMessage>) => {
-  const { composing, messages, composingList } = useRoomState(roomJID).room;
+  const { composing, messages, composingList } = useRoomState(roomJID).room! as IRoom;
   const [isUserAtBottom, setIsUserAtBottom] = useState(true);
   const [showNewMessageIndicator, setShowNewMessageIndicator] = useState(false);
   const [isContentOffset, setIsContentOffset] = useState(false);
@@ -63,11 +63,11 @@ const MessageList = <TMessage extends IMessage>({
   const flatListRef = useRef<FlatList<IMessage>>(null);
 
   const addReplyMessages = useMemo(() => {
-    return messages.map((message) => {
+    return messages.map((message: IMessage) => {
       const newMessage = {
         ...message,
         reply: messages.filter(
-          (mess) =>
+          (mess: IMessage) =>
             !!mess.mainMessage && 
             JSON.parse(mess.mainMessage).id === message.id &&
             !mess.deleted && 
@@ -101,24 +101,36 @@ const MessageList = <TMessage extends IMessage>({
     }
   }, [addReplyMessages, isReply, roomJID, activeMessage]);
 
-  console.log('memoizedMessages', memoizedMessages);
-
   const handleLoadMore = useCallback(async () => {
-    if (loading || !memoizedMessages.length || isScrollBlocked) return;
+    if (loading || isLoadingMore || !memoizedMessages.length || isScrollBlocked) {
+      return;
+    }
+
+    // В инвертированном списке самое старое сообщение - это первое в массиве
+    const oldestMessage = memoizedMessages[0];
+    if (!oldestMessage || !oldestMessage.id) {
+      return;
+    }
 
     setIsLoadingMore(true);
     setIsScrollBlocked(true);
 
     try {
-      await loadMoreMessages(messages[0].roomJid, 15, Number(messages[0].id));
+      await loadMoreMessages(
+        oldestMessage.roomJid || roomJID, 
+        15, 
+        Number(oldestMessage.id)
+      );
     } catch (error) {
       console.error("Error loading more messages:", error);
     } finally {
-      setIsLoadingMore(false);
-      setIsScrollBlocked(false);
-      setIsContentOffset(false);
+      // Добавляем небольшую задержку перед разблокировкой, чтобы избежать множественных вызовов
+      setTimeout(() => {
+        setIsLoadingMore(false);
+        setIsScrollBlocked(false);
+      }, 500);
     }
-  }, [messages, loadMoreMessages, loading, isScrollBlocked]);
+  }, [memoizedMessages, loadMoreMessages, loading, isLoadingMore, isScrollBlocked, roomJID]);
 
   const dataMessages = useMemo(() => {
     return memoizedMessages.slice().reverse();
@@ -261,7 +273,7 @@ const MessageList = <TMessage extends IMessage>({
         onEndReached={handleLoadMore}
         onScroll={handleScroll}
         onContentSizeChange={handleContentSizeChange}
-        onEndReachedThreshold={0.5}
+        onEndReachedThreshold={0.1}
         scrollEventThrottle={16}
         onLayout={handleLayout}
         inverted={true}

@@ -257,8 +257,13 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
     []
   );
 
+  useEffect(() => {
+    if (!activeRoom) {
+      dispatch(setActiveModal());
+    }
+  }, [activeRoom, dispatch]);
+
   if (!activeRoom) {
-    dispatch(setActiveModal());
     return null;
   }
 

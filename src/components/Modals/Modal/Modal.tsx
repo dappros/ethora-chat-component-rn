@@ -21,6 +21,8 @@ const Modal: React.FC<ModalProps> = ({ children, modal, setOpenModal }) => {
     dispatch(setActiveModal(MODAL_TYPES.SETTINGS));
 
   const renderModalContent = () => {
+    if (!modal) return null;
+
     const ModalComponent = MODAL_COMPONENTS[modal];
 
     if (!ModalComponent) return null;

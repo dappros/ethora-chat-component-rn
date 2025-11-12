@@ -121,7 +121,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
   const { client, inited, isRetrying, showModal } = useChatWrapperInit({
     roomJID,
     wasAutoSelected,
-    config,
+    config: config || {},
   });
 
   const { sendHeapMessages } = useHeapSender(client);
