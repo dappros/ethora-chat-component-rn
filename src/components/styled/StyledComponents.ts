@@ -300,3 +300,18 @@ export const CustomSystemMessage = styled.View`
   gap: 16px;
   margin: 8px;
 `;
+
+export const MessageFooter = styled.View<{ isUser: boolean }>`
+  flex-direction: row;
+  justify-content: flex-start;
+  position: absolute;
+  gap: 6px;
+  bottom: -25px;
+  left: ${(props) => !props.isUser && '10px'};
+  right: ${(props) => props.isUser && '10px'};
+
+  @media (max-width: 675px) {
+    font-size: 12px;
+    bottom: -24px;
+  }
+`;

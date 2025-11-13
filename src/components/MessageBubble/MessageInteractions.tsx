@@ -20,9 +20,26 @@ import {
   Text,
   TouchableWithoutFeedback,
   StyleSheet,
+  View,
+  Pressable,
 } from "react-native";
 import Clipboard from "@react-native-clipboard/clipboard";
 import { useToast } from "../../context/ToastContext";
+import EmojiPicker from "react-native-emoji-selector";
+
+const fixedEmojiIds = ["joy", "heart", "fire", "+1", "smile", "scream"];
+
+function convertIdToEmoji(id: string) {
+  const mapping = {
+    joy: "😂",
+    heart: "❤️",
+    fire: "🔥",
+    "+1": "👍",
+    smile: "😄",
+    scream: "😱",
+  };
+  return mapping[id as keyof typeof mapping] || "❓";
+}
 
 interface MessageInteractionsProps {
   isReply?: boolean;
@@ -33,6 +50,7 @@ interface MessageInteractionsProps {
   handleReplyMessage: () => void;
   handleDeleteMessage: () => void;
   handleEditMessage: () => void;
+  handleReactionMessage: (id: string) => void;
 }
 
 const MessageInteractions: React.FC<MessageInteractionsProps> = ({
@@ -44,11 +62,23 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
   handleReplyMessage: replyMessage,
   handleDeleteMessage,
   handleEditMessage,
+  handleReactionMessage,
 }) => {
   const { client } = useXmppClient();
   const dispatch = useDispatch();
   const { showToast } = useToast();
-  
+
+  const [pickerVisible, setPickerVisible] = useState(false);
+
+  const handleReactionClick = (id: string) => {
+    handleReactionMessage(id);
+    closeMenu();
+  };
+
+  const onClose = () => {
+    setPickerVisible(false);
+  };
+
   // const handleDeleteMessage = (roomJid: string, messageId: string) => {
   //   // dispatch(deleteRoomMessage({ roomJID: room, messageId: msgId }));
   //   client.deleteMessageStanza(roomJid, messageId);
@@ -120,6 +150,38 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
             <MESSAGE_INTERACTIONS_ICONS.SEND_ITEM />{' '}
           </MenuItem> */}
             {/* <Delimeter /> */}
+            <View style={{ flexDirection: "row", paddingBottom: 10 }}>
+            {fixedEmojiIds.map((id) => (
+              <Pressable
+                key={id}
+                onPress={() => handleReactionClick(id)}
+                style={{ marginRight: 6 }}
+              >
+                <Text style={{ fontSize: 26 }}>{convertIdToEmoji(id)}</Text>
+              </Pressable>
+            ))}
+
+            {/* ArrowButton */}
+            <Pressable
+              onPress={() => setPickerVisible(!pickerVisible)}
+              style={{ marginLeft: 10 }}
+            >
+              <Text style={{ fontSize: 24 }}>⌄</Text>
+            </Pressable>
+          </View>
+
+          {pickerVisible && (
+            <View style={{ height: 250 }}>
+              <EmojiPicker
+                onEmojiSelected={(emoji) => {
+                  handleReactionClick(emoji);
+                }}
+                showSearchBar={false}
+                showTabs={false}
+              />
+            </View>
+          )}
+
             {!isReply && (
               <>
                 <MenuItem onPress={handleReplyMessage}>

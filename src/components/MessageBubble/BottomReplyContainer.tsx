@@ -11,9 +11,7 @@ interface BottomReplyContainerProps {
 }
 
 const ReplyContainer = styled.TouchableOpacity<{ isUser: boolean }>`
-  position: absolute;
   background-color: #ffffff;
-  bottom: -25px;
   left: ${(props) => !props.isUser && "10px"};
   right: ${(props) => props.isUser && "10px"};
   padding: 4px 8px 4px 16px;
@@ -21,6 +19,7 @@ const ReplyContainer = styled.TouchableOpacity<{ isUser: boolean }>`
   flex-direction: row;
   align-items: center;
   gap: 6px;
+  margin: 8px 8px 0;
 
   ${Platform.select({
     ios: `

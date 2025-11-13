@@ -1,69 +1,64 @@
-import { FC, useMemo } from 'react';
-import emojiData from '@emoji-mart/data';
-import { styled } from 'styled-components/native';
-import { ReactionMessage } from '../../types/types';
-import { TouchableOpacity } from 'react-native';
+import React, { FC, useMemo, useState } from "react";
+import { View, Text, TouchableOpacity, Animated } from "react-native";
+import styled from "styled-components/native";
+import { ReactionMessage } from "../../types/types";
 
 const ReactionContainer = styled.View`
-  gap: 8px;
-  display: flex;
+  flex-direction: row;
   align-items: center;
-  border: none;
-  background: transparent;
-  z-index: 1;
+  gap: 8px;
 `;
 
-const ReactionBox = styled.TouchableOpacity<{ color: string }>`
-  box-shadow: 0px 0px 8px 0px rgba(185, 198, 199, 1);
-  background-color: #ffffff;
-  font-size: 14px;
+const ReactionBox = styled(TouchableOpacity)<{ active: boolean; color: string }>`
   padding: 4px 8px;
   border-radius: 20px;
-  display: flex;
+  background-color: ${({ active, color }) => (active ? color : "#ffffff")};
+  flex-direction: row;
   align-items: center;
   justify-content: center;
-  color: ${({ color }) => color || '#8C8C8C'};
-  font-weight: 600;
-  border: none;
-  cursor: pointer;
-  position: relative;
-
-  &:hover .tooltip {
-    visibility: visible;
-    opacity: 1;
-  }
-`;
-
-const Tooltip = styled.View`
-  visibility: hidden;
-  opacity: 0;
-  transition: opacity 0.3s;
-  position: absolute;
-  bottom: 120%;
-  left: 50%;
-  transform: translateX(-50%);
-  background-color: #333;
-  color: #fff;
-  padding: 6px 10px;
-  border-radius: 6px;
-  font-size: 12px;
-  white-space: nowrap;
+  elevation: 3;
 `;
 
 interface MessageReactionProps {
   color: string;
   reaction: Record<string, ReactionMessage>;
   changeReaction: (reaction: string) => void;
+  userName?: string;
 }
+
+const emojiMap: Record<string, string> = {
+  joy: "😂",
+  heart: "❤️",
+  fire: "🔥",
+  "+1": "👍",
+  smile: "😄",
+  scream: "😱",
+};
 
 export const MessageReaction: FC<MessageReactionProps> = ({
   reaction,
   color,
   changeReaction,
+  userName,
 }) => {
-  const memoEmoji = (id: string) => {
-    const emoji = (emojiData as any).emojis[id];
-    return emoji ? emoji.skins[0].native : '';
+  const [tooltipEmoji, setTooltipEmoji] = useState<string | null>(null);
+  const fadeAnim = new Animated.Value(0);
+
+  const showTooltip = (emoji: string) => {
+    setTooltipEmoji(emoji);
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 100,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const hideTooltip = () => {
+    Animated.timing(fadeAnim, {
+      toValue: 0,
+      duration: 100,
+      useNativeDriver: true,
+    }).start(() => setTooltipEmoji(null));
   };
 
   if (!reaction) return null;
@@ -78,9 +73,7 @@ export const MessageReaction: FC<MessageReactionProps> = ({
             result[em] = { count: 0, users: [] };
           }
           result[em].count += 1;
-          result[em].users.push(
-            `${data.senderFirstName} ${data.senderLastName}`
-          );
+          result[em].users.push(`${data.senderFirstName} ${data.senderLastName}`);
         });
     });
 
@@ -89,16 +82,67 @@ export const MessageReaction: FC<MessageReactionProps> = ({
 
   return (
     <ReactionContainer>
-      {Object.entries(reactionDetails).map(([emoji, details]) => (
-        <ReactionBox
-          key={emoji}
-          onPress={() => changeReaction(emoji)}
-          color={color}
-        >
-          {memoEmoji(emoji)} {details.count}
-          <Tooltip className="tooltip">{details.users.join(', ')}</Tooltip>
-        </ReactionBox>
-      ))}
+      {Object.entries(reactionDetails).map(([emoji, details]) => {
+        const isUserReacted = userName
+          ? details.users.includes(userName)
+          : false;
+
+        return (
+          <View key={emoji} style={{ position: "relative" }}>
+            <ReactionBox
+              active={isUserReacted}
+              color={color}
+              onPress={() => changeReaction(emoji)}
+              onLongPress={() => showTooltip(emoji)}
+              onPressOut={hideTooltip}
+            >
+              <Text style={{ fontSize: 18, marginRight: 4 }}>
+                {emojiMap[emoji] || emoji}
+              </Text>
+              <Text
+                style={{
+                  fontSize: 14,
+                  fontWeight: "600",
+                  color: isUserReacted ? "#fff" : color,
+                }}
+              >
+                {details.count}
+              </Text>
+            </ReactionBox>
+
+            {/* Tooltip */}
+            {tooltipEmoji === emoji && (
+              <Animated.View
+                style={{
+                  position: "absolute",
+                  bottom: 36,
+                  left: "50%",
+                  transform: [
+                    { translateX: -50 },
+                    {
+                      translateY: fadeAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [4, 0],
+                      }),
+                    },
+                  ],
+                  opacity: fadeAnim,
+                  backgroundColor: "#333",
+                  borderRadius: 6,
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                  maxWidth: 220,
+                  zIndex: 999,
+                }}
+              >
+                <Text style={{ color: "#fff", fontSize: 12 }}>
+                  {details.users.join(", ")}
+                </Text>
+              </Animated.View>
+            )}
+          </View>
+        );
+      })}
     </ReactionContainer>
   );
 };

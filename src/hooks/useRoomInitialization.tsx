@@ -17,14 +17,6 @@ export const useRoomInitialization = (
   const { client } = useXmppClient();
   const dispatch = useDispatch();
 
-  console.log('useRoomInitialization', {
-    activeRoomJID,
-    roomsList,
-    config,
-    messageLength,
-    client,
-  });
-
   const syncRooms = useGetNewArchRoom();
 
   useEffect(() => {

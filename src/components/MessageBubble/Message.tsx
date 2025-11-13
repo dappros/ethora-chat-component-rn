@@ -30,6 +30,9 @@ import { useChatSettingState } from "../../hooks/useChatSettingState";
 import { parseMessageBody } from '../../helpers/parseMessageBody';
 import { useMessageHeapState } from '../../hooks/useMessageHeapState';
 import { DoubleTick } from '../../assets/icons';
+import { useXmppClient } from "../../context/xmppProvider";
+import { MessageReaction } from "./MessageReaction";
+import { MessageFooter } from "../styled/StyledComponents";
 
 const CustomMessageContainer = styled.View<{ isUser: boolean; reply?: number }>`
   flex-direction: row;
@@ -108,7 +111,8 @@ const CustomMessageTimestamp = styled.Text<{
 
 const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   const dispatch = useDispatch();
-  const { config, langSource } = useChatSettingState();
+  const { client } = useXmppClient();
+  const { config, langSource, user} = useChatSettingState();
   const { idSet } = useMessageHeapState();
 
   const [isPressed, setIsPressed] = useState(false);
@@ -172,6 +176,40 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   //   setIsPressed(true);
   //   console.log("setIsPressed", isPressed);
   // };
+
+  const handleReactionMessage = (emoji: string) => {
+    if (!message.reaction) {
+      return client.sendMessageReactionStanza(
+        message.id,
+        message.roomJid,
+        [emoji],
+        { firstName: user.firstName, lastName: user.lastName }
+      );
+    }
+    if (
+      message.reaction &&
+      message.reaction[user.xmppUsername || ''] &&
+      message.reaction[user.xmppUsername || '']?.emoji.includes(emoji)
+    ) {
+      const filterEmoji = message.reaction[user.xmppUsername || '']?.emoji.filter(
+        (reaction) => reaction !== emoji
+      );
+
+      return client.sendMessageReactionStanza(
+        message.id,
+        message.roomJid,
+        filterEmoji,
+        { firstName: user.firstName, lastName: user.lastName }
+      );
+    }
+
+    client.sendMessageReactionStanza(
+      message.id,
+      message.roomJid,
+      [...(message.reaction[user.xmppUsername || '']?.emoji || []), emoji],
+      { firstName: user.firstName, lastName: user.lastName }
+    );
+  };
 
   const handleLongPress = () => {
     if (messageRef.current) {
@@ -290,7 +328,8 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
               <DoubleTick />
             )}
           </CustomMessageTimestamp>
-            {message?.reply?.length && message?.reply?.length > 0 ? (
+
+          {message?.reply?.length && message?.reply?.length > 0 ? (
               <BottomReplyContainer
                 isUser={isUser}
                 onClick={handleReplyMessage}
@@ -299,6 +338,18 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
             ) : (
               <View />
             )}
+            
+          <MessageFooter isUser={isUser}>
+            
+            {message.reaction && (
+              <MessageReaction
+                reaction={message.reaction}
+                changeReaction={handleReactionMessage}
+                color={config?.colors?.primary || '#0052CD'}
+                userName={`${user.firstName} ${user.lastName}`}
+              />
+            )}
+          </MessageFooter>
           </CustomMessageBubble>
         </TouchableWithoutFeedback>
       </View>
@@ -313,6 +364,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
           handleReplyMessage={handleReplyMessage}
           handleDeleteMessage={handleDeleteMessage}
           handleEditMessage={handleEditMessage}
+          handleReactionMessage={handleReactionMessage}
         />
       )}
     </View>
