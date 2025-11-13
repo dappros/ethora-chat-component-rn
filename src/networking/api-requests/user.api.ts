@@ -3,7 +3,7 @@ import { store } from '../../roomStore';
 import { User } from '../../types/types';
 
   export function getDocuments(walletAddress: string) {
-    const token = store.getState().chatSettingStore.user.token || '';
+    const token = store.getState().chatSettingStore?.user?.token || '';
     return http.get(`/docs/${walletAddress}`, {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -12,7 +12,7 @@ import { User } from '../../types/types';
   }
 
   export function deleteDocument(id: string) {
-    const token = store.getState().chatSettingStore.user.token || '';
+    const token = store.getState().chatSettingStore?.user?.token || '';
     return http.delete(`/docs/${id}`, {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -21,7 +21,7 @@ import { User } from '../../types/types';
   }
 
 export function getExportMyData() {
-  const token = store.getState().chatSettingStore.user.token || '';
+  const token = store.getState().chatSettingStore?.user?.token || '';
   return http.get('/users/exportData', {
     headers: {
       Authorization: token,
@@ -39,7 +39,7 @@ export function updateMe(data: any) {
 }
 
 export async function updateProfile(fd: FormData): Promise<{ user: User }> {
-  const token = store.getState().chatSettingStore.user.token || '';
+  const token = store.getState().chatSettingStore?.user?.token || '';
 
   try {
     const response = await http.put('/users', fd, {

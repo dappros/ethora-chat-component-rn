@@ -132,6 +132,39 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
     }
   }, [inited, client]);
 
+
+  const updateLastReadTimeStamp = () => {
+    if (client) {
+      client.actionSetTimestampToPrivateStoreStanza(
+        room?.jid || roomJID || '',
+        new Date().getTime(),
+      );
+    }
+    dispatch(
+      setLastViewedTimestamp({
+        chatJID: room?.jid || roomJID || '',
+        timestamp: new Date().getTime(),
+      }),
+    );
+  };
+
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: string) => {
+      if (nextAppState === 'background') {
+        updateLastReadTimeStamp();
+      }
+    };
+
+    const subscription = AppState.addEventListener(
+      'change',
+      handleAppStateChange,
+    );
+
+    return () => {
+      subscription.remove();
+    };
+  }, [client, room?.jid]);
+
   // upd logic to use
   // const queueMessageLoader = useCallback(
   //   async (chatJID: string, max: number) => {

@@ -267,10 +267,21 @@ export class XmppClient implements XmppClientInterface {
     });
 
     this.client.on('error', (error) => {
-      console.error('XMPP client error:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error || 'Unknown error');
+      const isConnectionError = errorMessage.includes('ECONNERROR') || 
+                                errorMessage.includes('ECONNREFUSED') ||
+                                errorMessage.includes('WebSocket');
+      
+      if (!isConnectionError) {
+        console.error('XMPP client error:', errorMessage, error instanceof Error ? error.stack : '');
+      }
+      
       this.status = 'error';
       this.logStep('event:error');
-      this.scheduleReconnect('event:error');
+      
+      if (!isConnectionError) {
+        this.scheduleReconnect('event:error');
+      }
     });
 
     this.client.on('stanza', (stanza) => {
@@ -496,8 +507,17 @@ export class XmppClient implements XmppClientInterface {
       await this.ensureConnected();
       return await operation();
     } catch (error) {
-      console.error('Operation failed due to connection issues:', error);
-      throw error;
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : error 
+        ? String(error) 
+        : 'Unknown error';
+      const errorDetails = error instanceof Error 
+        ? error.stack 
+        : error;
+      
+      console.error('Operation failed due to connection issues:', errorMessage, errorDetails || '');
+      throw error instanceof Error ? error : new Error(errorMessage);
     }
   }
 

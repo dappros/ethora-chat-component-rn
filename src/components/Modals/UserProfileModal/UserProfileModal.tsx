@@ -229,8 +229,6 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     setShowDelete(true)
   };
 
-  console.log('setShowDelete', showDelete);
-
   const DefaultBody = useMemo(
     () => (
       <>
