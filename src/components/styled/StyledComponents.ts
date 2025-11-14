@@ -257,7 +257,7 @@ export const Line = styled.View`
   background-color: #0052cd0d;
 `;
 
-export const AlsoCheckbox = styled.TouchableOpacity<{accentColor: string}>`
+export const AlsoCheckbox = styled.View<{accentColor: string}>`
   width: 16px;
   height: 16px;
   background-color: ${props => props.accentColor};

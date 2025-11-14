@@ -45,8 +45,6 @@ const SendInput: React.FC<SendInputProps> = ({
   const [filePreviews, setFilePreviews] = useState<MediaFile[]>([]);
   const [inputHeight, setInputHeight] = useState(40);
 
-  console.log("filePreviews", filePreviews);
-
   const handleFileSelect = (files: MediaFile[]) => {
     setFilePreviews([...files]);
   };

@@ -134,7 +134,6 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
     dispatch(setEditAction({ isEdit: false }));
 
     if (!isReply && message.mainMessage) {
-      console.log("handleReplyMessage 2");
       const messageCore = JSON.parse(message.mainMessage);
       dispatch(
         setActiveMessage({ id: messageCore.id, chatJID: messageCore.roomJid })
@@ -338,7 +337,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
             ) : (
               <View />
             )}
-            
+
           <MessageFooter isUser={isUser}>
             
             {message.reaction && (

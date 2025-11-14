@@ -284,6 +284,25 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
             </LabelData>
           </BorderedContainer>
 
+          {selectedUser && (
+            <>
+              <ActionButton
+                StartIcon={<ChatIcon />}
+                onPress={handlePrivateMessage}
+                variant="filled"
+              >
+                <Text style={{ color: '#ffffff' }}>Message</Text>
+              </ActionButton>
+              <ActionButton
+                onPress={() => {}}
+                // onPress={() => handleCopyClick(selectedUser.id)}
+                variant="filled"
+              >
+                <Text style={{ color: '#ffffff' }}>Copy User Id</Text>
+              </ActionButton>
+            </>
+          )}
+
           <BorderedContainer>
             <ScrollView
               style={{ maxHeight: 400 }}
@@ -326,24 +345,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
             </ScrollView>
           </BorderedContainer>
 
-          {selectedUser && (
-            <>
-              <ActionButton
-                StartIcon={<ChatIcon />}
-                onPress={handlePrivateMessage}
-                variant="filled"
-              >
-                <Text style={{ color: '#ffffff' }}>Message</Text>
-              </ActionButton>
-              <ActionButton
-                onPress={() => {}}
-                // onPress={() => handleCopyClick(selectedUser.id)}
-                variant="filled"
-              >
-                <Text style={{ color: '#ffffff' }}>Copy User Id</Text>
-              </ActionButton>
-            </>
-          )}
+          
           {/* <EmptySection /> */}
         </CenterContainer>
       </>

@@ -95,8 +95,6 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
     [client]
   );
 
-  console.log('ThreadWrapper', isChecked);
-
   const sendMessage = useCallback(
     (message: string) => {
       sendMs(
@@ -107,7 +105,7 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
         createMainMessageForThread(activeMessage)
       );
     },
-    [activeMessage]
+    [activeMessage, isChecked]
   );
 
   const sendMedia = useCallback(
@@ -117,11 +115,11 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
         type,
         activeMessage.roomJid,
         true,
-        true,
+        isChecked,
         createMainMessageForThread(activeMessage)
       );
     },
-    [activeMessage]
+    [activeMessage, isChecked]
   );
 
   const sendStartComposing = useCallback(() => {
@@ -200,7 +198,7 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
             isChecked ? config?.colors?.primary || "#0052CD" : "#fff"
           }
           // checked={isChecked}
-          onPress={() => setIsChecked(!isChecked)}
+          // onPress={() => setIsChecked(!isChecked)}
         />
         <Text>Also send to</Text>
         <TouchableOpacity onPress={closeThread}>

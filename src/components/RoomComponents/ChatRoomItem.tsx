@@ -29,7 +29,6 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
   const lastMessage = useMemo(() => {
     if (!chat?.messages || chat.messages.length === 0) return undefined;
     
-    // Находим последнее не удаленное сообщение
     for (let i = chat.messages.length - 1; i >= 0; i--) {
       const msg = chat.messages[i];
       if (!msg.deleted && !msg.isDeleted) {
@@ -48,7 +47,7 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
 
   return (
     <ChatItem key={index}>
-      <ProfileImagePlaceholder name={chat.name} icon={chat?.icon} />
+      <ProfileImagePlaceholder name={chat.name} icon={chat?.icon} active={false} />
       <View
         style={{
           flexDirection: "column",
