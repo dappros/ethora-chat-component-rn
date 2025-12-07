@@ -47,8 +47,8 @@ export const CenterContainer = styled.View<{
       : rightSpace || !leftSpace
       ? '90%'
       : '70%'};
-  padding-right: ${rightSpace => (rightSpace ? '16' : '0')}px;
-  padding-left: ${leftSpace => (leftSpace ? '0' : '16')}px;
+  padding-right: ${({rightSpace}) => (rightSpace ? '16' : '0')}px;
+  padding-left: ${({leftSpace}) => (leftSpace ? '16' : '0')}px;
 `;
 
 export const ChatContainerHeaderBoxInfo = styled.TouchableOpacity`
@@ -307,8 +307,8 @@ export const MessageFooter = styled.View<{ isUser: boolean }>`
   position: absolute;
   gap: 6px;
   bottom: -25px;
-  left: ${(props) => !props.isUser && '10px'};
-  right: ${(props) => props.isUser && '10px'};
+  left: ${(props) => (!props.isUser ? '10px' : 'auto')};
+  right: ${(props) => (props.isUser ? '10px' : 'auto')};
 
   @media (max-width: 675px) {
     font-size: 12px;

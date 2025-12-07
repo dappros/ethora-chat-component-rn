@@ -39,7 +39,7 @@ const CustomMessageContainer = styled.View<{ isUser: boolean; reply?: number }>`
   padding: 10px;
   align-items: flex-end;
   justify-content: ${({ isUser }) => (isUser ? "flex-end" : "flex-start")};
-  margin-bottom: ${(props) => !!props.reply && "20px"};
+  margin-bottom: ${(props) => (props.reply ? "20px" : "0px")};
 `;
 
 const CustomMessageBubble = styled.View<{

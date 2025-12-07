@@ -12,8 +12,8 @@ interface BottomReplyContainerProps {
 
 const ReplyContainer = styled.TouchableOpacity<{ isUser: boolean }>`
   background-color: #ffffff;
-  left: ${(props) => !props.isUser && "10px"};
-  right: ${(props) => props.isUser && "10px"};
+  left: ${(props) => (!props.isUser ? "10px" : "auto")};
+  right: ${(props) => (props.isUser ? "10px" : "auto")};
   padding: 4px 8px 4px 16px;
   border-radius: 20px;
   flex-direction: row;
