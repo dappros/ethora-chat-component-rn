@@ -1,14 +1,29 @@
 /** @format */
 
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo } from "react";
 import { SafeAreaView, StyleSheet } from "react-native";
 import { defaultUser } from "./api.config";
 import { ReduxWrapper } from "./src/components/MainComponents/ReduxWrapper";
 import { BG } from "./src/assets/BG";
 import { ForzaCare } from "./src/assets/ForzaCare";
 import { IConfig } from "./src/types/models/config.model";
+import { usePushNotifications } from "./src/hooks/usePushNotifications";
 
 function App(): React.JSX.Element {
+  const { fcmToken, notification } = usePushNotifications();
+
+  useEffect(() => {
+    if (fcmToken) {
+      console.log('✅ FCM Token received:', fcmToken);
+    }
+  }, [fcmToken]);
+
+  useEffect(() => {
+    if (notification) {
+      console.log('📩 New notification:', notification);
+    }
+  }, [notification]);
+
   const config: IConfig = useMemo(
     () => ({
       colors: { primary: '#5E3FDE', secondary: '#E1E4FE' },
