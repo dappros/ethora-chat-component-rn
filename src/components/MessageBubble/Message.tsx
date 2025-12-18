@@ -294,6 +294,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
                 messageText={message.locationPreview}
                 location={message?.location}
                 message={message}
+                isUser={isUser}
               />
             ) : (
               <>

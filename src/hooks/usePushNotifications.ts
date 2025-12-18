@@ -19,13 +19,13 @@ export function usePushNotifications() {
     });
 
     const unsubscribe = onForegroundMessage((message) => {
-      console.log('📩 Foreground message:', message);
+      console.log('Foreground message:', message);
       setNotification(message);
       
       const { notification: notif, data } = message;
       if (notif) {
         Alert.alert(
-          notif.title || 'Уведомление',
+          notif.title || 'Notification',
           notif.body || '',
           [{ text: 'OK' }]
         );

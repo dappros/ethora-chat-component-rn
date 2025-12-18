@@ -3,7 +3,7 @@ import { IMessage } from "../../types/types";
 import FileDownload from "../styled/UnsupportedType";
 import CustomMessageImage from "../styled/MessageImage";
 import CustomMessageVideo from "../styled/VideoMessage";
-import AudioMessage from "../styled/AudioMessage";
+import AudioMessageBubble from "../styled/AudioMessageBubble";
 import { Text } from "react-native";
 
 interface MediaMessageProps {
@@ -11,6 +11,7 @@ interface MediaMessageProps {
   message?: IMessage;
   location?: string;
   messageText?: string;
+  isUser?: boolean;
 }
 
 const MediaMessage: React.FC<MediaMessageProps> = ({
@@ -18,6 +19,7 @@ const MediaMessage: React.FC<MediaMessageProps> = ({
   location,
   messageText,
   message,
+  isUser = false,
 }) => {
   if (mimeType)
     switch (true) {
@@ -39,7 +41,41 @@ const MediaMessage: React.FC<MediaMessageProps> = ({
         );
       case mimeType.startsWith("audio/") ||
         mimeType.includes("application/octet-stream"):
-        return <AudioMessage src={location || ""} />;
+        const audioUrl = location || messageText || message?.locationPreview || message?.location || "";
+        
+        if (!audioUrl) {
+          console.warn("⚠️ Audio URL is missing for audio message", {
+            location,
+            messageText,
+            locationPreview: message?.locationPreview,
+            messageLocation: message?.location,
+            messageId: message?.id,
+            mimetype: mimeType,
+            fullMessage: message,
+          });
+        } else {
+          console.log("✅ Audio URL found:", audioUrl);
+        }
+        
+        return (
+          <AudioMessageBubble
+            audioUrl={audioUrl}
+            duration={message?.duration}
+            timestamp={
+              message?.date
+                ? new Date(message.date).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })
+                : new Date().toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })
+            }
+            isUser={isUser}
+            waveForm={message?.waveForm as number[] | undefined}
+          />
+        );
       default:
         return (
           <FileDownload

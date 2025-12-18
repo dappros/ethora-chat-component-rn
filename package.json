@@ -12,7 +12,7 @@
   ],
   "scripts": {
     "android": "react-native run-android",
-    "ios": "react-native run-ios",
+    "ios": "react-native run-ios --simulator=\"iPhone 17 Pro Max\"",
     "lint": "eslint .",
     "start": "react-native start",
     "test": "jest",
