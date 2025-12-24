@@ -5,6 +5,7 @@ import { createRoomPresence } from './createRoomPresence.xmpp';
 import { setMeAsOwner } from './setMeAsOwner.xmpp';
 import { roomConfig } from './roomConfig.xmpp';
 import { CONFERENCE_DOMAIN } from '../../helpers/constants/PLATFORM_CONSTANTS';
+import { pushSubscriptionService } from '../../services/pushSubscriptionService';
 
 export async function createRoom(
   title: string,
@@ -20,6 +21,13 @@ export async function createRoom(
     await createRoomPresence(roomId, client);
     await setMeAsOwner(roomId, client);
     await roomConfig(roomId, title, description, client);
+    
+    const userNick = client.jid?.getLocal();
+    await pushSubscriptionService
+      .subscribeToRoom(client, roomId, userNick)
+      .catch((error) => {
+        console.error('Failed to subscribe to new room for push:', error);
+      });
   } catch (error) {
     console.log(error);
   }

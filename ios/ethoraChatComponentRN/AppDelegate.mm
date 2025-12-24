@@ -39,11 +39,27 @@
 - (void)userNotificationCenter:(UNUserNotificationCenter *)center
        willPresentNotification:(UNNotification *)notification
          withCompletionHandler:(void (^)(UNNotificationPresentationOptions))completionHandler {
+  NSLog(@"📱 Will present notification (foreground): %@", notification.request.content.userInfo);
   completionHandler(UNNotificationPresentationOptionAlert | UNNotificationPresentationOptionBadge | UNNotificationPresentationOptionSound);
+}
+
+// Обработка нажатия на уведомление
+- (void)userNotificationCenter:(UNUserNotificationCenter *)center
+didReceiveNotificationResponse:(UNNotificationResponse *)response
+         withCompletionHandler:(void (^)(void))completionHandler {
+  NSLog(@"👆 Notification tapped: %@", response.notification.request.content.userInfo);
+  completionHandler();
 }
 
 - (void)messaging:(FIRMessaging *)messaging didReceiveRegistrationToken:(NSString *)fcmToken {
   NSLog(@"✅ FCM Token: %@", fcmToken);
+}
+
+// Обработка данных из уведомления
+- (void)application:(UIApplication *)application didReceiveRemoteNotification:(NSDictionary *)userInfo
+fetchCompletionHandler:(void (^)(UIBackgroundFetchResult))completionHandler {
+  NSLog(@"📥 Received remote notification: %@", userInfo);
+  completionHandler(UIBackgroundFetchResultNewData);
 }
 
 - (NSURL *)sourceURLForBridge:(RCTBridge *)bridge

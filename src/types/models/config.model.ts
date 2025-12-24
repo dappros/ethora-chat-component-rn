@@ -136,4 +136,5 @@ export interface IConfig {
       isVisible: boolean;
     }>;
   };
+  projectName?: string;
 }

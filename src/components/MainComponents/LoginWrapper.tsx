@@ -14,6 +14,7 @@ import { localStorageConstants } from "../../helpers/constants/LOCAL_STORAGE";
 import { setLogoutState } from "../../roomStore/roomsSlice";
 import { setBaseURL } from "../../networking/apiClient";
 import Loader from '../styled/Loader';
+import { usePushNotifications } from "../../hooks/usePushNotifications";
 
 interface LoginWrapperProps {
   user?: { email: string; password: string };
@@ -28,6 +29,8 @@ const LoginWrapper: React.FC<LoginWrapperProps> = ({ ...props }) => {
   const { config, MainComponentStyles } = props;
 
   const { user } = useSelector((state: RootState) => state.chatSettingStore);
+  
+  usePushNotifications();
 
   const loginUserFunction = useCallback(async () => {
     try {

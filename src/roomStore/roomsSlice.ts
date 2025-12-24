@@ -12,6 +12,7 @@ import { insertMessageWithDelimiter } from '../helpers/insertMessageWithDelimite
 import XmppClient from '../networking/xmppClient';
 import { createUserNameFromSetUser } from '../helpers/createUserNameFromSetUser';
 import { extractUniqueMembersFromRooms } from '../helpers/extractUniqueMembersFromRooms';
+import { pushSubscriptionService } from '../services/pushSubscriptionService';
 
 interface RoomMessagesState {
   rooms: { [jid: string]: IRoom };
@@ -57,6 +58,15 @@ export const addRoomViaApi = createAsyncThunk(
       if (room.jid) {
         xmpp.presenceInRoomStanza(room.jid);
         xmpp?.getHistoryStanza(room.jid, 10);
+        
+        if (xmpp.client) {
+          const userNick = xmpp.client.jid?.getLocal();
+          await pushSubscriptionService
+            .subscribeToRoom(xmpp.client, room.jid, userNick)
+            .catch((error) => {
+              console.error(`Failed to subscribe to room ${room.jid} for push:`, error);
+            });
+        }
       }
     }
     

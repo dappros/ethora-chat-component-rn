@@ -80,9 +80,7 @@ const processQueue = (newAccessToken: string) => {
 http.interceptors.response.use(
   (response) => response,
   async (error) => {
-    console.log('interceptors 0', !store.getState().chatSettingStore?.config?.refreshTokens?.enabled);
     if (!store.getState().chatSettingStore?.config?.refreshTokens?.enabled) {
-      console.log('interceptors 1');
       if (
         store.getState().chatSettingStore?.config?.refreshTokens
           ?.refreshFunction

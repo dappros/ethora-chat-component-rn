@@ -13,7 +13,6 @@ export const updatedChatLastTimestamps = (
         timestamp,
       })
     );
-    console.log('getting roomTimestampArray', roomTimestampArray);
 
     roomTimestampArray.forEach(({ jid, timestamp }) => {
       if (jid) {

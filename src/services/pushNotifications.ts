@@ -29,18 +29,21 @@ export async function getFCMToken(): Promise<string | null> {
     if (Platform.OS === 'ios') {
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      const apnsToken = await messaging().getAPNSToken();
+      let apnsToken = await messaging().getAPNSToken();
       if (!apnsToken) {
-        console.log('Waiting for APNs token...');
         await new Promise(resolve => setTimeout(resolve, 3000));
+        apnsToken = await messaging().getAPNSToken();
       }
     }
     
     const token = await messaging().getToken();
-    console.log('✅ FCM Token:', token);
+    
     return token;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error getting FCM token:', error);
+    if (error?.nativeError) {
+      console.error('Native error:', error.nativeError);
+    }
     return null;
   }
 }
@@ -57,14 +60,32 @@ export function setBackgroundMessageHandler(
   messaging().setBackgroundMessageHandler(handler);
 }
 
+export function onNotificationOpenedApp(
+  callback: (message: any) => void
+): () => void {
+  return messaging().onNotificationOpenedApp(callback);
+}
+
+export async function getInitialNotification(): Promise<any | null> {
+  try {
+    const message = await messaging().getInitialNotification();
+    return message;
+  } catch (error) {
+    console.error('Error getting initial notification:', error);
+    return null;
+  }
+}
+
 export async function initPushNotifications(): Promise<string | null> {
+  
   const hasPermission = await requestNotificationPermission();
   
   if (!hasPermission) {
-    console.log('Push notification permission denied');
+    console.error('Push notification permission denied');
     return null;
   }
 
   const token = await getFCMToken();
+  
   return token;
 }

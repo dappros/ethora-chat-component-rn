@@ -4,9 +4,11 @@ import { logout } from '../roomStore/chatSettingsSlice';
 import { setLogoutState } from '../roomStore/roomsSlice';
 import { useCallback } from 'react';
 import { clearHeap } from '../roomStore/roomHeapSlice';
+import { pushSubscriptionService } from '../services/pushSubscriptionService';
 
 const logoutService = {
   performLogout: () => {
+    pushSubscriptionService.reset();
     store.dispatch(logout());
     store.dispatch(setLogoutState());
     store.dispatch(clearHeap());

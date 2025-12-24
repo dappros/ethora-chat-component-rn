@@ -356,34 +356,34 @@ const SendInput: React.FC<SendInputProps> = ({
                   height: inputHeight,
                 }}
               />
-              {config?.secondarySendButton?.hideInputSendButton ? null : (
-                <Button
+          {config?.secondarySendButton?.hideInputSendButton ? null : (
+            <Button
                   onPress={
                     message || filePreviews.length > 0
                       ? handleSendClick
                       : startRecording
                   }
-                  EndIcon={
+              EndIcon={
                     message || filePreviews.length > 0 ? (
-                      <SendIcon
-                        color={
+                <SendIcon
+                  color={
                           message || filePreviews.length > 0
                             ? "#FFFFFF"
                             : "#D4D4D8"
-                        }
-                      />
+                  }
+                />
                     ) : (
                       <RecordIcon />
                     )
-                  }
-                  style={{
-                    borderRadius: 100,
-                    backgroundColor:
-                      message || filePreviews.length > 0
-                        ? config?.colors?.primary
-                        : "transparent",
-                  }}
-                />
+              }
+              style={{
+                borderRadius: 100,
+                backgroundColor:
+                  message || filePreviews.length > 0
+                    ? config?.colors?.primary
+                    : "transparent",
+              }}
+            />
               )}
             </>
           )}
