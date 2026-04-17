@@ -40,7 +40,7 @@ export class XmppClient {
 
   constructor(username: string, password: string, devServer?: string) {
     this.devServer = devServer;
-    const url = `wss://${this.devServer || 'xmpp.ethoradev.com:5443'}/ws`;
+    const url = `wss://${this.devServer || 'xmpp.chat.ethora.com:5443'}/ws`;
     // if (url.startsWith("wss")) {
     //   this.host = url.match(/wss:\/\/([^:/]+)/)[1];
     // } else {
@@ -54,7 +54,7 @@ export class XmppClient {
 
   initializeClient() {
     try {
-      const url = `wss://${this.devServer || 'xmpp.ethoradev.com:5443'}/ws`;
+      const url = `wss://${this.devServer || 'xmpp.chat.ethora.com:5443'}/ws`;
       this.service = url;
       this.host = url.match(/wss:\/\/([^:/]+)/)?.[1] || '';
       this.conference = `conference.${this.host}`;
@@ -214,7 +214,7 @@ export class XmppClient {
       isReply,
       showInChannel,
       mainMessage,
-      this.devServer || 'xmpp.ethoradev.com:5443'
+      this.devServer || 'xmpp.chat.ethora.com:5443'
     );
   };
 

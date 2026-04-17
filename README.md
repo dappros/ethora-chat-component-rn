@@ -1,81 +1,148 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# Ethora Chat Component — React Native (`@ethora/chat-component-rn`)
 
-# Getting Started
+React Native chat UI + chat core for iOS and Android, powered by the Ethora platform (REST + XMPP). Mount a `<Chat />` component, point it at an Ethora app, and get a production-oriented mobile chat experience: rooms, threads, message history, media, push notifications, and pluggable auth.
 
 **Part of the [Ethora SDK ecosystem](https://github.com/dappros/ethora#ecosystem)** — see all SDKs, tools, and sample apps. Follow cross-SDK updates in the [Release Notes](https://github.com/dappros/ethora/blob/main/RELEASE-NOTES.md).
 
->**Note**: Make sure you have completed the [React Native - Environment Setup](https://reactnative.dev/docs/environment-setup) instructions till "Creating a new application" step, before proceeding.
+> Looking for the React.js (web) version? See [`@ethora/chat-component`](https://github.com/dappros/ethora-chat-component).
 
-## Step 1: Start the Metro Server
+## What you get
 
-First, you will need to start **Metro**, the JavaScript _bundler_ that ships _with_ React Native.
+- Room list and room chat UI (Native / iOS + Android)
+- Message history (MAM), replies, edits, deletes
+- Typing indicators
+- Push notifications (FCM / APNs)
+- Pluggable auth (default / JWT / injected user / custom)
+- Custom message bubble, input, scroll, and day-separator overrides
 
-To start Metro, run the following command from the _root_ of your React Native project:
+## Default backend endpoints
 
-```bash
-# using npm
-npm start
+The package defaults to the canonical Ethora Cloud endpoints:
 
-# OR using Yarn
-yarn start
-```
+| Purpose | Default value |
+|---------|---------------|
+| API base URL | `https://api.chat.ethora.com/v1` |
+| XMPP WebSocket | `wss://xmpp.chat.ethora.com:5443/ws` |
+| XMPP host | `xmpp.chat.ethora.com` |
+| XMPP MUC (conference) | `conference.xmpp.chat.ethora.com` |
+| Web / sign up | `https://app.chat.ethora.com` |
+| Swagger / API docs | `https://api.chat.ethora.com/api-docs/#/` |
 
-## Step 2: Start your Application
+To target QA, point the equivalent props/env vars at `chat-qa.ethora.com`. To self-host, override with your own `xmppSettings` and `baseUrl` — see the example below.
 
-Let Metro Bundler run in its _own_ terminal. Open a _new_ terminal from the _root_ of your React Native project. Run the following command to start your _Android_ or _iOS_ app:
-
-### For Android
-
-```bash
-# using npm
-npm run android
-
-# OR using Yarn
-yarn android
-```
-
-### For iOS
+## Install
 
 ```bash
-# using npm
-npm run ios
-
-# OR using Yarn
-yarn ios
+# inside an existing React Native project
+npm install @ethora/chat-component-rn
+# or
+yarn add @ethora/chat-component-rn
 ```
 
-If everything is set up _correctly_, you should see your new app running in your _Android Emulator_ or _iOS Simulator_ shortly provided you have set up your emulator/simulator correctly.
+iOS only:
 
-This is one way to run your app — you can also run it directly from within Android Studio and Xcode respectively.
+```bash
+cd ios && pod install
+```
 
-## Step 3: Modifying your App
+## Quick start
 
-Now that you have successfully run the app, let's modify it.
+```tsx
+import React from 'react';
+import { SafeAreaView } from 'react-native';
+import { Chat, XmppProvider } from '@ethora/chat-component-rn';
 
-1. Open `App.tsx` in your text editor of choice and edit some lines.
-2. For **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Developer Menu** (<kbd>Ctrl</kbd> + <kbd>M</kbd> (on Window and Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (on macOS)) to see your changes!
+export default function App() {
+  return (
+    <SafeAreaView style={{ flex: 1 }}>
+      <XmppProvider>
+        <Chat
+          config={{
+            appId: 'YOUR_APP_ID',
+            baseUrl: 'https://api.chat.ethora.com/v1',
+            xmppSettings: {
+              devServer: 'wss://xmpp.chat.ethora.com:5443/ws',
+              host: 'xmpp.chat.ethora.com',
+              conference: 'conference.xmpp.chat.ethora.com',
+            },
+          }}
+        />
+      </XmppProvider>
+    </SafeAreaView>
+  );
+}
+```
 
-   For **iOS**: Hit <kbd>Cmd ⌘</kbd> + <kbd>R</kbd> in your iOS Simulator to reload the app and see your changes!
+Sign up at [app.chat.ethora.com/register](https://app.chat.ethora.com/register) to get an `appId` (and optionally an app token / JWT for backend integrations). For a guided setup that writes config files into your project, run `npx @ethora/setup`.
 
-## Congratulations! :tada:
+## Authentication modes
 
-You've successfully run and modified your React Native App. :partying_face:
+```tsx
+// JWT login (recommended for production apps that already have user auth)
+<Chat config={{ jwtLogin: { enabled: true, token: 'PLACEHOLDER_JWT' } }} />
 
-### Now what?
+// Inject an already-authenticated user
+<Chat
+  config={{
+    userLogin: {
+      enabled: true,
+      user: {
+        _id: 'PLACEHOLDER_USER_ID',
+        appId: 'PLACEHOLDER_APP_ID',
+        firstName: 'Jane',
+        lastName: 'Doe',
+        token: 'PLACEHOLDER_ACCESS_TOKEN',
+        refreshToken: 'PLACEHOLDER_REFRESH_TOKEN',
+        xmppPassword: 'PLACEHOLDER_XMPP_PASSWORD',
+        username: 'PLACEHOLDER_USERNAME',
+        walletAddress: 'PLACEHOLDER_WALLET_ADDRESS',
+        defaultWallet: { walletAddress: 'PLACEHOLDER_WALLET_ADDRESS' },
+      },
+    },
+  }}
+/>
+```
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [Introduction to React Native](https://reactnative.dev/docs/getting-started).
+## Pinning a single room
 
-# Troubleshooting
+```tsx
+<Chat
+  roomJID="ROOM_JID@conference.xmpp.chat.ethora.com"
+  config={{ setRoomJidInPath: false }}
+/>
+```
 
-If you can't get this to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+## Local development
 
-# Learn More
+This repo is bootstrapped with `@react-native-community/cli`. To run it as its own RN sample app rather than as a library:
 
-To learn more about React Native, take a look at the following resources:
+```bash
+git clone https://github.com/dappros/ethora-chat-component-rn.git
+cd ethora-chat-component-rn
+yarn install
+cd ios && pod install && cd ..
+yarn start            # Metro
+yarn ios              # in another terminal
+yarn android          # in another terminal
+```
 
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+> Make sure you have completed the [React Native environment setup](https://reactnative.dev/docs/environment-setup) before proceeding.
+
+## Related
+
+- [`@ethora/chat-component`](https://github.com/dappros/ethora-chat-component) — React.js (web) chat SDK
+- [`ethora-sdk-android`](https://github.com/dappros/ethora-sdk-android) — Native Android SDK (Kotlin / Compose)
+- [`ethora-sdk-swift`](https://github.com/dappros/ethora-sdk-swift) — Native iOS SDK (Swift / SwiftUI)
+- [`ethora-setup`](https://github.com/dappros/ethora-setup) — `npx @ethora/setup` to bootstrap an Ethora app
+- [Ethora monorepo](https://github.com/dappros/ethora) — full ecosystem entry point
+- API docs (Swagger): [api.chat.ethora.com/api-docs/#/](https://api.chat.ethora.com/api-docs/#/)
+
+## Support
+
+- Forum: <https://forum.ethora.com/>
+- Discord: <https://discord.gg/Sm6bAHA3ZC>
+- Status: <https://uptime.chat.ethora.com>
+
+## License
+
+AGPL. See [LICENSE](./LICENSE).

@@ -3,7 +3,7 @@ import { store } from '../roomStore';
 
 import { logout, refreshTokens } from '../roomStore/chatSettingsSlice';
 
-const baseURL = 'https://api.ethoradev.com/v1';
+const baseURL = 'https://api.chat.ethora.com/v1';
 
 const http = axios.create({
   baseURL,
