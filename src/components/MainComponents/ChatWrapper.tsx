@@ -1,58 +1,41 @@
-/** @format */
-
-import React, {
-  FC,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  useRef,
-} from "react";
-import { useDispatch, useSelector } from "react-redux";
-import ChatRoom from "./ChatRoom";
+import React, {FC, useEffect, useMemo, useState} from 'react';
+import {useDispatch, useSelector} from 'react-redux';
+import ChatRoom from './ChatRoom';
 import {
   setActiveModal,
+  setConfig,
   setDeleteModal,
-} from "../../roomStore/chatSettingsSlice";
-import { ChatWrapperBox } from "../styled/ChatWrapperBox";
-import { Message } from "../MessageBubble/Message";
-import { IConfig, IRoom, MessageProps, ModalType } from "../../types/types";
-import LoginForm from "../AuthForms/Login";
-import Loader from "../styled/Loader";
+  setStoreClient,
+} from '../../roomStore/chatSettingsSlice';
+import {ChatWrapperBox} from '../styled/ChatWrapperBox';
+import {Overlay, StyledModal} from '../styled/MediaModal';
+import {Message} from '../MessageBubble/Message';
+import {IConfig, IRoom, MessageProps, ModalType, User} from '../../types/types';
+import {useXmppClient} from '../../context/xmppProvider';
+import LoginForm from '../AuthForms/Login';
+import {RootState} from '../../roomStore';
+import Loader from '../styled/Loader';
 import {
-  clearPendingNotificationJid,
   setCurrentRoom,
   setEditAction,
   setIsLoading,
   setLastViewedTimestamp,
-} from "../../roomStore/roomsSlice";
-import { refresh } from "../../networking/apiClient";
-import RoomList from "./RoomList";
-import { StyledLoaderWrapper } from "../styled/StyledComponents";
-import Modal from "../Modals/Modal/Modal";
-import ThreadWrapper from "../Thread/ThreadWrapper";
-import { ModalWrapper } from "../Modals/ModalWrapper/ModalWrapper";
-import { useChatSettingState } from "../../hooks/useChatSettingState";
-import { AppState, StatusBar, Text, View, ViewStyle } from "react-native";
-import { useRoomState } from "../../hooks/useRoomState";
-import useChatWrapperInit from "../../hooks/useChatWrapperInit.ts";
-import { useQRCodeChat } from "../../hooks/useQRCodeChatHandler.ts";
-import { RootState } from "../../roomStore/index.ts";
-import { Overlay, StyledModal } from "../styled/MediaModal.tsx";
-import { useHeapSender } from "../../hooks/useHeapSender";
-import ConnectionBanner from "./ConnectionBanner";
-import usePendingNotification from "../../hooks/usePendingNotification.ts";
+} from '../../roomStore/roomsSlice';
+import {refresh} from '../../networking/apiClient';
+import RoomList from './RoomList';
+import {StyledLoaderWrapper} from '../styled/StyledComponents';
+import Modal from '../Modals/Modal/Modal';
+import ThreadWrapper from '../Thread/ThreadWrapper';
+import {ModalWrapper} from '../Modals/ModalWrapper/ModalWrapper';
+import {useChatSettingState} from '../../hooks/useChatSettingState';
+import {Text} from 'react-native';
 
 interface ChatWrapperProps {
   token?: string;
   room?: IRoom;
-  loginData?: { email: string; password: string };
-  MainComponentStyles?: ViewStyle;
+  loginData?: {email: string; password: string};
+  MainComponentStyles?: React.CSSProperties; //change to particular types
   CustomMessageComponent?: React.ComponentType<MessageProps>;
-  CustomInputComponent?: React.ComponentType<any>;
-  CustomScrollableArea?: React.ComponentType<any>;
-  CustomDaySeparator?: React.ComponentType<any>;
-  CustomNewMessageLabel?: React.ComponentType<any>;
   config?: IConfig;
   roomJID?: string;
 }
@@ -60,10 +43,6 @@ interface ChatWrapperProps {
 const ChatWrapper: FC<ChatWrapperProps> = ({
   MainComponentStyles,
   CustomMessageComponent,
-  CustomInputComponent,
-  CustomScrollableArea,
-  CustomDaySeparator,
-  CustomNewMessageLabel,
   room,
   config,
   roomJID,
@@ -72,313 +51,202 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
     user,
     activeModal,
     deleteModal,
-    config: storeConfig,
+    client: storedClient,
   } = useChatSettingState();
 
-  const effectiveConfig = config || storeConfig;
+  const [isInited, setInited] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  // const [isModalDeleteOpen, setIsModalDeleteOpen] = useState(false);
 
   const [isChatVisible, setIsChatVisible] = useState(false);
+  const [isSmallScreen, setIsSmallScreen] = useState(false);
 
-  const handleItemClick = useCallback((value: boolean) => {
+  const handleItemClick = (value: boolean) => {
     setIsChatVisible(value);
-  }, []);
-
-  const conferenceServer = effectiveConfig?.xmppSettings?.conference;
+  };
 
   const dispatch = useDispatch();
-  const setCurrentRoomCallback = useCallback(
-    (params: { roomJID: string | null }) => {
-      dispatch(setCurrentRoom(params));
-    },
-    [dispatch]
-  );
+  const {
+    client,
+    initializeClient,
+    setClient,
+    providerBootstrapStatus,
+    initMode,
+  } = useXmppClient();
 
-  const { wasAutoSelected } = useQRCodeChat(
-    setCurrentRoomCallback,
-    conferenceServer
-  );
-
-  const { rooms, activeRoomJID, reportRoom } = useSelector(
-    (state: RootState) => state.rooms
-  );
-  const { roomsList, loading, globalLoading, loadingText } = useRoomState();
-
-  const roomsListCount = useMemo(() => {
-    return roomsList ? Object.keys(roomsList).length : 0;
-  }, [roomsList]);
+  const {rooms, activeRoomJID} = useSelector((state: RootState) => state.rooms);
 
   const activeMessage = useMemo(() => {
     if (activeRoomJID) {
       return rooms[activeRoomJID]?.messages?.find(
-        (message) => message?.activeMessage
+        message => message?.activeMessage,
       );
     }
   }, [rooms, activeRoomJID]);
 
+  const handleChangeChat = (chat: IRoom) => {
+    dispatch(setCurrentRoom({roomJID: chat.jid}));
+    activeRoomJID !== chat.jid &&
+      dispatch(setIsLoading({chatJID: chat.jid, loading: true}));
+    dispatch(setEditAction({isEdit: false}));
+    handleItemClick(true);
+  };
+
   const handleDeleteClick = () => {
-    if (!deleteModal || !client) {
-      return;
-    }
-
-    if (deleteModal.roomJid && deleteModal.messageId) {
-      client.deleteMessageStanza(deleteModal.roomJid, deleteModal.messageId);
-    }
-
-    dispatch(setDeleteModal({ isDeleteModal: false }));
+    client.deleteMessageStanza(deleteModal.roomJid, deleteModal.messageId);
+    dispatch(setDeleteModal({isDeleteModal: false}));
   };
 
   const handleCloseDeleteModal = () => {
-    dispatch(setDeleteModal({ isDeleteModal: false }));
-  };
-
-  const { client, inited, isRetrying, showModal, isConnectionLost } =
-    useChatWrapperInit({
-      roomJID,
-      wasAutoSelected,
-      config: effectiveConfig || {},
-    });
-
-  const handleChangeChat = useCallback(
-    (chat: IRoom) => {
-      dispatch(setCurrentRoom({ roomJID: null }));
-      dispatch(setIsLoading({ chatJID: chat.jid, loading: true }));
-      dispatch(setCurrentRoom({ roomJID: chat.jid }));
-      dispatch(setEditAction({ isEdit: false }));
-      handleItemClick(true);
-      if (!chat?.historyComplete && chat.messages?.length < 30) {
-        client?.getHistoryStanza(chat.jid, 30);
-      }
-    },
-    [dispatch, handleItemClick, client]
-  );
-
-  const { sendHeapMessages } = useHeapSender(client);
-
-  const { pendingNotificationJid } = usePendingNotification();
-  
-  useEffect(() => {
-    if (pendingNotificationJid && rooms[pendingNotificationJid] && inited && client) {
-      console.log('[ChatWrapper] Opening room from pending notification:', pendingNotificationJid);
-      const room = rooms[pendingNotificationJid];
-      if (room) {
-        handleChangeChat(room);
-        dispatch(clearPendingNotificationJid());
-      }
-    }
-  }, [pendingNotificationJid, rooms, inited, client, dispatch]);
-
-  useEffect(() => {
-    if (inited && client) {
-      sendHeapMessages();
-    }
-  }, [inited, client]);
-
-  const hasAutoShownRef = useRef(false);
-  useEffect(() => {
-    if (
-      inited &&
-      roomJID &&
-      activeRoomJID &&
-      !isChatVisible &&
-      !hasAutoShownRef.current
-    ) {
-      hasAutoShownRef.current = true;
-      setIsChatVisible(true);
-    }
-  }, [inited, roomJID, activeRoomJID, isChatVisible]);
-
-  const updateLastReadTimeStamp = () => {
-    if (client) {
-      client.actionSetTimestampToPrivateStoreStanza(
-        room?.jid || roomJID || "",
-        new Date().getTime()
-      );
-    }
-    dispatch(
-      setLastViewedTimestamp({
-        chatJID: room?.jid || roomJID || "",
-        timestamp: new Date().getTime(),
-      })
-    );
+    dispatch(setDeleteModal({isDeleteModal: false}));
   };
 
   useEffect(() => {
-    const handleAppStateChange = (nextAppState: string) => {
-      if (nextAppState === "background") {
-        updateLastReadTimeStamp();
-      }
-    };
-
-    const subscription = AppState.addEventListener(
-      "change",
-      handleAppStateChange
-    );
-
     return () => {
-      subscription.remove();
+      if (client && user.xmppPassword === '') {
+        console.log('closing client');
+        client.close();
+        setClient(null);
+      }
     };
-  }, [client, room?.jid]);
+  }, [user.xmppPassword]);
 
-  // upd logic to use
-  // const queueMessageLoader = useCallback(
-  //   async (chatJID: string, max: number) => {
-  //     try {
-  //       return await client?.getHistoryStanza(chatJID, max);
-  //     } catch (error) {
-  //       console.log('Error in loading queue messages', error);
-  //     }
-  //   },
-  //   [globalLoading, loading, !!client]
-  // );
+  // Tell the XMPP client which room is currently active so the QoS
+  // scheduler can prioritize its history fetches.
+  useEffect(() => {
+    if (!client) return;
+    client.setActiveRoomJid?.(activeRoomJID || null);
+  }, [client, activeRoomJID]);
 
-  // useMessageLoaderQueue(
-  //   Object.keys(roomsList),
-  //   roomsList,
-  //   globalLoading,
-  //   loading,
-  //   queueMessageLoader
-  // );
-
-  if (effectiveConfig?.enableRoomsRetry?.enabled && isRetrying === "norooms") {
-    return (
-      <StyledLoaderWrapper
-        style={{ alignItems: "center", flexDirection: "column", gap: "10px" }}
-      >
-        <Text>
-          {effectiveConfig?.enableRoomsRetry?.helperText ||
-            "We couldn't create any chat room."}
-        </Text>
-      </StyledLoaderWrapper>
-    );
-  }
-
-  if (effectiveConfig?.enableRoomsRetry?.enabled && isRetrying) {
-    return (
-      <StyledLoaderWrapper
-        style={{ alignItems: "center", flexDirection: "column", gap: "10px" }}
-      >
-        <Loader color={config?.colors?.primary} />
-        {loadingText && <Text>{loadingText}</Text>}
-      </StyledLoaderWrapper>
-    );
-  }
-
-  if (user.xmppPassword === "" && user.xmppUsername === "") {
-    if (__DEV__) {
-      console.log("🔵 ChatWrapper: No user credentials, showing LoginForm");
+  useEffect(() => {
+    if (roomJID) {
+      dispatch(setCurrentRoom({roomJID: roomJID}));
     }
-    return <LoginForm config={config} />;
-  }
 
-  // Removed excessive logging to prevent re-renders
+    const initXmmpClient = async () => {
+      dispatch(setConfig(config));
+      try {
+        if (!user.defaultWallet || user?.defaultWallet.walletAddress === '') {
+          setShowModal(true);
+          console.log('Error, no user');
+        } else {
+          // If XmppProvider owns bootstrap (config.initBeforeLoad=true),
+          // wait for providerBootstrapStatus before doing anything ourselves.
+          if (
+            config?.initBeforeLoad &&
+            initMode === 'provider' &&
+            providerBootstrapStatus !== 'idle' &&
+            providerBootstrapStatus !== 'ready' &&
+            providerBootstrapStatus !== 'failed'
+          ) {
+            // running — wait, provider's effect will populate `client`.
+            return;
+          }
+          if (
+            config?.initBeforeLoad &&
+            initMode === 'provider' &&
+            providerBootstrapStatus === 'failed'
+          ) {
+            setShowModal(true);
+            setInited(false);
+            return;
+          }
+          if (!client && !storedClient) {
+            setShowModal(false);
+
+            console.log('No client, so initing one');
+            await initializeClient(
+              user.xmppUsername || user.defaultWallet?.walletAddress,
+              user.xmppPassword,
+              config?.xmppSettings,
+            ).then(client => {
+              client.getRoomsStanza().then(() => {
+                client.getChatsPrivateStoreRequestStanza();
+                dispatch(setStoreClient(client));
+                setClient(client);
+              });
+            });
+            setInited(true);
+            {
+              config?.refreshTokens?.enabled && refresh();
+            }
+          } else if (storedClient) {
+            setClient(storedClient);
+            if (!activeRoomJID) {
+              storedClient.getRoomsStanza().then(() => {
+                storedClient.getChatsPrivateStoreRequestStanza();
+              });
+            }
+            setInited(true);
+            {
+              config?.refreshTokens?.enabled && refresh();
+            }
+          } else {
+            if (!activeRoomJID) {
+              client.getRoomsStanza().then(() => {
+                client.getChatsPrivateStoreRequestStanza();
+              });
+            }
+            client.getChatsPrivateStoreRequestStanza();
+            setInited(true);
+            {
+              config?.refreshTokens?.enabled && refresh();
+            }
+          }
+        }
+        dispatch(setIsLoading({loading: false}));
+      } catch (error) {
+        setShowModal(true);
+        setInited(false);
+        dispatch(setIsLoading({loading: false}));
+        console.log(error);
+      }
+    };
+
+    initXmmpClient();
+  }, [
+    user.xmppPassword,
+    user.defaultWallet,
+    providerBootstrapStatus,
+    initMode,
+    config?.initBeforeLoad,
+  ]);
+
+  if (user.xmppPassword === '' && user.xmppUsername === '')
+    return <LoginForm config={config} />;
 
   return (
-    <View style={{ flex: 1 }}>
+    <>
       {showModal && (
         <Overlay>
           <StyledModal>
-            There was an error. Please, refresh the page
+            <Text>There was an error. Please, refresh the page</Text>
           </StyledModal>
         </Overlay>
       )}
-      {isConnectionLost && !inited && <ConnectionBanner />}
       <>
-        {inited ? (
+        {isInited ? (
           <ChatWrapperBox
             style={{
               ...MainComponentStyles,
-              flex: 1,
-            }}
-          >
-            <StatusBar
-              barStyle="dark-content"
-              backgroundColor="#fff"
-              translucent={false}
-            />
-            {!effectiveConfig?.disableRooms &&
-              roomsList &&
-              Object.keys(roomsList).length > 0 &&
-              !isChatVisible && (
-                <RoomList
-                  chats={Object.values(roomsList)}
-                  onRoomClick={handleChangeChat}
-                />
-              )}
-            {isChatVisible && activeRoomJID ? (
+            }}>
+            <ChatWrapperBox
+              style={{
+                ...MainComponentStyles,
+              }}>
               <ChatRoom
                 CustomMessageComponent={CustomMessageComponent || Message}
-                CustomInputComponent={CustomInputComponent}
-                CustomScrollableArea={CustomScrollableArea}
-                CustomDaySeparator={CustomDaySeparator}
-                CustomNewMessageLabel={CustomNewMessageLabel}
-                handleBackClick={handleItemClick}
-                eventHandlers={effectiveConfig?.eventHandlers}
               />
-            ) : null}
-            {!effectiveConfig?.disableRooms &&
-              roomsList &&
-              Object.keys(roomsList).length === 0 &&
-              !isChatVisible && (
-                <View
-                  style={{
-                    flex: 1,
-                    justifyContent: "center",
-                    alignItems: "center",
-                    padding: 20,
-                  }}
-                >
-                  <Text>No rooms available. Waiting for rooms to load...</Text>
-                  <Loader color={effectiveConfig?.colors?.primary} />
-                </View>
-              )}
-            {effectiveConfig?.disableRooms &&
-              !isChatVisible &&
-              !activeRoomJID && (
-                <View
-                  style={{
-                    flex: 1,
-                    justifyContent: "center",
-                    alignItems: "center",
-                    padding: 20,
-                  }}
-                >
-                  <Text>Waiting for room to initialize...</Text>
-                  <Loader color={effectiveConfig?.colors?.primary} />
-                </View>
-              )}
-            {isChatVisible && activeMessage?.activeMessage ? (
-              <ThreadWrapper
-                activeMessage={activeMessage}
-                user={user}
-                customMessageComponent={CustomMessageComponent || Message}
-              />
-            ) : null}
-            <Modal
-              modal={activeModal}
-              setOpenModal={(value?: ModalType) =>
-                dispatch(setActiveModal(value))
-              }
-            />
+            </ChatWrapperBox>
           </ChatWrapperBox>
         ) : (
           <StyledLoaderWrapper>
             <Loader color={config?.colors?.primary} />
-            <Text style={{ marginTop: 10 }}>Initializing chat...</Text>
           </StyledLoaderWrapper>
         )}
       </>
-      {deleteModal?.isDeleteModal && (
-        <ModalWrapper
-          title="Delete Message"
-          description="Are you sure you want to delete this message?"
-          buttonText="Delete"
-          backgroundColorButton="#E53935"
-          handleClick={handleDeleteClick}
-          handleCloseModal={handleCloseDeleteModal}
-        />
-      )}
-    </View>
+    </>
   );
 };
 
-export { ChatWrapper };
+export {ChatWrapper};

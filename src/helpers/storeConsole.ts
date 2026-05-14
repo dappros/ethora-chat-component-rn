@@ -1,10 +1,26 @@
 import { RootState, store } from '../roomStore';
 
-// Function to expose the Redux store's state to the browser console
-export const useStoreConsole = () => {
-  const state: RootState = store.getState(); // Get current state from the store
-  return state; // Return the state so it can be accessed in the console
+/**
+ * Return the current redux state. Mirrors web `useStoreConsole`.
+ * Attach to `globalThis.useStoreConsole` only when
+ * `config.useStoreConsoleEnabled === true`; clean up otherwise.
+ */
+export const useStoreConsole = (): RootState => store.getState();
+
+const g: any = globalThis as any;
+
+const refresh = () => {
+  try {
+    const config = store.getState().chatSettingStore?.config;
+    if (config?.useStoreConsoleEnabled === true) {
+      g.useStoreConsole = useStoreConsole;
+    } else if (g.useStoreConsole) {
+      delete g.useStoreConsole;
+    }
+  } catch {
+    // ignore — state may not be ready yet
+  }
 };
 
-// Make the function globally available in the browser
-(window as any).useStoreConsole = useStoreConsole;
+refresh();
+store.subscribe(refresh);

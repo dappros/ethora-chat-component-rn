@@ -1,163 +1,70 @@
 import { store } from '../../roomStore';
-import {
-  ApiRoom,
-  DeleteRoomMember,
-  PostAddRoomMember,
-  PostReportRoom,
-  PostRoom,
-  RoomMember,
-} from '../../types/types';
 import http from '../apiClient';
 
+interface ApiRoom {
+  name: string;
+  title?: string;
+  jid?: string;
+  description?: string;
+  participants?: number;
+  type?: string;
+  icon?: string;
+}
+
+const GET_ROOMS_CACHE_MS = 60_000;
+let getRoomsInFlight: Promise<{ items: ApiRoom[] }> | null = null;
+let getRoomsInFlightToken = '';
+let lastGetRoomsResponse: { items: ApiRoom[] } | null = null;
+let lastGetRoomsResponseAt = 0;
+let lastGetRoomsResponseToken = '';
+
+/**
+ * REST equivalent of getRoomsStanza. Used by initBeforeLoad to prefetch
+ * the room list in parallel with the XMPP handshake. Results are cached
+ * per-token for 60s so a downstream re-fetch on mount is a no-op.
+ */
 export async function getRooms(): Promise<{ items: ApiRoom[] }> {
-  const token = store.getState().chatSettingStore?.user?.token || '';
-  const useer = store.getState().chatSettingStore?.user || '';
+  const token = store.getState().chatSettingStore.user.token || '';
+  const now = Date.now();
 
-  console.log('getRooms token', token);
-  console.log('getRooms useer', useer);
+  if (
+    lastGetRoomsResponse &&
+    lastGetRoomsResponseToken === token &&
+    now - lastGetRoomsResponseAt < GET_ROOMS_CACHE_MS
+  ) {
+    return lastGetRoomsResponse;
+  }
 
-  try {
+  if (getRoomsInFlight && getRoomsInFlightToken === token) {
+    return getRoomsInFlight;
+  }
+
+  getRoomsInFlightToken = token;
+  getRoomsInFlight = (async () => {
     const response = await http.get('/chats/my', {
-      headers: {
-        Authorization: token,
-      },
+      headers: { Authorization: token },
     });
-    console.log('getRooms response', response.data);
-
+    lastGetRoomsResponse = response.data;
+    lastGetRoomsResponseAt = Date.now();
+    lastGetRoomsResponseToken = token;
     return response.data;
-  } catch (error) {
-    console.error('Error loading rooms');
-    throw error;
-  }
-}
-
-export async function getRoomByName(chatName: string): Promise<ApiRoom> {
-  const token = store.getState().chatSettingStore?.user?.token || '';
+  })();
 
   try {
-    const response = await http.get(`/chats/my/${chatName}`, {
-      headers: {
-        Authorization: token,
-      },
-    });
-    return response.data;
+    return await getRoomsInFlight;
   } catch (error) {
-    throw new Error('Error updating profile');
+    console.log('Error loading rooms via REST', error);
+    return { items: [] };
+  } finally {
+    getRoomsInFlight = null;
+    getRoomsInFlightToken = '';
   }
 }
 
-export async function postRoom(data: PostRoom) {
-  const token = store.getState().chatSettingStore?.user?.token || '';
-
-  try {
-    const response = await http.post('/chats', data, {
-      headers: {
-        Authorization: token,
-      },
-    });
-    
-    return response.data.result;
-  } catch (error) {
-    throw new Error('Error updating profile');
-  }
+export function clearRoomsRestCache() {
+  lastGetRoomsResponse = null;
+  lastGetRoomsResponseAt = 0;
+  lastGetRoomsResponseToken = '';
 }
 
-export async function postPrivateRoom(
-  username: string,
-  title: string = 'Private chat'
-): Promise<ApiRoom> {
-  const token = store.getState().chatSettingStore?.user?.token || '';
-
-  try {
-    const response = await http.post(
-      '/chats/private',
-      { username },
-      {
-        headers: {
-          Authorization: token,
-        },
-      }
-    );
-    return response.data.result;
-  } catch (error) {
-    throw new Error('Error updating profile');
-  }
-}
-
-export async function postReportRoom(data: PostReportRoom) {
-  const { chatName, category, text } = data;
-  const token = store.getState().chatSettingStore?.user?.token || '';
-
-  try {
-    const response = await http.post(
-      `/chats/reports/${chatName}`,
-      { category, text },
-      {
-        headers: {
-          Authorization: token,
-        },
-      }
-    );
-    return response.data.result;
-  } catch (error) {
-    throw new Error('Error updating profile');
-  }
-}
-
-export async function postAddRoomMember(
-  data: PostAddRoomMember
-): Promise<RoomMember[]> {
-  const { chatName, members } = data;
-  const token = store.getState().chatSettingStore?.user?.token || '';
-
-  try {
-    const response = await http.post(
-      `/chats/users-access`,
-      { chatName, members },
-      {
-        headers: {
-          Authorization: token,
-        },
-      }
-    );
-    return response.data.results;
-  } catch (error) {
-    throw new Error('Error updating profile');
-  }
-}
-
-export async function deleteRoomMember(data: DeleteRoomMember) {
-  const { roomId, members } = data;
-  const token = store.getState().chatSettingStore?.user?.token || '';
-
-  try {
-    const response = await http.delete(`/chats/users-access`, {
-      headers: {
-        Authorization: token,
-      },
-      data: {
-        chatName: roomId,
-        members,
-      },
-    });
-    return response.data.result;
-  } catch (error) {
-    throw new Error('Error updating profile');
-  }
-}
-
-export async function deleteRoom(name: string) {
-  const token = store.getState().chatSettingStore?.user?.token || '';
-
-  try {
-    const response = await http.delete('/chats', {
-      headers: {
-        Authorization: token,
-      },
-      data: { name },
-    });
-    return response.data.result;
-  } catch (error) {
-    throw new Error('Error deleting room');
-  }
-}
+export type { ApiRoom };

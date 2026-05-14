@@ -3,43 +3,18 @@ import { store } from '../roomStore';
 import {
   addRoom,
   addRoomMessage,
-  addRoomViaApi,
   deleteRoomMessage,
   editRoomMessage,
   setComposing,
   setCurrentRoom,
-  setReactions,
+  setLastViewedTimestamp,
   setRoomRole,
   updateRoom,
-  updateUsersSet,
-  deleteRoom,
-  insertUsers,
 } from '../roomStore/roomsSlice';
-import { IMessage, IRoom } from '../types/types';
+import { IRoom } from '../types/types';
 import { createMessageFromXml } from '../helpers/createMessageFromXml';
 import { setDeleteModal } from '../roomStore/chatSettingsSlice';
-import { getDataFromXml } from '../helpers/getDataFromXml';
-import { getBooleanFromString } from '../helpers/getBooleanFromString';
-import { getNumberFromString } from '../helpers/getNumberFromString';
-import { getRooms } from '../networking/api-requests/rooms.api';
-import { createRoomFromApi } from '../helpers/createRoomFromApi';
-import XmppClient from './xmppClient';
-import { checkSingleUser } from '../helpers/checkUniqueUsers';
-import { presenceInRoom } from './xmpp/presenceInRoom.xmpp';
-import { removeMessageFromHeapById } from '../roomStore/roomHeapSlice';
-import { xml } from '@xmpp/client';
-import { findWorkspaceNameById } from '../../../../utils/workspaceUtils';
-
-// Dynamic import to avoid circular dependencies
-let chatNotificationService: any = null;
-try {
-  // Use require for dynamic import to handle path resolution
-  const notificationServiceModule = require('../../../../services/chatNotificationService');
-  chatNotificationService = notificationServiceModule.chatNotificationService;
-} catch (error) {
-  console.warn('Chat notification service not available:', error);
-}
-// import { DOMParser as XmldomParser } from 'xmldom';
+import { messageNotificationManager } from '../utils/messageNotificationManager';
 
 // TO DO: we are thinking to refactor this code in the following way:
 // each stanza will be parsed for 'type'
@@ -51,153 +26,83 @@ try {
 
 //core default
 const onRealtimeMessage = async (stanza: Element) => {
-  const mucX = stanza
-    ?.getChildren('x')
-    ?.find(
-      (x) =>
-        x.attrs['xmlns'] === 'http://jabber.org/protocol/muc#user' &&
-        x.getChild('invite')
-    );
-  if (mucX) {
-    return;
-  }
   if (
     !stanza?.getChild('result') &&
     !stanza.getChild('composing') &&
     !stanza.getChild('paused') &&
     !stanza.getChild('subject') &&
     !stanza.is('iq') &&
-    stanza?.attrs?.id !== 'deleteMessageStanza' &&
-    !stanza?.attrs?.id?.includes('message-reaction')
+    stanza.attrs.id !== 'deleteMessageStanza'
   ) {
-    try {
-      const { data } = await getDataFromXml(stanza);
-    } catch (error) {
-      handleErrorMessageStanza(stanza);
-      console.log('err', error);
-      return;
-    }
-    const { data, id, body, ...rest } = await getDataFromXml(stanza);
+    const body = stanza?.getChild('body');
+    const archived = stanza?.getChild('archived');
+    const data = stanza?.getChild('data');
+    const id = archived?.attrs.id;
+
+    const deleted = stanza
+      .getChild('result')
+      ?.getChild('forwarded')
+      ?.getChild('message')
+      ?.getChild('deleted');
 
     if (!data) {
-      console.log('No data in stanza');
+      console.log(stanza.toString());
+      console.log('Missing data elements in real-time message.');
       return;
     }
 
-    const message = await createMessageFromXml({
-      data,
-      id,
-      body,
-      ...rest,
-    });
+    if (!data.attrs.senderJID) {
+      console.log(stanza.toString());
+      console.log(data.attrs.senderJID);
 
-    const fixedUser = await checkSingleUser(
-      store.getState().rooms.usersSet,
-      message.user.id
+      console.log('Missing sender information in real-time message.');
+      return;
+    }
+
+    const message = await createMessageFromXml(
+      data.attrs,
+      body,
+      id,
+      stanza.attrs.from,
+      !!deleted
     );
-    if (fixedUser) {
-      store.dispatch(insertUsers({ newUsers: [fixedUser] }));
-    }
+
     const roomJID = stanza.attrs.from.split('/')[0];
-    
-    const currentState = store.getState();
-    const activeRoomJID = currentState.rooms?.activeRoomJID;
-    
-    const isFromDifferentChat = activeRoomJID && activeRoomJID !== roomJID;
-    
-    const currentUser = currentState.chatSettingStore?.user;
-    const currentUserId = currentUser?._id || currentUser?.xmppUsername;
-    const messageSenderId = message.user?.id || message.user?._id;
-    
-    const isFromSelf = currentUserId && messageSenderId && 
-                      (String(currentUserId) === String(messageSenderId) ||
-                       String(currentUser?.xmppUsername) === String(messageSenderId));
-    
-    const isUserLoggedIn = currentUser && 
-                          (currentUser.token || 
-                           currentUser.xmppUsername || 
-                           currentUser._id);
-    
-    if (isFromDifferentChat && !isFromSelf && message.body && chatNotificationService && isUserLoggedIn) {
-      try {
-        const workspaceIdMatch = roomJID.match(/^[^_]+_(.+?)@/);
-        const workspaceId = workspaceIdMatch ? workspaceIdMatch[1] : undefined;
-        
-        let roomName: string | null = null;
-        if (workspaceId) {
-          roomName = findWorkspaceNameById(workspaceId);
-        }
-        
-        if (!roomName) {
-          const room = currentState.rooms?.rooms?.[roomJID];
-          roomName = room?.title || room?.name || null;
-        }
-        
-        const userFromSet = currentState.rooms?.usersSet?.[message.user.id];
-        const senderAvatar = (message.user as any).photoURL || 
-                            (userFromSet as any)?.photoURL;
-        
-        const notificationTitle = roomName ?? 
-                                  message.user.name ?? 
-                                  userFromSet?.name ??
-                                  message.user.id ??
-                                  'New message';
-        
-        chatNotificationService.showNotification({
-          title: notificationTitle,
-          message: message.body,
-          avatar: senderAvatar,
-          roomJID: roomJID,
-          workspaceId: workspaceId,
-        });
-        
-      } catch (error) {
-        console.warn('Error showing notification:', error);
-      }
-    }
-    
     store.dispatch(
       addRoomMessage({
-        roomJID: roomJID,
+        roomJID,
         message,
       })
     );
-    
-    const removeId = message?.xmppId || message?.id;
-    if (removeId) {
-      store.dispatch(removeMessageFromHeapById(removeId));
+
+    // Trigger in-app notification (manager dedupes + drops own messages
+    // for empty bodies). Self-messages are filtered by sender check.
+    try {
+      const state = store.getState();
+      const currentUserWallet = (state.chatSettingStore.user?.walletAddress || '').toLowerCase();
+      const senderJID = String(data.attrs.senderJID || '').toLowerCase();
+      if (currentUserWallet && senderJID.includes(currentUserWallet)) {
+        return message; // own message, skip toast
+      }
+      const room = state.rooms.rooms[roomJID];
+      const roomName = room?.title || room?.name || '';
+      const senderName = [
+        data.attrs.senderFirstName,
+        data.attrs.senderLastName,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .trim() || 'New message';
+      messageNotificationManager.showNotification(
+        message,
+        roomName,
+        senderName,
+        roomJID
+      );
+    } catch (err) {
+      console.warn('notification dispatch failed', err);
     }
-    
     return message;
-  }
-};
-
-const onReactionMessage = async (stanza: Element) => {
-  if (stanza?.attrs?.id?.includes('message-reaction')) {
-    const reactions = stanza.getChild('reactions');
-    const stanzaId = stanza.getChild('stanza-id');
-    const roomJid = stanzaId?.attrs.by;
-    const timestamp = stanzaId?.attrs.id;
-
-    const data = stanza.getChild('data');
-
-    const emojiList: string[] | undefined = reactions && reactions
-      .getChildren('reaction')
-      .map((reaction) => reaction.text());
-    const from: string = reactions?.attrs.from;
-
-    if(!emojiList) return;
-
-    store.dispatch(
-      setReactions({
-        roomJID: roomJid,
-        messageId: reactions?.attrs.id,
-        latestReactionTimestamp: timestamp,
-        reactions: emojiList,
-        from,
-        data: data?.attrs,
-      })
-    );
   }
 };
 
@@ -212,7 +117,7 @@ const onDeleteMessage = async (stanza: Element) => {
 
     store.dispatch(
       deleteRoomMessage({
-        roomJID: stanzaId?.attrs.by,
+        roomJID: stanzaId.attrs.by,
         messageId: deleted.attrs.id,
       })
     );
@@ -231,62 +136,11 @@ const onEditMessage = async (stanza: Element) => {
 
     store.dispatch(
       editRoomMessage({
-        roomJID: stanzaId?.attrs.by,
-        messageId: replace?.attrs.id,
-        text: replace?.attrs.text,
+        roomJID: stanzaId.attrs.by,
+        messageId: replace.attrs.id,
+        text: replace.attrs.text,
       })
     );
-  }
-};
-
-const onReactionHistory = async (stanza: any) => {
-  try {
-    const reactions = stanza
-      .getChild('result')
-      ?.getChild('forwarded')
-      ?.getChild('message')
-      ?.getChild('reactions');
-    const data = stanza
-      .getChild('result')
-      ?.getChild('forwarded')
-      ?.getChild('message')
-      ?.getChild('data');
-    const stanzaId = stanza
-      .getChild('result')
-      ?.getChild('forwarded')
-      ?.getChild('message')
-      ?.getChild('stanza-id');
-
-    if (!reactions && !data && !stanzaId && !reactions?.attrs) {
-      return;
-    }
-
-    const messageId = reactions.attrs.id;
-
-    const reactionList: string[] = reactions.children.map(
-      (emoji: any) => emoji.children[0]
-    );
-    const from: string = reactions.attrs.from;
-    const dataReaction = {
-      senderFirstName: data.attrs.senderFirstName,
-      senderLastName: data.attrs.senderLastName,
-    };
-
-    const roomJid = stanzaId.attrs.by;
-    const timestamp = stanzaId.attrs.id;
-
-    store.dispatch(
-      setReactions({
-        roomJID: roomJid,
-        messageId,
-        latestReactionTimestamp: timestamp,
-        reactions: reactionList,
-        from,
-        data: dataReaction,
-      })
-    );
-  } catch (error) {
-    return;
   }
 };
 
@@ -295,29 +149,59 @@ const onMessageHistory = async (stanza: any) => {
     stanza.is('message') &&
     stanza.children[0].attrs.xmlns === 'urn:xmpp:mam:2'
   ) {
-    const { data, id, body, ...rest } = await getDataFromXml(stanza);
+    // console.log("stanza -->", stanza.toString());
+    const body = stanza
+      .getChild('result')
+      ?.getChild('forwarded')
+      ?.getChild('message')
+      ?.getChild('body');
+    const data = stanza
+      .getChild('result')
+      ?.getChild('forwarded')
+      ?.getChild('message')
+      ?.getChild('data');
+    const deleted = stanza
+      .getChild('result')
+      ?.getChild('forwarded')
+      ?.getChild('message')
+      ?.getChild('deleted');
 
-    if (!data) {
-      console.log('No data in stanza');
+    const delay = stanza
+      .getChild('result')
+      ?.getChild('forwarded')
+      ?.getChild('delay');
+    const id = stanza.getChild('result')?.attrs.id;
+    if (!delay) {
+      if (stanza.getChild('subject')) {
+        console.log('Subject.');
+        return;
+      }
+      if (!data || !body || !id) {
+        console.log('Missing required elements in message history.');
+        return;
+      }
+    }
+    // console.log(stanza.attrs.from);
+
+    if (
+      !data?.attrs ||
+      !data.attrs.senderFirstName ||
+      !data.attrs.senderLastName ||
+      !data.attrs.senderJID
+    ) {
+      // console.log(
+      //   "Missing sender information in message history.",
+      //   stanza.toString()
+      // );
       return;
     }
-
-    const message = await createMessageFromXml({
-      data,
-      id,
+    const message = await createMessageFromXml(
+      data.attrs,
       body,
-      ...rest,
-    });
-
-    const fixedUser = await checkSingleUser(
-      store.getState().rooms.usersSet,
-      message.user.id
+      id,
+      stanza.attrs.from,
+      !!deleted
     );
-
-    if (fixedUser) {
-      store.dispatch(insertUsers({ newUsers: [fixedUser] }));
-    }
-
     store.dispatch(
       addRoomMessage({
         roomJID: stanza.attrs.from,
@@ -333,15 +217,16 @@ const handleComposing = async (stanza: Element, currentUser: string) => {
 
     if (
       composingUser &&
-      currentUser?.toLowerCase()?.replace(/_/g, '') !==
-        composingUser?.replace(/_/g, '')
+      currentUser?.toLowerCase() !== composingUser?.replace(/_/g, '')
     ) {
       const chatJID = stanza.attrs?.from.split('/')[0];
 
-      const composingList: string[] = [];
+      let composingList = [];
 
       !!stanza?.getChild('composing')
-        ? composingList.push(stanza.getChild('data')?.attrs?.fullName || 'User')
+        ? composingList.push(
+            stanza.getChild('data').attrs?.fullName?.split(' ')?.[0] || 'User'
+          )
         : composingList.pop();
 
       store.dispatch(
@@ -363,57 +248,47 @@ const onPresenceInRoom = (stanza: Element | any) => {
   }
 };
 
-const onChatInvite = async (stanza: Element, client: XmppClient) => {
-  if (stanza.is('message')) {
+const onChatInvite = async (stanza: Element, client: any) => {
+  if (stanza.is('message') && stanza.attrs['type'] !== 'groupchat') {
+    // check if it is invite
     const chatId = stanza.attrs.from;
     const xEls = stanza.getChildren('x');
 
-    try {
-      for (const el of xEls) {
-        const child = el.getChild('invite');
+    for (const el of xEls) {
+      const child = el.getChild('invite');
 
-        if (child) {
-          const chat = store.getState().rooms.rooms[chatId];
-          if (chat) {
-            return;
-          }
-
-          client.presenceInRoomStanza(chatId);
-
-          const rooms = await getRooms();
-          rooms.items.map((room) => {
-            store.dispatch(
-              addRoomViaApi({
-                room: createRoomFromApi(room, client.conference),
-                xmpp: client,
-              })
-            );
-          });
-          store.dispatch(updateUsersSet({ rooms: rooms.items }));
+      if (child) {
+        const chat = store.getState().rooms.rooms[chatId];
+        if (chat) {
+          return;
         }
+
+        await client.presenceInRoomStanza(chatId);
+        await client.getRoomsStanza();
       }
-    } catch (error) {
-      console.log('err', error);
     }
   }
 };
 
 const onGetMembers = (stanza: Element) => {
-  // const jid = store.getState().rooms.activeRoomJID;
-  // if (stanza.attrs.id.toString() === 'roomMemberInfo') {
-  //   const parser = new DOMParser();
-  //   const xmlDoc = parser.parseFromString(stanza.toString(), 'text/xml');
+  const jid = store.getState().rooms.activeRoomJID;
+  if (stanza.attrs.id.toString() === 'roomMemberInfo') {
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(stanza.toString(), 'text/xml');
 
-    // const roomMembers = Array.from(xmlDoc.getElementsByTagName('activity')).map(
-    //   (activity) => ({
-    //     name: activity.getAttribute('name'),
-    //     role: activity.getAttribute('role'),
-    //     ban_status: activity.getAttribute('ban_status'),
-    //     last_active: Number(activity.getAttribute('last_active')),
-    //     jid: activity.getAttribute('jid'),
-    //   })
-    // );
-  // }
+    // Extract activities
+    const roomMembers = Array.from(xmlDoc.getElementsByTagName('activity')).map(
+      (activity) => ({
+        name: activity.getAttribute('name'),
+        role: activity.getAttribute('role'),
+        ban_status: activity.getAttribute('ban_status'),
+        last_active: Number(activity.getAttribute('last_active')),
+        jid: activity.getAttribute('jid'),
+      })
+    );
+
+    store.dispatch(updateRoom({ jid, updates: { roomMembers } }));
+  }
 };
 
 const onGetRoomInfo = (stanza: Element) => {
@@ -421,39 +296,8 @@ const onGetRoomInfo = (stanza: Element) => {
   }
 };
 
-const onGetLastMessageArchive = (stanza: Element) => {
-  if (stanza.attrs?.id && stanza.attrs?.id.toString().includes('get-history')) {
-    const set = stanza?.getChild('fin')?.getChild('set');
-    if (set) {
-      const roomJid = stanza?.attrs?.from;
-
-      if (roomJid) {
-        const fin = stanza?.getChild('fin');
-
-        if (fin?.attrs?.complete) {
-          const first = set?.getChildText('first');
-          const last = set?.getChildText('last');
-          const historyComplete = getBooleanFromString(fin.attrs.complete);
-          const lastMessageTimestamp = getNumberFromString(last);
-          const firstMessageTimestamp = getNumberFromString(first);
-
-          store.dispatch(
-            store.dispatch(
-              updateRoom({
-                jid: roomJid,
-                updates: {
-                  messageStats: {
-                    lastMessageTimestamp: lastMessageTimestamp,
-                    firstMessageTimestamp: firstMessageTimestamp,
-                  },
-                  historyComplete: historyComplete,
-                },
-              })
-            )
-          );
-        }
-      }
-    }
+const onGetLastMessageArchive = (stanza: Element, xmpp: any) => {
+  if (stanza.attrs.id === 'GetLastArchive') {
   }
 };
 
@@ -470,15 +314,16 @@ const onGetChatRooms = (stanza: Element, xmpp: any) => {
     stanza.getChild('query')?.children.forEach(async (result: any) => {
       const currentChatRooms = store.getState().rooms.rooms;
 
-      const isRoomAlreadyAdded = (
-        Object.values(currentChatRooms) as IRoom[]
-      ).some((element: IRoom) => element.jid === result?.attrs?.jid);
+      const isRoomAlreadyAdded = Object.values(currentChatRooms).some(
+        (element) => element.jid === result?.attrs?.jid
+      );
 
       if (!isRoomAlreadyAdded) {
         try {
           const roomData: IRoom = {
             jid: result?.attrs?.jid || '',
             name: result?.attrs?.name || '',
+            id: '',
             title: result?.attrs?.name || '',
             usersCnt: Number(result?.attrs?.users_cnt || 0),
             messages: [],
@@ -510,118 +355,10 @@ const onGetChatRooms = (stanza: Element, xmpp: any) => {
   }
 };
 
-const onRoomKicked = async (stanza: Element) => {
-  if (stanza.is('presence') && stanza.attrs.type === 'unavailable') {
-    const xElement = stanza.getChild('x');
-    if (!xElement) return;
-
-    const statusElements = xElement.getChildren('status');
-
-    if (!statusElements || statusElements.length === 0) return;
-
-    const statusCodes = statusElements.map((s) => s.attrs.code);
-
-    if (statusCodes.includes('110') && statusCodes.includes('321')) {
-      const roomJid = stanza.attrs.from.split('/')[0];
-
-      store.dispatch(deleteRoom({ jid: roomJid }));
-      await getRooms();
-    }
-  }
-};
-
-const onMessageError = async (stanza: Element, client: XmppClient) => {
-  if (stanza.name === 'message' && stanza.attrs.type === 'error') {
-    const roomJID = stanza.attrs.from?.split('/')[0];
-    if (roomJID && client) {
-      try {
-        client?.client?.send(xml('presence'));
-        await presenceInRoom(client.client, roomJID);
-        console.log(
-          `Sent presence to room ${roomJID} due to error: Only occupants are allowed to send messages to the conference.`
-        );
-        const queue = store.getState().roomHeapSlice.messageHeap as IMessage[];
-
-        await Promise.all(
-          queue.map((msg: IMessage) =>
-            client.sendMessage(
-              msg.roomJid,
-              msg.user.firstName,
-              msg.user.lastName,
-              '',
-              msg.user.walletAddress,
-              msg.body,
-              '',
-              !!msg.isReply,
-              !!msg.showInChannel,
-              msg.mainMessage,
-              msg.id
-            )
-          )
-        );
-      } catch (e) {
-        console.warn('Failed to send presence in response to error:', e);
-      }
-    }
-  }
-};
-
-export type XMPPErrorInfo = {
-  type: string;
-  id: string;
-  from: string;
-  to: string;
-  body: string | null;
-  condition: string;
-  message: string;
-};
-
-export const handleErrorMessageStanza = (
-  stanza: Element
-): XMPPErrorInfo | null => {
-  if (stanza.is('message') && stanza.attrs.type === 'error') {
-    const errorEl = stanza.getChild('error');
-    if (!errorEl) return null;
-
-    const children = errorEl.children as Element[];
-
-    const conditionEl = children.find(
-      (el) =>
-        el instanceof Element &&
-        el.name !== 'text' &&
-        el.attrs.xmlns === 'urn:ietf:params:xml:ns:xmpp-stanzas'
-    );
-
-    const textEl = errorEl.getChild(
-      'text',
-      'urn:ietf:params:xml:ns:xmpp-stanzas'
-    );
-
-    const errorInfo: XMPPErrorInfo = {
-      type: stanza.attrs.type,
-      id: stanza.attrs.id,
-      from: stanza.attrs.from,
-      to: stanza.attrs.to,
-      body: stanza.getChildText('body') ?? null,
-      condition: conditionEl?.name ?? 'unknown',
-      message: textEl?.text() ?? '',
-    };
-
-    console.log('Received XMPP error message:', {
-      message: errorInfo?.message,
-      errorInfo,
-    });
-    return errorInfo;
-  }
-
-  return null;
-};
-
 export {
   onRealtimeMessage,
   onMessageHistory,
   onPresenceInRoom,
-  onReactionHistory,
   onGetLastMessageArchive,
   handleComposing,
   onGetChatRooms,
@@ -630,8 +367,5 @@ export {
   onGetRoomInfo,
   onDeleteMessage,
   onEditMessage,
-  onReactionMessage,
   onChatInvite,
-  onRoomKicked,
-  onMessageError,
 };

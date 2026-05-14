@@ -1,16 +1,15 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import {
   DeleteModal,
+  EditAction,
   IConfig,
-  Iso639_1Codes,
   IUser,
   ModalFile,
   ModalType,
   User,
 } from '../types/types';
 import { localStorageConstants } from '../helpers/constants/LOCAL_STORAGE';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { walletToUsername } from '../helpers/walletUsername';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 
 interface ChatState {
   user: User;
@@ -19,10 +18,10 @@ interface ChatState {
   deleteModal?: DeleteModal;
   selectedUser?: IUser;
   activeFile?: ModalFile;
-  langSource?: Iso639_1Codes;
+  client?: any;
 }
 
-export const unpackAndTransform = (input?: User): User => {
+const unpackAndTransform = (input?: User): User => {
   return {
     description: '',
     token: input?.token || '',
@@ -30,10 +29,6 @@ export const unpackAndTransform = (input?: User): User => {
     _id: input?._id || '',
     walletAddress: input?.defaultWallet?.walletAddress || '',
     xmppPassword: input?.xmppPassword || '',
-    xmppUsername:
-      input?.xmppUsername ||
-      walletToUsername(input?.defaultWallet?.walletAddress || '') ||
-      '',
     refreshToken: input?.refreshToken || '',
     firstName: input?.firstName || '',
     lastName: input?.lastName || '',
@@ -49,6 +44,7 @@ export const unpackAndTransform = (input?: User): User => {
     authMethod: input?.authMethod || '',
     resetPasswordExpires: input?.resetPasswordExpires || '',
     resetPasswordToken: input?.resetPasswordToken || '',
+    xmppUsername: input?.xmppUsername || '',
     roles: input?.roles || [],
     tags: input?.tags || [],
     __v: input?.__v || 0,
@@ -98,14 +94,14 @@ const initialState: ChatState = {
 };
 
 export const chatSlice = createSlice({
-  name: 'chatSettingStore',
+  name: 'chat',
   initialState,
   reducers: {
     setUser: (state, action: PayloadAction<User>) => {
       state.user = unpackAndTransform(action.payload);
-      // useLocalStorage(localStorageConstants.ETHORA_USER).set(
-      //   unpackAndTransform(action.payload)
-      // );
+      useLocalStorage(localStorageConstants.ETHORA_USER).set(
+        unpackAndTransform(action.payload)
+      );
     },
     updateUser(state, action: PayloadAction<{ updates: Partial<User> }>) {
       const { updates } = action.payload;
@@ -118,17 +114,7 @@ export const chatSlice = createSlice({
       }
     },
     setConfig: (state, action: PayloadAction<IConfig | undefined>) => {
-      console.log('📦 setConfig - Setting config in Redux:', {
-        hasConfig: !!action.payload,
-        hasEventHandlers: !!action.payload?.eventHandlers,
-        hasOnMessageSent: !!action.payload?.eventHandlers?.onMessageSent,
-        configKeys: action.payload ? Object.keys(action.payload) : [],
-      });
-      state.config = action.payload as any;
-      console.log('📦 setConfig - Config set. Verifying:', {
-        hasEventHandlers: !!state.config?.eventHandlers,
-        hasOnMessageSent: !!state.config?.eventHandlers?.onMessageSent,
-      });
+      state.config = action.payload;
     },
     setActiveModal: (state, action: PayloadAction<ModalType | undefined>) => {
       state.activeModal = action.payload;
@@ -139,14 +125,11 @@ export const chatSlice = createSlice({
     setDeleteModal: (state, action: PayloadAction<DeleteModal | undefined>) => {
       state.deleteModal = action.payload;
     },
+    setStoreClient: (state, action: PayloadAction<any>) => {
+      state.client = action.payload;
+    },
     setSelectedUser: (state, action: PayloadAction<IUser | undefined>) => {
       state.selectedUser = action.payload;
-    },
-    setLangSource: (
-      state,
-      action: PayloadAction<Iso639_1Codes | undefined>
-    ) => {
-      state.langSource = action.payload;
     },
     refreshTokens: (
       state,
@@ -154,21 +137,14 @@ export const chatSlice = createSlice({
     ) => {
       state.user.refreshToken = action.payload.refreshToken;
       state.user.token = action.payload.token;
-
-      AsyncStorage.setItem(
-        localStorageConstants.ETHORA_USER,
-        JSON.stringify(state.user)
-      ).catch((error) => {
-        console.error('Failed to save user to AsyncStorage:', error);
-      });
+      // AsyncStorage is async; fire-and-forget so the reducer stays sync.
+      useLocalStorage(localStorageConstants.ETHORA_USER).set(state.user);
     },
     logout: (state) => {
       state.user = unpackAndTransform();
       state.config = undefined;
-
-      AsyncStorage.removeItem(localStorageConstants.ETHORA_USER).catch((error) => {
-        console.error('Failed to remove user from AsyncStorage:', error);
-      });
+      state.client = undefined;
+      useLocalStorage(localStorageConstants.ETHORA_USER).remove();
     },
   },
 });
@@ -183,7 +159,7 @@ export const {
   setSelectedUser,
   updateUser,
   setActiveFile,
-  setLangSource,
+  setStoreClient,
 } = chatSlice.actions;
 
 export default chatSlice.reducer;

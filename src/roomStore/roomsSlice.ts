@@ -1,30 +1,20 @@
-import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
-import {
-  AddRoomMessageAction,
-  ApiRoom,
-  EditAction,
-  IMessage,
-  IRoom,
-  ReactionAction,
-  RoomMember,
-} from '../types/types';
+import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { EditAction, HistoryPreloadState, IMessage, IRoom } from '../types/types';
 import { insertMessageWithDelimiter } from '../helpers/insertMessageWithDelimiter';
-import XmppClient from '../networking/xmppClient';
-import { createUserNameFromSetUser } from '../helpers/createUserNameFromSetUser';
-import { extractUniqueMembersFromRooms } from '../helpers/extractUniqueMembersFromRooms';
-import { pushSubscriptionService } from '../services/pushSubscriptionService';
+
+export interface RoomPreloadPatch {
+  jid: string;
+  messages?: IMessage[];
+  historyPreloadState?: HistoryPreloadState;
+  unreadCapped?: boolean;
+  historyComplete?: boolean;
+}
 
 interface RoomMessagesState {
   rooms: { [jid: string]: IRoom };
-  activeRoomJID: string | null;
+  activeRoomJID: string;
   editAction?: EditAction;
   isLoading: boolean;
-  usersSet: Record<string, RoomMember>;
-  reportRoom: {
-    isOpen: boolean;
-  };
-  loadingText?: string;
-  pendingNotificationJid: string | null;
 }
 
 const initialState: RoomMessagesState = {
@@ -37,44 +27,7 @@ const initialState: RoomMessagesState = {
     messageId: '',
     text: '',
   },
-  usersSet: {},
-  reportRoom: {
-    isOpen: false,
-  },
-  loadingText: undefined,
-  pendingNotificationJid: null,
 };
-
-export const addRoomViaApi = createAsyncThunk(
-  'roomMessages/addRoomViaApi',
-  async (
-    { room, xmpp }: { room: IRoom; xmpp: XmppClient },
-    { dispatch, getState }
-  ) => {
-    const state = getState() as { rooms: RoomMessagesState };
-    const isRoomAlreadyAdded = Object.values(state.rooms.rooms).some(
-      (element) => element.jid === room?.jid
-    );
-
-    if (!isRoomAlreadyAdded) {
-      if (room.jid) {
-        xmpp.presenceInRoomStanza(room.jid);
-        xmpp?.getHistoryStanza(room.jid, 10);
-
-        if (xmpp.client) {
-          const userNick = xmpp.client.jid?.getLocal();
-          await pushSubscriptionService
-            .subscribeToRoom(xmpp.client, room.jid, userNick)
-            .catch((error) => {
-              console.error(`Failed to subscribe to room ${room.jid} for push:`, error);
-            });
-        }
-      }
-    }
-    
-    dispatch(roomsStore.actions.addRoomFromApi({ room }));
-  }
-);
 
 export const roomsStore = createSlice({
   name: 'roomMessages',
@@ -109,9 +62,8 @@ export const roomsStore = createSlice({
       action: PayloadAction<{ roomJID: string; messages: IMessage[] }>
     ) {
       const { roomJID, messages } = action.payload;
-
       if (state.rooms[roomJID]) {
-        state.rooms[roomJID].messages = messages.filter((message) => !message.deleted);
+        state.rooms[roomJID].messages = messages;
       }
     },
     deleteRoomMessage(
@@ -120,44 +72,14 @@ export const roomsStore = createSlice({
     ) {
       const { roomJID, messageId } = action.payload;
       if (state.rooms[roomJID]) {
-        state.rooms[roomJID].messages = state.rooms[roomJID].messages.filter(
-          (message) => message.id !== messageId
-        );
-      }
-    },
-    setReactions: (
-      state,
-      action: PayloadAction<ReactionAction | undefined>
-    ) => {
-      if(!action.payload) return;
-
-      const { roomJID, messageId, reactions, from, data } = action.payload;
-
-      if (state.rooms[roomJID]) {
         state.rooms[roomJID].messages.map((message) => {
           if (message.id === messageId) {
-            if (from) {
-              if (!message.reaction) {
-                message.reaction = {};
-              }
-
-              const fromId = from.split('@')[0];
-              if (reactions.length === 0) {
-                delete message.reaction[fromId];
-              } else {
-                message.reaction[fromId] = {
-                  emoji: reactions,
-                  data: data,
-                };
-              }
-            }
+            message.isDeleted = true;
           }
         });
       }
     },
     setEditAction: (state, action: PayloadAction<EditAction | undefined>) => {
-      if(!action.payload) return;
-      
       const { isEdit } = action.payload;
       if (isEdit) {
         state.editAction = action.payload;
@@ -187,89 +109,34 @@ export const roomsStore = createSlice({
         });
       }
     },
-    addRoomMessage(state, action: PayloadAction<AddRoomMessageAction>) {
+    addRoomMessage(
+      state,
+      action: PayloadAction<{
+        roomJID: string;
+        message: IMessage;
+        start?: boolean;
+      }>
+    ) {
       const { roomJID, message, start } = action.payload;
 
-      if (!message?.body) return;
-      
-      if (message.deleted || message.isDeleted) return;
-
-      const roomMessages = state.rooms[roomJID]?.messages;
-
-      const roomsExist =
-        Object.keys(JSON.parse(JSON.stringify(state.rooms))).length > 0;
-
-      const roomExist = !!state?.rooms[roomJID];
-      if (!roomsExist || !roomExist) {
-        return;
-      }
-
-      if (!roomMessages) {
+      if (!state.rooms[roomJID]?.messages) {
         state.rooms[roomJID].messages = [];
       }
 
-      const existingIndex = roomMessages.findIndex(
-        (msg) =>
-          msg.id === message.id ||
-          (message.xmppId && msg.id === message.xmppId) ||
-          (msg.xmppId && msg.xmppId === message.id)
-      );
-      
-      if (existingIndex !== -1) {
-        if (message.deleted || message.isDeleted) {
-          roomMessages.splice(existingIndex, 1);
-          return;
-        }
-        roomMessages[existingIndex] = deepMerge(
-          { ...roomMessages[existingIndex] },
-          { ...message, pending: false }
-        );
-        return;
-      }
-
-      const updMessage = {
-        ...message,
-        user: {
-          name: createUserNameFromSetUser(state.usersSet, message.user.id),
-          ...message.user,
-        },
-      };
+      const roomMessages = state.rooms[roomJID].messages;
 
       if (roomMessages.length === 0 || start) {
-        const index = roomMessages.findIndex(
-          (msg) => msg.id === message.xmppId || msg.id === message.id
-        );
-        if (index !== -1) {
-          roomMessages[index] = {
-            ...updMessage,
-            id: updMessage.id,
-            pending: false,
-          };
-        } else {
-          roomMessages.unshift(updMessage);
-        }
+        roomMessages.unshift(message);
       } else {
         const lastViewedTimestamp = state.rooms[roomJID].lastViewedTimestamp
           ? new Date(state.rooms[roomJID].lastViewedTimestamp)
           : null;
 
-        insertMessageWithDelimiter(
-          roomMessages,
-          updMessage,
-          lastViewedTimestamp
-        );
+        insertMessageWithDelimiter(roomMessages, message, lastViewedTimestamp);
       }
     },
     deleteAllRooms(state) {
       state.rooms = {};
-    },
-    insertUsers(state, action: PayloadAction<{ newUsers: RoomMember[] }>) {
-      const { newUsers } = action.payload;
-      if (!newUsers || newUsers.length === 0) return;
-
-      newUsers.forEach((user) => {
-        state.usersSet[user.xmppUsername] = user;
-      });
     },
     setComposing(
       state,
@@ -280,32 +147,18 @@ export const roomsStore = createSlice({
       }>
     ) {
       const { chatJID, composing, composingList } = action.payload;
-      
-      if (!state.rooms[chatJID]) {
-        return;
-      }
-
       state.rooms[chatJID].composing = composing;
       state.rooms[chatJID].composingList = composingList;
     },
     setIsLoading: (
       state,
-      action: PayloadAction<{
-        chatJID?: string;
-        loading: boolean;
-        loadingText?: string;
-      }>
+      action: PayloadAction<{ chatJID?: string; loading: boolean }>
     ) => {
-      const { chatJID, loading, loadingText } = action.payload;
+      const { chatJID, loading } = action.payload;
       if (chatJID && state.rooms?.[chatJID]) {
         state.rooms[chatJID].isLoading = loading;
       }
-      if (!chatJID) {
-        state.isLoading = loading;
-      }
-      if (loadingText) {
-        state.loadingText = loadingText;
-      }
+      state.isLoading = loading;
     },
     setLastViewedTimestamp: (
       state,
@@ -340,27 +193,16 @@ export const roomsStore = createSlice({
         state.rooms[chatJID].noMessages = value;
       }
     },
-    setCurrentRoom: (
-      state,
-      action: PayloadAction<{ roomJID: string | null }>
-    ) => {
+    setCurrentRoom: (state, action: PayloadAction<{ roomJID: string }>) => {
       const { roomJID } = action.payload;
-      state.activeRoomJID = roomJID;
-    },
-    setPendingNotificationJid: (
-      state,
-      action: PayloadAction<string | null>
-    ) => {
-      state.pendingNotificationJid = action.payload;
-    },
-    clearPendingNotificationJid: (state) => {
-      state.pendingNotificationJid = null;
+      if (roomJID) {
+        state.activeRoomJID = roomJID;
+      }
     },
     setLogoutState: (state) => {
       state.rooms = {};
       state.activeRoomJID = null;
       state.isLoading = false;
-      state.usersSet = {};
     },
     setActiveMessage: (
       state,
@@ -386,95 +228,47 @@ export const roomsStore = createSlice({
         message.activeMessage = false;
       });
     },
-    addRoomFromApi: (state, action: PayloadAction<{ room: IRoom }>) => {
-      const { room } = action.payload;
-      const existingRoom = state.rooms[room.jid];
-
-      const filteredMessages = room.messages?.filter(
-        (msg) => !msg.deleted && !msg.isDeleted
-      ) || [];
-
-      if (existingRoom) {
-        const preservedUnreadMessages = existingRoom.unreadMessages ?? 0;
-        const preservedLastViewedTimestamp = existingRoom.lastViewedTimestamp ?? 0;
-        const preservedMessages = existingRoom.messages?.length > 0 
-          ? existingRoom.messages.filter((msg) => !msg.deleted && !msg.isDeleted)
-          : filteredMessages;
-        
-        state.rooms[room.jid] = {
-          ...room,
-          unreadMessages: preservedUnreadMessages,
-          lastViewedTimestamp: preservedLastViewedTimestamp,
-          messages: preservedMessages,
-        };
-        
-        if (preservedLastViewedTimestamp > 0 && preservedMessages.length > 0) {
-          state.rooms[room.jid].unreadMessages = countNewerMessages(
-            preservedMessages,
-            preservedLastViewedTimestamp
-          );
-        }
-      } else {
-        state.rooms[room.jid] = {
-          ...room,
-          messages: filteredMessages,
-        };
-      }
-    },
-    updateUsersSet: (state, action: PayloadAction<{ rooms: ApiRoom[] }>) => {
+    /**
+     * Batched update used by the history preload scheduler. Each patch is
+     * applied to its room: messages REPLACE (when provided), state fields
+     * MERGE. Rooms that don't exist yet are ignored.
+     */
+    applyRoomsPreloadBatch: (
+      state,
+      action: PayloadAction<{ rooms: RoomPreloadPatch[] }>
+    ) => {
       const { rooms } = action.payload;
-      state.usersSet = extractUniqueMembersFromRooms(rooms).object;
-    },
-    setOpenReportModal: (state, action: PayloadAction<{ isOpen: boolean }>) => {
-      state.reportRoom.isOpen = action.payload.isOpen;
+      for (const patch of rooms) {
+        const room = state.rooms[patch.jid];
+        if (!room) continue;
+        if (typeof patch.historyPreloadState !== 'undefined') {
+          room.historyPreloadState = patch.historyPreloadState;
+        }
+        if (typeof patch.unreadCapped !== 'undefined') {
+          room.unreadCapped = patch.unreadCapped;
+        }
+        if (typeof patch.historyComplete !== 'undefined') {
+          room.historyComplete = patch.historyComplete;
+        }
+        if (Array.isArray(patch.messages)) {
+          // Merge: keep any locally-pending messages, replace the rest.
+          const pending = room.messages?.filter((m) => m?.pending) || [];
+          room.messages = [...patch.messages, ...pending];
+        }
+      }
     },
   },
 });
-
-function deepMerge(target: any, source: any): any {
-  for (const key in source) {
-    if (
-      source[key] &&
-      typeof source[key] === 'object' &&
-      !Array.isArray(source[key])
-    ) {
-      target[key] = deepMerge(target[key] || {}, source[key]);
-    } else {
-      target[key] = source[key];
-    }
-  }
-  return target;
-}
 
 const countNewerMessages = (
   messages: IMessage[],
   timestamp: number
 ): number => {
-  if (timestamp !== 0 && messages && messages.length > 0) {
+  if (timestamp !== 0) {
     return messages.filter((message) => {
-      if (message.id === 'delimiter-new') {
-        return false;
-      }
-      const messageDate = new Date(message.date).getTime();
-      return messageDate > timestamp;
+      return Number(message.id) < timestamp;
     }).length;
   } else return 0;
-};
-
-export const getLastMessageTimestamp = (
-  state: RoomMessagesState,
-  jid: string
-): string | null => {
-  const room = state.rooms[jid];
-  
-  if (!room || room.messages.length === 0) {
-    return null;
-  }
-
-  const messagesFilter = room.messages.filter((message) => !message.deleted);
-
-  const lastMessage = messagesFilter[messagesFilter.length - 1];
-  return lastMessage.id;
 };
 
 export const {
@@ -491,17 +285,12 @@ export const {
   setRoomNoMessages,
   setCurrentRoom,
   setRoomRole,
-  setReactions,
   setLogoutState,
   setActiveMessage,
   setCloseActiveMessage,
   deleteRoom,
   updateRoom,
-  updateUsersSet,
-  setOpenReportModal,
-  insertUsers,
-  setPendingNotificationJid,
-  clearPendingNotificationJid,
+  applyRoomsPreloadBatch,
 } = roomsStore.actions;
 
 export default roomsStore.reducer;
