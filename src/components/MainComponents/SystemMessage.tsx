@@ -1,18 +1,18 @@
-import React from 'react';
-import {CustomSystemMessage} from '../styled/StyledComponents';
-import styled from 'styled-components';
+import React from "react";
+import { CustomSystemMessage } from "../styled/StyledComponents";
+import styled from "styled-components/native";
 
 interface SystemMessageProps {
-  messageText: string;
-  colors?: {primary?: string; secondary?: string};
+  messageText?: string;
+  colors?: { primary?: string; secondary?: string };
 }
 
-export const CustomSystemMessageText = styled.View<{
+export const CustomSystemMessageText = styled.Text<{
   primary?: string;
   secondary?: string;
 }>`
   margin: 0;
-  color: ${props => props.primary || '#0052cd'};
+  color: ${(props) => props.primary || "#0052cd"};
   border-radius: 118px;
   padding: 5px 8px;
   display: flex;
@@ -21,12 +21,15 @@ export const CustomSystemMessageText = styled.View<{
   font-size: 12px;
   line-height: 14px;
   font-weight: 600;
-  background-color: ${props => props.secondary || '#e7edf9'};
+  background-color: ${(props) => props.secondary || "#e7edf9"};
   height: 24px;
   white-space: nowrap;
 `;
 
-const SystemMessage: React.FC<SystemMessageProps> = ({messageText, colors}) => {
+const SystemMessage: React.FC<SystemMessageProps> = ({
+  messageText,
+  colors,
+}) => {
   return (
     <CustomSystemMessage>
       <CustomSystemMessageText {...colors}>

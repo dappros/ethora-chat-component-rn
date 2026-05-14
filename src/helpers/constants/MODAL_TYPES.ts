@@ -1,5 +1,6 @@
 import ChatProfileModal from '../../components/Modals/ChatProfileModal/ChatProfileModal';
 import FilePreviewModal from '../../components/Modals/FilePreviewModal/FilePreviewModal';
+import NewChatModal from '../../components/Modals/NewChatModal/NewChatModal';
 import BlockedUsersModal from '../../components/Modals/SettingsModals/BlockedUsers/BlockedUsersModal';
 import DocumentSharesModal from '../../components/Modals/SettingsModals/DocumentShares/DocumentSharesModal';
 import ManageDataModal from '../../components/Modals/SettingsModals/ManageDataModal/ManageDataModal';
@@ -24,6 +25,8 @@ export const MODAL_TYPES = {
 
   FILE_PREVIEW: 'file_preview',
 
+  NEW_CHAT: 'new_chat',
+
   // SETTINGS: 'Settings',
   // PROFILE: 'Profile',
   // CHAT_PROFILE: 'Chat Profile',
@@ -41,6 +44,7 @@ export const MODAL_COMPONENTS: Record<
   React.FC<{ handleCloseModal: () => void }>
 > = {
   [MODAL_TYPES.SETTINGS]: UserSettingsModal,
+  [MODAL_TYPES.NEW_CHAT]: NewChatModal,
   [MODAL_TYPES.PROFILE]: UserProfileModal,
   [MODAL_TYPES.CHAT_PROFILE]: ChatProfileModal,
   [MODAL_TYPES.MANAGE_DATA]: ManageDataModal,

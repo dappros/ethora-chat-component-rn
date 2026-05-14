@@ -1,18 +1,20 @@
-import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react';
+/** @format */
+
+import React, { useState, useCallback, useEffect } from "react";
 import {
-  FileIcon,
-  FilePreview,
-  FilePreviewContainer,
-  HiddenFileInput,
   MessageInputContainer,
-  VideoPreview,
   InputContainer,
   MessageInput,
-} from './StyledInputComponents/StyledInputComponents';
-import AudioRecorder from '../InputComponents/AudioRecorder';
-import { IConfig } from '../../types/types';
-import Button from './Button';
-import { AttachIcon, RemoveIcon, SendIcon } from '../../assets/icons';
+} from "./StyledInputComponents/StyledInputComponents";
+import { IConfig, MediaFile } from "../../types/types";
+import Button from "./Button";
+import { SendIcon, AttachIcon } from "../../assets/icons";
+import { KeyboardAvoidingView, Platform, View, TouchableOpacity, Alert, ActionSheetIOS, Linking } from "react-native";
+import { ModalSelectMedia } from "../Modals/ModalSelectMedia/ModalSelectMedia.tsx";
+import { MediaFilePreview } from "./MediaFilePreview";
+import DocumentPicker from "react-native-document-picker";
+import ImagePicker from "react-native-image-crop-picker";
+import { check, request, PERMISSIONS, RESULTS, Permission } from "react-native-permissions";
 
 interface SendInputProps {
   sendMessage: (message: string) => void;
@@ -22,218 +24,266 @@ interface SendInputProps {
   config?: IConfig;
   onFocus?: () => void;
   onBlur?: () => void;
+  isMessageProcessing?: boolean;
+  formatMessage?: (text: string) => string;
+  multiline?: boolean;
+  inputHeight?: number;
+  showPreview?: boolean;
+  previewParser?: (text: string) => (string | JSX.Element)[];
 }
 
 const SendInput: React.FC<SendInputProps> = ({
   sendMessage,
   sendMedia,
+  config,
   onFocus,
   onBlur,
-  config,
   editMessage,
   isLoading,
+  isMessageProcessing,
 }) => {
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState("");
   const [isRecording, setIsRecording] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+  const [filePreviews, setFilePreviews] = useState<MediaFile[]>([]);
+  const [inputHeight, setInputHeight] = useState(40);
+  const [showMediaMenu, setShowMediaMenu] = useState(false);
 
-  const [filePreviews, setFilePreviews] = useState<File[]>([]);
+  const handleFileSelect = (files: MediaFile[]) => {
+    console.log("🔵 [SendInput] Files selected:", files);
+    setFilePreviews([...files]);
+  };
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleAttachClick = useCallback(() => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
+  const checkPermission = async (permission: Permission) => {
+    const status = await check(permission);
+    if (status === RESULTS.GRANTED) {
+      return status;
+    } else if (status === RESULTS.DENIED) {
+      const requestStatus = await request(permission);
+      return requestStatus;
     }
-  }, []);
-
-  const handleFileChange = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      const files = event.target.files;
-      if (files) {
-        const newFiles = Array.from(files);
-        setFilePreviews((prevFiles) => {
-          const fileSet = new Set(prevFiles.map((file) => file.name));
-
-          const uniqueNewFiles = newFiles.filter(
-            (newFile) => !fileSet.has(newFile.name)
-          );
-          let combinedFiles = [...prevFiles, ...uniqueNewFiles];
-
-          if (combinedFiles.length > 5) {
-            combinedFiles = combinedFiles?.slice(0, 5);
-          }
-
-          return combinedFiles;
-        });
-      }
-
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    },
-    []
-  );
-
-  const handleFocus = () => {
-    onFocus?.();
+    return status;
   };
 
-  const handleBlur = () => {
-    onBlur?.();
+  const handleCameraSelection = async () => {
+    const permission = Platform.OS === "ios" ? PERMISSIONS.IOS.CAMERA : PERMISSIONS.ANDROID.CAMERA;
+    const permissionStatus = await checkPermission(permission);
+
+    if (permissionStatus !== RESULTS.GRANTED) {
+      Alert.alert("Permission required", "Camera permission is needed to take photos.", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Open Settings", onPress: () => Linking.openSettings() },
+      ]);
+      return;
+    }
+
+    try {
+      const image = await ImagePicker.openCamera({
+        width: 300,
+        height: 400,
+        cropping: true,
+      });
+      const file = {
+        uri: image.path,
+        type: image.mime,
+        name: image.path.split("/").pop() || `camera_${Date.now()}.jpg`,
+      };
+      handleFileSelect([file]);
+    } catch (error: any) {
+      if (error?.code !== "E_PICKER_CANCELLED") {
+        console.error("Camera error:", error);
+      }
+    }
   };
 
-  const handleRemoveFile = useCallback((file: File) => {
-    setFilePreviews((prevFiles) => prevFiles.filter((f) => f !== file));
-  }, []);
+  const handleGallerySelection = async () => {
+    try {
+      let permission: Permission;
+      if (Platform.OS === "ios") {
+        permission = PERMISSIONS.IOS.PHOTO_LIBRARY;
+      } else if (Number(Platform.Version) >= 33) {
+        permission = PERMISSIONS.ANDROID.READ_MEDIA_IMAGES;
+      } else {
+        permission = PERMISSIONS.ANDROID.READ_EXTERNAL_STORAGE;
+      }
 
-  const handleInputChange = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      setMessage(event.target.value);
-    },
-    []
-  );
+      const permissionStatus = await checkPermission(permission);
+      if (permissionStatus !== RESULTS.GRANTED) {
+        Alert.alert("Permission required", "Gallery permission is needed to select photos.", [
+          { text: "Cancel", style: "cancel" },
+          { text: "Open Settings", onPress: () => Linking.openSettings() },
+        ]);
+        return;
+      }
+
+      const image = await ImagePicker.openPicker({
+        multiple: false,
+        mediaType: "any",
+      });
+      const file = {
+        uri: image.path,
+        type: image.mime,
+        name: image.path.split("/").pop() || `gallery_${Date.now()}.jpg`,
+      };
+      handleFileSelect([file]);
+    } catch (error: any) {
+      if (error?.code !== "E_PICKER_CANCELLED") {
+        console.error("Gallery error:", error);
+      }
+    }
+  };
+
+  const handleFileSelection = async () => {
+    try {
+      const result = await DocumentPicker.pick({
+        type: [DocumentPicker.types.allFiles],
+        allowMultiSelection: false,
+      });
+      const files = result.map((file) => ({
+        uri: file.uri,
+        type: file.type || "unknown",
+        name: file.name || `file_${Date.now()}`,
+      }));
+      handleFileSelect(files);
+    } catch (err: any) {
+      if (!DocumentPicker.isCancel(err)) {
+        console.error("DocumentPicker Error:", err);
+      }
+    }
+  };
+
+  const handleAttachPress = () => {
+    console.log("🔵 [SendInput] Attach button pressed");
+    if (Platform.OS === "ios") {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ["Cancel", "Camera", "Photo Library", "Document"],
+          cancelButtonIndex: 0,
+        },
+        (buttonIndex) => {
+          if (buttonIndex === 1) handleCameraSelection();
+          else if (buttonIndex === 2) handleGallerySelection();
+          else if (buttonIndex === 3) handleFileSelection();
+        }
+      );
+    } else {
+      Alert.alert("Select Media", "Choose an option", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Camera", onPress: handleCameraSelection },
+        { text: "Photo Library", onPress: handleGallerySelection },
+        { text: "Document", onPress: handleFileSelection },
+      ]);
+    }
+  };
+
+  const handleRemoveImage = (index: number) => {
+    setFilePreviews((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSendClick = useCallback(() => {
+    if (filePreviews.length > 0) {
+      filePreviews.forEach((file) => {
+        sendMedia(file, file.type);
+      });
+    } else if (message) {
+      sendMessage(message);
+    }
+    setMessage("");
+    setFilePreviews([]);
+  }, [filePreviews, message, sendMessage, sendMedia]);
 
   useEffect(() => {
-      setMessage(editMessage);
+    setMessage(editMessage || "");
   }, [editMessage]);
 
-  const handleSendClick = useCallback(
-    (audioUrl?: string) => {
-      if (filePreviews.length > 0) {
-        console.log(filePreviews);
-        console.log('Files sent:', filePreviews[0]);
-        sendMedia(filePreviews[0], 'media');
-        setIsRecording(false);
-      } else if (audioUrl) {
-        sendMedia(audioUrl, 'audio');
-        console.log(audioUrl);
-        console.log('Audio sent:', audioUrl);
-        setIsRecording(false);
-      } else {
-        console.log('sending default', message);
-        sendMessage(message);
-      }
-      setMessage('');
-      setFilePreviews([]);
-    },
-    [filePreviews, message, sendMessage, sendMedia]
-  );
-
-  const handleKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLInputElement>) => {
-      if (event.key === 'Enter') {
-        if (filePreviews.length > 0 || message) {
-          handleSendClick();
-        }
-      }
-    },
-    [handleSendClick]
-  );
-
-  const renderFilePreview = useCallback((file: File) => {
-    const fileUrl = URL.createObjectURL(file);
-    const fileType = file.type.split('/')[0];
-
-    if (fileType === 'image') {
-      return <FileIcon src={fileUrl} alt={file.name} />;
-    } else if (fileType === 'video') {
-      return <VideoPreview src={fileUrl} controls />;
-    } else {
-      // return <FileIcon src={attachIcon} alt={file.name} />;
-      return <></>;
-    }
-  }, []);
-
-  const memoizedFilePreviews = useMemo(() => {
-    return filePreviews.map(
-      (file: any, idx: number) =>
-        idx < 1 && (
-          <FilePreview key={file.name}>
-            {renderFilePreview(file)}
-            <Button
-              style={{
-                position: 'absolute',
-                backgroundColor: 'transparent',
-                top: 4,
-                right: 4,
-                height: 16,
-                width: 16,
-              }}
-              onClick={() => handleRemoveFile(file)}
-              EndIcon={<RemoveIcon style={{ height: 16, width: 16 }} />}
-            />
-          </FilePreview>
-        )
-    );
-  }, [filePreviews, renderFilePreview, handleRemoveFile]);
-
   return (
-    <InputContainer>
-      <MessageInputContainer>
-        {!isRecording && (
-          <>
-            {!config?.disableMedia && (
-              <Button
-                onClick={handleAttachClick}
-                disabled={false}
-                EndIcon={<AttachIcon />}
-              />
-            )}
-            <MessageInput
-              color={config?.colors?.primary}
-              placeholder="Type message"
-              value={message}
-              onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              onFocus={handleFocus}
-              onBlur={handleBlur}
-              disabled={isLoading}
-            />
-          </>
+    <InputContainer isText={!!message}>
+        {filePreviews.length > 0 && (
+          <MediaFilePreview
+            filePreviews={filePreviews}
+            handleRemoveImage={handleRemoveImage}
+          />
         )}
-        {message || filePreviews.length > 0 || config?.disableMedia ? (
+        <MessageInputContainer>
+          {!isRecording && (
+            <>
+              {/* Media selection button - always visible on the left, unless disabled in config */}
+              {!config?.disableMedia && (
+                <TouchableOpacity
+                  onPress={handleAttachPress}
+                  style={{
+                    marginRight: 8,
+                    width: 40,
+                    height: 40,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    backgroundColor: 'transparent',
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <AttachIcon color={config?.colors?.primary || "#0052CD"} />
+                </TouchableOpacity>
+              )}
+              <MessageInput
+                isFocused={isFocused}
+                color={config?.colors?.primary}
+                placeholder="Type message"
+                placeholderTextColor="#999"
+                value={message}
+                onChangeText={setMessage}
+                onFocus={() => {
+                  onFocus?.();
+                  setIsFocused(true);
+                }}
+                onBlur={() => {
+                  onBlur?.();
+                  setIsFocused(false);
+                }}
+                editable={!isLoading || !isMessageProcessing}
+                multiline={true}
+                // maxHeight={72}
+                onContentSizeChange={(event) => {
+                  setInputHeight(
+                    Math.min(
+                      72,
+                      Math.max(40, event.nativeEvent.contentSize.height)
+                    )
+                  );
+                }}
+                style={{
+                  height: inputHeight,
+                  flex: 1,
+                }}
+              />
+            </>
+          )}
+          {/* Always show send button - it's needed for sending messages and media */}
           <Button
-            onClick={() => handleSendClick()}
-            // disabled={!message || message === ""}
+            onPress={handleSendClick}
+            disabled={!message && filePreviews.length === 0}
             EndIcon={
               <SendIcon
                 color={
-                  filePreviews.length > 0
-                    ? '#fff'
-                    : !message || message === ''
-                      ? '#D4D4D8'
-                      : '#fff'
+                  message || filePreviews.length > 0 ? "#FFFFFF" : "#D4D4D8"
                 }
               />
             }
             style={{
-              borderRadius: '100px',
+              borderRadius: 100,
               backgroundColor:
-                filePreviews.length > 0
+                message || filePreviews.length > 0
                   ? config?.colors?.primary
-                  : !message || message === ''
-                    ? 'transparent'
-                    : config?.colors?.primary,
+                  : "transparent",
+              opacity: message || filePreviews.length > 0 ? 1 : 0.5,
             }}
           />
-        ) : (
-          <AudioRecorder
-            setIsRecording={setIsRecording}
-            isRecording={isRecording}
-            handleSendClick={handleSendClick}
-          />
-        )}
-      </MessageInputContainer>
-
-      <HiddenFileInput
-        ref={fileInputRef}
-        type="file"
-        onChange={handleFileChange}
-      />
-      {filePreviews.length > 0 && (
-        <FilePreviewContainer>{memoizedFilePreviews}</FilePreviewContainer>
-      )}
-    </InputContainer>
+        </MessageInputContainer>
+        <View
+          style={{
+            paddingHorizontal: 16,
+          }}
+        ></View>
+      </InputContainer>
   );
 };
 

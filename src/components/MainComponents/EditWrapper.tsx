@@ -1,21 +1,22 @@
-import React, {FC} from 'react';
-import {EditIcon} from '../../assets/icons';
-import {styled} from 'styled-components';
+import React, { FC } from "react";
+import { EditIcon } from "../../assets/icons";
+import { styled } from "styled-components/native";
+import { Text, TouchableOpacity, View } from "react-native";
 
 export const EditContainer = styled.View`
   background-color: #0052cd0d;
   padding: 12px 24px;
-  display: flex;
+  flex-direction: row;
   align-items: center;
   justify-content: space-between;
 `;
 
 export const EditInfoBox = styled.View`
-  display: flex;
+  flex-direction: row;
   align-items: center;
 `;
 
-export const EditTitle = styled.View`
+export const EditTitle = styled.Text`
   margin: 0px;
   color: rgb(140, 140, 140);
   text-align: start;
@@ -23,7 +24,7 @@ export const EditTitle = styled.View`
   padding-bottom: 4px;
 `;
 
-export const EditText = styled.View`
+export const EditText = styled.Text`
   margin: 0px;
   font-size: 16px;
   text-align: start;
@@ -34,34 +35,38 @@ interface EditWrapperProps {
   onClose: () => void;
 }
 
-export const EditWrapper: FC<EditWrapperProps> = ({text, onClose}) => {
+export const EditWrapper: FC<EditWrapperProps> = ({ text, onClose }) => {
+  console.log("text", text);
   return (
     <EditContainer>
       <EditInfoBox>
         <View
           style={{
-            padding: '9px 20px 9px 0',
-            borderRight: '1px solid #0052CD',
-          }}>
+            padding: 9,
+            paddingRight: 20,
+            paddingLeft: 0,
+            borderRightWidth: 1,
+            borderRightColor: "#0052CD",
+            borderStyle: "solid",
+          }}
+        >
           <EditIcon color="#0052CD" />
         </View>
-        <View style={{paddingLeft: 20}}>
+        <View style={{ paddingLeft: 20 }}>
           <EditTitle>Edit Message</EditTitle>
           <EditText>{text}</EditText>
         </View>
       </EditInfoBox>
-      <button
+      <TouchableOpacity
         style={{
-          fontSize: 24,
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          color: '#888',
-          borderRadius: '8px',
+          // background: "none",
+          // border: "none",
+          borderRadius: 8,
         }}
-        onClick={onClose}>
-        &times;
-      </button>
+        onPress={onClose}
+      >
+        <Text style={{ fontSize: 24, color: "#888" }}>&times;</Text>
+      </TouchableOpacity>
     </EditContainer>
   );
 };

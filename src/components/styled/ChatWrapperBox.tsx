@@ -1,9 +1,9 @@
-import styled from 'styled-components';
+import styled from "styled-components/native";
 
 export const ChatWrapperBox = styled.View`
-  height: 100%;
+  flex: 1;
   width: 100%;
   position: relative;
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
 `;

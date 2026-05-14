@@ -1,96 +1,181 @@
-import React, {useState, useEffect, ReactElement, useRef} from 'react';
-import {View, TouchableOpacity, Text, StyleSheet, Animated} from 'react-native';
+import React, { useState, useEffect, ReactElement, useRef } from "react";
+import {
+  View,
+  TouchableOpacity,
+  Text,
+  StyleSheet,
+  Animated,
+  TextStyle,
+  TouchableWithoutFeedback,
+  Modal,
+} from "react-native";
+import { BurgerMenuIcon } from "../../assets/icons";
+import { IConfig } from "../../types/types";
+import Button from "../styled/Button";
 
-interface MenuOption {
+const positionMenu = {
+  right: { top: 95, right: 10 },
+  left: { top: 95, left: 0 },
+  rightBottom: { bottom: 95, right: 10 },
+  leftBottom: { bottom: 95, left: 10 },
+};
+
+export interface MenuOption {
   label: string;
   icon: React.ReactNode;
   onClick: () => void;
-  styles?: React.CSSProperties;
+  styles?: TextStyle;
 }
 
 interface DropdownMenuProps {
   options: MenuOption[];
   onClose?: any;
-  openButton?: ReactElement;
-  position?: 'left' | 'right';
+  openButton?: ReactElement | ((onPress: () => void) => ReactElement);
+  position?: "left" | "right" | "rightBottom" | "leftBottom";
+  config?: IConfig;
   menuIcon?: React.ReactNode;
 }
 
 const DropdownMenu: React.FC<DropdownMenuProps> = ({
   options,
   openButton,
-  position = 'right',
+  position = "right",
   menuIcon,
+  config,
+  onClose,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<View>(null);
-  const buttonRef = useRef<TouchableOpacity>(null);
 
-  const menuPosition =
-    position === 'right' ? {top: 60, right: -140} : {top: 60, left: 0};
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const translateYAnim = useRef(new Animated.Value(-10)).current;
 
-  const fadeAnim = useRef(new Animated.Value(0)).current; // For fade-in effect
-
-  const toggleMenu = () => setIsOpen(prev => !prev);
+  const toggleMenu = () => {
+    setIsOpen((prev) => {
+      return !prev;
+    });
+  };
 
   useEffect(() => {
-    const handleClickOutside = (event: any) => {
-      if (
-        menuRef.current &&
-        !menuRef.current.contains(event.target) &&
-        buttonRef.current &&
-        !buttonRef.current.contains(event.target)
-      ) {
-        setIsOpen(false);
-      }
-    };
-
     if (isOpen) {
+      fadeAnim.setValue(1);
+      translateYAnim.setValue(0);
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(translateYAnim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
       Animated.timing(fadeAnim, {
-        toValue: 1,
+        toValue: 0,
         duration: 200,
         useNativeDriver: true,
       }).start();
     }
-
-    return () => {
-      // Clean up
-    };
   }, [isOpen]);
 
   return (
     <View style={styles.container}>
       {openButton ? (
-        React.cloneElement(openButton, {ref: buttonRef, onPress: toggleMenu})
+        typeof openButton === 'function' ? (
+          openButton(toggleMenu)
+        ) : (
+          React.cloneElement(openButton as React.ReactElement<any>, { 
+            onPress: toggleMenu,
+            key: 'dropdown-button'
+          })
+        )
       ) : (
-        <TouchableOpacity
+        // <TouchableOpacity onPress={toggleMenu} style={styles.button}>
+        //   {menuIcon ?? <Text style={styles.icon}>☰</Text>}
+        // </TouchableOpacity>
+        <Button
+          style={{
+            padding: 8,
+            borderRadius: 16,
+            backgroundColor: "transparent",
+          }}
+          color="black"
+          unstyled
+          EndIcon={<BurgerMenuIcon color={config?.colors?.primary} />}
           onPress={toggleMenu}
-          ref={buttonRef}
-          style={styles.button}>
-          {menuIcon ?? <Text style={styles.icon}>☰</Text>}
-        </TouchableOpacity>
+        />
       )}
       {isOpen && (
-        <Animated.View
-          ref={menuRef}
-          style={[styles.menu, menuPosition, {opacity: fadeAnim}]}>
-          {options.map((option, index) => (
-            <View key={index} style={styles.menuItemWrapper}>
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => {
-                  option.onClick();
-                  setIsOpen(false);
-                }}>
-                {option.icon}
-                <Text style={[styles.label, option?.styles]}>
-                  {option.label}
-                </Text>
-              </TouchableOpacity>
-              {index < options.length - 1 && <View style={styles.divider} />}
+        <Modal 
+          transparent 
+          visible={isOpen} 
+          animationType="fade"
+          onRequestClose={() => {
+            setIsOpen(false);
+          }}
+        >
+          <TouchableOpacity
+            style={styles.overlay}
+            activeOpacity={1}
+            onPress={() => {
+              setIsOpen(false);
+              onClose && onClose();
+            }}
+          >
+            <View style={styles.menuContainer} pointerEvents="box-none">
+              <TouchableWithoutFeedback onPress={() => {}}>
+                <Animated.View
+                  ref={menuRef}
+                  style={[
+                    styles.menu,
+                    positionMenu[position],
+                    {
+                      opacity: fadeAnim,
+                      transform: [{ translateY: translateYAnim }],
+                    },
+                  ]}
+                >
+              {options.map((option, index) => (
+                <View key={`${option.label}-${index}`} style={styles.menuItemWrapper}>
+                  <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={async () => {
+                      setIsOpen(false);
+                      onClose && onClose();
+                      setTimeout(() => {
+                        try {
+                          option.onClick();
+                        } catch (error) {
+                          console.error("Error in option.onClick:", error);
+                        }
+                      }, 200);
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 22,
+                        alignItems: "center",
+                      }}
+                    >
+                      {option.icon}
+                    </View>
+                    <Text style={[styles.label, option?.styles]}>
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                  {index < options.length - 1 && (
+                    <View style={styles.divider} />
+                  )}
+                </View>
+              ))}
+                </Animated.View>
+              </TouchableWithoutFeedback>
             </View>
-          ))}
-        </Animated.View>
+          </TouchableOpacity>
+        </Modal>
       )}
     </View>
   );
@@ -100,35 +185,52 @@ export default DropdownMenu;
 
 const styles = StyleSheet.create({
   container: {
-    position: 'relative',
+    position: "relative",
+    zIndex: 100,
+  },
+  overlay: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
+  },
+  menuContainer: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    position: "relative",
   },
   button: {
     padding: 10,
-    backgroundColor: '#0052CD',
+    backgroundColor: "#0052CD",
     borderRadius: 8,
   },
   icon: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 24,
   },
   menu: {
-    position: 'absolute',
-    backgroundColor: '#fcfcfc',
+    position: "absolute",
+    backgroundColor: "#fcfcfc",
     borderRadius: 8,
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     minWidth: 150,
     zIndex: 1000,
-    boxShadow: '0px 0px 6px -2px #12121908', // React Native doesn't support box-shadow
+    elevation: 10, // Android
+    shadowColor: "#121219", // iOS
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
   },
   menuItemWrapper: {
-    display: 'flex',
-    flexDirection: 'column',
+    display: "flex",
+    flexDirection: "column",
   },
   menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: 8,
-    cursor: 'pointer',
   },
   label: {
     fontSize: 16,
@@ -136,7 +238,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    width: '100%',
-    backgroundColor: '#0052cd0d',
+    width: "100%",
+    backgroundColor: "#0052cd0d",
   },
 });

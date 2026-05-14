@@ -1,11 +1,14 @@
-import React, {useState, useRef, useCallback} from 'react';
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
   RecordContainer,
   Timer,
-} from '../styled/StyledInputComponents/StyledInputComponents';
-import {RecordIcon, RemoveIcon, SendIcon} from '../../assets/icons';
-import Button from '../styled/Button';
-import RecordingIndicator from './RecordingIndicator';
+} from "../styled/StyledInputComponents/StyledInputComponents";
+import { RecordIcon, RemoveIcon, SendIcon } from "../../assets/icons";
+import Button from "../styled/Button";
+import RecordingIndicator from "./RecordingIndicator";
+import { Platform, View } from "react-native";
+import AudioRecorderPlayer from "react-native-audio-recorder-player";
+import RNFS from "react-native-fs";
 
 interface AudioRecorderProps {
   setIsRecording: (state: boolean) => void;
@@ -18,112 +21,79 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
   isRecording,
   handleSendClick,
 }) => {
-  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
-  const [timer, setTimer] = useState(0);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const audioRecorderPlayer = useRef(new AudioRecorderPlayer()).current;
+  const [timer, setTimer] = useState("00:00");
+  const [audioPath, setAudioPath] = useState<string | null>(null);
 
-  const formatTime = (time: number) => {
-    const minutes = Math.floor(time / 60);
-    const seconds = time % 60;
-    return `${minutes.toString().padStart(2, '0')}:${seconds
-      .toString()
-      .padStart(2, '0')}`;
-  };
+  useEffect(() => {
+    return () => {
+      audioRecorderPlayer.stopRecorder();
+      audioRecorderPlayer.removeRecordBackListener();
+    };
+  }, [audioRecorderPlayer]);
 
-  const startTimer = useCallback(() => {
-    timerIntervalRef.current = setInterval(() => {
-      setTimer(prev => prev + 1);
-    }, 1000);
-  }, []);
+  const startRecording = async () => {
+    try {
+      const path = Platform.select({
+        ios: `${RNFS.DocumentDirectoryPath}/recording.m4a`,
+        android: `${RNFS.CachesDirectoryPath}/recording.mp4`,
+      });
+      const uri = await audioRecorderPlayer.startRecorder(path);
+      setAudioPath(uri);
 
-  const stopTimer = useCallback(() => {
-    if (timerIntervalRef.current) {
-      clearInterval(timerIntervalRef.current);
-    }
-  }, []);
+      audioRecorderPlayer.addRecordBackListener((e) => {
+        const minutes = Math.floor(e.currentPosition / 60000);
+        const seconds = Math.floor((e.currentPosition % 60000) / 1000);
+        setTimer(
+          `${minutes.toString().padStart(2, "0")}:${seconds
+            .toString()
+            .padStart(2, "0")}`
+        );
+      });
 
-  const resetState = () => {
-    setAudioBlob(null);
-    setTimer(0);
-    setIsRecording(false);
-    audioChunksRef.current = [];
-    if (mediaRecorderRef.current) {
-      mediaRecorderRef.current.stream
-        .getTracks()
-        .forEach(track => track.stop());
+      setIsRecording(true);
+    } catch (error) {
+      console.error("Error starting recording:", error);
     }
   };
 
-  const startRecording = useCallback(async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({audio: true});
-    const mediaRecorder = new MediaRecorder(stream);
-    mediaRecorderRef.current = mediaRecorder;
-
-    mediaRecorder.ondataavailable = event => {
-      audioChunksRef.current.push(event.data);
-    };
-
-    mediaRecorder.onstop = () => {
-      const audioBlob = new Blob(audioChunksRef.current);
-      setAudioBlob(audioBlob);
-    };
-
-    audioChunksRef.current = [];
-    mediaRecorder.start();
-    setIsRecording(true);
-    startTimer();
-  }, [startTimer, setIsRecording]);
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current) {
-      mediaRecorderRef.current.stop();
-      stopTimer();
-      resetState(); // Fully reset the state without sending audio
+  const stopRecording = async () => {
+    try {
+      await audioRecorderPlayer.stopRecorder();
+      audioRecorderPlayer.removeRecordBackListener();
+      setIsRecording(false);
+    } catch (error) {
+      console.error("Error stopping recording:", error);
     }
   };
 
   const sendAudio = () => {
-    if (mediaRecorderRef.current) {
-      mediaRecorderRef.current.stop(); // Stop recording
-      stopTimer();
-
-      // On stop, send the audio after it's available
-      mediaRecorderRef.current.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current);
-        handleSendClick(audioBlob);
-        // downloadAudio(audioBlob); // Automatically save the audio
-        resetState(); // Reset after sending
-      };
+    if (audioPath) {
+      console.log("Audio sent:", audioPath);
+      handleSendClick(audioPath);
+      resetState();
     }
   };
 
-  const downloadAudio = (blob: Blob) => {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'recording.x-m4a'; // Change the file name if needed
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  const resetState = () => {
+    setAudioPath(null);
+    setTimer("00:00");
+    setIsRecording(false);
   };
-
   return isRecording ? (
     <RecordContainer>
-      <View style={{display: 'flex', alignItems: 'center'}}>
+      <View style={{ display: "flex", alignItems: "center" }}>
         {isRecording && <RecordingIndicator />}
-        <Timer>{formatTime(timer)}</Timer>
+        <Timer>{timer}</Timer>
       </View>
 
-      <View style={{display: 'flex', gap: '8px'}}>
-        <Button onClick={stopRecording} EndIcon={<RemoveIcon />} unstyled />
-        <Button onClick={sendAudio} EndIcon={<SendIcon />} unstyled />
+      <View style={{ display: "flex", gap: 8 }}>
+        <Button onPress={stopRecording} EndIcon={<RemoveIcon />} unstyled />
+        <Button onPress={sendAudio} EndIcon={<SendIcon />} unstyled />
       </View>
     </RecordContainer>
   ) : (
-    <Button onClick={startRecording} EndIcon={<RecordIcon />} />
+    <Button onPress={startRecording} EndIcon={<RecordIcon />} />
   );
 };
 

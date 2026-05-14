@@ -12,9 +12,14 @@ export const sendTextMessage = (
   isReply?: boolean,
   showInChannel?: boolean,
   mainMessage?: string,
-  devServer?: string
+  devServer?: string,
+  customId?: string
 ) => {
-  const id = Date.now().toString();
+  const id = customId
+    ? customId
+    : isReply
+      ? `send-reply-message-${Date.now().toString()}`
+      : `send-text-message-${Date.now().toString()}`;
 
   try {
     const message = xml(
@@ -25,7 +30,7 @@ export const sendTextMessage = (
         id: id,
       },
       xml('data', {
-        xmlns: `wss://${devServer || 'xmpp.chat.ethora.com:5443'}/ws`,
+        xmlns: devServer || `wss://xmpp.ethoradev.com:5443/ws`,
         senderFirstName: firstName,
         senderLastName: lastName,
         fullName: `${firstName} ${lastName}`,
@@ -40,6 +45,7 @@ export const sendTextMessage = (
         showInChannel: showInChannel || false,
         isReply: isReply || false,
         mainMessage: mainMessage || '',
+        push: 'true',
       }),
       xml('body', {}, userMessage)
     );

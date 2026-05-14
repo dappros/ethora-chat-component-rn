@@ -1,48 +1,65 @@
-import styled from 'styled-components/native';
+/** @format */
 
-export const InputContainer = styled.View`
+import styled from "styled-components/native";
+
+// Theme variables for reuse
+const colors = {
+  primary: "#141414",
+  secondary: "#f5f7f9",
+  border: "#ccc",
+  white: "#fff",
+  black: "#000",
+};
+
+export const InputContainer = styled.View<{ isText?: boolean }>`
   flex-direction: column;
-  border-top-left-radius: 15px;
-  border-top-right-radius: 15px;
-  padding: 16px;
-  background-color: #fff;
-  z-index: 1;
-  shadow-color: #121219;
-  shadow-offset: { width: 0, height: 4 };
-  shadow-opacity: 0.08;
-  shadow-radius: 12px;
-  elevation: 4;
+  padding: 16px 0;
+  background-color: ${colors.white};
+  z-index: 100;
+  width: 100%;
+  bottom: 0;
+  left: 0;
+`;
+
+export const MediaContainer = styled.View`
+  flex-direction: row;
+  gap: 8px;
+  padding: 0 16px 8px;
+`;
+
+export const MediaImage = styled.Image`
+  width: 70px;
+  height: 70px;
+  border-radius: 8px;
 `;
 
 export const MessageInputContainer = styled.View`
   flex-direction: row;
-  align-items: center;
+  align-items: flex-end;
   width: 100%;
-  max-height: 72px;
-  gap: 16px;
 `;
 
-export const MessageInput = styled.TextInput<{color?: string}>`
-  flex-grow: 1;
+export const MessageInput = styled.TextInput<{
+  isFocused?: boolean;
+  color?: string;
+}>`
   padding: 10px;
   border-radius: 12px;
-  border-width: 0;
+  border-width: 1px;
+  border-color: ${(props) =>
+    props.isFocused ? props.color || "#0052CD" : "transparent"};
   color: #141414;
   background-color: #f5f7f9;
-  max-height: 40px;
-  ${({color}) =>
-    color &&
-    `
-    border-width: 1px;
-    border-color: ${color};
-  `};
+  width: 70%;
+  text-align-vertical: top;
+  padding-vertical: 0;
+  line-height: 20px;
+  include-font-padding: false;
 `;
 
-export const HiddenFileInput = styled.View`
-  display: none;
-`;
+export const HiddenFileInput = styled.View``;
 
-export const Timer = styled.View`
+export const Timer = styled.Text`
   justify-content: center;
   align-items: center;
   margin-left: 10px;
@@ -51,7 +68,7 @@ export const Timer = styled.View`
 export const TimerText = styled.Text`
   font-size: 18px;
   font-weight: bold;
-  color: #000;
+  color: ${colors.black};
 `;
 
 export const WaveformContainer = styled.View`
@@ -65,7 +82,6 @@ export const RecordContainer = styled.View`
   justify-content: space-between;
   align-items: center;
   width: 100%;
-  height: 40px;
 `;
 
 export const FilePreviewContainer = styled.View`
@@ -81,7 +97,7 @@ export const FilePreview = styled.View`
   width: 100px;
   height: 100px;
   border-width: 1px;
-  border-color: #ccc;
+  border-color: ${colors.border};
   border-radius: 8px;
   background-color: #f9f9f9;
   overflow: hidden;
@@ -99,23 +115,15 @@ export const VideoPreview = styled.View`
 
 export const StyledInput = styled.TextInput`
   padding: 16px 12px;
-  background-color: #f5f7f9;
-  border: none;
-  outline: none;
+  background-color: ${colors.secondary};
   font-size: 16px;
-  color: #000;
   border-radius: 16px;
-
-  &::placeholder {
-    opacity: 1;
-  }
 `;
 
 export const TextareaInput = styled.TextInput`
   padding: 16px 12px;
-  background-color: #f5f7f9;
+  background-color: ${colors.secondary};
   font-size: 16px;
-  color: #000;
+  color: ${colors.black};
   border-radius: 16px;
-  text-align-vertical: top;
 `;

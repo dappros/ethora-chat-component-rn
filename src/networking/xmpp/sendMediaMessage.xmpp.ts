@@ -1,6 +1,12 @@
 import { Client, xml } from '@xmpp/client';
 
-export function sendMediaMessage(client: Client, roomJID: string, data: any) {
+export function sendMediaMessage(
+  client: Client,
+  roomJID: string,
+  data: any,
+  id: string
+) {
+
   const dataToSend = {
     senderJID: client.jid?.toString(),
     senderFirstName: data.firstName,
@@ -31,12 +37,13 @@ export function sendMediaMessage(client: Client, roomJID: string, data: any) {
     showInChannel: data?.showInChannel,
     mainMessage: data?.mainMessage,
     roomJid: data?.roomJid,
+    push: 'true',
   };
 
   const message = xml(
     'message',
     {
-      id: 'sendMessage',
+      id: id,
       type: 'groupchat',
       from: client.jid?.toString(),
       to: roomJID,

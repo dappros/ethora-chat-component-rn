@@ -1,143 +1,177 @@
-import React, {useMemo} from 'react';
-import {IConfig, IRoom} from '../../types/types';
-import {ProfileImagePlaceholder} from '../MainComponents/ProfileImagePlaceholder';
+import React, { useMemo } from "react";
+import { IConfig, IRoom } from "../../types/types";
+import { ProfileImagePlaceholder } from "../MainComponents/ProfileImagePlaceholder";
 import {
   ChatItem,
   ChatInfo,
   ChatName,
   LastMessage,
   UserCount,
-} from '../styled/RoomListComponents';
-import Composing from '../styled/StyledInputComponents/Composing';
-import {View} from 'react-native';
+} from "../styled/RoomListComponents";
+import Composing from "../styled/StyledInputComponents/Composing";
+import { Text, View } from "react-native";
+import LastMessageItem from "./LastMessageItem";
+import { LastRoomMessageText } from "./styled/StyledRoomComponents";
 
 interface ChatRoomItemProps {
   chat: IRoom;
-  index: number;
-  isChatActive: boolean;
-  performClick: (chat: IRoom) => void;
-  config: IConfig;
+  index?: number;
+  isDriver?: boolean;
+  config?: IConfig;
 }
 
 const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
   chat,
   index,
-  isChatActive,
-  performClick,
+  isDriver,
   config,
 }) => {
-  const lastMessage = useMemo(
-    () => chat?.messages?.[chat?.messages.length - 1],
-    [chat?.messages?.length],
-  );
+  const lastMessage = useMemo(() => {
+    if (!chat?.messages || chat.messages.length === 0) return undefined;
+    
+    for (let i = chat.messages.length - 1; i >= 0; i--) {
+      const msg = chat.messages[i];
+      if (!msg.deleted && !msg.isDeleted) {
+        return msg;
+      }
+    }
+    return undefined;
+  }, [chat?.messages]);
 
   const formatTimeToHHMM = (isoTime: string | Date): string => {
     const date = new Date(isoTime);
-    const hours = date.getHours().toString().padStart(2, '0');
-    const minutes = date.getMinutes().toString().padStart(2, '0');
-    return `${hours}:${minutes}`;
+    const hours = date.getHours().toString().padStart(2, "0");
+    const minutes = date.getMinutes().toString().padStart(2, "0");
+    return `${hours}:${minutes}` || "";
   };
 
   return (
-    <ChatItem
-      key={index}
-      active={isChatActive}
-      onClick={() => performClick(chat)}
-      bg={config?.colors?.primary}>
-      <ProfileImagePlaceholder name={chat.name} icon={chat?.icon} />
+    <ChatItem key={index}>
+      <ProfileImagePlaceholder name={chat.name} icon={chat?.icon} active={false} />
       <View
         style={{
-          display: 'flex',
-          flexDirection: 'column',
-          width: '100%',
-        }}>
+          flexDirection: "column",
+          justifyContent: "space-between",
+          flex: 2,
+          width: "100%",
+          paddingVertical: 8,
+          paddingRight: 8,
+          borderBottomWidth: 1,
+          borderBottomColor: "#F0F0F0",
+        }}
+      >
         <View
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            width: '100%',
-            gap: '16px',
-            height: '24px',
-            justifyContent: 'space-between',
-          }}>
+            flexDirection: "row",
+            alignItems: "center",
+          }}
+        >
           <ChatInfo>
-            <ChatName>{chat.name}</ChatName>
+            <ChatName text={chat.name || ""} />
           </ChatInfo>
-          {lastMessage && (
+          {lastMessage ? (
             <UserCount
               style={{
-                color: !isChatActive ? '#8C8C8C' : '#fff',
-                fontSize: '12px',
+                color: "#8C8C8C",
+                fontSize: 12,
               }}
-              active={isChatActive}>
-              {formatTimeToHHMM(lastMessage.date)}
-            </UserCount>
-          )}
+              text={formatTimeToHHMM(lastMessage.date)}
+            />
+          ) : null}
         </View>
         <View
           style={{
-            textAlign: 'right',
-            display: 'flex',
-            width: '100%',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}>
+            width: "100%",
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            minHeight: 40,
+          }}
+        >
+          {/* {chat.composing ? (
+            <Composing
+              usersTyping={chat.composingList}
+              style={{ color: "#141414" }}
+            />
+            ) : lastMessage?.body ? (
+            <View
+              style={{
+                display: "flex",
+                width: "80%",
+                flexDirection: "column",
+                alignItems: "flex-start",
+              }}
+            >
+              <View
+                style={{
+                  height: 20,
+                }}
+              >
+                <Text style={{ fontWeight: "600", textAlign: "right" }}>
+                  {lastMessage.user.name || ""}:
+                </Text>
+              </View>
+              <View
+                style={{
+                  height: 20,
+                  maxWidth: 200,
+                  overflow: "hidden",
+                }}
+              >
+                <Text
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                  style={{
+                    textAlign: "right",
+                  }}
+                >
+                  {lastMessage.body || "Chat created"}
+                </Text>
+              </View>
+            </View>
+          ) : null} */}
           {chat.composing ? (
             <Composing
               usersTyping={chat.composingList}
-              style={{color: !isChatActive ? '#141414' : '#fff'}}
+              // style={{ color: !isChatActive ? '#141414' : '#fff' }}
             />
-          ) : (
-            lastMessage?.body && (
-              <View
-                style={{
-                  display: 'flex',
-                  width: '80%',
-                  flexDirection: 'column',
-                  alignItems: 'start',
-                }}>
-                <View
-                  style={{
-                    height: '20px',
-                    fontWeight: '600',
-                  }}>
-                  {lastMessage.user.name || ''}:
-                </View>
-                <View
-                  style={{
-                    height: '20px',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    maxWidth: '200px',
-                  }}>
-                  {lastMessage.body || 'Chat created'}
-                </View>
-              </View>
-            )
-          )}
-          {chat.unreadMessages > 0 && (
+          ) : lastMessage?.body ? (
+            <LastMessageItem lastMessage={lastMessage} />
+          ) : chat.messages.length === 0 && chat.historyComplete ? (
+            <LastRoomMessageText>Room created</LastRoomMessageText>
+          ) : undefined}
+          {chat.unreadMessages && chat.unreadMessages > 0 ? (
             <View
               style={{
-                borderRadius: '8px',
-                backgroundColor: isChatActive
-                  ? '#fff'
-                  : config?.colors?.primary,
-                color: isChatActive ? '#141414' : '#fff',
-                padding: '2px 2px',
-                fontWeight: 600,
-                minWidth: '24px',
-                minHeight: '24px',
-                fontSize: '14px',
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                marginLeft: 'auto',
-              }}>
-              {chat.unreadMessages}
+                borderRadius: 8,
+                backgroundColor: config?.colors?.primary,
+                padding: 2,
+                minWidth: 24,
+                minHeight: 24,
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                marginLeft: "auto",
+              }}
+            >
+              <Text
+                style={{
+                  // color: isChatActive ? "#141414" : "#fff",
+                  color: "#141414",
+                  fontSize: 14,
+                  fontWeight: "600",
+                }}
+              >
+                {chat.unreadMessages || ""}
+              </Text>
             </View>
-          )}
+          ) : null}
         </View>
+        {isDriver && (
+          <View
+            style={{ height: 1, backgroundColor: "#0052CD0D", marginTop: 8 }}
+          />
+        )}
       </View>
     </ChatItem>
   );

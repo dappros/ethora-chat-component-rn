@@ -1,4 +1,4 @@
-import styled from 'styled-components';
+import styled from 'styled-components/native';
 import {CenterContainer, Label} from '../styledModalComponents';
 import Button from '../../styled/Button';
 
@@ -57,7 +57,7 @@ export const SharedSettingsStyledButton = styled(Button)<{
   border: 1px solid ${({borderColor}) => borderColor};
 `;
 
-export const SharedSettingsInfoPanel = styled.View<{bgColor: string}>`
+export const SharedSettingsInfoPanel = styled.View<{bgColor: string | undefined}>`
   display: flex;
   align-items: flex-start;
   background-color: ${({bgColor}) => bgColor};
@@ -66,7 +66,7 @@ export const SharedSettingsInfoPanel = styled.View<{bgColor: string}>`
   gap: 8px;
 `;
 
-export const SharedSettingsInfoText = styled.View`
+export const SharedSettingsInfoText = styled.Text`
   font-size: 12px;
   color: #141414;
   display: flex;

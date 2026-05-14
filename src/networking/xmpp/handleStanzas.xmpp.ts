@@ -1,3 +1,4 @@
+import { Element } from 'ltx';
 import {
   onDeleteMessage,
   onEditMessage,
@@ -8,31 +9,42 @@ import {
   onChatInvite,
   onPresenceInRoom,
   onGetChatRooms,
-  onGetMembers,
+  // onGetMembers,
   onGetRoomInfo,
   onNewRoomCreated,
+  onReactionMessage,
+  onReactionHistory,
+  onRoomKicked,
+  onMessageError,
 } from '../stanzaHandlers';
+import XmppClient from '../xmppClient';
 
-export function handleStanza(stanza: any, xmppWs: any) {
+export function handleStanza(stanza: Element, xmppWs: XmppClient) {
+  if (stanza?.attrs?.type === 'headline') return;
   switch (stanza.name) {
     case 'message':
+      onMessageError(stanza, xmppWs);
+      onReactionMessage(stanza);
+      onReactionHistory(stanza);
       onDeleteMessage(stanza);
       onEditMessage(stanza);
+      onChatInvite(stanza, xmppWs);
       onRealtimeMessage(stanza);
       onMessageHistory(stanza);
-      onGetLastMessageArchive(stanza, xmppWs);
       handleComposing(stanza, xmppWs.username);
-      onChatInvite(stanza, xmppWs);
+      onPresenceInRoom(stanza);
       break;
     case 'presence':
+      onRoomKicked(stanza);
       onPresenceInRoom(stanza);
       break;
     case 'iq':
       onGetChatRooms(stanza, xmppWs);
       onRealtimeMessage(stanza);
       onPresenceInRoom(stanza);
-      onGetMembers(stanza);
+      // onGetMembers(stanza);
       onGetRoomInfo(stanza);
+      onGetLastMessageArchive(stanza);
       break;
     case 'room-config':
       onNewRoomCreated(stanza, xmppWs);

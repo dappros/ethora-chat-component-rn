@@ -1,73 +1,110 @@
-import React, {useState, useEffect, useCallback, useMemo, useRef} from 'react';
+/** @format */
+
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import {
   View,
-  TextInput,
-  TouchableOpacity,
-  Modal,
   StyleSheet,
-  ScrollView,
-} from 'react-native';
-import {IRoom} from '../../types/types';
-import {SearchInput} from '../InputComponents/Search';
-import {useDispatch, useSelector} from 'react-redux';
-import {RootState} from '../../roomStore';
-import {SearchIcon} from '../../assets/icons';
-import DropdownMenu from '../DropdownMenu/DropdownMenu';
-import {logout, setActiveModal} from '../../roomStore/chatSettingsSlice';
-import NewChatModal from '../Modals/NewChatModal/NewChatModal';
-import {setLogoutState} from '../../roomStore/roomsSlice';
-import {MODAL_TYPES} from '../../helpers/constants/MODAL_TYPES';
-import {useXmppClient} from '../../context/xmppProvider';
-import ChatRoomItem from '../RoomComponents/ChatRoomItem';
-import {useChatSettingState} from '../../hooks/useChatSettingState';
+  FlatList,
+  Pressable,
+  Animated,
+  Text,
+  TouchableOpacity,
+} from "react-native";
+import { IRoom } from "../../types/types";
+import { SearchInput } from "../InputComponents/Search";
+import { BurgerMenuIcon, SearchIcon } from "../../assets/icons";
+import ChatRoomItem from "../RoomComponents/ChatRoomItem";
+import { useChatSettingState } from "../../hooks/useChatSettingState";
+import Button from "../styled/Button";
+import { HeaderRoomList } from "../Header/HeaderRoomList";
+import { HeaderRoomListMenu } from "../Menu/HeaderRoomListMenu";
+
+const LONG_PRESS_THRESHOLD = 200;
 
 interface RoomListProps {
   chats: IRoom[];
   burgerMenu?: boolean;
   onRoomClick?: (chat: IRoom) => void;
-  isSmallScreen?: boolean;
 }
 
 const RoomList: React.FC<RoomListProps> = ({
   chats,
   burgerMenu = false,
   onRoomClick,
-  isSmallScreen,
 }) => {
-  const {client, setClient} = useXmppClient();
+  const { config } = useChatSettingState();
+
   const [open, setOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isLongPress, setIsLongPress] = useState(false);
+  const [isDrawerOpen, setDrawerOpen] = useState(false);
 
-  const dispatch = useDispatch();
-
-  const {config} = useChatSettingState();
-  const {activeRoomJID} = useSelector((state: RootState) => state.rooms);
-
+  const pressTimer = useRef<NodeJS.Timeout | null>(null);
   const containerRef = useRef<View>(null);
 
-  const handleClickOutside = useCallback((event: any) => {
-    if (containerRef.current && !containerRef.current.contains(event.target)) {
-      setOpen(false);
+  const drawerAnimation = useRef(new Animated.Value(0)).current;
+  const overlayAnimation = useRef(new Animated.Value(0)).current;
+
+  const handlePressIn = useCallback(() => {
+    setIsLongPress(false);
+    pressTimer.current = setTimeout(() => {
+      setIsLongPress(true);
+    }, LONG_PRESS_THRESHOLD);
+  }, []);
+
+  const handlePressOut = useCallback(() => {
+    if (pressTimer.current) {
+      clearTimeout(pressTimer.current);
     }
   }, []);
 
   const performClick = useCallback(
     (chat: IRoom) => {
-      onRoomClick?.(chat);
+      if (!isLongPress) {
+        onRoomClick?.(chat);
+      }
       setOpen(false);
     },
-    [onRoomClick],
+    [onRoomClick, isLongPress]
   );
 
   const handleSearchChange = useCallback((text: string) => {
     setSearchTerm(text);
   }, []);
 
+  const getLastMessage = useCallback(
+    (chat: IRoom) => chat?.messages?.[chat?.messages.length - 1],
+    []
+  );
+
   const filteredChats = useMemo(() => {
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
-    return chats.filter(chat =>
-      chat.name.toLowerCase().includes(lowerCaseSearchTerm),
-    );
+    const chatsMap = new Map<string, IRoom[]>();
+
+    if (!chatsMap.has(lowerCaseSearchTerm)) {
+      const result = chats
+        .filter((chat) => chat.name.toLowerCase().includes(lowerCaseSearchTerm))
+        .sort((a, b) => {
+          if (getLastMessage(a)?.id && getLastMessage(b)?.id) {
+            return Number(getLastMessage(b).id) - Number(getLastMessage(a).id);
+          } else if (getLastMessage(a)?.id) {
+            return -1;
+          } else if (getLastMessage(b)?.id) {
+            return 1;
+          }
+          return -1;
+        });
+
+      chatsMap.set(lowerCaseSearchTerm, result);
+    }
+
+    return chatsMap.get(lowerCaseSearchTerm) || [];
   }, [chats, searchTerm]);
 
   useEffect(() => {
@@ -77,88 +114,97 @@ const RoomList: React.FC<RoomListProps> = ({
     }
   }, [burgerMenu]);
 
-  const isChatActive = useCallback(
-    (room: IRoom) => activeRoomJID === room.jid,
-    [activeRoomJID],
-  );
-
-  const handleLogout = useCallback(async () => {
-    if (client) {
-      await client.close();
-      setClient(null);
+  const toggleDrawer = () => {
+    if (isDrawerOpen) {
+      closeDrawer();
+    } else {
+      setDrawerOpen(true);
+      Animated.parallel([
+        Animated.timing(drawerAnimation, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(overlayAnimation, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
     }
-    dispatch(setLogoutState());
-    dispatch(logout());
-  }, [client, dispatch, setClient]);
+  };
 
-  const menuOptions = useMemo(
-    () => [
-      {
-        label: 'Profile',
-        onClick: () => {
-          dispatch(setActiveModal(MODAL_TYPES.PROFILE));
-          console.log('Profile clicked');
-        },
-      },
-      {
-        label: 'Settings',
-        onClick: () => {
-          dispatch(setActiveModal(MODAL_TYPES.SETTINGS));
-          console.log('Settings clicked');
-        },
-      },
-      {
-        label: 'Logout',
-        onClick: handleLogout,
-      },
-    ],
-    [handleLogout],
-  );
+  const closeDrawer = () => {
+    Animated.parallel([
+      Animated.timing(drawerAnimation, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(overlayAnimation, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setDrawerOpen(false);
+    });
+  };
 
   return (
     <>
       {burgerMenu && !open && (
-        <TouchableOpacity onPress={() => setOpen(!open)}>
-          <View style={styles.burgerButton}>☰</View>
-        </TouchableOpacity>
+        <Button
+          style={{
+            padding: 8,
+            borderRadius: 16,
+            backgroundColor: "transparent",
+          }}
+          color="black"
+          unstyled
+          EndIcon={<BurgerMenuIcon color={config?.colors?.primary} />}
+          onPress={() => setOpen(!open)}
+        />
       )}
       <View
         ref={containerRef}
-        style={[
-          styles.container,
-          isSmallScreen ? {width: '100%'} : {maxWidth: 432},
-          config?.roomListStyles,
-        ]}>
+        style={[styles.container, config?.roomListStyles]}
+      >
         {(open || !burgerMenu) && (
-          <ScrollView style={styles.scrollContainer}>
-            <View style={styles.searchContainer}>
-              {!config?.disableRoomMenu && (
-                <DropdownMenu options={menuOptions} />
-              )}
-              <SearchInput
-                icon={<SearchIcon height="20px" />}
-                value={searchTerm}
-                onChange={handleSearchChange}
-                placeholder="Search..."
-              />
-              <NewChatModal />
-            </View>
-            <ScrollView style={styles.chatList}>
-              {filteredChats.map((chat, index) => (
-                <View key={chat.jid}>
-                  <ChatRoomItem
-                    chat={chat}
-                    isChatActive={isChatActive(chat)}
-                    performClick={performClick}
-                    config={config}
+          <>
+            <View style={styles.scrollContainer}>
+              <HeaderRoomList setDrawerOpen={toggleDrawer} />
+              <FlatList
+                data={filteredChats}
+                keyExtractor={(item) => item.jid}
+                renderItem={({ item }) => (
+                  <Pressable
+                    onPress={() => performClick(item)}
+                    onPressIn={handlePressIn}
+                    onPressOut={handlePressOut}
+                  >
+                    <ChatRoomItem chat={item} config={config} />
+                  </Pressable>
+                )}
+                ListHeaderComponent={
+                  <SearchInput
+                    icon={<SearchIcon height={20} />}
+                    value={searchTerm}
+                    onChangeText={handleSearchChange}
+                    placeholder="Search..."
                   />
-                  {index < filteredChats.length - 1 && (
-                    <View style={styles.divider} />
-                  )}
-                </View>
-              ))}
-            </ScrollView>
-          </ScrollView>
+                }
+                style={styles.chatList}
+              />
+
+              <HeaderRoomListMenu
+                closeDrawer={closeDrawer}
+                drawerAnimation={drawerAnimation}
+                overlayAnimation={overlayAnimation}
+                isDrawerOpen={isDrawerOpen}
+              />
+            </View>
+          </>
         )}
       </View>
     </>
@@ -169,29 +215,28 @@ const styles = StyleSheet.create({
   burgerButton: {
     fontSize: 24,
     padding: 10,
+    color: "#333",
   },
   container: {
+    width: "100%",
+    height: "100%",
     flex: 1,
-    backgroundColor: '#fff',
-    marginTop: 10,
+    backgroundColor: "#fff",
   },
   scrollContainer: {
     flexGrow: 1,
   },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  headerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
     padding: 16,
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
   },
   chatList: {
     flex: 1,
     paddingTop: 10,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#0052CD0D',
-    marginVertical: 8,
+    paddingHorizontal: 8,
+    backgroundColor: "#FAFAFA",
   },
 });
 

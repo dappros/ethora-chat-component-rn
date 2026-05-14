@@ -1,29 +1,32 @@
-import React, {useCallback} from 'react';
+/** @format */
+
+import React, { useCallback } from "react";
 import {
+  CenterContainer,
   ChatContainerHeader,
   ChatContainerHeaderBoxInfo,
   ChatContainerHeaderInfo,
   ChatContainerHeaderLabel,
-} from '../styled/StyledComponents';
-import RoomList from './RoomList';
-import {IRoom} from '../../types/types';
-import {ProfileImagePlaceholder} from './ProfileImagePlaceholder';
-import Button from '../styled/Button';
-import {BackIcon} from '../../assets/icons';
-import {useDispatch} from 'react-redux';
-import Composing from '../styled/StyledInputComponents/Composing';
+} from "../styled/StyledComponents";
+import RoomList from "./RoomList";
+import { IRoom } from "../../types/types";
+import { ProfileImagePlaceholder } from "./ProfileImagePlaceholder";
+import Button from "../styled/Button";
+import { BackIcon, BurgerMenuIcon } from "../../assets/icons";
+import { useDispatch } from "react-redux";
+import Composing from "../styled/StyledInputComponents/Composing";
 import {
   deleteRoom,
   setCurrentRoom,
   setIsLoading,
-} from '../../roomStore/roomsSlice';
-import {useXmppClient} from '../../context/xmppProvider';
-import {setActiveModal} from '../../roomStore/chatSettingsSlice';
-import {MODAL_TYPES} from '../../helpers/constants/MODAL_TYPES';
-import {RoomMenu} from '../MenuRoom/MenuRoom';
-import {useRoomState} from '../../hooks/useRoomState';
-import {useChatSettingState} from '../../hooks/useChatSettingState';
-import {View} from 'react-native';
+} from "../../roomStore/roomsSlice";
+import { useXmppClient } from "../../context/xmppProvider";
+import { setActiveModal } from "../../roomStore/chatSettingsSlice";
+import { MODAL_TYPES } from "../../helpers/constants/MODAL_TYPES";
+import { RoomMenu } from "../MenuRoom/MenuRoom";
+import { useRoomState } from "../../hooks/useRoomState";
+import { useChatSettingState } from "../../hooks/useChatSettingState";
+import { View, StyleSheet, Text, Keyboard } from "react-native";
 
 interface ChatHeaderProps {
   currentRoom: IRoom;
@@ -35,76 +38,126 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   handleBackClick,
 }) => {
   const dispatch = useDispatch();
-  const {client} = useXmppClient();
+  const { client } = useXmppClient();
 
-  const {roomsList, activeRoomJID} = useRoomState(currentRoom.jid);
-  const {composing} = useRoomState(currentRoom.jid).room;
-  const {config} = useChatSettingState();
+  const { roomsList, activeRoomJID } = useRoomState(currentRoom.jid);
+  const roomState = useRoomState(currentRoom.jid).room;
+  const composing = roomState?.composing;
+  const { config } = useChatSettingState();
 
   const handleChangeChat = (chat: IRoom) => {
-    dispatch(setCurrentRoom({roomJID: chat.jid}));
-    dispatch(setIsLoading({chatJID: chat.jid, loading: true}));
+    dispatch(setCurrentRoom({ roomJID: chat.jid }));
+    dispatch(setIsLoading({ chatJID: chat.jid, loading: true }));
   };
 
   const handleLeaveClick = useCallback(() => {
-    client.leaveTheRoomStanza(activeRoomJID);
-    dispatch(deleteRoom({jid: activeRoomJID}));
+    client.leaveTheRoomStanza(activeRoomJID!);
+    dispatch(deleteRoom({ jid: activeRoomJID! }));
 
     const nextRoomJID = Object.keys(roomsList)[0] || null;
     if (nextRoomJID) {
-      dispatch(setCurrentRoom({roomJID: nextRoomJID}));
+      dispatch(setCurrentRoom({ roomJID: nextRoomJID }));
     }
   }, [activeRoomJID, roomsList, dispatch, client]);
 
+  const handleHeaderChatMenu = () => {
+    Keyboard.dismiss();
+    config?.headerChatMenu && config?.headerChatMenu();
+  };
+
   return (
-    <ChatContainerHeader>
-      {/* todo add here list of rooms */}
-      <View style={{display: 'flex', gap: '8px'}}>
-        {handleBackClick && (
-          <Button
-            EndIcon={<BackIcon />}
-            onClick={() => handleBackClick(false)}
-          />
-        )}
-        {config?.chatHeaderBurgerMenu && roomsList && (
-          <RoomList
-            chats={Object.values(roomsList)}
-            burgerMenu
-            onRoomClick={handleChangeChat}
-          />
-        )}
-        <ChatContainerHeaderBoxInfo
-          onClick={() => dispatch(setActiveModal(MODAL_TYPES.CHAT_PROFILE))}>
-          <View>
-            <ProfileImagePlaceholder
-              name={currentRoom.name}
-              size={40}
-              icon={currentRoom?.icon}
-              active={true}
+    <>
+      <ChatContainerHeader>
+        {handleBackClick && !config?.headerChatMenu ? (
+          <View style={styles.leftContainer}>
+            <Button
+              EndIcon={<BackIcon />}
+              onPress={() => handleBackClick(false)}
             />
           </View>
-          <ChatContainerHeaderInfo>
-            <ChatContainerHeaderLabel>
-              {currentRoom?.title}
-            </ChatContainerHeaderLabel>
-            <ChatContainerHeaderLabel
-              style={{color: '#8C8C8C', fontSize: '14px'}}>
-              {composing ? (
-                <Composing usersTyping={currentRoom?.composingList} />
-              ) : (
-                `${currentRoom?.usersCnt} users`
-              )}
-            </ChatContainerHeaderLabel>
-          </ChatContainerHeaderInfo>
-        </ChatContainerHeaderBoxInfo>
-      </View>
+        ) : (
+          <View style={styles.leftContainer}>
+            <Button
+              style={styles.menuButton}
+              color="black"
+              unstyled
+              EndIcon={<BurgerMenuIcon color={config?.colors?.primary} />}
+              onPress={handleHeaderChatMenu}
+            />
+          </View>
+        )}
+        <CenterContainer
+          rightSpace={config?.disableRoomConfig}
+          leftSpace={!!config?.headerChatMenu}
+        >
+          {config?.chatHeaderBurgerMenu && roomsList && (
+            <RoomList
+              chats={Object.values(roomsList)}
+              burgerMenu
+              onRoomClick={handleChangeChat}
+            />
+          )}
+          <ChatContainerHeaderBoxInfo
+            onPress={() => dispatch(setActiveModal(MODAL_TYPES.CHAT_PROFILE))}
+            disabled={config?.disableProfilesInteractions}
+          >
+            <View>
+              <ProfileImagePlaceholder
+                name={currentRoom.name}
+                size={40}
+                icon={currentRoom?.icon}
+                active={!config?.disableProfilesInteractions || true}
+              />
+            </View>
+            <ChatContainerHeaderInfo>
+              <ChatContainerHeaderLabel numberOfLines={1} ellipsizeMode="tail">
+                {currentRoom?.title}
+              </ChatContainerHeaderLabel>
+              <View>
+                {composing ? (
+                  <Composing usersTyping={currentRoom?.composingList} />
+                ) : config?.disableUserCount ? undefined : (
+                  <ChatContainerHeaderLabel style={styles.subLabel}>
+                    <Text>{`${currentRoom?.usersCnt} users`}</Text>
+                  </ChatContainerHeaderLabel>
+                )}
+              </View>
+            </ChatContainerHeaderInfo>
+          </ChatContainerHeaderBoxInfo>
+        </CenterContainer>
 
-      <View style={{display: 'flex', gap: 16}}>
-        {/* <SearchInput animated icon={<SearchIcon />} /> */}
-        <RoomMenu handleLeaveClick={handleLeaveClick} />
-      </View>
-    </ChatContainerHeader>
+        {!config?.disableRoomConfig ? (
+          <View style={styles.rightContainer}>
+            <RoomMenu handleLeaveClick={handleLeaveClick} />
+          </View>
+        ) : (
+          <View style={styles.rightContainer} />
+        )}
+      </ChatContainerHeader>
+      {config?.chatHeaderAdditional?.enabled &&
+          config.chatHeaderAdditional.element()}
+    </>
   );
 };
+
+const styles = StyleSheet.create({
+  subLabel: {
+    color: "#8C8C8C",
+    fontSize: 14,
+  },
+  menuButton: {
+    padding: 8,
+    borderRadius: 16,
+    backgroundColor: "transparent",
+  },
+  leftContainer: {
+    alignItems: "flex-start",
+    width: "15%",
+  },
+  rightContainer: {
+    alignItems: "flex-end",
+    width: "15%",
+  },
+});
 
 export default ChatHeader;

@@ -1,5 +1,5 @@
-import React, {useState} from 'react';
-import styled from 'styled-components';
+import React, { useState } from "react";
+import styled from "styled-components/native";
 
 interface DropdownProps {
   sortFunction: (value: string) => void;
@@ -12,17 +12,17 @@ const DropdownContainer = styled.View`
   display: inline-block;
 `;
 
-const DropdownButton = styled.button`
+const DropdownButton = styled.TouchableOpacity`
   background-color: transparent;
   border: none;
   cursor: pointer;
 `;
 
-const DropdownIcon = styled.span`
+const DropdownIcon = styled.Text`
   margin-left: 5px;
 `;
 
-const DropdownList = styled.ul`
+const DropdownList = styled.View`
   position: absolute;
   top: 100%;
   left: 0;
@@ -34,7 +34,7 @@ const DropdownList = styled.ul`
   border: 1px solid #ccc;
 `;
 
-const DropdownItem = styled.li`
+const DropdownItem = styled.Text`
   padding: 10px;
   cursor: pointer;
 
@@ -57,13 +57,13 @@ const DropdownMenu: React.FC<DropdownProps> = ({
 
   return (
     <DropdownContainer>
-      <DropdownButton onClick={() => setIsOpen(!isOpen)}>
+      <DropdownButton onPress={() => setIsOpen(!isOpen)}>
         {icon && <DropdownIcon>{icon}</DropdownIcon>}
       </DropdownButton>
       {isOpen && (
         <DropdownList>
-          {values.map(value => (
-            <DropdownItem key={value} onClick={() => handleItemClick(value)}>
+          {values.map((value) => (
+            <DropdownItem key={value} onPress={() => handleItemClick(value)}>
               {value}
             </DropdownItem>
           ))}

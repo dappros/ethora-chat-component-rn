@@ -1,8 +1,9 @@
-import {DeleteIcon} from '../../assets/icons';
-import {styled} from 'styled-components';
+import { Text } from "react-native";
+import { DeleteIcon } from "../../assets/icons";
+import { styled } from "styled-components/native";
 
 const ReplyContainer = styled.View`
-  display: flex;
+  flex-direction: row;
   align-items: center;
   gap: 5px;
   padding-top: 5px;
@@ -27,7 +28,9 @@ export const DeletedMessage = () => {
       <IconContainer>
         <DeleteIcon width={18} height={18} fill="#8C8C8C" />
       </IconContainer>
-      <p style={{margin: 0, color: '#8C8C8C'}}>This message was deleted.</p>
+      <Text style={{ margin: 0, color: "#8C8C8C" }}>
+        This message was deleted.
+      </Text>
     </ReplyContainer>
   );
 };

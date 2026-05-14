@@ -1,9 +1,9 @@
-import React from 'react';
-import styled from 'styled-components';
-import {Line} from './StyledComponents';
+import React from "react";
+import styled from "styled-components/native";
+import { Line } from "./StyledComponents";
 
 const Container = styled.View`
-  display: flex;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
   width: 100%;
@@ -13,29 +13,36 @@ const Container = styled.View`
 
 export const StyledLabel = styled.View`
   margin: 0;
-  color: ${props => (props?.color ? props?.color : '#0052CD')};
   border-radius: 118px;
   padding: 5px 8px;
-  display: flex;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
-  line-height: 14px;
-  font-weight: 600;
-  background-color: #e7edf9;
+  background-color: #3f3f3f;
   height: 24px;
   white-space: nowrap;
   margin: 10px 0px;
+`;
+
+export const StyledLabelText = styled.Text<{ color?: string }>`
+  color: ${(props) => (props?.color ? props?.color : "#0052CD")};
+  font-size: 12px;
+  line-height: 14px;
+  font-weight: 400;
 `;
 
 interface NewMessageLabelProps {
   color?: string;
 }
 
-const NewMessageLabel: React.FC<NewMessageLabelProps> = ({color}) => {
+const NewMessageLabel: React.FC<NewMessageLabelProps> = ({ color }) => {
   return (
     <Container>
-      <StyledLabel color={color}>New messages</StyledLabel>
+      <Line />
+      <StyledLabel>
+        <StyledLabelText color={color}>New messages</StyledLabelText>
+      </StyledLabel>
+      <Line />
     </Container>
   );
 };

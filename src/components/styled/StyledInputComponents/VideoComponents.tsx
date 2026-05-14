@@ -1,4 +1,4 @@
-import styled from 'styled-components';
+import styled from "styled-components/native";
 
 export const Container = styled.View`
   margin: 0;
@@ -37,8 +37,7 @@ export const ButtonContainer = styled.View`
   right: 8px;
 `;
 
-export const IconButton = styled.button`
-  background: none;
+export const IconButton = styled.TouchableOpacity`
   border: none;
   cursor: pointer;
   color: gray;

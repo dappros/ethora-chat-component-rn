@@ -1,32 +1,45 @@
-import {View} from 'react-native';
-import {NoMessages} from '../../assets/icons';
+import { Text, View } from "react-native";
+import { NoMessages } from "../../assets/icons";
 
 const NoMessagesPlaceholder = () => {
   return (
     <View
       style={{
-        height: '100%',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-      }}>
-      <View style={{display: 'flex', flexDirection: 'column', gap: 16}}>
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+      }}
+    >
+      <View style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {/* <NoMessages /> */}
         <View
           style={{
-            display: 'flex',
-            flexDirection: 'column',
+            flexDirection: "column",
             gap: 8,
             padding: 16,
-            justifyContent: 'center',
-            textAlign: 'center',
-          }}>
-          <View style={{fontSize: '16px', fontWeight: 600}}>
+            justifyContent: "center",
+          }}
+        >
+          <Text
+            style={{
+              color: "#a3a3a3",
+              textAlign: "center",
+              fontSize: 16,
+              fontWeight: "600",
+            }}
+          >
             This chat is empty
-          </View>
-          <View style={{fontSize: '14px', fontWeight: 400}}>
+          </Text>
+          <Text
+            style={{
+              color: "#a3a3a3",
+              textAlign: "center",
+              fontSize: 14,
+              fontWeight: "400",
+            }}
+          >
             Be the first one to start it.
-          </View>
+          </Text>
         </View>
       </View>
     </View>

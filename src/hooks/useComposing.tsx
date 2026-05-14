@@ -3,26 +3,37 @@ import { useXmppClient } from '../context/xmppProvider';
 import { useSelector } from 'react-redux';
 import { RootState } from '../roomStore';
 import { useChatSettingState } from './useChatSettingState';
+import { IConfig } from '../types/types';
 
-const useComposing = () => {
+const useComposing = (config?: IConfig) => {
   const { client } = useXmppClient();
   const { activeRoomJID } = useSelector((state: RootState) => state.rooms);
   const { user } = useChatSettingState();
 
   const sendStartComposing = useCallback(() => {
-    client.sendTypingRequestStanza(
-      activeRoomJID,
-      `${user.firstName} ${user.lastName}`,
-      true
-    );
+    if (config?.disableTypingIndicator) {
+      return;
+    }
+    if (client) {
+      client.sendTypingRequestStanza(
+        activeRoomJID || '',
+        `${user.firstName} ${user.lastName}`,
+        true
+      );
+    }
   }, [activeRoomJID]);
 
   const sendEndComposing = useCallback(() => {
-    client.sendTypingRequestStanza(
-      activeRoomJID,
-      `${user.firstName} ${user.lastName}`,
-      false
-    );
+    if (config?.disableTypingIndicator) {
+      return;
+    }
+    if (client) {
+      client.sendTypingRequestStanza(
+        activeRoomJID || '',
+        `${user.firstName} ${user.lastName}`,
+        false
+      );
+    }
   }, [activeRoomJID]);
 
   useEffect(() => {

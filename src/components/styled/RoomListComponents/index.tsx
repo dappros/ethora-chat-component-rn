@@ -1,6 +1,12 @@
-import React from 'react';
-import {View, Text, TouchableOpacity, StyleSheet} from 'react-native';
-import {getTintedColor} from '../../../helpers/getTintedColor';
+import React, { createContext } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  TextStyle,
+} from "react-native";
+import { getTintedColor } from "../../../helpers/getTintedColor";
 
 // Container with burger menu support
 export const Container = ({
@@ -17,72 +23,67 @@ export const Container = ({
       styles.container,
       burgerMenu && open ? styles.containerOpen : styles.containerClosed,
       burgerMenu && styles.burgerMenu,
-    ]}>
+    ]}
+  >
     {children}
   </View>
 );
 
 // Button for the burger menu
-export const BurgerButton = ({onPress}: {onPress: () => void}) => (
+export const BurgerButton = ({ onPress }: { onPress: () => void }) => (
   <TouchableOpacity style={styles.burgerButton} onPress={onPress}>
     <Text style={styles.burgerButtonText}>☰</Text>
   </TouchableOpacity>
 );
 
 // Chat item
+const ColorContext = createContext<string | undefined>(undefined);
+
 export const ChatItem = ({
-  active,
-  bg,
   children,
 }: {
-  active: boolean;
   bg?: string;
   children: React.ReactNode;
-}) => (
-  <View
-    style={[
-      styles.chatItem,
-      {backgroundColor: active ? bg || '#0052CD' : '#fff'},
-      active && {color: '#fff'},
-    ]}>
-    {children}
-  </View>
-);
+}) => {
+  return <View style={styles.chatItem}>{children}</View>;
+};
 
 // Search container for the chat area
-export const SearchContainer = ({children}: {children: React.ReactNode}) => (
-  <View style={styles.searchContainer}>{children}</View>
-);
+export const SearchContainer = ({
+  children,
+}: {
+  children: React.ReactNode;
+}) => <View style={styles.searchContainer}>{children}</View>;
 
 // Scrollable container
-export const ScollableContainer = ({children}: {children: React.ReactNode}) => (
-  <View style={styles.scollableContainer}>{children}</View>
-);
+export const ScollableContainer = ({
+  children,
+}: {
+  children: React.ReactNode;
+}) => <View style={styles.scollableContainer}>{children}</View>;
 
 // Chat info (name & last message)
-export const ChatInfo = ({children}: {children: React.ReactNode}) => (
+export const ChatInfo = ({ children }: { children: React.ReactNode }) => (
   <View style={styles.chatInfo}>{children}</View>
 );
 
 // Chat name and last message display
-export const ChatName = ({children}: {children: React.ReactNode}) => (
-  <Text style={styles.chatName}>{children}</Text>
+export const ChatName = ({ text }: { text: string }) => (
+  <Text style={styles.chatName}>{text}</Text>
 );
 
-export const LastMessage = ({children}: {children: React.ReactNode}) => (
+export const LastMessage = ({ children }: { children: React.ReactNode }) => (
   <Text style={styles.lastMessage}>{children}</Text>
 );
 
 // User count display for the chat
 export const UserCount = ({
-  active,
-  children,
+  style,
+  text,
 }: {
-  active: boolean;
-  children: React.ReactNode;
-}) => (
-  <Text style={[styles.userCount, active && {color: '#fff'}]}>{children}</Text>
-);
+  text: string;
+  style: TextStyle;
+}) => <Text style={[styles.userCount, style]}>{text}</Text>;
 
 export const Viewider = () => <View style={styles.viewider} />;
 
@@ -90,76 +91,74 @@ const styles = StyleSheet.create({
   container: {
     padding: 16,
     paddingTop: 0,
-    backgroundColor: '#fff',
-    overflow: 'hidden',
+    backgroundColor: "#fff",
+    overflow: "hidden",
   },
   burgerMenu: {
-    position: 'absolute',
+    position: "absolute",
     left: 0,
     top: 0,
     width: 300,
-    height: '100%',
-    transform: [{translateX: -300}],
-    display: 'flex',
-    flexDirection: 'column',
-    backgroundColor: '#fff',
+    height: "100%",
+    transform: [{ translateX: -300 }],
+    display: "flex",
+    flexDirection: "column",
+    backgroundColor: "#fff",
     padding: 16,
     borderRightWidth: 1,
-    borderRightColor: '#f0f0f0',
+    borderRightColor: "#f0f0f0",
   },
   containerOpen: {
-    transform: [{translateX: 0}],
+    transform: [{ translateX: 0 }],
   },
   containerClosed: {
-    transform: [{translateX: -300}],
+    transform: [{ translateX: -300 }],
   },
   burgerButton: {
-    position: 'absolute',
+    position: "absolute",
     left: 10,
     top: 10,
     padding: 10,
   },
   burgerButtonText: {
     fontSize: 24,
-    color: '#333',
+    color: "#333",
   },
   chatItem: {
-    padding: 8,
     borderRadius: 16,
     gap: 16,
-    display: 'flex',
-    justifyContent: 'space-between',
-    color: '#000',
+    color: "#000",
+    flexDirection: "row",
+    justifyContent: "flex-start",
   },
   searchContainer: {
-    display: 'flex',
+    display: "flex",
     gap: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     height: 50,
     paddingHorizontal: 12,
   },
   scollableContainer: {
     flexGrow: 1,
-    display: 'flex',
-    flexDirection: 'column',
+    display: "flex",
+    flexDirection: "column",
   },
   chatInfo: {
-    flexDirection: 'column',
-    maxWidth: '60%',
+    maxWidth: "60%",
   },
   chatName: {
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   lastMessage: {
-    color: '#999',
+    color: "#999",
   },
   userCount: {
-    marginLeft: 'auto',
+    marginLeft: "auto",
   },
   viewider: {
     height: 1,
-    width: '100%',
-    backgroundColor: '#0052cd0d',
+    width: "100%",
+    backgroundColor: "#0052cd0d",
   },
 });

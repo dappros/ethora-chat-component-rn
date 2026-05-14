@@ -1,59 +1,82 @@
-import React, {useState, useRef, useEffect} from 'react';
-import Button from './Button';
-import {PauseIcon, PlayIcon} from '../../assets/icons';
-import {useSelector} from 'react-redux';
-import {RootState} from '../../roomStore';
+import React, { useEffect, useState } from "react";
+import {
+  View,
+  TouchableOpacity,
+  Text,
+  StyleSheet,
+  ScrollView,
+} from "react-native";
+import RNFetchBlob from "rn-fetch-blob";
 
-interface AudioMessageProps {
-  src: string;
-}
+const AudioMessage = ({ src }: { src: string }) => {
+  const [amplitudes, setAmplitudes] = useState<number[]>([]);
 
-const AudioMessage: React.FC<AudioMessageProps> = ({src}) => {
-  const config = useSelector(
-    (state: RootState) => state.chatSettingStore.config,
-  );
+  const fetchAndConvertAudio = async (url: string) => {
+    // try {
+    //   const res = await RNFetchBlob.config({ fileCache: true }).fetch(
+    //     "GET",
+    //     url
+    //   );
 
-  const waveformRef = useRef(null);
-  const wavesurfer = useRef(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [playbackRate, setPlaybackRate] = useState(1);
+    //   console.log("res---!!!", res);
+    //   const audioPath = res.path();
+    //   console.log("Audio file downloaded to:", audioPath);
 
-  const changeSpeed = () => {
-    const newRate = playbackRate === 1 ? 1.5 : playbackRate === 1.5 ? 2 : 1;
-    setPlaybackRate(newRate);
+    //   const pcmPath = `${RNFetchBlob.fs.dirs.CacheDir}/audio.pcm`;
+
+    //   await FFmpegKit.executeAsync(
+    //     `-i ${audioPath} -f s16le -ar 44100 -ac 1 ${pcmPath}`,
+    //     async (session) => {
+    //       const returnCode = await session.getReturnCode();
+    //       if (ReturnCode.isSuccess(returnCode)) {
+    //         const pcmData = await RNFetchBlob.fs.readFile(pcmPath, "ascii");
+    //         const amplitudes = pcmData
+    //           .split("")
+    //           .map((char) => char.charCodeAt(0));
+    //         setAmplitudes(amplitudes.slice(0, 100)); // Ограничиваем количество баров
+    //       } else {
+    //         console.error("FFmpeg execution failed.");
+    //       }
+    //     }
+    //   );
+    // } catch (error) {
+    //   console.error("Error processing audio file:", error);
+    // }
   };
 
+  useEffect(() => {
+    fetchAndConvertAudio(src);
+  }, [src]);
+
   return (
-    <View
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '10px',
-        width: '100%',
-        zIndex: 1,
-      }}>
-      <Button
-        onClick={togglePlayPause}
-        style={{
-          color: '#141414',
-          backgroundColor: config?.colors?.primary || '#0052CD',
-          borderRadius: 1000,
-        }}
-        EndIcon={isPlaying ? <PauseIcon /> : <PlayIcon />}
-      />
-      <View
-        style={{
-          flex: 1,
-          width: '150px',
-        }}
-      />
-      <Button
-        onClick={changeSpeed}
-        style={{color: '#141414', fontSize: 14, zIndex: 0}}
-        text={`${playbackRate}X`}
-      />
-    </View>
+    <ScrollView horizontal contentContainerStyle={styles.waveformContainer}>
+      {amplitudes.map((amplitude, index) => (
+        <View
+          key={index}
+          style={[
+            styles.waveBar,
+            {
+              height: Math.max(amplitude, 1) * 2,
+            },
+          ]}
+        />
+      ))}
+    </ScrollView>
   );
 };
 
 export default AudioMessage;
+
+const styles = StyleSheet.create({
+  waveformContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 5,
+  },
+  waveBar: {
+    width: 4,
+    backgroundColor: "#007AFF",
+    marginHorizontal: 1,
+    borderRadius: 2,
+  },
+});

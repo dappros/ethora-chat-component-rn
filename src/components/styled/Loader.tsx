@@ -1,53 +1,65 @@
-import styled from 'styled-components/native';
-import {Animated} from 'react-native';
-import {Easing} from 'react-native-reanimated';
+/** @format */
 
-const spin = new Animated.Value(0);
-
-Animated.loop(
-  Animated.timing(spin, {
-    toValue: 1,
-    duration: 2000,
-    easing: Easing.linear,
-    useNativeDriver: true,
-  }),
-).start();
-
-const spinAnimation = spin.interpolate({
-  inputRange: [0, 1],
-  outputRange: ['0deg', '360deg'],
-});
+import React, { useEffect, useRef } from "react";
+import { Animated, Easing, View, StyleSheet } from "react-native";
 
 interface LoaderProps {
   size?: number;
   color?: string;
 }
 
-const LoaderContainer = styled.View<LoaderProps>`
-  justify-content: center;
-  align-items: center;
-  width: ${({size}) => (size || 32) + 4}px;
-  height: ${({size}) => (size || 32) + 4}px;
-`;
+export default function Loader({ size = 32, color = "#3498db" }: LoaderProps) {
+  const spinValue = useRef(new Animated.Value(0)).current;
 
-const LoaderCircle = styled.View<LoaderProps>`
-  width: ${({size}) => size || 32}px;
-  height: ${({size}) => size || 32}px;
-  border-width: ${({size}) => (size ? size / 8 : 4)}px;
-  border-color: #f3f3f3;
-  border-top-color: ${({color}) => color || '#3498db'};
-  border-radius: ${({size}) => (size || 32) / 2}px;
-`;
+  useEffect(() => {
+    const spinAnimation = Animated.loop(
+      Animated.timing(spinValue, {
+        toValue: 1,
+        duration: 1000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    );
 
-export default function Loader({size, color}: LoaderProps) {
+    spinAnimation.start();
+
+    return () => {
+      spinAnimation.stop();
+    };
+  }, [spinValue]);
+
+  const spin = spinValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "360deg"],
+  });
+
+  const borderWidth = size ? size / 8 : 4;
+
   return (
-    <LoaderContainer size={size}>
+    <View style={styles.container}>
       <Animated.View
-        style={{
-          transform: [{rotate: spinAnimation}],
-        }}>
-        <LoaderCircle size={size} color={color} />
-      </Animated.View>
-    </LoaderContainer>
+        style={[
+          {
+            width: size,
+            height: size,
+            borderRadius: size / 2,
+            borderWidth: borderWidth,
+            borderTopColor: color,
+            borderRightColor: "transparent",
+            borderBottomColor: "transparent",
+            borderLeftColor: "transparent",
+            transform: [{ rotate: spin }],
+          },
+        ]}
+      />
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 8,
+  },
+});

@@ -1,23 +1,28 @@
-import React, {useMemo} from 'react';
-import styled from 'styled-components';
-import {EditIcon} from '../../assets/icons';
+import React, { useMemo } from "react";
+import styled from "styled-components/native";
+import { TouchableOpacity, Image, Text } from "react-native";
+import { EditIcon } from "../../assets/icons";
 import {
   AvatarCircle,
   AvatarImage,
-  FileInput,
+  InitialsText,
   Overlay,
   RemoveButton,
+  RemoveButtonText,
   Wrapper,
-} from '../styled/StyledComponents';
-import {Text} from 'react-native';
+} from "../styled/StyledComponents";
+import { nameToColor } from '../../helpers/hashcolor';
 
 interface ProfileImagePlaceholderProps {
   name?: string;
-  icon?: string | File;
-  onClick?: () => void;
+  icon?: string | { uri: string } | string | File | null;
+  click?: {
+    onPress: () => void;
+    isClick: boolean;
+  };
   size?: number;
   upload?: {
-    onUpload: (image: File) => void;
+    onUpload: (image: any) => void;
     active: boolean;
   };
   remove?: {
@@ -30,13 +35,12 @@ interface ProfileImagePlaceholderProps {
   disableOverlay?: boolean;
 }
 
-const backgroundColors = ['#f44336', '#2196f3', '#4caf50', '#ff9800'];
-
 export const ProfileImagePlaceholder: React.FC<
   ProfileImagePlaceholderProps
 > = ({
   name,
   icon,
+  click,
   size = 64,
   upload,
   remove,
@@ -45,84 +49,90 @@ export const ProfileImagePlaceholder: React.FC<
   placeholderIcon,
   disableOverlay,
 }) => {
-  const randomColor = useMemo(() => {
-    if (!icon) {
-      const index = Math.floor(Math.random() * backgroundColors.length);
-      return backgroundColors[index];
+  const backgroundColor = useMemo(() => {
+    if(!name) {
+      return { backgroundColor: "transparent" };
     }
-    return '';
-  }, [icon]);
+    return nameToColor(name);
+  }, [name]);
 
   const getTwoUppercaseLetters = (fullName: string) => {
-    if (!fullName) return '';
+    if (!fullName) return "";
 
-    const words = fullName.trim().split(' ');
-    const firstLetter = words[0]?.[0]?.toUpperCase() || '';
-    const secondLetter = words[words.length - 1]?.[0]?.toUpperCase() || '';
+    const words = fullName.trim().split(" ").filter(word => word.length > 0);
 
-    return firstLetter + secondLetter;
-  };
+    if (words.length === 0) return "";
 
-  const getInitials = () => (!icon && name ? getTwoUppercaseLetters(name) : '');
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file && upload?.onUpload) {
-      upload.onUpload(file);
+    if (words.length >= 2) {
+      const firstLetter = /^[a-zA-Zа-яА-ЯёЁ]$/.test(words[0]?.[0] || "")
+        ? words[0][0].toUpperCase()
+        : "";
+      const secondLetter = /^[a-zA-Zа-яА-ЯёЁ]$/.test(words[1]?.[0] || "")
+        ? words[1][0].toUpperCase()
+        : "";
+      return firstLetter + secondLetter;
     }
+
+    if (words.length === 1 && words[0].length >= 2) {
+      const firstLetter = /^[a-zA-Zа-яА-ЯёЁ]$/.test(words[0][0] || "")
+        ? words[0][0].toUpperCase()
+        : "";
+      const secondLetter = /^[a-zA-Zа-яА-ЯёЁ]$/.test(words[0][1] || "")
+        ? words[0][1].toUpperCase()
+        : "";
+      return firstLetter + secondLetter;
+    }
+
+    if (words.length === 1 && words[0].length === 1) {
+      return /^[a-zA-Zа-яА-ЯёЁ]$/.test(words[0][0] || "")
+        ? words[0][0].toUpperCase()
+        : "";
+    }
+
+    return "";
   };
 
-  const handleAvatarClick = () => {
-    if (upload?.active) {
-      document.getElementById('avatar-file-input')?.click();
-    }
-  };
+  const getInitials = () => (!icon && name ? getTwoUppercaseLetters(name) : "");
 
   return (
     <Wrapper
-      bgColor={icon ? 'transparent' : randomColor}
+      bgColor={icon ? "transparent" : backgroundColor?.backgroundColor}
       size={size}
-      isClickable={active || !!upload?.active}>
+      isClickable={active || !!upload?.active}
+    >
       <AvatarCircle
-        bgColor={icon ? 'transparent' : randomColor}
+        bgColor={icon ? "transparent" : backgroundColor?.backgroundColor}
         size={size}
-        isClickable={active || (role === 'participant' && !!upload?.active)}
-        onClick={handleAvatarClick}
-        style={{fontSize: size >= 64 ? '24px' : '18px'}}>
+        isClickable={active || !!upload?.active}
+        onPress={
+          upload?.active
+            ? upload.onUpload
+            : click?.isClick
+            ? click.onPress
+            : undefined
+        }
+      >
         {icon ? (
           <AvatarImage
-            src={typeof icon === 'string' ? icon : URL.createObjectURL(icon)}
-            alt="avatar icon"
+            source={typeof icon === "string" ? { uri: icon } : icon}
             size={size}
           />
         ) : placeholderIcon ? (
           placeholderIcon
         ) : (
-          <Text>{getInitials()}</Text>
+          <InitialsText size={size} color="#fff">
+            {getInitials()}
+          </InitialsText>
         )}
-        {upload?.active && (
-          <>
-            <FileInput
-              type="file"
-              id="avatar-file-input"
-              accept="image/png, image/jpeg"
-              onChange={handleFileChange}
-            />
-            {!disableOverlay && (
-              <Overlay>
-                <EditIcon style={{fontSize: size / 2}} color="#fff" />
-              </Overlay>
-            )}
-          </>
+        {upload?.active && !disableOverlay && (
+          <Overlay>
+            <EditIcon style={{ fontSize: size / 2 }} color="#fff" />
+          </Overlay>
         )}
       </AvatarCircle>
-      {remove?.enabled && icon && role !== 'participant' && (
-        <RemoveButton
-          onClick={e => {
-            e.stopPropagation();
-            remove.onRemoveClick();
-          }}>
-          &times;
+      {remove?.enabled && icon && role !== "participant" && (
+        <RemoveButton onPress={remove.onRemoveClick}>
+          <RemoveButtonText>&times;</RemoveButtonText>
         </RemoveButton>
       )}
     </Wrapper>

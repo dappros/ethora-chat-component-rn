@@ -1,6 +1,9 @@
 import { Client, xml } from '@xmpp/client';
 import { createTimeoutPromise } from './createTimeoutPromise.xmpp';
 import { Element } from 'ltx';
+import { IMessage } from '../../types/types';
+import { getDataFromXml } from '../../helpers/getDataFromXml';
+import { createMessageFromXml } from '../../helpers/createMessageFromXml';
 
 export const getHistory = async (
   client: Client,
@@ -8,7 +11,12 @@ export const getHistory = async (
   max: number,
   before?: number,
   otherId?: string
-): Promise<any> => {
+): Promise<IMessage[] | undefined> => {
+  if (typeof chatJID !== 'string') return;
+  const fixedChatJid = chatJID.includes('@')
+    ? chatJID
+    : `${chatJID}@conference.dev.xmpp.ethoradev.com`;
+
   const id = otherId ?? `get-history:${Date.now().toString()}`;
 
   let stanzaHdlrPointer: {
@@ -23,13 +31,13 @@ export const getHistory = async (
   const responsePromise = new Promise((resolve, reject) => {
     let messages: Element[] = [];
 
-    stanzaHdlrPointer = (stanza) => {
+    stanzaHdlrPointer = async (stanza) => {
       const result = stanza.getChild('result');
 
       if (
         stanza.is('message') &&
         stanza.attrs['from'] &&
-        stanza.attrs['from'].startsWith(chatJID) &&
+        stanza.attrs['from'].startsWith(fixedChatJid) &&
         result
       ) {
         const messageEl = result.getChild('forwarded')?.getChild('message');
@@ -42,49 +50,34 @@ export const getHistory = async (
         stanza.attrs['id'] === id &&
         stanza.attrs['type'] === 'result'
       ) {
-        let mainMessages: Record<string, string>[] = [];
+        let mainMessages: IMessage[] = [];
 
         for (const msg of messages) {
+          const reactions = msg?.getChild('reactions');
           const text = msg.getChild('body')?.getText();
 
-          if (text) {
-            let parsedEl: Record<string, string> = {};
+          if (text || reactions) {
+            const result = await getDataFromXml(msg);
+            if (!result) {
+              return;
+            }
+            const { data, id, body, ...rest } = result;
 
-            parsedEl.text = text;
-            parsedEl.from = msg.attrs['from'];
-            parsedEl.id = msg.getChild('archived')?.attrs['id'];
-            parsedEl.created = parsedEl.id.slice(0, 13);
-            const data = msg.getChild('data');
-
-            if (!data || !data.attrs) {
-              continue;
+            if (!data) {
+              console.log('No data in stanza');
+              return;
             }
 
-            for (const [key, value] of Object.entries(data.attrs)) {
-              parsedEl[key] = value as string;
-            }
+            const message = await createMessageFromXml({
+              data,
+              id,
+              body,
+              ...rest,
+            });
 
-            // ignore messages wich has isReply but there is no mainMessage field
-            if (parsedEl.isReply === 'true' && !parsedEl.mainMessage) {
-              continue;
-            }
-
-            // fucntionality to not to add deleted messages into array
-            // if (msg.getChild("deleted")?.attrs["timestamp"]) continue;
-
-            if (parsedEl.mainMessage) {
-              try {
-                parsedEl.mainMessage = JSON.parse(parsedEl.mainMessage);
-              } catch (e) {
-                // ignore message if mainMessage is not parsable
-                continue;
-              }
-            }
-
-            mainMessages.push(parsedEl);
+            mainMessages.push(message);
           }
         }
-        unsubscribe();
         resolve(mainMessages);
       }
 
@@ -93,7 +86,6 @@ export const getHistory = async (
         stanza.attrs.id === id &&
         stanza.attrs.type === 'error'
       ) {
-        unsubscribe();
         reject();
       }
     };
@@ -104,7 +96,7 @@ export const getHistory = async (
       'iq',
       {
         type: 'set',
-        to: chatJID,
+        to: fixedChatJid,
         id: id,
       },
       xml(
@@ -122,45 +114,19 @@ export const getHistory = async (
     client?.send(message).catch((err) => console.log('err on load', err));
   });
 
-  const timeoutPromise = createTimeoutPromise(10000, unsubscribe);
+  const timeoutPromise = createTimeoutPromise(10000);
 
   try {
-    const res = await Promise.race([responsePromise, timeoutPromise]);
-    return res;
+    // @ts-ignore
+    const res: IMessage[] | null = await Promise.race<[IMessage[] | null]>([
+      responsePromise as Promise<IMessage[] | null>,
+      timeoutPromise as Promise<null>,
+    ]);
+    return res === null ? [] : res;
   } catch (e) {
-    console.log('=-> error in', chatJID, e);
-    return null;
+    console.log('=-> error in', fixedChatJid, e);
+    return [];
+  } finally {
+    unsubscribe();
   }
 };
-
-// import { Client, xml } from '@xmpp/client';
-
-// export const getHistory = async (
-//   client: Client,
-//   chatJID: string,
-//   max: number,
-//   before?: number
-// ) => {
-//   const id = `get-history:${Date.now().toString()}`;
-
-//   const message = xml(
-//     'iq',
-//     {
-//       type: 'set',
-//       to: chatJID,
-//       id: id,
-//     },
-//     xml(
-//       'query',
-//       { xmlns: 'urn:xmpp:mam:2' },
-//       xml(
-//         'set',
-//         { xmlns: 'http://jabber.org/protocol/rsm' },
-//         xml('max', {}, max.toString()),
-//         before ? xml('before', {}, before.toString()) : xml('before')
-//       )
-//     )
-//   );
-
-//   client?.send(message).catch((err) => console.log('err on load', err));
-// };
