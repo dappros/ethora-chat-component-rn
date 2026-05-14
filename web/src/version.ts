@@ -1,0 +1,1 @@
+export const ETHORA_CHAT_COMPONENT_VERSION = '26.02.22';
