@@ -229,14 +229,28 @@ const handleComposing = async (stanza: Element, currentUser: string) => {
     const norm = (s?: string) =>
       (s || '').toLowerCase().replace(/_/g, '');
 
-    if (composingUser && norm(currentUser) !== norm(composingUser)) {
+    // Secondary self-check via the <data senderJID="..."> attribute —
+    // covers the case where the MUC resource part differs from the
+    // raw xmppUsername (custom nick formats, JID-mode resources, etc.).
+    const senderJID = stanza.getChild('data')?.attrs?.senderJID || '';
+    const senderLocal = senderJID.split('@')[0] || '';
+    const state = store.getState();
+    const selfUser = state.chatSettingStore?.user;
+    const selfXmppUsername = selfUser?.xmppUsername || '';
+    const selfWallet = selfUser?.walletAddress || '';
+    const isSelf =
+      (composingUser && norm(currentUser) === norm(composingUser)) ||
+      (senderLocal && norm(senderLocal) === norm(selfXmppUsername)) ||
+      (senderLocal && norm(senderLocal).includes(norm(selfWallet)));
+
+    if (composingUser && !isSelf) {
       const chatJID = stanza.attrs?.from.split('/')[0];
 
       let composingList = [];
 
       stanza?.getChild('composing')
         ? composingList.push(
-            stanza.getChild('data').attrs?.fullName?.split(' ')?.[0] || 'User'
+            stanza.getChild('data')?.attrs?.fullName?.split(' ')?.[0] || 'User'
           )
         : composingList.pop();
 

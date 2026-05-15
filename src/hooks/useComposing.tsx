@@ -11,6 +11,11 @@ const useComposing = (config?: IConfig) => {
   const { user } = useChatSettingState();
 
   const sendStartComposing = useCallback(() => {
+    console.log('🟣 [useComposing] start', {
+      hasClient: !!client,
+      room: activeRoomJID,
+      disabled: !!config?.disableTypingIndicator,
+    });
     if (config?.disableTypingIndicator) {
       return;
     }
@@ -21,9 +26,13 @@ const useComposing = (config?: IConfig) => {
         true
       );
     }
-  }, [activeRoomJID]);
+  }, [activeRoomJID, client, config?.disableTypingIndicator, user.firstName, user.lastName]);
 
   const sendEndComposing = useCallback(() => {
+    console.log('🟣 [useComposing] end', {
+      hasClient: !!client,
+      room: activeRoomJID,
+    });
     if (config?.disableTypingIndicator) {
       return;
     }
@@ -34,7 +43,7 @@ const useComposing = (config?: IConfig) => {
         false
       );
     }
-  }, [activeRoomJID]);
+  }, [activeRoomJID, client, config?.disableTypingIndicator, user.firstName, user.lastName]);
 
   useEffect(() => {
     const timerId = setTimeout(() => {
