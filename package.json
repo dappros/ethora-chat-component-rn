@@ -17,7 +17,7 @@
     "react": "18.3.1",
     "react-native": "0.76.5",
     "react-native-reanimated": "^3.16.5",
-    "react-native-svg": "^15.15.5",
+    "react-native-svg": "15.8.0",
     "react-qr-code": "^2.0.15",
     "react-redux": "^9.2.0",
     "styled-components": "^6.1.13"
