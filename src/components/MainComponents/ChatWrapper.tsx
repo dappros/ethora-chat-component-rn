@@ -29,6 +29,7 @@ import ThreadWrapper from '../Thread/ThreadWrapper';
 import {ModalWrapper} from '../Modals/ModalWrapper/ModalWrapper';
 import {useChatSettingState} from '../../hooks/useChatSettingState';
 import {Text} from 'react-native';
+import {pushLog as devPushLog} from '../../utils/devLogger';
 
 interface ChatWrapperProps {
   token?: string;
@@ -128,82 +129,94 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
     }
 
     const initXmmpClient = async () => {
-      dispatch(setConfig(config));
+      // Only sync config to redux if we have one — passing `undefined`
+      // wipes whatever XmppProvider already set up.
+      if (config) dispatch(setConfig(config));
       try {
-        if (!user.defaultWallet || user?.defaultWallet.walletAddress === '') {
-          setShowModal(true);
-          console.log('Error, no user');
-        } else {
-          // If XmppProvider owns bootstrap (config.initBeforeLoad=true),
-          // wait for providerBootstrapStatus before doing anything ourselves.
-          if (
-            config?.initBeforeLoad &&
-            initMode === 'provider' &&
-            providerBootstrapStatus !== 'idle' &&
-            providerBootstrapStatus !== 'ready' &&
-            providerBootstrapStatus !== 'failed'
-          ) {
-            // running — wait, provider's effect will populate `client`.
-            return;
-          }
-          if (
-            config?.initBeforeLoad &&
-            initMode === 'provider' &&
-            providerBootstrapStatus === 'failed'
-          ) {
+        const hasUser =
+          !!user?.defaultWallet?.walletAddress &&
+          user?.defaultWallet.walletAddress !== '' &&
+          !!user?.xmppPassword;
+
+        // initBeforeLoad path — provider owns auth + xmpp connect; we just wait.
+        if (config?.initBeforeLoad && initMode === 'provider') {
+          if (providerBootstrapStatus === 'failed') {
+            devPushLog('error', 'ChatWrapper: bootstrap failed');
             setShowModal(true);
             setInited(false);
             return;
           }
-          if (!client && !storedClient) {
-            setShowModal(false);
-
-            console.log('No client, so initing one');
-            await initializeClient(
-              user.xmppUsername || user.defaultWallet?.walletAddress,
-              user.xmppPassword,
-              config?.xmppSettings,
-            ).then(client => {
-              client.getRoomsStanza().then(() => {
-                client.getChatsPrivateStoreRequestStanza();
-                dispatch(setStoreClient(client));
-                setClient(client);
-              });
-            });
-            setInited(true);
-            {
-              config?.refreshTokens?.enabled && refresh();
-            }
-          } else if (storedClient) {
-            setClient(storedClient);
-            if (!activeRoomJID) {
-              storedClient.getRoomsStanza().then(() => {
-                storedClient.getChatsPrivateStoreRequestStanza();
-              });
-            }
-            setInited(true);
-            {
-              config?.refreshTokens?.enabled && refresh();
-            }
-          } else if (client) {
-            if (!activeRoomJID) {
-              client.getRoomsStanza().then(() => {
-                client.getChatsPrivateStoreRequestStanza();
-              });
-            }
-            client.getChatsPrivateStoreRequestStanza();
-            setInited(true);
-            {
-              config?.refreshTokens?.enabled && refresh();
-            }
+          if (providerBootstrapStatus !== 'ready') {
+            // 'idle' or 'running' → just wait; effect will re-run when status flips.
+            devPushLog(
+              'rn',
+              `ChatWrapper: waiting for provider (${providerBootstrapStatus})`
+            );
+            return;
           }
+          // ready — fall through to client wiring below
         }
+
+        if (!hasUser) {
+          // No user yet. In initBeforeLoad mode this is normal during the
+          // bootstrap window; show the loader (no modal). In legacy mode
+          // it's an error.
+          if (config?.initBeforeLoad) {
+            devPushLog('rn', 'ChatWrapper: no user yet, awaiting provider');
+            setShowModal(false);
+            return;
+          }
+          devPushLog('error', 'ChatWrapper: no user (legacy login path)');
+          setShowModal(true);
+          return;
+        }
+
+        // We have a user. Modal should be down.
+        setShowModal(false);
+
+        if (!client && !storedClient) {
+          devPushLog('rn', 'ChatWrapper: initing xmpp client (legacy path)');
+          await initializeClient(
+            user.xmppUsername || user.defaultWallet?.walletAddress,
+            user.xmppPassword,
+            config?.xmppSettings,
+          ).then(c => {
+            c.getRoomsStanza().then(() => {
+              c.getChatsPrivateStoreRequestStanza();
+              dispatch(setStoreClient(c));
+              setClient(c);
+            });
+          });
+          setInited(true);
+          if (config?.refreshTokens?.enabled) refresh();
+        } else if (storedClient) {
+          devPushLog('rn', 'ChatWrapper: reusing storedClient');
+          setClient(storedClient);
+          if (!activeRoomJID) {
+            storedClient.getRoomsStanza().then(() => {
+              storedClient.getChatsPrivateStoreRequestStanza();
+            });
+          }
+          setInited(true);
+          if (config?.refreshTokens?.enabled) refresh();
+        } else if (client) {
+          devPushLog('rn', 'ChatWrapper: reusing provider client');
+          if (!activeRoomJID) {
+            client.getRoomsStanza().then(() => {
+              client.getChatsPrivateStoreRequestStanza();
+            });
+          }
+          client.getChatsPrivateStoreRequestStanza();
+          setInited(true);
+          if (config?.refreshTokens?.enabled) refresh();
+        }
+
         dispatch(setIsLoading({loading: false}));
       } catch (error) {
+        devPushLog('error', 'ChatWrapper: init failed', error);
         setShowModal(true);
         setInited(false);
         dispatch(setIsLoading({loading: false}));
-        console.log(error);
       }
     };
 
@@ -216,7 +229,15 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
     config?.initBeforeLoad,
   ]);
 
-  if (user.xmppPassword === '' && user.xmppUsername === '')
+  // Skip the legacy email/password LoginForm entirely when XmppProvider
+  // is driving auth via initBeforeLoad — the bootstrap effect will
+  // populate the user shortly. Showing LoginForm here causes a flicker
+  // and (worse) a stale form that races against the in-flight bootstrap.
+  if (
+    user.xmppPassword === '' &&
+    user.xmppUsername === '' &&
+    !config?.initBeforeLoad
+  )
     return <LoginForm config={config} />;
 
   return (

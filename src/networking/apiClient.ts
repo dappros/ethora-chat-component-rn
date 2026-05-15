@@ -90,7 +90,10 @@ const processQueue = (newAccessToken: string) => {
 http.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (!store.getState().chatSettingStore?.config?.refreshTokens?.enabled) {
+    // BUGFIX: the original condition was `if (!enabled)` — inverted, so
+    // turning `refreshTokens.enabled: true` actually DISABLED the refresh
+    // path on 401. Use the correct sense.
+    if (store.getState().chatSettingStore?.config?.refreshTokens?.enabled) {
       if (
         store.getState().chatSettingStore?.config?.refreshTokens
           ?.refreshFunction

@@ -35,6 +35,7 @@ import { runHistoryPreloadScheduler } from '../helpers/historyPreloadScheduler';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { localStorageConstants } from '../helpers/constants/LOCAL_STORAGE';
 import { clearPersistedState } from '../roomStore/persistence';
+import { pushLog as devPushLog } from '../utils/devLogger';
 
 interface InitMode {
   current: 'provider' | 'chat';
@@ -143,21 +144,35 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
         config?.xmppSettings?.devServer || '',
       ].join('|');
 
-      if (completedBootstrapKeyRef.current === key) return;
-      if (inflightBootstrapKeyRef.current === key) return;
+      if (completedBootstrapKeyRef.current === key) {
+        devPushLog('rn', 'initBeforeLoad: already completed (same key) — skip');
+        return;
+      }
+      if (inflightBootstrapKeyRef.current === key) {
+        devPushLog('rn', 'initBeforeLoad: in-flight (same key) — skip');
+        return;
+      }
       inflightBootstrapKeyRef.current = key;
       setProviderBootstrapStatus('running');
+      devPushLog('rn', 'initBeforeLoad: running', {
+        appId: config?.appId,
+        baseUrl: config?.baseUrl,
+        mode:
+          config?.jwtLogin?.enabled ? 'jwt' :
+          config?.userLogin?.enabled ? 'userLogin' :
+          config?.customLogin?.enabled ? 'customLogin' : 'fallback',
+      });
 
       try {
-        // clearStoreBeforeInit: wipe rooms + user before resolving, so
-        // any stale persisted state from a prior tenant/account is gone.
         if (config?.clearStoreBeforeInit) {
+          devPushLog('rn', 'initBeforeLoad: clearStoreBeforeInit');
           store.dispatch(setLogoutState());
           store.dispatch(logout());
           await useLocalStorage(localStorageConstants.ETHORA_USER).remove().catch(() => undefined);
         }
 
         await ensureScopedChatCache(config);
+        devPushLog('rn', 'initBeforeLoad: scope ok, resolving user…');
 
         const resolved: User | null = await resolveInitBeforeLoadUser({
           config,
@@ -166,15 +181,19 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
         if (cancelled) return;
 
         if (!resolved || !resolved.xmppPassword || !resolved.xmppUsername) {
-          // No valid creds yet — back to idle so login path can take over.
+          devPushLog('error', 'initBeforeLoad: user resolve failed', {
+            hasResolved: !!resolved,
+            xmppUsername: resolved?.xmppUsername,
+            xmppPasswordPresent: !!resolved?.xmppPassword,
+          });
           setProviderBootstrapStatus('failed');
           inflightBootstrapKeyRef.current = '';
           return;
         }
 
+        devPushLog('rn', `initBeforeLoad: user resolved (${resolved.xmppUsername})`);
         applyResolvedUserToStore(resolved);
 
-        // Fire REST prefetch in parallel — does NOT block xmpp connect.
         prefetchRoomsViaRest().catch(() => undefined);
 
         const c = await initializeClient(
@@ -183,26 +202,30 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
           config?.xmppSettings
         );
         if (cancelled) return;
+        devPushLog('rn', 'initBeforeLoad: xmpp client created, waiting online…');
 
         await c.waitForOnline();
         if (cancelled) return;
+        devPushLog('xmpp', 'initBeforeLoad: xmpp online');
 
-        // Cache room list + private store timestamps for ChatWrapper.
         try {
           await c.getRoomsStanza();
+          devPushLog('xmpp', 'initBeforeLoad: getRoomsStanza ok');
         } catch (e) {
-          console.warn('initBeforeLoad: getRoomsStanza failed', e);
+          devPushLog('warn', 'initBeforeLoad: getRoomsStanza failed', e);
         }
         try {
           await c.getChatsPrivateStoreRequestStanza();
+          devPushLog('xmpp', 'initBeforeLoad: privateStore ok');
         } catch (e) {
-          console.warn('initBeforeLoad: privateStore failed', e);
+          devPushLog('warn', 'initBeforeLoad: privateStore failed', e);
         }
 
         store.dispatch(setStoreClient(c));
         completedBootstrapKeyRef.current = key;
         inflightBootstrapKeyRef.current = '';
         setProviderBootstrapStatus('ready');
+        devPushLog('rn', 'initBeforeLoad: READY');
 
         // Background-prefetch history for every room (fire-and-forget).
         const qos = config?.historyQoS;
@@ -220,9 +243,13 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
           pageSize: qos?.stagedPreloadFirstPassSize,
           roomLimit: qos?.preloadTopKRooms,
         }).catch((err) => console.warn('History preload scheduler failed', err));
-      } catch (error) {
+      } catch (error: any) {
         if (cancelled) return;
-        console.error('initBeforeLoad bootstrap failed:', error);
+        devPushLog('error', 'initBeforeLoad: bootstrap threw', {
+          message: error?.message,
+          status: error?.response?.status,
+          data: error?.response?.data,
+        });
         inflightBootstrapKeyRef.current = '';
         setProviderBootstrapStatus('failed');
       }

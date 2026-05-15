@@ -121,7 +121,11 @@ const LoginWrapper: React.FC<LoginWrapperProps> = ({...props}) => {
           </CustomButton>
         </Container>
       ) : (
-        <ChatWrapper />
+        // CRITICAL: forward props so `ChatWrapper` sees `config` (and
+        // therefore `initBeforeLoad`, `xmppSettings`, `refreshTokens`,
+        // etc.). Without this, ChatWrapper's effect can't tell that
+        // XmppProvider owns bootstrap and races against it.
+        <ChatWrapper {...props} />
       )}
     </>
   );
