@@ -186,11 +186,15 @@ const SendInput: React.FC<SendInputProps> = ({
       msgLen: message?.length || 0,
       files: filePreviews.length,
     });
+    // Send media first (so it lands above the caption), then the text
+    // — previously it was either-or, so the user could never attach a
+    // file AND type a caption in the same tap.
     if (filePreviews.length > 0) {
       filePreviews.forEach((file) => {
         sendMedia(file, file.type);
       });
-    } else if (message) {
+    }
+    if (message) {
       sendMessage(message);
     }
     setMessage('');

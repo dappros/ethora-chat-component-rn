@@ -72,8 +72,22 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
   const dispatch = useDispatch();
 
   const { client } = useXmppClient();
-  const { user: stateUser } = useChatSettingState();
+  const { user: stateUser, config } = useChatSettingState();
   const activeRoom = useSelector((state: RootState) => getActiveRoom(state));
+
+  // Pull live member list from the MUC when the modal opens — REST
+  // hydration only fills the *count* (item.participants /
+  // item.members.length); the actual roster comes from a `getRoomMembers`
+  // IQ which onGetMembers in stanzaHandlers parses into `roomMembers`.
+  useEffect(() => {
+    if (client && activeRoom?.jid) {
+      try {
+        client.getRoomMembersStanza?.(activeRoom.jid);
+      } catch {
+        /* non-fatal */
+      }
+    }
+  }, [client, activeRoom?.jid]);
 
   const checkPermission = async (permission: Permission) => {
     const status = await check(permission);
@@ -185,7 +199,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
         updateRoom({
           jid: activeRoom?.jid || '',
           updates: {
-            members: activeRoom?.members?.filter(
+            roomMembers: activeRoom?.roomMembers?.filter(
               (user) => user.xmppUsername !== userId
             ),
           },
@@ -319,14 +333,18 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
             <SelectUsersModal />
           </>
         )}
-        <BorderedContainer>
-          <LabelData>Description</LabelData>
-          <Label>{activeRoom?.description}</Label>
-        </BorderedContainer>
-        <BorderedContainer>
-          <LabelData>Chat type</LabelData>
-          <Label>{activeRoom.type}</Label>
-        </BorderedContainer>
+        {!config?.disableChatInfo?.disableDescription && (
+          <BorderedContainer>
+            <LabelData>Description</LabelData>
+            <Label>{activeRoom?.description || '—'}</Label>
+          </BorderedContainer>
+        )}
+        {!config?.disableChatInfo?.disableType && (
+          <BorderedContainer>
+            <LabelData>Chat type</LabelData>
+            <Label>{activeRoom.type || '—'}</Label>
+          </BorderedContainer>
+        )}
         {/* <BorderedContainer
           style={{
             justifyContent: 'space-between',
@@ -344,16 +362,21 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
             />
           </Label>
         </BorderedContainer> */}
+        {!config?.disableChatInfo?.hideMembers && (
         <BorderedContainer style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
           {loading ? (
             <Loader />
+          ) : (activeRoom?.roomMembers?.length ?? 0) === 0 ? (
+            <Label style={{ opacity: 0.6, textAlign: 'center', paddingVertical: 8 }}>
+              Member list unavailable
+            </Label>
           ) : (
             <ScrollView
               style={{ maxHeight: 400 }}
               showsVerticalScrollIndicator={true}
               nestedScrollEnabled={true}
             >
-              {activeRoom?.members?.map((user, index) => (
+              {activeRoom?.roomMembers?.map((user, index) => (
                 <View
                   key={user.xmppUsername}
                   style={{
@@ -428,12 +451,13 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
                         />
                       )}
                   </View>
-                  {index < (activeRoom?.members?.length || 0) - 1 && <Divider />}
+                  {index < (activeRoom?.roomMembers?.length || 0) - 1 && <Divider />}
                 </View>
               ))}
             </ScrollView>
           )}
         </BorderedContainer>
+        )}
       </CenterContainer>
 
       <DeleteChatModal

@@ -531,8 +531,14 @@ export class XmppClient {
     } catch (error) {}
   }
 
-  sendMediaMessageStanza(roomJID: string, data: any, _id?: string) {
-    sendMediaMessage(this.client, roomJID, data);
+  sendMediaMessageStanza(roomJID: string, data: any, customId?: string) {
+    return sendMediaMessage(
+      this.client,
+      roomJID,
+      data,
+      customId,
+      this.devServer || DEFAULT_DEV_SERVER
+    );
   }
 
   // -------------------------------------------------------------------

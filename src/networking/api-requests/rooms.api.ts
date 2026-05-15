@@ -56,13 +56,27 @@ function dispatchRoomsFromRestItems(items: ApiRoom[]): void {
       jid,
       name: item.name,
       title: item.title || item.name,
-      usersCnt: item.members?.length ?? 0,
+      usersCnt: item.participants ?? item.members?.length ?? 0,
       messages: [],
       isLoading: false,
       roomBg: '',
       icon: item.picture || item.icon,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
+      description: (item as any).description,
+      type: (item as any).type,
+      // ChatProfileModal renders this list under the description/type
+      // fields. The REST API returns `members` (an array of {_id,
+      // firstName?, lastName?}); map to the shape RoomMember expects.
+      roomMembers: (item.members || []).map((m: any) => ({
+        firstName: m.firstName,
+        lastName: m.lastName,
+        xmppUsername: m._id || '',
+        role: m.role,
+        ban_status: m.ban_status,
+        last_active: m.last_active,
+        jid: m.jid || '',
+      })) as any,
     };
     store.dispatch(addRoom({ roomData: room }));
   }

@@ -163,6 +163,37 @@ export const useSendMessage = (_configOverride?: IConfig) => {
 
       client?.onCriticalSend?.(activeRoomJID);
 
+      // Optimistic pending bubble — same pattern as text send. Render
+      // a placeholder with `isMediafile: true` so MessageBubble shows
+      // a media-shaped pending tile while the upload + send is in
+      // flight; replaced in-place by the server echo via xmppId dedupe.
+      const optimisticId = `send-media-message-${Date.now()}`;
+      const optimisticDate = new Date().toISOString();
+      const selfId =
+        (user as any)?.xmppUsername || (user as any)?.walletAddress || '';
+      const placeholderMessage: IMessage = {
+        id: optimisticId,
+        xmppId: optimisticId,
+        body: 'media',
+        roomJid: activeRoomJID,
+        date: optimisticDate,
+        pending: true,
+        isDeleted: false,
+        isMediafile: 'true',
+        mimetype: type,
+        originalName: data?.name,
+        user: {
+          ...(user as any),
+          id: selfId,
+          name: `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || selfId,
+        } as any,
+      } as IMessage;
+      if (!config?.disableSentLogic) {
+        dispatch(
+          addRoomMessage({ roomJID: activeRoomJID, message: placeholderMessage })
+        );
+      }
+
       try {
         const response = await uploadFile(mediaData);
         response.data.results.forEach(async (item: any) => {
@@ -192,7 +223,9 @@ export const useSendMessage = (_configOverride?: IConfig) => {
             isPrivate: item?.isPrivate,
             __v: item.__v,
           };
-          client?.sendMediaMessageStanza(activeRoomJID, payload);
+          // Pass optimisticId as the stanza id so the echo's outer
+          // id matches our placeholder's xmppId and dedup'es in place.
+          client?.sendMediaMessageStanza(activeRoomJID, payload, optimisticId);
           await handleMessageSent({
             message: item.location || '',
             roomJID: activeRoomJID,

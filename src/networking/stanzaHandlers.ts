@@ -297,22 +297,32 @@ const onChatInvite = async (stanza: Element, client: any) => {
 
 const onGetMembers = (stanza: Element) => {
   const jid = store.getState().rooms.activeRoomJID;
-  if (stanza.attrs.id.toString() === 'roomMemberInfo') {
-    const parser = new DOMParser();
-    const xmlDoc = parser.parseFromString(stanza.toString(), 'text/xml');
-
-    // Extract activities
-    const roomMembers = Array.from(xmlDoc.getElementsByTagName('activity')).map(
-      (activity) => ({
-        name: activity.getAttribute('name'),
-        role: activity.getAttribute('role'),
-        ban_status: activity.getAttribute('ban_status'),
-        last_active: Number(activity.getAttribute('last_active')),
-        jid: activity.getAttribute('jid'),
-      })
-    );
-
-    store.dispatch(updateRoom({ jid, updates: { roomMembers } }));
+  // Defensive: many iq stanzas don't have an id (server pings,
+  // disco#info responses, etc.).
+  if (String(stanza.attrs?.id || '') !== 'roomMemberInfo') {return;}
+  // The original implementation used the browser-only DOMParser, which
+  // throws `ReferenceError: Property 'DOMParser' doesn't exist` in
+  // React Native. Walk the ltx element tree directly instead — the
+  // shape is the same: nested <query><activity .../></query> children.
+  try {
+    const queries = (stanza as any).getChildren?.('query') || [];
+    const activities: any[] = [];
+    for (const q of queries) {
+      const acts = q?.getChildren?.('activity') || [];
+      for (const a of acts) {activities.push(a);}
+    }
+    const roomMembers = activities.map((a: any) => ({
+      name: a?.attrs?.name,
+      role: a?.attrs?.role,
+      ban_status: a?.attrs?.ban_status,
+      last_active: Number(a?.attrs?.last_active),
+      jid: a?.attrs?.jid,
+    }));
+    if (jid) {
+      store.dispatch(updateRoom({ jid, updates: { roomMembers } as any }));
+    }
+  } catch (err) {
+    console.warn('onGetMembers parse failed', err);
   }
 };
 

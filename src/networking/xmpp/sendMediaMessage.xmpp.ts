@@ -1,13 +1,32 @@
 import { Client, xml } from '@xmpp/client';
 
+/**
+ * Same xmlns derivation as sendTextMessage — the server registers app
+ * messages under the WSS service URL (`wss://<host>/ws`), and stanzas
+ * carrying a bare hostname (or no xmlns at all) get silently dropped.
+ */
+const toServiceXmlns = (devServer: string | undefined, client: Client): string => {
+  const clientService = (client as any)?.options?.service as string | undefined;
+  if (clientService && /^wss?:\/\//.test(clientService)) {return clientService;}
+  const ds = (devServer || '').trim();
+  if (!ds) {return 'wss://xmpp.ethoradev.com/ws';}
+  if (/^wss?:\/\//.test(ds)) {return ds;}
+  if (ds.includes('://')) {return ds;}
+  return `wss://${ds.replace(/^\/+|\/+$/g, '')}/ws`;
+};
+
 export function sendMediaMessage(
   client: Client,
   roomJID: string,
   data: any,
-  id: string
+  customId?: string,
+  devServer?: string
 ) {
+  const id =
+    customId || `send-media-message-${Date.now().toString()}`;
 
   const dataToSend = {
+    xmlns: toServiceXmlns(devServer, client),
     senderJID: client.jid?.toString(),
     senderFirstName: data.firstName,
     senderLastName: data.lastName,
@@ -53,5 +72,26 @@ export function sendMediaMessage(
     xml('data', dataToSend)
   );
 
-  client.send(message);
+  console.log('🟢 [sendMediaMessage] sending stanza', {
+    id,
+    to: roomJID,
+    mime: data?.mimetype,
+    name: data?.fileName,
+  });
+  try {
+    const sendResult = client.send(message);
+    if (sendResult && typeof (sendResult as any).then === 'function') {
+      (sendResult as Promise<unknown>)
+        .then(() => console.log('🟢 [sendMediaMessage] client.send resolved', { id }))
+        .catch((err) =>
+          console.error('🔴 [sendMediaMessage] client.send REJECTED', {
+            id,
+            message: (err as any)?.message,
+          })
+        );
+    }
+  } catch (error) {
+    console.error('🔴 [sendMediaMessage] sync error', error);
+  }
+  return id;
 }
