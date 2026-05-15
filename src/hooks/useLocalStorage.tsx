@@ -1,8 +1,12 @@
-import { useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// NOTE: This is misnamed — it's a plain helper, not a React hook. It's
+// invoked from reducers (chatSettingsSlice.setUser/refreshTokens/logout)
+// and from `resolveInitBeforeLoadUser`, neither of which are inside a
+// React render. `useCallback`/`useState` etc. would throw "null reading
+// useCallback" outside a render. Keep these as straight functions.
 export function useLocalStorage<T>(key: string) {
-  const get = useCallback(async (): Promise<T | null> => {
+  const get = async (): Promise<T | null> => {
     try {
       const storedValue = await AsyncStorage.getItem(key);
       if (!storedValue) return null;
@@ -11,16 +15,16 @@ export function useLocalStorage<T>(key: string) {
       console.error('Failed to read from AsyncStorage', error);
       return null;
     }
-  }, [key]);
+  };
 
-  const set = useCallback(async (value: T) => {
+  const set = async (value: T) => {
     try {
       const stringValue = JSON.stringify(value);
       await AsyncStorage.setItem(key, stringValue);
     } catch (error) {
       console.error('Failed to write to AsyncStorage', error);
     }
-  }, [key]);
+  };
 
   const update = async (updates: Partial<T>) => {
     try {

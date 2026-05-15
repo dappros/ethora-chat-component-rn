@@ -254,7 +254,9 @@ const ToastRow: React.FC<{
   );
 };
 
-const positionToStyle = (position?: IConfig['inAppNotifications']['position']) => {
+const positionToStyle = (
+  position?: NonNullable<IConfig['inAppNotifications']>['position']
+) => {
   const horizontal = position?.horizontal || 'left';
   const vertical = position?.vertical || 'bottom';
   const offset = position?.offset || {};

@@ -1,3 +1,5 @@
+import type { ViewStyle, ImageSourcePropType } from 'react-native';
+import type { Iso639_1Codes } from './models/language.model';
 import { MODAL_TYPES } from '../helpers/constants/MODAL_TYPES';
 
 export interface IUser extends Partial<User> {
@@ -62,6 +64,9 @@ export interface IRoom {
   historyPreloadState?: HistoryPreloadState;
   historyComplete?: boolean;
   unreadCapped?: boolean;
+
+  // Last-message tracking (driven by newMessageMidlleware).
+  lastMessageTimestamp?: number;
 }
 
 export interface RoomMember {
@@ -209,21 +214,70 @@ export type ProviderBootstrapStatus =
   | 'ready'
   | 'failed';
 
+export interface FBConfig {
+  apiKey: string;
+  authDomain: string;
+  projectId: string;
+  storageBucket: string;
+  messagingSenderId: string;
+  appId: string;
+}
+
+export interface MessageBubble {
+  backgroundMessage?: string;
+  backgroundMessageUser?: string;
+  colorUser?: string;
+  color?: string;
+}
+
+export interface PartialRoomWithMandatoryKeys {
+  jid: string;
+  name?: string;
+  title?: string;
+  icon?: string;
+  pinned?: boolean;
+}
+
 export interface IConfig {
+  // ----- identity / network -----
   appId?: string;
+  baseUrl?: string;
+  customAppToken?: string;
+  projectName?: string;
+
+  // ----- theming -----
+  colors?: { primary: string; secondary: string };
+  messageColor?: {
+    backgroundMessage: string;
+    backgroundMessageUser: string;
+    colorUser: string;
+    color: string;
+  };
+  backgroundChat?: {
+    color?: string;
+    image?: string | ImageSourcePropType;
+  };
+  bubleMessage?: MessageBubble;
+  headerLogo?: string | React.ReactElement;
+
+  // ----- header / nav -----
   disableHeader?: boolean;
   disableMedia?: boolean;
-  colors?: { primary: string; secondary: string };
+  chatHeaderBurgerMenu?: boolean;
+  chatHeaderAdditional?: { enabled: boolean; element: any };
+  headerMenu?: () => void;
+  headerChatMenu?: () => void;
+  chatHeaderSettings?: {
+    hide?: boolean;
+    disableCreate?: boolean;
+    disableMenu?: boolean;
+    hideSearch?: boolean;
+  };
+
+  // ----- auth -----
   googleLogin?: {
     enabled: boolean;
-    firebaseConfig: {
-      apiKey: string;
-      authDomain: string;
-      projectId: string;
-      storageBucket: string;
-      messagingSenderId: string;
-      appId: string;
-    };
+    firebaseConfig: FBConfig;
   };
   // Legacy: exchanges a client JWT via /v1/users/client. Prefer userLogin
   // or customLogin for new integrations.
@@ -242,19 +296,7 @@ export interface IConfig {
     enabled: boolean;
     loginFunction: () => Promise<User | null>;
   };
-  baseUrl?: string;
-  customAppToken?: string;
-  xmppSettings?: xmppSettingsInterface;
-  disableRooms?: boolean;
   defaultLogin?: boolean;
-  disableInteractions?: boolean;
-  chatHeaderBurgerMenu?: boolean;
-  forceSetRoom?: boolean;
-  roomListStyles?: React.CSSProperties;
-  chatRoomStyles?: React.CSSProperties;
-  setRoomJidInPath?: boolean;
-  disableRoomMenu?: boolean;
-  defaultRooms?: string[] | ConfigRoom[];
   refreshTokens?: {
     enabled: boolean;
     refreshFunction?: () => Promise<{
@@ -262,15 +304,111 @@ export interface IConfig {
       refreshToken?: string;
     } | null>;
   };
+
+  // ----- bootstrap -----
   initBeforeLoad?: boolean;
   initBeforeLoadAuth?: {
     myEndpoint?: string;
   };
   clearStoreBeforeInit?: boolean;
-  disableLastRead?: boolean;
+  newArch?: boolean;
   useStoreConsoleEnabled?: boolean;
+
+  // ----- xmpp / QoS -----
+  xmppSettings?: xmppSettingsInterface;
+  disableLastRead?: boolean;
   historyQoS?: HistoryQoSConfig;
+
+  // ----- room list -----
+  disableRooms?: boolean;
+  disableRoomMenu?: boolean;
+  forceSetRoom?: boolean;
+  defaultRooms?: string[] | ConfigRoom[];
+  setRoomJidInPath?: boolean; // web-only semantics; no-op on RN
+  customRooms?: {
+    rooms: PartialRoomWithMandatoryKeys[];
+    disableGetRooms?: boolean;
+    singleRoom: boolean;
+  };
+  enableRoomsRetry?: { enabled: boolean; helperText: string };
+  disableNewChatButton?: boolean;
+  disableRoomConfig?: boolean;
+  disableChatInfo?: {
+    disableHeader?: boolean;
+    disableDescription?: boolean;
+    disableType?: boolean;
+    disableMembers?: boolean;
+    hideMembers?: boolean;
+    disableChatHeaderMenu?: boolean;
+  };
+  qrUrl?: string;
+
+  // ----- styling -----
+  roomListStyles?: ViewStyle;
+  chatRoomStyles?: ViewStyle;
+
+  // ----- interactions / messages -----
+  disableInteractions?: boolean;
+  disableProfilesInteractions?: boolean;
+  disableUserCount?: boolean;
+  disableSentLogic?: boolean;
+  disableTypingIndicator?: boolean;
+  botMessageAutoScroll?: boolean;
+  blockMessageSendingWhenProcessing?:
+    | boolean
+    | {
+        enabled: boolean;
+        timeout?: number;
+        onTimeout?: (roomJID: string) => void;
+      };
+  messageTextFilter?: {
+    enabled: boolean;
+    filterFunction: (text: string) => string;
+  };
+  secondarySendButton?: {
+    enabled: boolean;
+    messageEdit: string;
+    buttonText?: string;
+    label?: React.ReactNode;
+    buttonStyles?: ViewStyle;
+    hideInputSendButton?: boolean;
+    overwriteEnterClick?: true;
+  };
+  customTypingIndicator?: {
+    enabled: boolean;
+    text?: string | ((usersTyping: string[]) => string);
+    position?: 'bottom' | 'top' | 'overlay' | 'floating';
+    styles?: ViewStyle;
+    customComponent?: React.ComponentType<{
+      usersTyping: string[];
+      text: string;
+      isVisible: boolean;
+    }>;
+  };
+  whitelistSystemMessage?: string[];
+  customSystemMessage?: React.ComponentType<MessageProps>;
+
+  // ----- translations -----
+  translates?: { enabled: boolean; translations?: Iso639_1Codes };
+  enableTranslates?: boolean;
+
+  // ----- notifications -----
   inAppNotifications?: InAppNotificationConfig;
+  pushNotifications?: {
+    enabled?: boolean;
+    iconPath?: string;
+    badgePath?: string;
+    onClick?: (params: {
+      roomJID?: string;
+      messageId?: string;
+      data?: Record<string, any>;
+      notification?: { title?: string; body?: string };
+    }) => void | Promise<void>;
+    onNotificationPress?: (data: any) => void;
+    firebaseConfig?: FBConfig;
+  };
+
+  // ----- event hooks -----
   eventHandlers?: {
     onMessageSent?: (event: {
       message: string;
@@ -348,3 +486,8 @@ export interface ModalFile {
   fileURL: string;
   mimetype: string;
 }
+
+// Re-export so middleware/hooks that historically import from `types`
+// keep working without reaching into `types/models/...`.
+export type { ReactionAction } from './models/action.model';
+export type { Iso639_1Codes } from './models/language.model';

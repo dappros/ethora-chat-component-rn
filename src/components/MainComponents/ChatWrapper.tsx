@@ -93,6 +93,10 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
   };
 
   const handleDeleteClick = () => {
+    if (!client || !deleteModal?.roomJid || !deleteModal?.messageId) {
+      dispatch(setDeleteModal({isDeleteModal: false}));
+      return;
+    }
     client.deleteMessageStanza(deleteModal.roomJid, deleteModal.messageId);
     dispatch(setDeleteModal({isDeleteModal: false}));
   };
@@ -181,7 +185,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
             {
               config?.refreshTokens?.enabled && refresh();
             }
-          } else {
+          } else if (client) {
             if (!activeRoomJID) {
               client.getRoomsStanza().then(() => {
                 client.getChatsPrivateStoreRequestStanza();

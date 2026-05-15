@@ -233,7 +233,20 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
     return () => {
       cancelled = true;
       abortController.abort();
+      // Re-running this effect (deps changed or unmount) must release the
+      // in-flight bootstrap key so the next render isn't permanently
+      // short-circuited by the early `inflightBootstrapKeyRef === key`
+      // check. Without this, a `setClient` mid-bootstrap that re-renders
+      // the provider strands the bootstrap in `running`.
+      inflightBootstrapKeyRef.current = '';
     };
+    // NOTE: `initializeClient` is intentionally NOT in the dep array.
+    // It's a `useCallback` that depends on `client` state; including it
+    // would force the effect to re-run every time `setClient` fires
+    // (which happens DURING bootstrap), causing a cancel/re-init storm.
+    // The function is still reachable through closure; its identity drift
+    // is irrelevant to bootstrap semantics.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     config?.initBeforeLoad,
     config?.appId,
@@ -245,7 +258,6 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
     config?.jwtLogin?.enabled,
     config?.jwtLogin?.token,
     config?.xmppSettings?.devServer,
-    initializeClient,
   ]);
 
   // -----------------------------------------------------------

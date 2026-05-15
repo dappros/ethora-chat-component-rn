@@ -30,10 +30,15 @@ export const unreadMiddleware: Middleware =
           if (previousMessagesCount[jid] !== currentMessagesLength) {
             previousMessagesCount[jid] = currentMessagesLength;
 
+            // Mirror `countNewerMessages` in roomsSlice: ignore the
+            // "delimiter-new" sentinel + locally-pending sends so the
+            // two paths never disagree.
             const unreadMessagesCount = room.messages?.filter(
               (msg: IMessage) =>
                 msg.id !== 'delimiter-new' &&
-                new Date(msg.date).getTime() > (room.lastViewedTimestamp || 0)
+                !msg.pending &&
+                new Date(msg.date).getTime() >
+                  (room.lastViewedTimestamp || 0)
             ).length;
 
             if (room.unreadMessages !== unreadMessagesCount) {

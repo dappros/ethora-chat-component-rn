@@ -1,24 +1,37 @@
+// Canonical xmpp types now live in `src/types/types.ts`. This file
+// re-exports them so callers importing from `types/models/xmpp.model`
+// stay aligned with the flow layer. Add NEW fields/methods to
+// `src/types/types.ts` (or `src/networking/xmppClient.ts` for class
+// methods) rather than duplicating here.
+
 import { Client } from '@xmpp/client';
-import { Iso639_1Codes } from './language.model';
 import XmppClient from '../../networking/xmppClient';
+import { Iso639_1Codes } from './language.model';
 import { IMessage } from './message.model';
+
+export type { xmppSettingsInterface, HistoryQoSConfig } from '../types';
 
 export interface XmppState {
   client: XmppClient | null;
   loading: boolean;
 }
 
-export interface xmppSettingsInterface {
-  devServer: string;
-  host: string;
-  conference?: string;
-  xmppPingOnSendEnabled?: boolean;
-}
-
 export interface MediaUploadData {
-  file: File;
+  file: any; // RN: usually a {uri,name,type} object; web: File
   type: string;
   name?: string;
+}
+
+export type HistorySource =
+  | 'active'
+  | 'send_ack'
+  | 'background'
+  | 'default';
+
+export interface HistoryFetchOptions {
+  coalesceRoom?: boolean;
+  skipIfPreloaded?: boolean;
+  source?: HistorySource;
 }
 
 export interface XmppClientInterface {
@@ -29,20 +42,37 @@ export interface XmppClientInterface {
   conference: string;
   username: string;
   status: string;
-  resource: string;
 
   password: string;
   reconnectAttempts: number;
   maxReconnectAttempts: number;
   reconnectDelay: number;
 
+  // ---- lifecycle ----
   checkOnline(): boolean;
   initializeClient(): void;
   attachEventListeners(): void;
-  reconnect(): Promise<void>;
+  reconnect(): void;
   close(): Promise<void>;
   ensureConnected(timeout?: number): Promise<void>;
+  waitForOnline(timeout?: number): Promise<void>;
+  disconnect?(options?: { suppressReconnect?: boolean }): Promise<void>;
 
+  // ---- QoS / MAM ----
+  setActiveRoomJid(roomJID: string | null): void;
+  isActiveRoomGateOpen(): boolean;
+  promoteRoomHistory(roomJID: string): void;
+  onCriticalSend(roomJID: string, messageId?: string): void;
+  prioritizeRoomPresence(roomJID: string): Promise<boolean>;
+  enqueueHistoryTask(params: {
+    chatJID: string;
+    max: number;
+    before?: number;
+    id?: string;
+    source?: HistorySource;
+  }): Promise<any>;
+
+  // ---- rooms ----
   getRoomsStanza(disableGetRooms?: boolean): Promise<void>;
   createRoomStanza(
     title: string,
@@ -56,7 +86,8 @@ export interface XmppClientInterface {
     chatJID: string,
     max: number,
     before?: number,
-    otherStanzaId?: string
+    otherStanzaId?: string,
+    options?: HistoryFetchOptions
   ): Promise<IMessage[]>;
   getLastMessageArchiveStanza(roomJID: string): void;
   setRoomImageStanza(
@@ -67,8 +98,14 @@ export interface XmppClientInterface {
   ): void;
   getRoomInfoStanza(roomJID: string): void;
   getRoomMembersStanza(roomJID: string): void;
-  setVCardStanza(xmppUsername: string): void;
+  setVCardStanza?(xmppUsername: string): void;
+  createPrivateRoomStanza?(
+    title: string,
+    description: string,
+    to: string
+  ): Promise<string>;
 
+  // ---- messages ----
   sendMessage(
     roomJID: string,
     firstName: string,
@@ -95,23 +132,14 @@ export interface XmppClientInterface {
     timestamp: number,
     chats?: string[]
   ): Promise<void>;
-  sendMediaMessageStanza(
-    roomJID: string,
-    data: MediaUploadData,
-    id: string
-  ): void;
-  createPrivateRoomStanza(
-    title: string,
-    description: string,
-    to: string
-  ): Promise<string>;
-  sendMessageReactionStanza(
+  sendMediaMessageStanza(roomJID: string, data: any, id?: string): void;
+  sendMessageReactionStanza?(
     messageId: string,
     roomJid: string,
     reactionsList: string[],
     reactionSymbol?: string
   ): void;
-  sendTextMessageWithTranslateTagStanza(
+  sendTextMessageWithTranslateTagStanza?(
     roomJID: string,
     firstName: string,
     lastName: string,
@@ -124,5 +152,4 @@ export interface XmppClientInterface {
     mainMessage?: string,
     langSource?: Iso639_1Codes
   ): void;
-  disconnect?(): Promise<void>;
 }

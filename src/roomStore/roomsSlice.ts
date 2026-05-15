@@ -12,9 +12,10 @@ export interface RoomPreloadPatch {
 
 interface RoomMessagesState {
   rooms: { [jid: string]: IRoom };
-  activeRoomJID: string;
+  activeRoomJID: string | null;
   editAction?: EditAction;
   isLoading: boolean;
+  pendingNotificationJid?: string | null;
 }
 
 const initialState: RoomMessagesState = {
@@ -27,6 +28,7 @@ const initialState: RoomMessagesState = {
     messageId: '',
     text: '',
   },
+  pendingNotificationJid: null,
 };
 
 export const roomsStore = createSlice({
@@ -80,8 +82,7 @@ export const roomsStore = createSlice({
       }
     },
     setEditAction: (state, action: PayloadAction<EditAction | undefined>) => {
-      const { isEdit } = action.payload;
-      if (isEdit) {
+      if (action.payload?.isEdit) {
         state.editAction = action.payload;
       } else {
         state.editAction = {
@@ -167,7 +168,12 @@ export const roomsStore = createSlice({
       const { chatJID, timestamp } = action.payload;
       if (state.rooms[chatJID]) {
         state.rooms[chatJID].lastViewedTimestamp = timestamp;
-        if (timestamp) {
+        // timestamp === 0 means "user is currently viewing this room" —
+        // unread is cleared. Otherwise count messages received strictly
+        // after the last-viewed instant.
+        if (!timestamp) {
+          state.rooms[chatJID].unreadMessages = 0;
+        } else {
           state.rooms[chatJID].unreadMessages = countNewerMessages(
             state.rooms[chatJID].messages,
             timestamp
@@ -197,6 +203,46 @@ export const roomsStore = createSlice({
       const { roomJID } = action.payload;
       if (roomJID) {
         state.activeRoomJID = roomJID;
+      }
+    },
+    /**
+     * Stash a JID that a push notification asked us to open before
+     * the rooms list has loaded. The Chat component clears this once
+     * the room exists locally and dispatches `setCurrentRoom`.
+     */
+    setPendingNotificationJid: (
+      state,
+      action: PayloadAction<string | null>
+    ) => {
+      state.pendingNotificationJid = action.payload;
+    },
+    clearPendingNotificationJid: (state) => {
+      state.pendingNotificationJid = null;
+    },
+    /**
+     * Stamp a message in `state.rooms[roomJID].messages` with an updated
+     * reactions list. The reactionsMiddleware listens for this action to
+     * keep `IRoom.lastMessage` / `lastMessageTimestamp` in sync.
+     */
+    setReactions: (
+      state,
+      action: PayloadAction<{
+        roomJID: string;
+        messageId: string;
+        from?: string;
+        reactions: string[];
+        latestReactionTimestamp?: string;
+        data?: Record<string, string>;
+      }>
+    ) => {
+      const { roomJID, messageId, reactions } = action.payload;
+      const room = state.rooms[roomJID];
+      if (!room?.messages) return;
+      for (const msg of room.messages) {
+        if (msg?.id === messageId) {
+          (msg as any).reactions = reactions;
+          break;
+        }
       }
     },
     setLogoutState: (state) => {
@@ -260,15 +306,21 @@ export const roomsStore = createSlice({
   },
 });
 
+// Count messages strictly newer than the given millisecond timestamp.
+// Uses `msg.date` (canonical ISO/Date) so it matches the unread
+// middleware. Excludes the "delimiter-new" sentinel and pending sends.
 const countNewerMessages = (
   messages: IMessage[],
   timestamp: number
 ): number => {
-  if (timestamp !== 0) {
-    return messages.filter((message) => {
-      return Number(message.id) < timestamp;
-    }).length;
-  } else return 0;
+  if (!messages?.length || !timestamp) return 0;
+  let count = 0;
+  for (const message of messages) {
+    if (!message || message.id === 'delimiter-new' || message.pending) continue;
+    const ms = new Date(message.date as any).getTime();
+    if (Number.isFinite(ms) && ms > timestamp) count += 1;
+  }
+  return count;
 };
 
 export const {
@@ -291,6 +343,9 @@ export const {
   deleteRoom,
   updateRoom,
   applyRoomsPreloadBatch,
+  setPendingNotificationJid,
+  clearPendingNotificationJid,
+  setReactions,
 } = roomsStore.actions;
 
 export default roomsStore.reducer;

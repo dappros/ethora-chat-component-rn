@@ -8,6 +8,7 @@ import {
   ModalType,
   User,
 } from '../types/types';
+import { Iso639_1Codes } from '../types/models/language.model';
 import { localStorageConstants } from '../helpers/constants/LOCAL_STORAGE';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 
@@ -19,6 +20,7 @@ interface ChatState {
   selectedUser?: IUser;
   activeFile?: ModalFile;
   client?: any;
+  langSource?: Iso639_1Codes;
 }
 
 const unpackAndTransform = (input?: User): User => {
@@ -114,7 +116,10 @@ export const chatSlice = createSlice({
       }
     },
     setConfig: (state, action: PayloadAction<IConfig | undefined>) => {
-      state.config = action.payload;
+      // Cast away immer's WritableDraft — IConfig contains callable
+      // fields (eventHandlers, customComponent) that confuse the draft
+      // type inference but are inert at write-time.
+      state.config = action.payload as any;
     },
     setActiveModal: (state, action: PayloadAction<ModalType | undefined>) => {
       state.activeModal = action.payload;
@@ -144,7 +149,14 @@ export const chatSlice = createSlice({
       state.user = unpackAndTransform();
       state.config = undefined;
       state.client = undefined;
+      state.langSource = undefined;
       useLocalStorage(localStorageConstants.ETHORA_USER).remove();
+    },
+    setLangSource: (
+      state,
+      action: PayloadAction<Iso639_1Codes | undefined>
+    ) => {
+      state.langSource = action.payload;
     },
   },
 });
@@ -160,6 +172,7 @@ export const {
   updateUser,
   setActiveFile,
   setStoreClient,
+  setLangSource,
 } = chatSlice.actions;
 
 export default chatSlice.reducer;

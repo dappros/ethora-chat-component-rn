@@ -1,148 +1,16 @@
-import { User } from './user.model';
-import { xmppSettingsInterface } from './xmpp.model';
-import { PartialRoomWithMandatoryKeys, ConfigRoom } from './room.model';
-import { MessageBubble } from './message.model';
-import { Iso639_1Codes } from './language.model';
-import React, { ReactNode } from 'react'; // Assuming React types are globally available or managed by the project's tsconfig
-import { ViewStyle } from 'react-native';
+// Canonical IConfig now lives in `src/types/types.ts` (it's the surface
+// the XMPP provider, ChatWrapper, useSendMessage, persistence, scheduler,
+// and notification provider all import). This file re-exports it so the
+// UI layer (which imports from `types/models/config.model`) keeps working
+// without drifting from the flow layer.
+//
+// Add NEW fields to `src/types/types.ts:IConfig`, not here.
 
-export interface FBConfig {
-  apiKey: string;
-  authDomain: string;
-  projectId: string;
-  storageBucket: string;
-  messagingSenderId: string;
-  appId: string;
-}
-
-export interface IConfig {
-  disableHeader?: boolean;
-  disableMedia?: boolean;
-  colors?: { primary: string; secondary: string };
-  googleLogin?: {
-    enabled: boolean;
-    firebaseConfig: FBConfig;
-  };
-  jwtLogin?: {
-    token: string;
-    enabled: boolean;
-    handleBadlogin?: React.ReactElement;
-  };
-  userLogin?: {
-    enabled: boolean;
-    user: User | null;
-  };
-  customLogin?: {
-    enabled: boolean;
-    loginFunction: () => Promise<User | null>;
-  };
-  baseUrl?: string;
-  customAppToken?: string;
-  xmppSettings?: xmppSettingsInterface;
-  disableRooms?: boolean;
-  defaultLogin?: boolean;
-  disableInteractions?: boolean;
-  chatHeaderBurgerMenu?: boolean;
-  forceSetRoom?: boolean;
-  roomListStyles?: ViewStyle;
-  chatRoomStyles?: ViewStyle;
-  setRoomJidInPath?: boolean;
-  disableRoomMenu?: boolean;
-  defaultRooms?: ConfigRoom[];
-  refreshTokens?: {
-    enabled: boolean;
-    refreshFunction?: () => Promise<{
-      accessToken: string;
-      refreshToken?: string;
-    } | null>;
-  };
-  backgroundChat?: {
-    color?: string;
-    image?: string | File;
-  };
-  bubleMessage?: MessageBubble;
-  headerLogo?: string | React.ReactElement;
-  headerMenu?: () => void;
-  headerChatMenu?: () => void;
-  customRooms?: {
-    rooms: PartialRoomWithMandatoryKeys[];
-    disableGetRooms?: boolean;
-    singleRoom: boolean;
-  };
-  translates?: { enabled: boolean; translations?: Iso639_1Codes };
-  disableRoomConfig?: boolean;
-  disableProfilesInteractions?: boolean;
-  disableUserCount?: boolean;
-  clearStoreBeforeInit?: boolean;
-  disableSentLogic?: boolean;
-  initBeforeLoad?: boolean;
-  newArch?: boolean;
-  qrUrl?: string;
-  secondarySendButton?: {
-    enabled: boolean;
-    messageEdit: string;
-    buttonText: string;
-    label?: ReactNode;
-    buttonStyles?: ViewStyle;
-    hideInputSendButton?: boolean;
-    overwriteEnterClick?: true;
-  };
-  enableRoomsRetry?: { enabled: boolean; helperText: string };
-  disableNewChatButton?: boolean;
-  messageColor?: {
-    backgroundMessage: string;
-    backgroundMessageUser: string;
-    colorUser: string;
-    color: string;
-  };
-  enableTranslates?: boolean;
-  chatHeaderAdditional?: { enabled: boolean; element: any };
-  botMessageAutoScroll?: boolean;
-  messageTextFilter?: {
-    enabled: boolean;
-    filterFunction: (text: string) => string;
-  };
-  eventHandlers?: {
-    onMessageSent?: (event: {
-      message: string;
-      roomJID: string;
-      user: any;
-      messageType: 'text' | 'media';
-      metadata?: any;
-    }) => void | Promise<void>;
-    onMessageFailed?: (event: {
-      message: string;
-      roomJID: string;
-      error: Error;
-      messageType: 'text' | 'media';
-    }) => void;
-    onMessageEdited?: (event: {
-      messageId: string;
-      newMessage: string;
-      roomJID: string;
-      user: any;
-    }) => void;
-  };
-  disableTypingIndicator?: boolean;
-  blockMessageSendingWhenProcessing?:
-    | boolean
-    | {
-        enabled: boolean;
-        timeout?: number;
-        onTimeout?: (roomJID: string) => void;
-      };
-  customTypingIndicator?: {
-    enabled: boolean;
-    text?: string | ((usersTyping: string[]) => string);
-    position?: 'bottom' | 'top' | 'overlay' | 'floating';
-    styles?: ViewStyle;
-    customComponent?: React.ComponentType<{
-      usersTyping: string[];
-      text: string;
-      isVisible: boolean;
-    }>;
-  };
-  whitelistSystemMessage?: string[];
-  customSystemMessage?: React.ComponentType<MessageProps>;
-  projectName?: string;
-}
+export type {
+  IConfig,
+  FBConfig,
+  MessageBubble,
+  PartialRoomWithMandatoryKeys,
+  HistoryQoSConfig,
+  InAppNotificationConfig,
+} from '../types';

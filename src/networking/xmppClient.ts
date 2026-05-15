@@ -178,7 +178,8 @@ export class XmppClient {
       await new Promise((r) => setTimeout(r, wait));
     }
 
-    const promise = (async () => {
+    let promise: Promise<any>;
+    promise = (async () => {
       try {
         return await getHistory(this.client, chatJID, max, before, id);
       } finally {
@@ -457,8 +458,66 @@ export class XmppClient {
     } catch (error) {}
   }
 
-  sendMediaMessageStanza(roomJID: string, data: any) {
+  sendMediaMessageStanza(roomJID: string, data: any, _id?: string) {
     sendMediaMessage(this.client, roomJID, data);
+  }
+
+  // -------------------------------------------------------------------
+  // Method stubs to satisfy `XmppClientInterface`. Concrete RN xmpp
+  // helpers don't exist yet — the stubs log a single warning and no-op
+  // so consumers don't blow up at runtime. Replace with real impls when
+  // their `*.xmpp.ts` helpers are ported from the web side.
+  // -------------------------------------------------------------------
+
+  setVCardStanza(_xmppUsername: string) {
+    console.warn('setVCardStanza: not implemented in RN xmpp client');
+  }
+
+  async createPrivateRoomStanza(
+    title: string,
+    description: string,
+    to: string
+  ): Promise<string> {
+    console.warn('createPrivateRoomStanza: not implemented; falling back to createRoom');
+    const result = await this.createRoomStanza(title, description, to);
+    return typeof result === 'string' ? result : '';
+  }
+
+  sendMessageReactionStanza(
+    _messageId: string,
+    _roomJid: string,
+    _reactionsList: string[],
+    _reactionSymbol?: string
+  ) {
+    console.warn('sendMessageReactionStanza: not implemented in RN xmpp client');
+  }
+
+  sendTextMessageWithTranslateTagStanza(
+    roomJID: string,
+    firstName: string,
+    lastName: string,
+    photo: string,
+    walletAddress: string,
+    userMessage: string,
+    notDisplayedValue?: string,
+    isReply?: boolean,
+    showInChannel?: boolean,
+    mainMessage?: string,
+    _langSource?: string
+  ) {
+    // No translate tag support yet — fall back to a regular text send.
+    this.sendMessage(
+      roomJID,
+      firstName,
+      lastName,
+      photo,
+      walletAddress,
+      userMessage,
+      notDisplayedValue,
+      isReply,
+      showInChannel,
+      mainMessage
+    );
   }
 }
 

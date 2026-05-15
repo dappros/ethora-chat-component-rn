@@ -1,13 +1,18 @@
 import { configureStore, combineReducers } from '@reduxjs/toolkit';
 import chatSettingsReducer, { setUser } from './chatSettingsSlice';
 import roomsSlice, { addRoom } from './roomsSlice';
+import { roomHeapSlice } from './roomHeapSlice';
 import { IRoom } from '../types/types';
 import { unreadMiddleware } from './Middleware/unreadMidlleware';
+import { logoutMiddleware } from './Middleware/logoutMiddleware';
+import { newMessageMidlleware } from './Middleware/newMessageMidlleware';
+import { reactionsMiddleware } from './Middleware/reactionsMiddleware';
 import { persistenceMiddleware, readPersistedState } from './persistence';
 
 const rootReducer = combineReducers({
   chatSettingStore: chatSettingsReducer,
   rooms: roomsSlice,
+  roomHeapSlice: roomHeapSlice.reducer,
 });
 
 export const store = configureStore({
@@ -15,7 +20,14 @@ export const store = configureStore({
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
       serializableCheck: {
-        ignoredActions: ['chat/addMessage', 'chatSettingStore/setStoreClient'],
+        // Slice names: chatSlice→'chat', roomsStore→'roomMessages'.
+        ignoredActions: [
+          'chat/addMessage',
+          'chat/setStoreClient',
+          'chat/setConfig',
+          'roomMessages/addRoom',
+        ],
+        ignoredActionPaths: ['payload.client', 'payload.config'],
         ignoredPaths: [
           'chat.messages.timestamp',
           'chatSettingStore.client',
@@ -24,6 +36,9 @@ export const store = configureStore({
       },
     })
       .concat(unreadMiddleware)
+      .concat(newMessageMidlleware)
+      .concat(reactionsMiddleware)
+      .concat(logoutMiddleware)
       .concat(persistenceMiddleware),
 });
 
