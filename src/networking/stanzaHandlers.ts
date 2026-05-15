@@ -214,10 +214,15 @@ const handleComposing = async (stanza: Element, currentUser: string) => {
   if (stanza.getChild('paused') || stanza.getChild('composing')) {
     const composingUser = stanza.attrs?.from?.split('/')?.[1];
 
-    if (
-      composingUser &&
-      currentUser?.toLowerCase() !== composingUser?.replace(/_/g, '')
-    ) {
+    // Normalize both sides the same way before comparing — previously
+    // we lower-cased the currentUser but only stripped underscores from
+    // the composingUser, so wallet-style IDs with underscores
+    // ("foo_bar") never matched their own MUC nick ("foo_bar") and the
+    // user saw a typing indicator for their own keystrokes.
+    const norm = (s?: string) =>
+      (s || '').toLowerCase().replace(/_/g, '');
+
+    if (composingUser && norm(currentUser) !== norm(composingUser)) {
       const chatJID = stanza.attrs?.from.split('/')[0];
 
       let composingList = [];

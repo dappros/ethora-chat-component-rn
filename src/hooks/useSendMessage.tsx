@@ -61,8 +61,20 @@ export const useSendMessage = (_configOverride?: IConfig) => {
       // Critical-send hint to the QoS scheduler.
       client?.onCriticalSend?.(activeRoomJID);
 
+      console.log('🔵 [useSendMessage] sending', {
+        room: activeRoomJID,
+        hasClient: !!client,
+        first: user?.firstName,
+        last: user?.lastName,
+        wallet: user?.walletAddress,
+        len: message?.length,
+      });
+
       try {
-        client?.sendMessage(
+        if (!client) {
+          throw new Error('No XMPP client');
+        }
+        client.sendMessage(
           activeRoomJID,
           user.firstName,
           user.lastName,

@@ -522,6 +522,31 @@ const SetupTab: React.FC<{
             <Text style={styles.primaryBtnText}>Save &amp; use</Text>
           </Pressable>
         </View>
+
+        <Pressable
+          testID="setup-clear-storage"
+          onPress={async () => {
+            try {
+              await AsyncStorage.clear();
+              pushLog('rn', 'AsyncStorage cleared');
+              setTestResult({
+                ok: true,
+                text: 'Storage cleared. Reload the app to start fresh.',
+              });
+            } catch (err: any) {
+              setTestResult({
+                ok: false,
+                text: `Failed to clear storage: ${err?.message || err}`,
+              });
+            }
+          }}
+          style={({ pressed }) => [
+            styles.dangerBtn,
+            pressed && styles.btnPressed,
+          ]}
+        >
+          <Text style={styles.dangerBtnText}>Clear AsyncStorage</Text>
+        </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -982,6 +1007,16 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   secondaryBtnText: { color: PRIMARY, fontWeight: '600' },
+  dangerBtn: {
+    marginTop: 24,
+    borderWidth: 1,
+    borderColor: '#B91C1C',
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 6,
+    backgroundColor: 'transparent',
+  },
+  dangerBtnText: { color: '#B91C1C', fontWeight: '600', fontSize: 13 },
   btnPressed: { opacity: 0.7 },
   // single-room toggle
   toggleRow: { flexDirection: 'row', alignItems: 'center' },

@@ -74,24 +74,23 @@ const styles = StyleSheet.create({
   wrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    position: 'absolute',
-    bottom: 4,
-    left: 16,
-    zIndex: 1000,
+    paddingHorizontal: 4,
   },
   typingText: {
-    marginRight: 5,
-    fontSize: 14,
-    color: '#555',
+    marginRight: 4,
+    fontSize: 12,
+    color: '#71717A',
+    fontStyle: 'italic',
   },
   dotsContainer: {
     flexDirection: 'row',
+    alignItems: 'center',
   },
   dot: {
-    fontSize: 24,
-    lineHeight: 24,
-    marginHorizontal: 2,
-    color: '#555',
+    fontSize: 18,
+    lineHeight: 18,
+    marginHorizontal: 1,
+    color: '#71717A',
   },
 });
 
