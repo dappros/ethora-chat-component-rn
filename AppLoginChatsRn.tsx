@@ -42,7 +42,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
 import { ReduxWrapper as Chat } from './src/components/MainComponents/ReduxWrapper';
-import type { IConfig } from './src/types/types';
+import { store as chatStore } from './src/roomStore';
+import { setCurrentRoom } from './src/roomStore/roomsSlice';
+import type { IConfig, IRoom } from './src/types/types';
 import {
   clearLogs,
   getLogs,
@@ -102,6 +104,9 @@ interface Creds {
   xmppHost: string;
   xmppDevServer: string;
   conference?: string;
+  // Room mode
+  singleRoom: boolean;
+  singleRoomJid: string;
 }
 
 const DEFAULT_CREDS: Creds = {
@@ -115,6 +120,8 @@ const DEFAULT_CREDS: Creds = {
   xmppHost: 'xmpp.chat.ethora.com',
   xmppDevServer: 'xmpp.chat.ethora.com',
   conference: 'conference.xmpp.chat.ethora.com',
+  singleRoom: false,
+  singleRoomJid: '',
 };
 
 // ---------------------------------------------------------------------
@@ -168,6 +175,9 @@ const SetupTab: React.FC<{
   const [xmppHost, setXmppHost] = useState(initial.xmppHost);
   const [xmppDevServer, setXmppDevServer] = useState(initial.xmppDevServer);
   const [conference, setConference] = useState(initial.conference || '');
+  // Room mode
+  const [singleRoom, setSingleRoom] = useState<boolean>(initial.singleRoom);
+  const [singleRoomJid, setSingleRoomJid] = useState<string>(initial.singleRoomJid);
 
   const [busy, setBusy] = useState(false);
   const [testResult, setTestResult] = useState<{
@@ -186,6 +196,8 @@ const SetupTab: React.FC<{
     xmppHost: xmppHost.trim(),
     xmppDevServer: xmppDevServer.trim(),
     conference: conference.trim() || `conference.${xmppHost.trim()}`,
+    singleRoom,
+    singleRoomJid: singleRoomJid.trim(),
     ...overrides,
   });
 
@@ -430,6 +442,50 @@ const SetupTab: React.FC<{
           />
         </Field>
 
+        <View style={styles.mb12}>
+          <Pressable
+            testID="toggle-single-room"
+            onPress={() => setSingleRoom((v) => !v)}
+            style={styles.toggleRow}
+          >
+            <View
+              style={[
+                styles.toggleTrack,
+                singleRoom && styles.toggleTrackOn,
+              ]}
+            >
+              <View
+                style={[
+                  styles.toggleThumb,
+                  singleRoom && styles.toggleThumbOn,
+                ]}
+              />
+            </View>
+            <View style={styles.toggleLabelBox}>
+              <Text style={styles.toggleLabel}>Single room mode</Text>
+              <Text style={styles.toggleHint}>
+                {singleRoom
+                  ? 'Chat will open the JID below directly.'
+                  : 'Show a list of all rooms; tap one to open.'}
+              </Text>
+            </View>
+          </Pressable>
+        </View>
+
+        {singleRoom ? (
+          <Field label="Single room JID">
+            <TextInput
+              testID="input-single-room-jid"
+              value={singleRoomJid}
+              onChangeText={setSingleRoomJid}
+              placeholder="myroom@conference.xmpp.chat.ethora.com"
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={styles.input}
+            />
+          </Field>
+        ) : null}
+
         {testResult && (
           <View
             style={[
@@ -486,6 +542,77 @@ const Field: React.FC<{
 );
 
 // ---------------------------------------------------------------------
+// Room list (testbed) — reads `state.rooms` directly from the module
+// store via `useSyncExternalStore`. The testbed pane lives outside of
+// Chat's Provider, so we cannot use react-redux hooks here. Tapping an
+// item dispatches setCurrentRoom on the same module store, which
+// ChatRoom (inside the Provider) sees through `state.rooms.activeRoomJID`.
+// ---------------------------------------------------------------------
+const subscribeChatStore = (cb: () => void) => chatStore.subscribe(cb);
+const getRoomsSnapshot = () => chatStore.getState().rooms.rooms;
+const getActiveRoomSnapshot = () => chatStore.getState().rooms.activeRoomJID;
+
+const RoomListPane: React.FC = () => {
+  const rooms = useSyncExternalStore(subscribeChatStore, getRoomsSnapshot);
+  const activeJid = useSyncExternalStore(
+    subscribeChatStore,
+    getActiveRoomSnapshot
+  );
+  const entries = useMemo<IRoom[]>(
+    () => Object.values(rooms || {}) as IRoom[],
+    [rooms]
+  );
+
+  const handlePick = (jid: string) => {
+    chatStore.dispatch(setCurrentRoom({ roomJID: jid }));
+  };
+
+  return (
+    <View style={styles.roomListWrap}>
+      <View style={styles.roomListHeader}>
+        <Text style={styles.roomListHeaderText}>
+          Rooms ({entries.length})
+        </Text>
+      </View>
+      {entries.length === 0 ? (
+        <View style={styles.roomListEmpty}>
+          <Text style={styles.muted}>Loading rooms…</Text>
+        </View>
+      ) : (
+        <ScrollView keyboardShouldPersistTaps="handled">
+          {entries.map((room) => {
+            const isActive = activeJid === room.jid;
+            return (
+              <Pressable
+                key={room.jid}
+                onPress={() => handlePick(room.jid)}
+                style={[
+                  styles.roomListItem,
+                  isActive && styles.roomListItemActive,
+                ]}
+              >
+                <Text
+                  numberOfLines={1}
+                  style={[
+                    styles.roomListItemTitle,
+                    isActive && styles.roomListItemTitleActive,
+                  ]}
+                >
+                  {room.title || room.name || room.jid}
+                </Text>
+                <Text style={styles.roomListItemMeta}>
+                  {room.usersCnt || 0}👥
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      )}
+    </View>
+  );
+};
+
+// ---------------------------------------------------------------------
 // Chat pane — mounts the local chat component once creds are valid
 // ---------------------------------------------------------------------
 const ChatPane: React.FC<{ creds: Creds | null }> = ({ creds }) => {
@@ -537,14 +664,23 @@ const ChatPane: React.FC<{ creds: Creds | null }> = ({ creds }) => {
     );
   }
 
+  const singleRoomMode = !!(creds?.singleRoom && creds.singleRoomJid);
+  const chatRoomJid = singleRoomMode ? creds!.singleRoomJid : undefined;
+
   return (
     <View style={styles.flex1}>
+      {/*
+        Multi-room: render our own list above Chat. Tapping dispatches
+        setCurrentRoom on the same module store the Chat tree reads,
+        which flips ChatRoom out of its "choose a chat" empty state.
+      */}
+      {!singleRoomMode && <RoomListPane />}
       {/*
         `key` on the chat forces a hard remount when the user picks a
         different account. Without it the in-flight XMPP client would
         carry over with the old session.
       */}
-      <Chat key={keyId} config={config} />
+      <Chat key={keyId} config={config} roomJID={chatRoomJid} />
     </View>
   );
 };
@@ -920,6 +1056,60 @@ const styles = StyleSheet.create({
   },
   secondaryBtnText: { color: PRIMARY, fontWeight: '600' },
   btnPressed: { opacity: 0.7 },
+  // single-room toggle
+  toggleRow: { flexDirection: 'row', alignItems: 'center' },
+  toggleTrack: {
+    width: 44,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#D4D4D8',
+    padding: 3,
+    justifyContent: 'center',
+  },
+  toggleTrackOn: { backgroundColor: PRIMARY },
+  toggleThumb: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'white',
+    transform: [{ translateX: 0 }],
+  },
+  toggleThumbOn: { transform: [{ translateX: 18 }] },
+  toggleLabelBox: { flex: 1, marginLeft: 12 },
+  toggleLabel: { fontSize: 14, fontWeight: '600', color: '#27272A' },
+  toggleHint: { fontSize: 11, color: MUTED, marginTop: 2 },
+  // room list (testbed)
+  roomListWrap: {
+    maxHeight: 220,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: BORDER,
+    backgroundColor: '#FAFAFA',
+  },
+  roomListHeader: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  roomListHeaderText: { fontSize: 12, fontWeight: '600', color: MUTED, textTransform: 'uppercase' },
+  roomListItem: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#EFEFEF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  roomListItemActive: { backgroundColor: SECONDARY },
+  roomListItemTitle: { fontSize: 14, color: '#27272A', flex: 1 },
+  roomListItemTitleActive: { color: PRIMARY, fontWeight: '700' },
+  roomListItemMeta: { fontSize: 11, color: MUTED, marginLeft: 8 },
+  roomListEmpty: {
+    padding: 16,
+    alignItems: 'center',
+  },
   // logs
   logsToolbar: {
     flexDirection: 'row',
