@@ -42,9 +42,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
 import { ReduxWrapper as Chat } from './src/components/MainComponents/ReduxWrapper';
-import { store as chatStore } from './src/roomStore';
-import { setCurrentRoom } from './src/roomStore/roomsSlice';
-import type { IConfig, IRoom } from './src/types/types';
+import type { IConfig } from './src/types/types';
 import {
   clearLogs,
   getLogs,
@@ -542,77 +540,6 @@ const Field: React.FC<{
 );
 
 // ---------------------------------------------------------------------
-// Room list (testbed) — reads `state.rooms` directly from the module
-// store via `useSyncExternalStore`. The testbed pane lives outside of
-// Chat's Provider, so we cannot use react-redux hooks here. Tapping an
-// item dispatches setCurrentRoom on the same module store, which
-// ChatRoom (inside the Provider) sees through `state.rooms.activeRoomJID`.
-// ---------------------------------------------------------------------
-const subscribeChatStore = (cb: () => void) => chatStore.subscribe(cb);
-const getRoomsSnapshot = () => chatStore.getState().rooms.rooms;
-const getActiveRoomSnapshot = () => chatStore.getState().rooms.activeRoomJID;
-
-const RoomListPane: React.FC = () => {
-  const rooms = useSyncExternalStore(subscribeChatStore, getRoomsSnapshot);
-  const activeJid = useSyncExternalStore(
-    subscribeChatStore,
-    getActiveRoomSnapshot
-  );
-  const entries = useMemo<IRoom[]>(
-    () => Object.values(rooms || {}) as IRoom[],
-    [rooms]
-  );
-
-  const handlePick = (jid: string) => {
-    chatStore.dispatch(setCurrentRoom({ roomJID: jid }));
-  };
-
-  return (
-    <View style={styles.roomListWrap}>
-      <View style={styles.roomListHeader}>
-        <Text style={styles.roomListHeaderText}>
-          Rooms ({entries.length})
-        </Text>
-      </View>
-      {entries.length === 0 ? (
-        <View style={styles.roomListEmpty}>
-          <Text style={styles.muted}>Loading rooms…</Text>
-        </View>
-      ) : (
-        <ScrollView keyboardShouldPersistTaps="handled">
-          {entries.map((room) => {
-            const isActive = activeJid === room.jid;
-            return (
-              <Pressable
-                key={room.jid}
-                onPress={() => handlePick(room.jid)}
-                style={[
-                  styles.roomListItem,
-                  isActive && styles.roomListItemActive,
-                ]}
-              >
-                <Text
-                  numberOfLines={1}
-                  style={[
-                    styles.roomListItemTitle,
-                    isActive && styles.roomListItemTitleActive,
-                  ]}
-                >
-                  {room.title || room.name || room.jid}
-                </Text>
-                <Text style={styles.roomListItemMeta}>
-                  {room.usersCnt || 0}👥
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      )}
-    </View>
-  );
-};
-
-// ---------------------------------------------------------------------
 // Chat pane — mounts the local chat component once creds are valid
 // ---------------------------------------------------------------------
 const ChatPane: React.FC<{ creds: Creds | null }> = ({ creds }) => {
@@ -654,7 +581,16 @@ const ChatPane: React.FC<{ creds: Creds | null }> = ({ creds }) => {
     return `email:${creds.resolvedUser?._id || creds.email}`;
   }, [creds]);
 
-  if (!config) {
+  const singleRoomMode = !!(creds?.singleRoom && creds.singleRoomJid);
+  const chatRoomJid = singleRoomMode ? creds?.singleRoomJid : undefined;
+  // disableRooms tells the chat to skip its own RoomList; we want the
+  // list when the user isn't in single-room mode (mirroring web).
+  const chatConfig = useMemo<IConfig | null>(
+    () => (config ? ({ ...config, disableRooms: singleRoomMode } as IConfig) : null),
+    [config, singleRoomMode]
+  );
+
+  if (!chatConfig) {
     return (
       <View style={styles.center}>
         <Text style={styles.muted}>
@@ -664,23 +600,14 @@ const ChatPane: React.FC<{ creds: Creds | null }> = ({ creds }) => {
     );
   }
 
-  const singleRoomMode = !!(creds?.singleRoom && creds.singleRoomJid);
-  const chatRoomJid = singleRoomMode ? creds!.singleRoomJid : undefined;
-
   return (
     <View style={styles.flex1}>
-      {/*
-        Multi-room: render our own list above Chat. Tapping dispatches
-        setCurrentRoom on the same module store the Chat tree reads,
-        which flips ChatRoom out of its "choose a chat" empty state.
-      */}
-      {!singleRoomMode && <RoomListPane />}
       {/*
         `key` on the chat forces a hard remount when the user picks a
         different account. Without it the in-flight XMPP client would
         carry over with the old session.
       */}
-      <Chat key={keyId} config={config} roomJID={chatRoomJid} />
+      <Chat key={keyId} config={chatConfig} roomJID={chatRoomJid} />
     </View>
   );
 };
@@ -1078,38 +1005,6 @@ const styles = StyleSheet.create({
   toggleLabelBox: { flex: 1, marginLeft: 12 },
   toggleLabel: { fontSize: 14, fontWeight: '600', color: '#27272A' },
   toggleHint: { fontSize: 11, color: MUTED, marginTop: 2 },
-  // room list (testbed)
-  roomListWrap: {
-    maxHeight: 220,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: BORDER,
-    backgroundColor: '#FAFAFA',
-  },
-  roomListHeader: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  roomListHeaderText: { fontSize: 12, fontWeight: '600', color: MUTED, textTransform: 'uppercase' },
-  roomListItem: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#EFEFEF',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  roomListItemActive: { backgroundColor: SECONDARY },
-  roomListItemTitle: { fontSize: 14, color: '#27272A', flex: 1 },
-  roomListItemTitleActive: { color: PRIMARY, fontWeight: '700' },
-  roomListItemMeta: { fontSize: 11, color: MUTED, marginLeft: 8 },
-  roomListEmpty: {
-    padding: 16,
-    alignItems: 'center',
-  },
   // logs
   logsToolbar: {
     flexDirection: 'row',

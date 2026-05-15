@@ -5,12 +5,6 @@ const {getDefaultConfig, mergeConfig} = require('@react-native/metro-config');
 // the testbed never invokes. Without these shims metro fails to bundle.
 // Install the real packages if/when the UI that uses them goes live.
 const shim = path.resolve(__dirname, 'empty-shim.js');
-// react-native-svg needs a React-aware shim: the generic Proxy
-// returns truthy for `Component.prototype.isReactComponent`, which
-// makes React treat every SVG primitive as a class component and
-// emit a wall of validateClassInstance warnings. The svg shim exports
-// plain function components that render null.
-const svgShim = path.resolve(__dirname, 'empty-svg-shim.js');
 const NATIVE_SHIMS = {
   'react-native-image-crop-picker': shim,
   'react-native-document-picker': shim,
@@ -24,7 +18,7 @@ const NATIVE_SHIMS = {
   '@react-native-camera-roll/camera-roll': shim,
   '@react-native-community/checkbox': shim,
   'react-native-qrcode-svg': shim,
-  'react-native-svg': svgShim,
+  // react-native-svg is now installed; don't shim it.
   'emoji-mart': shim,
   // pure-JS optional deps the UI pulls in but the testbed doesn't use
   luxon: shim,

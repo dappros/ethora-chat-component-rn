@@ -240,6 +240,13 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
   )
     {return <LoginForm config={config} />;}
 
+  // Mirror the web layout: when `disableRooms` is false and the
+  // consumer didn't preselect a `roomJID`, show the RoomList until the
+  // user picks one; then show the chat with a back button to return to
+  // the list. With `roomJID` or `disableRooms`, skip the list entirely.
+  const showRoomList =
+    !config?.disableRooms && !roomJID && !activeRoomJID;
+
   return (
     <>
       {showModal && (
@@ -255,14 +262,28 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
             style={{
               ...MainComponentStyles,
             }}>
-            <ChatWrapperBox
-              style={{
-                ...MainComponentStyles,
-              }}>
-              <ChatRoom
-                CustomMessageComponent={CustomMessageComponent || Message}
+            {showRoomList ? (
+              <RoomList
+                chats={Object.values(rooms)}
+                onRoomClick={handleChangeChat}
               />
-            </ChatWrapperBox>
+            ) : (
+              <ChatWrapperBox
+                style={{
+                  ...MainComponentStyles,
+                }}>
+                <ChatRoom
+                  CustomMessageComponent={CustomMessageComponent || Message}
+                  handleBackClick={() => {
+                    // Tapping back drops the active room so the list
+                    // takes over (web's `isChatVisible=false` analog).
+                    if (!roomJID) {
+                      dispatch(setCurrentRoom({ roomJID: '' }));
+                    }
+                  }}
+                />
+              </ChatWrapperBox>
+            )}
           </ChatWrapperBox>
         ) : (
           <StyledLoaderWrapper>

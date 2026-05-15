@@ -199,11 +199,13 @@ export const roomsStore = createSlice({
         state.rooms[chatJID].noMessages = value;
       }
     },
-    setCurrentRoom: (state, action: PayloadAction<{ roomJID: string }>) => {
-      const { roomJID } = action.payload;
-      if (roomJID) {
-        state.activeRoomJID = roomJID;
-      }
+    setCurrentRoom: (
+      state,
+      action: PayloadAction<{ roomJID: string | null }>
+    ) => {
+      // Accept null/empty so callers can clear the active room (e.g.
+      // back button from chat → return to RoomList). Mirrors web.
+      state.activeRoomJID = action.payload.roomJID || '';
     },
     /**
      * Stash a JID that a push notification asked us to open before
