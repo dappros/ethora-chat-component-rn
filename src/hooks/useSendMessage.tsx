@@ -5,16 +5,18 @@ import { setEditAction } from '../roomStore/roomsSlice';
 import { uploadFile } from '../networking/api-requests/auth.api';
 import { RootState } from '../roomStore';
 import { useEventHandlers } from './useEventHandlers';
+import type { IConfig } from '../types/types';
 
-export const useSendMessage = () => {
+export const useSendMessage = (_configOverride?: IConfig) => {
   const { client } = useXmppClient();
   const dispatch = useDispatch();
 
-  const { user, config, editAction } = useSelector((state: RootState) => ({
+  const { user, config, editAction, rooms } = useSelector((state: RootState) => ({
     activeRoomJID: state.rooms.activeRoomJID,
     user: state.chatSettingStore.user,
     config: state.chatSettingStore.config,
     editAction: state.rooms.editAction,
+    rooms: state.rooms.rooms,
   }));
 
   const {
@@ -155,5 +157,60 @@ export const useSendMessage = () => {
     [client, user, handleMessageSent, handleMessageFailed]
   );
 
-  return { sendMessage, sendMedia };
+  // ChatRoom/ThreadWrapper consume this as the "edit branch" of send.
+  // It mirrors the edit path inside `sendMessage` so callers can wire it
+  // up directly when `editAction.isEdit` is true.
+  const sendEditMessage = useCallback(
+    async (message: string, _activeRoomJID?: string) => {
+      if (!editAction?.isEdit || !editAction.roomJid || !editAction.messageId) {
+        return;
+      }
+      try {
+        client?.editMessageStanza(
+          editAction.roomJid,
+          editAction.messageId,
+          message
+        );
+        handleMessageEdited({
+          messageId: editAction.messageId,
+          newMessage: message,
+          roomJID: editAction.roomJid,
+          user,
+        });
+      } catch (error) {
+        handleMessageFailed({
+          message,
+          roomJID: editAction.roomJid,
+          error: error as Error,
+          messageType: 'text',
+        });
+      }
+      dispatch(setEditAction({ isEdit: false }));
+    },
+    [client, editAction, user, dispatch, handleMessageEdited, handleMessageFailed]
+  );
+
+  // True when the most recent message in the given room is from the
+  // current user and still in a pending state (i.e. not yet ack'd by
+  // the server). Used by SendInput to disable rapid re-sends.
+  const isLastMessageFromUserAndProcessing = useCallback(
+    (roomJID: string): boolean => {
+      if (!roomJID) {return false;}
+      const msgs = rooms?.[roomJID]?.messages;
+      if (!msgs || msgs.length === 0) {return false;}
+      const last = msgs[msgs.length - 1];
+      if (!last?.pending) {return false;}
+      const selfId = user?.xmppUsername || user?.walletAddress;
+      if (!selfId) {return false;}
+      return last.user?.id === selfId;
+    },
+    [rooms, user?.xmppUsername, user?.walletAddress]
+  );
+
+  return {
+    sendMessage,
+    sendMedia,
+    sendEditMessage,
+    isLastMessageFromUserAndProcessing,
+  };
 };
