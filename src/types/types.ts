@@ -351,10 +351,20 @@ export interface IConfig {
 
   // ----- interactions / messages -----
   disableInteractions?: boolean;
+  disableReactions?: boolean;
   disableProfilesInteractions?: boolean;
   disableUserCount?: boolean;
   disableSentLogic?: boolean;
   disableTypingIndicator?: boolean;
+  // Chat-profile modal granular gates (matches web's
+  // `disableChatInfo`).
+  disableChatInfo?: {
+    disableHeader?: boolean;
+    disableDescription?: boolean;
+    disableType?: boolean;
+    hideMembers?: boolean;
+    disableMembers?: boolean;
+  };
   botMessageAutoScroll?: boolean;
   blockMessageSendingWhenProcessing?:
     | boolean

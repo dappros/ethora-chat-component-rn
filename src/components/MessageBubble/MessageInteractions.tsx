@@ -149,7 +149,10 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
             {MESSAGE_INTERACTIONS.SEND_ITEM}
             <MESSAGE_INTERACTIONS_ICONS.SEND_ITEM />{' '}
           </MenuItem> */}
-            {/* <Delimeter /> */}
+            {/* Reaction row — hidden when consumer sets
+               `config.disableReactions: true`. Mirrors the gate web
+               applies inside its MessageInteractions panel. */}
+            {!config?.disableReactions && (
             <View style={{ flexDirection: 'row', paddingBottom: 10 }}>
             {fixedEmojiIds.map((id) => (
               <Pressable
@@ -169,8 +172,9 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
               <Text style={{ fontSize: 24 }}>⌄</Text>
             </Pressable>
           </View>
+            )}
 
-          {pickerVisible && (
+          {!config?.disableReactions && pickerVisible && (
             <View style={{ height: 250 }}>
               <EmojiPicker
                 onEmojiSelected={(emoji) => {

@@ -120,13 +120,16 @@ export const ProfileImagePlaceholder: React.FC<
         ) : placeholderIcon ? (
           placeholderIcon
         ) : (
-          <InitialsText size={size} color="#fff">
+          // Black initials on the pastel hash-color bg — white text
+          // on these light backgrounds is unreadable (matches web's
+          // default-color behavior).
+          <InitialsText size={size} color="#141414">
             {getInitials()}
           </InitialsText>
         )}
         {upload?.active && !disableOverlay && (
           <Overlay>
-            <EditIcon style={{ fontSize: size / 2 }} color="#fff" />
+            <EditIcon style={{ fontSize: size / 2 }} color="#141414" />
           </Overlay>
         )}
       </AvatarCircle>

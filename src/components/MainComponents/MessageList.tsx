@@ -97,8 +97,9 @@ const MessageList = <TMessage extends IMessage>({
       (item: IMessage) => !item.deleted && !item.isDeleted
     );
 
+    let filtered: IMessage[];
     if (isReply) {
-      return nonDeletedMessages.filter(
+      filtered = nonDeletedMessages.filter(
         (item: IMessage) =>
           item.roomJid === roomJID &&
           item.isReply &&
@@ -107,12 +108,32 @@ const MessageList = <TMessage extends IMessage>({
           JSON.parse(item.mainMessage).id === activeMessage?.id
       );
     } else {
-      return nonDeletedMessages.filter(
+      filtered = nonDeletedMessages.filter(
         (item: IMessage) =>
           item.showInChannel === 'true' ||
           ((!item.isReply || item.isReply === 'false') && !item.mainMessage)
       );
     }
+
+    // Explicit chronological sort by stanza-id timestamp (microseconds-
+    // since-epoch encoded in the id). Without this, MAM history that
+    // streams in across multiple ticks visibly reorders itself:
+    // insertMessageWithDelimiter inserts new arrivals at the slot
+    // matching their date.toString() comparison, but redux state can
+    // emit intermediate snapshots between dispatches, so the FlatList
+    // briefly renders messages out-of-order until the final batch
+    // settles. Sorting here makes each render a stable, ordered view —
+    // even mid-stream — so the user sees them appear from oldest to
+    // newest with no swap animation.
+    const sorted = filtered.slice().sort((a, b) => {
+      // Pull a numeric timestamp out of the id (server stamps a
+      // microsecond timestamp into the stanza-id) — fallback to the
+      // `date` ISO string when id isn't numeric (e.g. delimiter rows).
+      const aNum = Number(a?.id) || new Date(a?.date as any).getTime() || 0;
+      const bNum = Number(b?.id) || new Date(b?.date as any).getTime() || 0;
+      return aNum - bNum;
+    });
+    return sorted;
   }, [addReplyMessages, isReply, roomJID, activeMessage]);
 
   const handleLoadMore = useCallback(async () => {

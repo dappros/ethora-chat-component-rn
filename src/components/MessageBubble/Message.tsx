@@ -265,7 +265,11 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
           </CustomMessagePhotoContainer>
         )}
         <TouchableWithoutFeedback
-          onLongPress={handleLongPress}
+          // disableInteractions hides the long-press → context menu
+          // (delete / edit / reply / react). Mirrors web's config gate.
+          onLongPress={
+            config?.disableInteractions ? undefined : handleLongPress
+          }
           delayLongPress={500}
         >
           <CustomMessageBubble
@@ -340,7 +344,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
 
           <MessageFooter isUser={isUser}>
 
-            {message.reaction && (
+            {message.reaction && !config?.disableReactions && (
               <MessageReaction
                 reaction={message.reaction}
                 changeReaction={handleReactionMessage}
@@ -352,8 +356,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
           </CustomMessageBubble>
         </TouchableWithoutFeedback>
       </View>
-      {/* {!config?.disableInteractions && ( */}
-      {isPressed && (
+      {!config?.disableInteractions && isPressed && (
         <MessageInteractions
           position={contextMenuPosition}
           isReply={isReply}

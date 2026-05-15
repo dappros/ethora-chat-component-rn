@@ -26,7 +26,10 @@ const AvatarCircle = styled.View<{ bgColor?: string }>`
 const AvatarText = styled.Text`
   font-size: 16px;
   font-weight: bold;
-  color: #fff;
+  // Pastel backgrounds from nameToColor() are all light (#E2F4FB,
+  // #EEE6F9, #F5F2BC, ...). White text on light = invisible — web
+  // uses default-black text on the same palette. Match it.
+  color: #141414;
 `;
 
 export const Avatar: React.FC<AvatarProps> = ({
