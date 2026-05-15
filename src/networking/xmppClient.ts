@@ -22,9 +22,8 @@ import { getRooms } from './xmpp/getRooms.xmpp';
 import { handleStanza } from './xmpp/handleStanzas.xmpp';
 import { pushLog as devPushLog } from '../utils/devLogger';
 
-// Canonical production XMPP WSS endpoint listens on :5443.
-// Stripping the port breaks the wss handshake (443 isn't bound).
-const DEFAULT_DEV_SERVER = 'xmpp.chat.ethora.com:5443';
+// Canonical production XMPP WSS endpoint (standard wss/443, no port suffix).
+const DEFAULT_DEV_SERVER = 'xmpp.chat.ethora.com';
 
 type HistorySource = 'active' | 'send_ack' | 'background' | 'default';
 

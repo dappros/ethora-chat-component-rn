@@ -13,9 +13,17 @@ export const getHistory = async (
   otherId?: string
 ): Promise<IMessage[] | undefined> => {
   if (typeof chatJID !== 'string') return;
+  // If a caller passes a bare local-part (no `@host`), pick a default
+  // conference based on the client's actual service URL — never leak a
+  // hard-coded dev domain.
   const fixedChatJid = chatJID.includes('@')
     ? chatJID
-    : `${chatJID}@conference.dev.xmpp.ethoradev.com`;
+    : (() => {
+        const service: string = (client as any)?.options?.service || '';
+        const host =
+          service.match(/wss?:\/\/([^:/]+)/)?.[1] || 'xmpp.chat.ethora.com';
+        return `${chatJID}@conference.${host}`;
+      })();
 
   const id = otherId ?? `get-history:${Date.now().toString()}`;
 

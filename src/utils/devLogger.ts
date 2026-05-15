@@ -48,13 +48,23 @@ export function pushLog(
   if (entries.length > MAX_ENTRIES) {
     entries = entries.slice(-MAX_ENTRIES);
   }
-  listeners.forEach((fn) => {
-    try {
-      fn();
-    } catch {
-      /* noop */
-    }
-  });
+  // Defer subscriber notifications via microtask so a `pushLog` called
+  // during a React render (e.g. via the captured `console.log`) doesn't
+  // trigger a setState-during-render warning in subscribers using
+  // `useSyncExternalStore`.
+  const notify = () =>
+    listeners.forEach((fn) => {
+      try {
+        fn();
+      } catch {
+        /* noop */
+      }
+    });
+  if (typeof queueMicrotask === 'function') {
+    queueMicrotask(notify);
+  } else {
+    Promise.resolve().then(notify);
+  }
 }
 
 export function clearLogs(): void {

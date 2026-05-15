@@ -355,6 +355,14 @@ const onGetChatRooms = (stanza: Element, xmpp: any) => {
   }
 };
 
+// No-op stubs for handlers that handleStanzas.xmpp.ts imports but the
+// RN side hasn't ported yet. Without these the bundle compiles but
+// require() returns undefined at runtime → "X is not a function".
+const onMessageError = (_stanza: Element, _xmpp?: any) => {};
+const onReactionMessage = (_stanza: Element) => {};
+const onReactionHistory = (_stanza: Element) => {};
+const onRoomKicked = (_stanza: Element) => {};
+
 export {
   onRealtimeMessage,
   onMessageHistory,
@@ -368,4 +376,8 @@ export {
   onDeleteMessage,
   onEditMessage,
   onChatInvite,
+  onMessageError,
+  onReactionMessage,
+  onReactionHistory,
+  onRoomKicked,
 };

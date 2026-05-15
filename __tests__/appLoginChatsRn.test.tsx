@@ -182,7 +182,7 @@ test('persisted creds skip the Setup tab and land directly on Chat', async () =>
       resolvedUser: null,
       baseUrl: 'https://api.chat.ethora.com/v1',
       xmppHost: 'xmpp.chat.ethora.com',
-      xmppDevServer: 'xmpp.chat.ethora.com:5443',
+      xmppDevServer: 'xmpp.chat.ethora.com',
     })
   );
 

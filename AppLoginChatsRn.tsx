@@ -113,7 +113,7 @@ const DEFAULT_CREDS: Creds = {
   resolvedUser: null,
   baseUrl: 'https://api.chat.ethora.com/v1',
   xmppHost: 'xmpp.chat.ethora.com',
-  xmppDevServer: 'xmpp.chat.ethora.com:5443',
+  xmppDevServer: 'xmpp.chat.ethora.com',
   conference: 'conference.xmpp.chat.ethora.com',
 };
 
@@ -412,7 +412,7 @@ const SetupTab: React.FC<{
           <TextInput
             value={xmppDevServer}
             onChangeText={setXmppDevServer}
-            placeholder="xmpp.chat.ethora.com:5443"
+            placeholder="xmpp.chat.ethora.com"
             autoCapitalize="none"
             autoCorrect={false}
             style={styles.input}
@@ -724,7 +724,11 @@ const AppLoginChatsRn: React.FC = () => {
           const parsed = { ...DEFAULT_CREDS, ...JSON.parse(raw) };
           setCreds(parsed);
           pushLog('rn', 'Restored creds from AsyncStorage');
-          if (parsed.jwt) setTab('chat');
+          // Auto-jump to Chat for either mode if we have what we need.
+          const ready =
+            (parsed.mode === 'jwt' && !!parsed.jwt) ||
+            (parsed.mode === 'email' && !!parsed.resolvedUser);
+          if (ready) setTab('chat');
         }
       } catch (err) {
         pushLog('error', 'Failed to read creds', err);

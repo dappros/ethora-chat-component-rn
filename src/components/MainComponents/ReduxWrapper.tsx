@@ -4,6 +4,7 @@ import {store} from '../../roomStore';
 import {ConfigUser, IConfig, MessageProps} from '../../types/types';
 import {XmppProvider} from '../../context/xmppProvider.tsx';
 import {MessageNotificationProvider} from '../../context/MessageNotificationContext.tsx';
+import {ToastProvider} from '../../context/ToastContext.tsx';
 import LoginWrapper from './LoginWrapper.tsx';
 // Side-effect import: attaches globalThis.useStoreConsole when enabled.
 import '../../helpers/storeConsole';
@@ -27,9 +28,11 @@ export const ReduxWrapper: React.FC<ChatWrapperProps> = React.memo(
     return (
       <Provider store={store}>
         <XmppProvider config={memoizedConfig}>
-          <MessageNotificationProvider config={memoizedConfig}>
-            <LoginWrapper config={memoizedConfig} {...props} />
-          </MessageNotificationProvider>
+          <ToastProvider>
+            <MessageNotificationProvider config={memoizedConfig}>
+              <LoginWrapper config={memoizedConfig} {...props} />
+            </MessageNotificationProvider>
+          </ToastProvider>
         </XmppProvider>
       </Provider>
     );

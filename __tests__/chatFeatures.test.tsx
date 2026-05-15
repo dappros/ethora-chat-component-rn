@@ -472,7 +472,7 @@ describe('XmppClient — delete + typing wire stanzas', () => {
     const c = new XmppClient(
       LIVE_USER.xmppUsername,
       LIVE_USER.xmppPassword,
-      { devServer: 'xmpp.chat.ethora.com:5443' }
+      { devServer: 'xmpp.chat.ethora.com' }
     );
     xmppSends.length = 0;
     c.deleteMessageStanza(
@@ -489,7 +489,7 @@ describe('XmppClient — delete + typing wire stanzas', () => {
     const c = new XmppClient(
       LIVE_USER.xmppUsername,
       LIVE_USER.xmppPassword,
-      { devServer: 'xmpp.chat.ethora.com:5443' }
+      { devServer: 'xmpp.chat.ethora.com' }
     );
     xmppSends.length = 0;
     c.sendTypingRequestStanza(
