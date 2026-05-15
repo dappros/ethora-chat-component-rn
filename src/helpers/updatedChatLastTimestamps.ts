@@ -4,7 +4,7 @@ export const updatedChatLastTimestamps = (
   roomTimestampObject: [jid: string, timestamp: string],
   dispatch: any
 ) => {
-  if (!roomTimestampObject) return;
+  if (!roomTimestampObject) {return;}
 
   if (roomTimestampObject && Object.keys(roomTimestampObject).length > 0) {
     const roomTimestampArray = Object.entries(roomTimestampObject).map(

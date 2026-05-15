@@ -1,32 +1,32 @@
 /** @format */
 
-import React, { useCallback } from "react";
+import React, { useCallback } from 'react';
 import {
   CenterContainer,
   ChatContainerHeader,
   ChatContainerHeaderBoxInfo,
   ChatContainerHeaderInfo,
   ChatContainerHeaderLabel,
-} from "../styled/StyledComponents";
-import RoomList from "./RoomList";
-import { IRoom } from "../../types/types";
-import { ProfileImagePlaceholder } from "./ProfileImagePlaceholder";
-import Button from "../styled/Button";
-import { BackIcon, BurgerMenuIcon } from "../../assets/icons";
-import { useDispatch } from "react-redux";
-import Composing from "../styled/StyledInputComponents/Composing";
+} from '../styled/StyledComponents';
+import RoomList from './RoomList';
+import { IRoom } from '../../types/types';
+import { ProfileImagePlaceholder } from './ProfileImagePlaceholder';
+import Button from '../styled/Button';
+import { BackIcon, BurgerMenuIcon } from '../../assets/icons';
+import { useDispatch } from 'react-redux';
+import Composing from '../styled/StyledInputComponents/Composing';
 import {
   deleteRoom,
   setCurrentRoom,
   setIsLoading,
-} from "../../roomStore/roomsSlice";
-import { useXmppClient } from "../../context/xmppProvider";
-import { setActiveModal } from "../../roomStore/chatSettingsSlice";
-import { MODAL_TYPES } from "../../helpers/constants/MODAL_TYPES";
-import { RoomMenu } from "../MenuRoom/MenuRoom";
-import { useRoomState } from "../../hooks/useRoomState";
-import { useChatSettingState } from "../../hooks/useChatSettingState";
-import { View, StyleSheet, Text, Keyboard } from "react-native";
+} from '../../roomStore/roomsSlice';
+import { useXmppClient } from '../../context/xmppProvider';
+import { setActiveModal } from '../../roomStore/chatSettingsSlice';
+import { MODAL_TYPES } from '../../helpers/constants/MODAL_TYPES';
+import { RoomMenu } from '../MenuRoom/MenuRoom';
+import { useRoomState } from '../../hooks/useRoomState';
+import { useChatSettingState } from '../../hooks/useChatSettingState';
+import { View, StyleSheet, Text, Keyboard } from 'react-native';
 
 interface ChatHeaderProps {
   currentRoom: IRoom;
@@ -142,21 +142,21 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
 
 const styles = StyleSheet.create({
   subLabel: {
-    color: "#8C8C8C",
+    color: '#8C8C8C',
     fontSize: 14,
   },
   menuButton: {
     padding: 8,
     borderRadius: 16,
-    backgroundColor: "transparent",
+    backgroundColor: 'transparent',
   },
   leftContainer: {
-    alignItems: "flex-start",
-    width: "15%",
+    alignItems: 'flex-start',
+    width: '15%',
   },
   rightContainer: {
-    alignItems: "flex-end",
-    width: "15%",
+    alignItems: 'flex-end',
+    width: '15%',
   },
 });
 

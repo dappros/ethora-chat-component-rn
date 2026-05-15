@@ -1,8 +1,8 @@
-import { FC, useMemo } from "react";
-import { IReply, IUser } from "../../types/types";
-import { Avatar } from "./Avatar";
-import { styled } from "styled-components/native";
-import { Platform, Text, View } from "react-native";
+import { FC, useMemo } from 'react';
+import { IReply, IUser } from '../../types/types';
+import { Avatar } from './Avatar';
+import { styled } from 'styled-components/native';
+import { Platform, Text, View } from 'react-native';
 
 interface BottomReplyContainerProps {
   isUser: boolean;
@@ -12,8 +12,8 @@ interface BottomReplyContainerProps {
 
 const ReplyContainer = styled.TouchableOpacity<{ isUser: boolean }>`
   background-color: #ffffff;
-  left: ${(props) => (!props.isUser ? "10px" : "auto")};
-  right: ${(props) => (props.isUser ? "10px" : "auto")};
+  left: ${(props) => (!props.isUser ? '10px' : 'auto')};
+  right: ${(props) => (props.isUser ? '10px' : 'auto')};
   padding: 4px 8px 4px 16px;
   border-radius: 20px;
   flex-direction: row;
@@ -85,17 +85,17 @@ export const BottomReplyContainer: FC<BottomReplyContainerProps> = ({
 
   return (
     <ReplyContainer onPress={onClick} isUser={isUser}>
-      <View style={{ flexDirection: "row" }}>
+      <View style={{ flexDirection: 'row' }}>
         {uniqueUsers.slice(0, 3).map((item) => (
           <AvatarCircle key={item.id}>
             <Avatar
               username={item.name}
               style={{
-                height: "100%",
-                width: "100%",
+                height: '100%',
+                width: '100%',
                 borderWidth: 1,
-                borderColor: "#F0F0F0",
-                borderStyle: "solid",
+                borderColor: '#F0F0F0',
+                borderStyle: 'solid',
                 fontSize: 10,
               }}
             />
@@ -110,7 +110,7 @@ export const BottomReplyContainer: FC<BottomReplyContainerProps> = ({
         )}
       </View>
       <CounterRepliesText>
-        {reply.length} {reply.length > 1 ? "replies" : "reply"}
+        {reply.length} {reply.length > 1 ? 'replies' : 'reply'}
       </CounterRepliesText>
     </ReplyContainer>
   );

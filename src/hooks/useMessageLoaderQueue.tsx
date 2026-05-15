@@ -22,7 +22,7 @@ const useMessageLoaderQueue = (
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const processQueue = useCallback(async () => {
-    if (globalLoading || loading) return;
+    if (globalLoading || loading) {return;}
 
     const unprocessed = roomsList.filter(
       (jid) => !processedChats.current.has(jid)
@@ -82,7 +82,7 @@ const useMessageLoaderQueue = (
     }
 
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (intervalRef.current) {clearInterval(intervalRef.current);}
     };
   }, [roomsList?.length, globalLoading, loading]);
 };

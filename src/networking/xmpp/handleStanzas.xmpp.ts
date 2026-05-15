@@ -20,7 +20,7 @@ import {
 import XmppClient from '../xmppClient';
 
 export function handleStanza(stanza: Element, xmppWs: XmppClient) {
-  if (stanza?.attrs?.type === 'headline') return;
+  if (stanza?.attrs?.type === 'headline') {return;}
   switch (stanza.name) {
     case 'message':
       onMessageError(stanza, xmppWs);

@@ -1,7 +1,7 @@
-import React, { FC } from "react";
-import { CustomDivider } from "./CustomDivider";
-import { IConfig, IMessage } from "../../types/types";
-import { CustomMessageText } from "../styled/StyledComponents";
+import React, { FC } from 'react';
+import { CustomDivider } from './CustomDivider';
+import { IConfig, IMessage } from '../../types/types';
+import { CustomMessageText } from '../styled/StyledComponents';
 
 interface MessageTranslationsProps {
   message: IMessage;

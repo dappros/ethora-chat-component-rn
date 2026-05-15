@@ -1,34 +1,34 @@
-import React, { useState, useEffect, useMemo } from "react";
-import Button from "../../styled/Button";
-import { AddNewIcon, AddPhotoIcon } from "../../../assets/icons";
-import { RootState } from "../../../roomStore";
-import { useXmppClient } from "../../../context/xmppProvider";
+import React, { useState, useEffect, useMemo } from 'react';
+import Button from '../../styled/Button';
+import { AddNewIcon, AddPhotoIcon } from '../../../assets/icons';
+import { RootState } from '../../../roomStore';
+import { useXmppClient } from '../../../context/xmppProvider';
 import {
   CloseButton,
   GroupContainer,
   ModalBackground,
   ModalContainer,
   ModalTitle,
-} from "../styledModalComponents";
-import { addRoomViaApi, setCurrentRoom, updateRoom } from "../../../roomStore/roomsSlice";
-import InputWithLabel from "../../styled/StyledInput";
-import { uploadFile } from "../../../networking/api-requests/auth.api";
-import { ProfileImagePlaceholder } from "../../MainComponents/ProfileImagePlaceholder";
-import { Text, Alert, Linking, Platform } from "react-native";
-import ImagePicker from "react-native-image-crop-picker";
+} from '../styledModalComponents';
+import { addRoomViaApi, setCurrentRoom, updateRoom } from '../../../roomStore/roomsSlice';
+import InputWithLabel from '../../styled/StyledInput';
+import { uploadFile } from '../../../networking/api-requests/auth.api';
+import { ProfileImagePlaceholder } from '../../MainComponents/ProfileImagePlaceholder';
+import { Text, Alert, Linking, Platform } from 'react-native';
+import ImagePicker from 'react-native-image-crop-picker';
 import {
   check,
   request,
   PERMISSIONS,
   RESULTS,
   Permission,
-} from "react-native-permissions";
-import { ApiRoom, ChatAccessOption, RoomMember } from "../../../types/models/room.model";
-import { createRoomFromApi } from "../../../helpers/createRoomFromApi";
-import { postRoom } from "../../../networking/api-requests/rooms.api";
-import { useAppDispatch, useAppSelector } from "../../../hooks/hooks";
-import { useChatSettingState } from "../../../hooks/useChatSettingState";
-import { useToast } from "../../../context/ToastContext";
+} from 'react-native-permissions';
+import { ApiRoom, ChatAccessOption, RoomMember } from '../../../types/models/room.model';
+import { createRoomFromApi } from '../../../helpers/createRoomFromApi';
+import { postRoom } from '../../../networking/api-requests/rooms.api';
+import { useAppDispatch, useAppSelector } from '../../../hooks/hooks';
+import { useChatSettingState } from '../../../hooks/useChatSettingState';
+import { useToast } from '../../../context/ToastContext';
 
 interface NewChatModalProps {
   handleCloseModal?: any;
@@ -121,23 +121,23 @@ const NewChatModal: React.FC<NewChatModalProps> = ({ handleCloseModal: handleClo
   const onUpload = async () => {
     try {
       const permission =
-        Platform.OS === "ios"
+        Platform.OS === 'ios'
           ? PERMISSIONS.IOS.PHOTO_LIBRARY
           : PERMISSIONS.ANDROID.READ_EXTERNAL_STORAGE;
       const permissionStatus = await checkPermission(permission);
 
       if (permissionStatus !== RESULTS.GRANTED) {
         Alert.alert(
-          "Permission required",
-          "Photo library permission is needed to select images.",
+          'Permission required',
+          'Photo library permission is needed to select images.',
           [
             {
-              text: "Cancel",
-              onPress: () => console.log("Photo permission cancelled"),
-              style: "cancel",
+              text: 'Cancel',
+              onPress: () => console.log('Photo permission cancelled'),
+              style: 'cancel',
             },
             {
-              text: "Open Settings",
+              text: 'Open Settings',
               onPress: () => Linking.openSettings(),
             },
           ]
@@ -153,7 +153,7 @@ const NewChatModal: React.FC<NewChatModalProps> = ({ handleCloseModal: handleClo
         compressImageQuality: 0.8,
       });
 
-      const originalName = image.path.split("/").pop();
+      const originalName = image.path.split('/').pop();
       const fileObject = {
         uri: image.path,
         type: image.mime || 'image/jpeg',
@@ -216,7 +216,7 @@ const NewChatModal: React.FC<NewChatModalProps> = ({ handleCloseModal: handleClo
     setLoading(true);
     if (isValid) {
       let location: string | undefined;
-      
+
       if (profileImage && typeof profileImage === 'object' && 'uri' in profileImage) {
         try {
           const mediaData = new FormData();
@@ -253,11 +253,11 @@ const NewChatModal: React.FC<NewChatModalProps> = ({ handleCloseModal: handleClo
               ? roomDescription
               : 'No description'
           );
-  
+
           client.getRoomsStanza();
-  
+
           dispatch(setCurrentRoom({ roomJID: newChatJid }));
-  
+
           if (location) {
             client.setRoomImageStanza(newChatJid, location, 'icon', 'none');
             dispatch(
@@ -332,9 +332,9 @@ const NewChatModal: React.FC<NewChatModalProps> = ({ handleCloseModal: handleClo
           />
           <GroupContainer
             style={{
-              flexDirection: "column",
-              position: "relative",
-              width: "100%",
+              flexDirection: 'column',
+              position: 'relative',
+              width: '100%',
             }}
           >
             <InputWithLabel
@@ -360,8 +360,8 @@ const NewChatModal: React.FC<NewChatModalProps> = ({ handleCloseModal: handleClo
           <GroupContainer>
             <Button
               onPress={handleCreateRoom}
-              text={"Create"}
-              style={{ width: "100%" }}
+              text={'Create'}
+              style={{ width: '100%' }}
               unstyled
               variant="filled"
               disabled={!isValid}
@@ -369,8 +369,8 @@ const NewChatModal: React.FC<NewChatModalProps> = ({ handleCloseModal: handleClo
             />
             <Button
               onPress={handleCloseModal}
-              text={"Cancel"}
-              style={{ width: "100%" }}
+              text={'Cancel'}
+              style={{ width: '100%' }}
               unstyled
               variant="outlined"
               color="#0052CD"

@@ -7,7 +7,6 @@ import {
   editRoomMessage,
   setComposing,
   setCurrentRoom,
-  setLastViewedTimestamp,
   setRoomRole,
   updateRoom,
 } from '../roomStore/roomsSlice';
@@ -223,7 +222,7 @@ const handleComposing = async (stanza: Element, currentUser: string) => {
 
       let composingList = [];
 
-      !!stanza?.getChild('composing')
+      stanza?.getChild('composing')
         ? composingList.push(
             stanza.getChild('data').attrs?.fullName?.split(' ')?.[0] || 'User'
           )
@@ -249,7 +248,7 @@ const onPresenceInRoom = (stanza: Element | any) => {
 };
 
 const onChatInvite = async (stanza: Element, client: any) => {
-  if (stanza.is('message') && stanza.attrs['type'] !== 'groupchat') {
+  if (stanza.is('message') && stanza.attrs.type !== 'groupchat') {
     // check if it is invite
     const chatId = stanza.attrs.from;
     const xEls = stanza.getChildren('x');
@@ -296,7 +295,7 @@ const onGetRoomInfo = (stanza: Element) => {
   }
 };
 
-const onGetLastMessageArchive = (stanza: Element, xmpp: any) => {
+const onGetLastMessageArchive = (stanza: Element, _xmpp: any) => {
   if (stanza.attrs.id === 'GetLastArchive') {
   }
 };

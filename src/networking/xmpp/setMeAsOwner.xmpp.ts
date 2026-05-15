@@ -19,8 +19,8 @@ export function setMeAsOwner(roomId: string, client: Client) {
     stanzaHdlrPointer = (stanza: Element) => {
       if (
         stanza.is('iq') &&
-        stanza.attrs['id'] === id &&
-        stanza.attrs['type'] === 'result'
+        stanza.attrs.id === id &&
+        stanza.attrs.type === 'result'
       ) {
         unsubscribe();
         resolve(true);

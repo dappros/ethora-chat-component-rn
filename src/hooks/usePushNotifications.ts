@@ -19,13 +19,13 @@ export function usePushNotifications() {
   const rooms = useSelector((state: RootState) => state.rooms.rooms);
   const dispatch = useDispatch();
 
-  const { set, get } = useLocalStorage("fcmToken");
+  const { set, get } = useLocalStorage('fcmToken');
 
   const handleNotificationPress = (remoteMessage: any) => {
     console.log('[usePushNotifications] Notification pressed:', JSON.stringify(remoteMessage, null, 2));
-    
+
     const jid = remoteMessage?.data?.jid || remoteMessage?.data?.chatJid || remoteMessage?.jid;
-    
+
     if (jid) {
       dispatch(setPendingNotificationJid(jid));
     } else {
@@ -35,7 +35,7 @@ export function usePushNotifications() {
 
   const initToken = async () => {
     try {
-      
+
       const token = await get();
       if (token) {
         setFcmToken(token as string);
@@ -48,14 +48,14 @@ export function usePushNotifications() {
     } catch (error) {
       console.error('Failed to init token:', error);
     }
-  }
+  };
 
   useEffect(() => {
     initToken();
 
     const unsubscribeForeground = onForegroundMessage((message) => {
       setNotification(message);
-      
+
       const { notification: notif, data } = message;
       if (notif) {
         Alert.alert(

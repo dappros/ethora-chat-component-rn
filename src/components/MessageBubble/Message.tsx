@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState } from 'react';
 import {
   View,
   TouchableWithoutFeedback,
@@ -7,39 +7,39 @@ import {
   UIManager,
   Dimensions,
   Text,
-} from "react-native";
-import { useDispatch, useSelector } from "react-redux";
-import { RootState } from "../../roomStore";
-import { Avatar } from "./Avatar";
-import MessageInteractions from "./MessageInteractions";
-import { BottomReplyContainer } from "./BottomReplyContainer";
-import { MessageReply } from "./MessageReply";
-import { DeletedMessage } from "./DeletedMessage";
+} from 'react-native';
+import { useDispatch, useSelector } from 'react-redux';
+import { RootState } from '../../roomStore';
+import { Avatar } from './Avatar';
+import MessageInteractions from './MessageInteractions';
+import { BottomReplyContainer } from './BottomReplyContainer';
+import { MessageReply } from './MessageReply';
+import { DeletedMessage } from './DeletedMessage';
 import {
   setActiveModal,
   setDeleteModal,
   setSelectedUser,
-} from "../../roomStore/chatSettingsSlice";
-import { MODAL_TYPES } from "../../helpers/constants/MODAL_TYPES";
-import { setActiveMessage, setEditAction } from "../../roomStore/roomsSlice";
-import styled from "styled-components/native";
-import { IUser, MessageProps } from "../../types/types";
-import MediaMessage from "../MainComponents/MediaMessage";
-import MessageTranslations from "./MessageTranslations";
-import { useChatSettingState } from "../../hooks/useChatSettingState";
+} from '../../roomStore/chatSettingsSlice';
+import { MODAL_TYPES } from '../../helpers/constants/MODAL_TYPES';
+import { setActiveMessage, setEditAction } from '../../roomStore/roomsSlice';
+import styled from 'styled-components/native';
+import { IUser, MessageProps } from '../../types/types';
+import MediaMessage from '../MainComponents/MediaMessage';
+import MessageTranslations from './MessageTranslations';
+import { useChatSettingState } from '../../hooks/useChatSettingState';
 import { parseMessageBody } from '../../helpers/parseMessageBody';
 import { useMessageHeapState } from '../../hooks/useMessageHeapState';
 import { DoubleTick } from '../../assets/icons';
-import { useXmppClient } from "../../context/xmppProvider";
-import { MessageReaction } from "./MessageReaction";
-import { MessageFooter } from "../styled/StyledComponents";
+import { useXmppClient } from '../../context/xmppProvider';
+import { MessageReaction } from './MessageReaction';
+import { MessageFooter } from '../styled/StyledComponents';
 
 const CustomMessageContainer = styled.View<{ isUser: boolean; reply?: number }>`
   flex-direction: row;
   padding: 10px;
   align-items: flex-end;
-  justify-content: ${({ isUser }) => (isUser ? "flex-end" : "flex-start")};
-  margin-bottom: ${(props) => (props.reply ? "20px" : "0px")};
+  justify-content: ${({ isUser }) => (isUser ? 'flex-end' : 'flex-start')};
+  margin-bottom: ${(props) => (props.reply ? '20px' : '0px')};
 `;
 
 const CustomMessageBubble = styled.View<{
@@ -55,8 +55,8 @@ const CustomMessageBubble = styled.View<{
   margin-right: ${({isUser}) => isUser ? '0' : '10px'};
   margin-left: ${({isUser}) => isUser ? '10px' : '0'};
   border-radius: 10px;
-  border-bottom-left-radius: ${({ isUser }) => (isUser ? "10" : "0")}px;
-  border-bottom-right-radius: ${({ isUser }) => (isUser ? "0" : "10")}px;
+  border-bottom-left-radius: ${({ isUser }) => (isUser ? '10' : '0')}px;
+  border-bottom-right-radius: ${({ isUser }) => (isUser ? '0' : '10')}px;
   background-color: ${({
     isUser,
     deleted,
@@ -64,10 +64,10 @@ const CustomMessageBubble = styled.View<{
     backgroundMessage,
   }) =>
     deleted
-      ? "#f5f5f5"
+      ? '#f5f5f5'
       : isUser
-      ? backgroundMessageUser || "#d1e7ff"
-      : backgroundMessage || "#fff"};
+      ? backgroundMessageUser || '#d1e7ff'
+      : backgroundMessage || '#fff'};
 `;
 
 const CustomMessageText = styled.Text<{
@@ -77,7 +77,7 @@ const CustomMessageText = styled.Text<{
 }>`
   font-size: 16px;
   color: ${({ color, colorUser, isUser }) =>
-    isUser ? colorUser || "#333" : color || "#333"};
+    isUser ? colorUser || '#333' : color || '#333'};
 `;
 
 const CustomMessagePhoto = styled.Image`
@@ -93,7 +93,7 @@ const CustomMessagePhotoContainer = styled.TouchableOpacity`
 const CustomUserName = styled.Text<{ color?: string }>`
   font-size: 14px;
   font-weight: 500;
-  color: ${({ color }) => color || "#333"};
+  color: ${({ color }) => color || '#333'};
 `;
 
 const CustomMessageTimestamp = styled.Text<{
@@ -104,7 +104,7 @@ const CustomMessageTimestamp = styled.Text<{
   font-size: 12px;
   color: #999;
   color: ${({ isUser, color, colorUser }) =>
-    isUser ? colorUser || "#999" : color || "#999"};
+    isUser ? colorUser || '#999' : color || '#999'};
   margin-top: 5px;
   align-self: flex-end;
 `;
@@ -215,7 +215,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
       const nodeHandle = findNodeHandle(messageRef.current);
       if (nodeHandle) {
         UIManager.measure(nodeHandle, (x, y, width, height, pageX, pageY) => {
-          const screenHeight = Dimensions.get("window").height;
+          const screenHeight = Dimensions.get('window').height;
 
           const enoughSpaceBelow = screenHeight - pageY - height > 150;
           setContextMenuPosition({
@@ -242,7 +242,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
         style={[
           styles.customMessageContainer,
           {
-            justifyContent: isUser ? "flex-end" : "flex-start",
+            justifyContent: isUser ? 'flex-end' : 'flex-start',
             marginBottom: !!message?.reply?.length || message?.reaction && !!Object.keys(message?.reaction)?.length
              ? 20 : 0,
           },
@@ -288,7 +288,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
               />
             )}
 
-            {message?.isMediafile === "true" && !message?.isDeleted ? (
+            {message?.isMediafile === 'true' && !message?.isDeleted ? (
               <MediaMessage
                 mimeType={message.mimetype}
                 messageText={message.locationPreview}
@@ -297,7 +297,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
               />
             ) : (
               <>
-                {message.isDeleted && message.id !== "delimiter-new" ? (
+                {message.isDeleted && message.id !== 'delimiter-new' ? (
                   <DeletedMessage />
                 ) : (
                   <CustomMessageText
@@ -339,7 +339,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
             )}
 
           <MessageFooter isUser={isUser}>
-            
+
             {message.reaction && (
               <MessageReaction
                 reaction={message.reaction}
@@ -374,24 +374,24 @@ export { Message };
 
 const styles = StyleSheet.create({
   customMessageContainer: {
-    flexDirection: "row",
+    flexDirection: 'row',
     padding: 10,
-    alignItems: "flex-end",
-    position: "relative",
+    alignItems: 'flex-end',
+    position: 'relative',
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    position: "absolute",
+    position: 'absolute',
     top: 0,
     left: 0,
-    width: "100%",
-    height: "100%",
+    width: '100%',
+    height: '100%',
     // backgroundColor: "rgba(0, 0, 0, 0.3)",
   },
   timestamp: {
     fontSize: 12,
-    color: "#999",
+    color: '#999',
     marginTop: 5,
-    alignSelf: "flex-end",
+    alignSelf: 'flex-end',
   },
 });

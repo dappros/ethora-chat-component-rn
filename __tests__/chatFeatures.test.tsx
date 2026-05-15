@@ -41,7 +41,7 @@ const mockClientInstance = {
   // start(), fire 'online' synchronously so the listener flips
   // status='online' before `waitForOnline` does its first poll.
   start: jest.fn(() => {
-    (xmppListeners['online'] || []).forEach((cb) => cb());
+    (xmppListeners.online || []).forEach((cb) => cb());
     return Promise.resolve();
   }),
   stop: jest.fn().mockResolvedValue(undefined),

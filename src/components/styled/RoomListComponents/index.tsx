@@ -1,12 +1,12 @@
-import React, { createContext } from "react";
+import React, { createContext } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   TextStyle,
-} from "react-native";
-import { getTintedColor } from "../../../helpers/getTintedColor";
+} from 'react-native';
+import { getTintedColor } from '../../../helpers/getTintedColor';
 
 // Container with burger menu support
 export const Container = ({
@@ -91,22 +91,22 @@ const styles = StyleSheet.create({
   container: {
     padding: 16,
     paddingTop: 0,
-    backgroundColor: "#fff",
-    overflow: "hidden",
+    backgroundColor: '#fff',
+    overflow: 'hidden',
   },
   burgerMenu: {
-    position: "absolute",
+    position: 'absolute',
     left: 0,
     top: 0,
     width: 300,
-    height: "100%",
+    height: '100%',
     transform: [{ translateX: -300 }],
-    display: "flex",
-    flexDirection: "column",
-    backgroundColor: "#fff",
+    display: 'flex',
+    flexDirection: 'column',
+    backgroundColor: '#fff',
     padding: 16,
     borderRightWidth: 1,
-    borderRightColor: "#f0f0f0",
+    borderRightColor: '#f0f0f0',
   },
   containerOpen: {
     transform: [{ translateX: 0 }],
@@ -115,50 +115,50 @@ const styles = StyleSheet.create({
     transform: [{ translateX: -300 }],
   },
   burgerButton: {
-    position: "absolute",
+    position: 'absolute',
     left: 10,
     top: 10,
     padding: 10,
   },
   burgerButtonText: {
     fontSize: 24,
-    color: "#333",
+    color: '#333',
   },
   chatItem: {
     borderRadius: 16,
     gap: 16,
-    color: "#000",
-    flexDirection: "row",
-    justifyContent: "flex-start",
+    color: '#000',
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
   },
   searchContainer: {
-    display: "flex",
+    display: 'flex',
     gap: 16,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     height: 50,
     paddingHorizontal: 12,
   },
   scollableContainer: {
     flexGrow: 1,
-    display: "flex",
-    flexDirection: "column",
+    display: 'flex',
+    flexDirection: 'column',
   },
   chatInfo: {
-    maxWidth: "60%",
+    maxWidth: '60%',
   },
   chatName: {
-    fontWeight: "bold",
+    fontWeight: 'bold',
   },
   lastMessage: {
-    color: "#999",
+    color: '#999',
   },
   userCount: {
-    marginLeft: "auto",
+    marginLeft: 'auto',
   },
   viewider: {
     height: 1,
-    width: "100%",
-    backgroundColor: "#0052cd0d",
+    width: '100%',
+    backgroundColor: '#0052cd0d',
   },
 });

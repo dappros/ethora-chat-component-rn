@@ -1,20 +1,20 @@
 /** @format */
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   MessageInputContainer,
   InputContainer,
   MessageInput,
-} from "./StyledInputComponents/StyledInputComponents";
-import { IConfig, MediaFile } from "../../types/types";
-import Button from "./Button";
-import { SendIcon, AttachIcon } from "../../assets/icons";
-import { KeyboardAvoidingView, Platform, View, TouchableOpacity, Alert, ActionSheetIOS, Linking } from "react-native";
-import { ModalSelectMedia } from "../Modals/ModalSelectMedia/ModalSelectMedia.tsx";
-import { MediaFilePreview } from "./MediaFilePreview";
-import DocumentPicker from "react-native-document-picker";
-import ImagePicker from "react-native-image-crop-picker";
-import { check, request, PERMISSIONS, RESULTS, Permission } from "react-native-permissions";
+} from './StyledInputComponents/StyledInputComponents';
+import { IConfig, MediaFile } from '../../types/types';
+import Button from './Button';
+import { SendIcon, AttachIcon } from '../../assets/icons';
+import { KeyboardAvoidingView, Platform, View, TouchableOpacity, Alert, ActionSheetIOS, Linking } from 'react-native';
+import { ModalSelectMedia } from '../Modals/ModalSelectMedia/ModalSelectMedia.tsx';
+import { MediaFilePreview } from './MediaFilePreview';
+import DocumentPicker from 'react-native-document-picker';
+import ImagePicker from 'react-native-image-crop-picker';
+import { check, request, PERMISSIONS, RESULTS, Permission } from 'react-native-permissions';
 
 interface SendInputProps {
   sendMessage: (message: string) => void;
@@ -42,7 +42,7 @@ const SendInput: React.FC<SendInputProps> = ({
   isLoading,
   isMessageProcessing,
 }) => {
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const [filePreviews, setFilePreviews] = useState<MediaFile[]>([]);
@@ -50,7 +50,7 @@ const SendInput: React.FC<SendInputProps> = ({
   const [showMediaMenu, setShowMediaMenu] = useState(false);
 
   const handleFileSelect = (files: MediaFile[]) => {
-    console.log("🔵 [SendInput] Files selected:", files);
+    console.log('🔵 [SendInput] Files selected:', files);
     setFilePreviews([...files]);
   };
 
@@ -66,13 +66,13 @@ const SendInput: React.FC<SendInputProps> = ({
   };
 
   const handleCameraSelection = async () => {
-    const permission = Platform.OS === "ios" ? PERMISSIONS.IOS.CAMERA : PERMISSIONS.ANDROID.CAMERA;
+    const permission = Platform.OS === 'ios' ? PERMISSIONS.IOS.CAMERA : PERMISSIONS.ANDROID.CAMERA;
     const permissionStatus = await checkPermission(permission);
 
     if (permissionStatus !== RESULTS.GRANTED) {
-      Alert.alert("Permission required", "Camera permission is needed to take photos.", [
-        { text: "Cancel", style: "cancel" },
-        { text: "Open Settings", onPress: () => Linking.openSettings() },
+      Alert.alert('Permission required', 'Camera permission is needed to take photos.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Open Settings', onPress: () => Linking.openSettings() },
       ]);
       return;
     }
@@ -86,12 +86,12 @@ const SendInput: React.FC<SendInputProps> = ({
       const file = {
         uri: image.path,
         type: image.mime,
-        name: image.path.split("/").pop() || `camera_${Date.now()}.jpg`,
+        name: image.path.split('/').pop() || `camera_${Date.now()}.jpg`,
       };
       handleFileSelect([file]);
     } catch (error: any) {
-      if (error?.code !== "E_PICKER_CANCELLED") {
-        console.error("Camera error:", error);
+      if (error?.code !== 'E_PICKER_CANCELLED') {
+        console.error('Camera error:', error);
       }
     }
   };
@@ -99,7 +99,7 @@ const SendInput: React.FC<SendInputProps> = ({
   const handleGallerySelection = async () => {
     try {
       let permission: Permission;
-      if (Platform.OS === "ios") {
+      if (Platform.OS === 'ios') {
         permission = PERMISSIONS.IOS.PHOTO_LIBRARY;
       } else if (Number(Platform.Version) >= 33) {
         permission = PERMISSIONS.ANDROID.READ_MEDIA_IMAGES;
@@ -109,26 +109,26 @@ const SendInput: React.FC<SendInputProps> = ({
 
       const permissionStatus = await checkPermission(permission);
       if (permissionStatus !== RESULTS.GRANTED) {
-        Alert.alert("Permission required", "Gallery permission is needed to select photos.", [
-          { text: "Cancel", style: "cancel" },
-          { text: "Open Settings", onPress: () => Linking.openSettings() },
+        Alert.alert('Permission required', 'Gallery permission is needed to select photos.', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
         ]);
         return;
       }
 
       const image = await ImagePicker.openPicker({
         multiple: false,
-        mediaType: "any",
+        mediaType: 'any',
       });
       const file = {
         uri: image.path,
         type: image.mime,
-        name: image.path.split("/").pop() || `gallery_${Date.now()}.jpg`,
+        name: image.path.split('/').pop() || `gallery_${Date.now()}.jpg`,
       };
       handleFileSelect([file]);
     } catch (error: any) {
-      if (error?.code !== "E_PICKER_CANCELLED") {
-        console.error("Gallery error:", error);
+      if (error?.code !== 'E_PICKER_CANCELLED') {
+        console.error('Gallery error:', error);
       }
     }
   };
@@ -141,37 +141,37 @@ const SendInput: React.FC<SendInputProps> = ({
       });
       const files = result.map((file) => ({
         uri: file.uri,
-        type: file.type || "unknown",
+        type: file.type || 'unknown',
         name: file.name || `file_${Date.now()}`,
       }));
       handleFileSelect(files);
     } catch (err: any) {
       if (!DocumentPicker.isCancel(err)) {
-        console.error("DocumentPicker Error:", err);
+        console.error('DocumentPicker Error:', err);
       }
     }
   };
 
   const handleAttachPress = () => {
-    console.log("🔵 [SendInput] Attach button pressed");
-    if (Platform.OS === "ios") {
+    console.log('🔵 [SendInput] Attach button pressed');
+    if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
         {
-          options: ["Cancel", "Camera", "Photo Library", "Document"],
+          options: ['Cancel', 'Camera', 'Photo Library', 'Document'],
           cancelButtonIndex: 0,
         },
         (buttonIndex) => {
-          if (buttonIndex === 1) handleCameraSelection();
-          else if (buttonIndex === 2) handleGallerySelection();
-          else if (buttonIndex === 3) handleFileSelection();
+          if (buttonIndex === 1) {handleCameraSelection();}
+          else if (buttonIndex === 2) {handleGallerySelection();}
+          else if (buttonIndex === 3) {handleFileSelection();}
         }
       );
     } else {
-      Alert.alert("Select Media", "Choose an option", [
-        { text: "Cancel", style: "cancel" },
-        { text: "Camera", onPress: handleCameraSelection },
-        { text: "Photo Library", onPress: handleGallerySelection },
-        { text: "Document", onPress: handleFileSelection },
+      Alert.alert('Select Media', 'Choose an option', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Camera', onPress: handleCameraSelection },
+        { text: 'Photo Library', onPress: handleGallerySelection },
+        { text: 'Document', onPress: handleFileSelection },
       ]);
     }
   };
@@ -188,12 +188,12 @@ const SendInput: React.FC<SendInputProps> = ({
     } else if (message) {
       sendMessage(message);
     }
-    setMessage("");
+    setMessage('');
     setFilePreviews([]);
   }, [filePreviews, message, sendMessage, sendMedia]);
 
   useEffect(() => {
-    setMessage(editMessage || "");
+    setMessage(editMessage || '');
   }, [editMessage]);
 
   return (
@@ -221,7 +221,7 @@ const SendInput: React.FC<SendInputProps> = ({
                   }}
                   activeOpacity={0.7}
                 >
-                  <AttachIcon color={config?.colors?.primary || "#0052CD"} />
+                  <AttachIcon color={config?.colors?.primary || '#0052CD'} />
                 </TouchableOpacity>
               )}
               <MessageInput
@@ -264,7 +264,7 @@ const SendInput: React.FC<SendInputProps> = ({
             EndIcon={
               <SendIcon
                 color={
-                  message || filePreviews.length > 0 ? "#FFFFFF" : "#D4D4D8"
+                  message || filePreviews.length > 0 ? '#FFFFFF' : '#D4D4D8'
                 }
               />
             }
@@ -273,7 +273,7 @@ const SendInput: React.FC<SendInputProps> = ({
               backgroundColor:
                 message || filePreviews.length > 0
                   ? config?.colors?.primary
-                  : "transparent",
+                  : 'transparent',
               opacity: message || filePreviews.length > 0 ? 1 : 0.5,
             }}
           />
@@ -282,7 +282,7 @@ const SendInput: React.FC<SendInputProps> = ({
           style={{
             paddingHorizontal: 16,
           }}
-        ></View>
+         />
       </InputContainer>
   );
 };

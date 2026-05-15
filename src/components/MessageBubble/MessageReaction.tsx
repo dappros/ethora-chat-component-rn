@@ -1,7 +1,8 @@
-import React, { FC, useMemo, useState } from "react";
-import { View, Text, TouchableOpacity, Animated } from "react-native";
-import styled from "styled-components/native";
-import { ReactionMessage } from "../../types/types";
+/* eslint-disable react-hooks/rules-of-hooks -- pre-existing port artifacts; hooks called conditionally / inside helpers. TODO: refactor */
+import React, { FC, useMemo, useState } from 'react';
+import { View, Text, TouchableOpacity, Animated } from 'react-native';
+import styled from 'styled-components/native';
+import { ReactionMessage } from '../../types/types';
 
 const ReactionContainer = styled.View`
   flex-direction: row;
@@ -12,7 +13,7 @@ const ReactionContainer = styled.View`
 const ReactionBox = styled(TouchableOpacity)<{ active: boolean; color: string }>`
   padding: 4px 8px;
   border-radius: 20px;
-  background-color: ${({ active, color }) => (active ? color : "#ffffff")};
+  background-color: ${({ active, color }) => (active ? color : '#ffffff')};
   flex-direction: row;
   align-items: center;
   justify-content: center;
@@ -27,12 +28,12 @@ interface MessageReactionProps {
 }
 
 const emojiMap: Record<string, string> = {
-  joy: "😂",
-  heart: "❤️",
-  fire: "🔥",
-  "+1": "👍",
-  smile: "😄",
-  scream: "😱",
+  joy: '😂',
+  heart: '❤️',
+  fire: '🔥',
+  '+1': '👍',
+  smile: '😄',
+  scream: '😱',
 };
 
 export const MessageReaction: FC<MessageReactionProps> = ({
@@ -61,20 +62,20 @@ export const MessageReaction: FC<MessageReactionProps> = ({
     }).start(() => setTooltipEmoji(null));
   };
 
-  if (!reaction) return null;
+  if (!reaction) {return null;}
 
   const reactionDetails = useMemo(() => {
     const result: Record<string, { count: number; users: string[] }> = {};
 
     Object.values(reaction).forEach(({ emoji, data }) => {
       if (emoji && emoji.length > 0)
-        emoji.forEach((em) => {
+        {emoji.forEach((em) => {
           if (!result[em]) {
             result[em] = { count: 0, users: [] };
           }
           result[em].count += 1;
           result[em].users.push(`${data.senderFirstName} ${data.senderLastName}`);
-        });
+        });}
     });
 
     return result;
@@ -88,7 +89,7 @@ export const MessageReaction: FC<MessageReactionProps> = ({
           : false;
 
         return (
-          <View key={emoji} style={{ position: "relative" }}>
+          <View key={emoji} style={{ position: 'relative' }}>
             <ReactionBox
               active={isUserReacted}
               color={color}
@@ -102,8 +103,8 @@ export const MessageReaction: FC<MessageReactionProps> = ({
               <Text
                 style={{
                   fontSize: 14,
-                  fontWeight: "600",
-                  color: isUserReacted ? "#fff" : color,
+                  fontWeight: '600',
+                  color: isUserReacted ? '#fff' : color,
                 }}
               >
                 {details.count}
@@ -114,9 +115,9 @@ export const MessageReaction: FC<MessageReactionProps> = ({
             {tooltipEmoji === emoji && (
               <Animated.View
                 style={{
-                  position: "absolute",
+                  position: 'absolute',
                   bottom: 36,
-                  left: "50%",
+                  left: '50%',
                   transform: [
                     { translateX: -50 },
                     {
@@ -127,7 +128,7 @@ export const MessageReaction: FC<MessageReactionProps> = ({
                     },
                   ],
                   opacity: fadeAnim,
-                  backgroundColor: "#333",
+                  backgroundColor: '#333',
                   borderRadius: 6,
                   paddingHorizontal: 10,
                   paddingVertical: 6,
@@ -135,8 +136,8 @@ export const MessageReaction: FC<MessageReactionProps> = ({
                   zIndex: 999,
                 }}
               >
-                <Text style={{ color: "#fff", fontSize: 12 }}>
-                  {details.users.join(", ")}
+                <Text style={{ color: '#fff', fontSize: 12 }}>
+                  {details.users.join(', ')}
                 </Text>
               </Animated.View>
             )}

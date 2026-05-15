@@ -1,10 +1,10 @@
-import React, { useCallback } from "react";
-import { View, Image, TouchableOpacity } from "react-native";
-import Video from "react-native-video";
-import { AttachIcon, RemoveIcon } from "../../assets/icons";
-import Button from "../styled/Button";
-import { launchImageLibrary } from "react-native-image-picker";
-import { IConfig } from "../../types/types";
+import React, { useCallback } from 'react';
+import { View, Image, TouchableOpacity } from 'react-native';
+import Video from 'react-native-video';
+import { AttachIcon, RemoveIcon } from '../../assets/icons';
+import Button from '../styled/Button';
+import { launchImageLibrary } from 'react-native-image-picker';
+import { IConfig } from '../../types/types';
 
 interface FilePreview {
   uri: string;
@@ -30,7 +30,7 @@ const MediaInput: React.FC<MediaInputProps> = ({
   const handleAttachClick = useCallback(() => {
     launchImageLibrary(
       {
-        mediaType: "mixed",
+        mediaType: 'mixed',
         selectionLimit: 5,
       },
       (response) => {
@@ -58,11 +58,11 @@ const MediaInput: React.FC<MediaInputProps> = ({
   );
 
   const renderFilePreview = useCallback((file: FilePreview) => {
-    if (file.type?.startsWith("image/")) {
+    if (file.type?.startsWith('image/')) {
       return (
         <Image source={{ uri: file.uri }} style={{ width: 50, height: 50 }} />
       );
-    } else if (file.type?.startsWith("video/")) {
+    } else if (file.type?.startsWith('video/')) {
       return (
         <Video
           source={{ uri: file.uri }}
@@ -85,19 +85,19 @@ const MediaInput: React.FC<MediaInputProps> = ({
       {filePreviews.length > 0 && (
         <View>
           {filePreviews.map((file) => (
-            <View key={file.uri} style={{ position: "relative", margin: 8 }}>
+            <View key={file.uri} style={{ position: 'relative', margin: 8 }}>
               {renderFilePreview(file)}
               <TouchableOpacity
                 onPress={() => handleRemoveFile(file)}
                 style={{
-                  position: "absolute",
+                  position: 'absolute',
                   top: 4,
                   right: 4,
                   width: 20,
                   height: 20,
-                  backgroundColor: "rgba(0, 0, 0, 0.5)",
-                  justifyContent: "center",
-                  alignItems: "center",
+                  backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                  justifyContent: 'center',
+                  alignItems: 'center',
                   borderRadius: 10,
                 }}
               >

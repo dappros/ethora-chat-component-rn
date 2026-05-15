@@ -1,20 +1,20 @@
-import { useEffect, useState } from "react";
-import { RadioGroup, RadioLabel } from "./StyledComponents";
-import ModalHeaderComponent from "../../ModalHeaderComponent";
-import { useDispatch, useSelector } from "react-redux";
-import { RootState } from "../../../../roomStore";
-import { setUser } from "../../../../roomStore/chatSettingsSlice";
-import { Notification } from "../../../Toast";
-import { updateMe } from "../../../../networking/api-requests/user.api";
-import { User } from "../../../../types/types";
-import { ModalContainerFullScreen } from "../../styledModalComponents";
+import { useEffect, useState } from 'react';
+import { RadioGroup, RadioLabel } from './StyledComponents';
+import ModalHeaderComponent from '../../ModalHeaderComponent';
+import { useDispatch, useSelector } from 'react-redux';
+import { RootState } from '../../../../roomStore';
+import { setUser } from '../../../../roomStore/chatSettingsSlice';
+import { Notification } from '../../../Toast';
+import { updateMe } from '../../../../networking/api-requests/user.api';
+import { User } from '../../../../types/types';
+import { ModalContainerFullScreen } from '../../styledModalComponents';
 import {
   SharedSettingsCenterContainer,
   SharedSettingsColumnContainer,
   SharedSettingsLabelData,
   SharedSettingsStyledLabel,
-} from "../SharedStyledComponents";
-import { RadioInput } from "./RadioInput";
+} from '../SharedStyledComponents';
+import { RadioInput } from './RadioInput';
 
 interface VisibilityModalProps {
   handleCloseModal: any;
@@ -33,10 +33,10 @@ const VisibilityModal: React.FC<VisibilityModalProps> = ({
   const [isAssetsOpen, setIsAssetsOpen] = useState(user?.isAssetsOpen);
   const [notification, setNotification] = useState<{
     message: string;
-    type: "success" | "error";
+    type: 'success' | 'error';
   } | null>(null);
 
-  const showNotification = (message: string, type: "success" | "error") => {
+  const showNotification = (message: string, type: 'success' | 'error') => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 3000);
   };
@@ -46,9 +46,9 @@ const VisibilityModal: React.FC<VisibilityModalProps> = ({
       updateMe({ isProfileOpen })
         .then(({ data }) => {
           doUpdateUser(data.user);
-          showNotification("Saved", "success");
+          showNotification('Saved', 'success');
         })
-        .catch(() => showNotification("Error", "error"));
+        .catch(() => showNotification('Error', 'error'));
     }
   }, [isProfileOpen]);
 
@@ -57,9 +57,9 @@ const VisibilityModal: React.FC<VisibilityModalProps> = ({
       updateMe({ isAssetsOpen })
         .then(({ data }) => {
           doUpdateUser(data.user);
-          showNotification("Saved", "success");
+          showNotification('Saved', 'success');
         })
-        .catch(() => showNotification("Error", "error"));
+        .catch(() => showNotification('Error', 'error'));
     }
   }, [isAssetsOpen]);
 
@@ -67,7 +67,7 @@ const VisibilityModal: React.FC<VisibilityModalProps> = ({
     <ModalContainerFullScreen>
       <ModalHeaderComponent
         handleCloseModal={handleCloseModal}
-        headerTitle={"Visibility"}
+        headerTitle={'Visibility'}
       />
       <SharedSettingsCenterContainer>
         <SharedSettingsColumnContainer>
@@ -77,7 +77,7 @@ const VisibilityModal: React.FC<VisibilityModalProps> = ({
           <RadioGroup>
             <RadioLabel>
               <RadioInput
-                option={{ label: "Open (default)", value: isProfileOpen }}
+                option={{ label: 'Open (default)', value: isProfileOpen }}
                 radioColor={config?.colors?.primary}
                 checked={isProfileOpen === true}
                 onChange={() => setIsProfileOpen(true)}
@@ -90,7 +90,7 @@ const VisibilityModal: React.FC<VisibilityModalProps> = ({
             </SharedSettingsLabelData>
             <RadioLabel>
               <RadioInput
-                option={{ label: "Restricted", value: isProfileOpen }}
+                option={{ label: 'Restricted', value: isProfileOpen }}
                 radioColor={config?.colors?.primary}
                 checked={isProfileOpen === false}
                 onChange={() => setIsProfileOpen(false)}
@@ -109,7 +109,7 @@ const VisibilityModal: React.FC<VisibilityModalProps> = ({
           <RadioGroup>
             <RadioLabel>
               <RadioInput
-                option={{ label: "Full (default)", value: isAssetsOpen }}
+                option={{ label: 'Full (default)', value: isAssetsOpen }}
                 radioColor={config?.colors?.primary}
                 checked={isAssetsOpen === true}
                 onChange={() => setIsAssetsOpen(true)}
@@ -120,7 +120,7 @@ const VisibilityModal: React.FC<VisibilityModalProps> = ({
             </SharedSettingsLabelData>
             <RadioLabel>
               <RadioInput
-                option={{ label: "InViewidual", value: isAssetsOpen }}
+                option={{ label: 'InViewidual', value: isAssetsOpen }}
                 radioColor={config?.colors?.primary}
                 checked={isAssetsOpen === false}
                 onChange={() => setIsAssetsOpen(false)}

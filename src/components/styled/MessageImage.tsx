@@ -1,12 +1,12 @@
-import React, { useState } from "react";
-import { Container } from "./StyledInputComponents/MediaComponents";
-import { useDispatch } from "react-redux";
+import React, { useState } from 'react';
+import { Container } from './StyledInputComponents/MediaComponents';
+import { useDispatch } from 'react-redux';
 import {
   setActiveFile,
   setActiveModal,
-} from "../../roomStore/chatSettingsSlice";
-import { MODAL_TYPES } from "../../helpers/constants/MODAL_TYPES";
-import { ActivityIndicator, Image, TouchableOpacity } from "react-native";
+} from '../../roomStore/chatSettingsSlice';
+import { MODAL_TYPES } from '../../helpers/constants/MODAL_TYPES';
+import { ActivityIndicator, Image, TouchableOpacity } from 'react-native';
 interface CustomMessageImageProps {
   fileURL: string;
   fileName: string;
@@ -35,7 +35,7 @@ const CustomMessageImage: React.FC<CustomMessageImageProps> = ({
         <Image
           src={
             fileURL ||
-            "https://as2.ftcdn.net/v2/jpg/02/51/95/53/1000_F_251955356_FAQH0U1y1TZw3ZcdPGybwUkH90a3VAhb.jpg"
+            'https://as2.ftcdn.net/v2/jpg/02/51/95/53/1000_F_251955356_FAQH0U1y1TZw3ZcdPGybwUkH90a3VAhb.jpg'
           }
           style={{
             borderRadius: 16,

@@ -2,7 +2,7 @@ import React from 'react';
 import { Text, View, Linking, StyleSheet, TouchableOpacity } from 'react-native';
 
 export const MarkDown = (text: string): (string | JSX.Element)[] => {
-  if (typeof text !== 'string') return [text];
+  if (typeof text !== 'string') {return [text];}
 
   let key = 0;
   const elements: (string | JSX.Element)[] = [];

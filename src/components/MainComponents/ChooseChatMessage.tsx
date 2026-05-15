@@ -1,5 +1,5 @@
-import { styled } from "styled-components/native";
-import { NoSelectedChatIcon } from "../../assets/icons";
+import { styled } from 'styled-components/native';
+import { NoSelectedChatIcon } from '../../assets/icons';
 
 export const ChooseChatMessageContainer = styled.View`
   height: 100%;

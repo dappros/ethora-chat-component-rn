@@ -1,14 +1,14 @@
-import React from "react";
+import React from 'react';
 import {
   LabelData,
   ModalContainerFullScreen,
-} from "../../styledModalComponents";
-import ModalHeaderComponent from "../../ModalHeaderComponent";
-import { useSelector } from "react-redux";
-import { RootState } from "../../../../roomStore";
-import styled from "styled-components/native";
-import { InfoIcon } from "../../../../assets/icons";
-import { getExportMyData } from "../../../../networking/api-requests/user.api";
+} from '../../styledModalComponents';
+import ModalHeaderComponent from '../../ModalHeaderComponent';
+import { useSelector } from 'react-redux';
+import { RootState } from '../../../../roomStore';
+import styled from 'styled-components/native';
+import { InfoIcon } from '../../../../assets/icons';
+import { getExportMyData } from '../../../../networking/api-requests/user.api';
 import {
   SharedSettingsCenterContainer,
   SharedSettingsColumnContainer,
@@ -18,8 +18,8 @@ import {
   SharedSettingsSectionContainer,
   SharedSettingsStyledButton,
   SharedSettingsStyledLabel,
-} from "../SharedStyledComponents";
-import { View } from "react-native";
+} from '../SharedStyledComponents';
+import { View } from 'react-native';
 
 interface ManageDataModalProps {
   handleCloseModal: any;
@@ -57,7 +57,7 @@ const ManageDataModal: React.FC<ManageDataModalProps> = ({
     <ModalContainerFullScreen>
       <ModalHeaderComponent
         handleCloseModal={handleCloseModal}
-        headerTitle={"Manage Data"}
+        headerTitle={'Manage Data'}
       />
       <SharedSettingsCenterContainer>
         <SharedSettingsColumnContainer>
@@ -68,7 +68,7 @@ const ManageDataModal: React.FC<ManageDataModalProps> = ({
             <LabelData
               style={{
                 fontSize: 12,
-                textAlign: "left",
+                textAlign: 'left',
               }}
             >
               You own your data. Tap the button below to download a copy of your
@@ -76,10 +76,10 @@ const ManageDataModal: React.FC<ManageDataModalProps> = ({
             </LabelData>
           </SharedSettingsSectionContainer>
           <SharedSettingsStyledButton
-            borderColor={config?.colors?.primary || "#0052CD"}
+            borderColor={config?.colors?.primary || '#0052CD'}
             onPress={handleDownloadClick}
             text="Download your data"
-            color={config?.colors?.primary || "#0052CD"}
+            color={config?.colors?.primary || '#0052CD'}
           />
         </SharedSettingsColumnContainer>
         <SharedSettingsColumnContainer>
@@ -93,10 +93,10 @@ const ManageDataModal: React.FC<ManageDataModalProps> = ({
             </SharedSettingsLabelData>
           </SharedSettingsSectionContainer>
           <SharedSettingsInfoPanel
-            bgColor={config?.colors?.secondary || "#F3F6FC"}
+            bgColor={config?.colors?.secondary || '#F3F6FC'}
           >
             <View>
-              <InfoIcon color={config?.colors?.primary || "#0052CD"} />
+              <InfoIcon color={config?.colors?.primary || '#0052CD'} />
             </View>
             <SharedSettingsInfoText>
               Due to the immutable nature of distributed ledger technology,

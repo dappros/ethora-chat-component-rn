@@ -1,6 +1,6 @@
-import React from "react";
-import styled from "styled-components/native";
-import { Line } from "./StyledComponents";
+import React from 'react';
+import styled from 'styled-components/native';
+import { Line } from './StyledComponents';
 
 const Container = styled.View`
   flex-direction: row;
@@ -25,7 +25,7 @@ export const StyledLabel = styled.View`
 `;
 
 export const StyledLabelText = styled.Text<{ color?: string }>`
-  color: ${(props) => (props?.color ? props?.color : "#0052CD")};
+  color: ${(props) => (props?.color ? props?.color : '#0052CD')};
   font-size: 12px;
   line-height: 14px;
   font-weight: 400;

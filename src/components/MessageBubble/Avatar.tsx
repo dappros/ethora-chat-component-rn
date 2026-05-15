@@ -1,5 +1,5 @@
-import React, { useMemo } from "react";
-import styled from "styled-components/native";
+import React, { useMemo } from 'react';
+import styled from 'styled-components/native';
 import { nameToColor } from '../../helpers/hashcolor';
 
 interface AvatarProps {
@@ -37,9 +37,9 @@ export const Avatar: React.FC<AvatarProps> = ({
 }) => {
   const backgroundColor = useMemo(() => {
       if (!username && !firstName) {
-        return { backgroundColor: "transparent" };
+        return { backgroundColor: 'transparent' };
       }
-      return nameToColor(username ? username : firstName || "");
+      return nameToColor(username ? username : firstName || '');
     }, [username, firstName]);
 
   const getInitials = () => {
@@ -48,29 +48,29 @@ export const Avatar: React.FC<AvatarProps> = ({
     if (firstName && lastName) {
       const firstInitial = isAlphabetic(firstName[0])
         ? firstName[0].toUpperCase()
-        : "";
+        : '';
       const lastInitial = isAlphabetic(lastName[0])
         ? lastName[0].toUpperCase()
-        : "";
+        : '';
       return `${firstInitial}${lastInitial}`;
     } else if (username) {
-      const names = username.split(" ");
+      const names = username.split(' ');
       if (names.length > 1) {
         const firstInitial = isAlphabetic(names[0][0])
           ? names[0][0].toUpperCase()
-          : "";
+          : '';
         const secondInitial = isAlphabetic(names[1][0])
           ? names[1][0].toUpperCase()
-          : "";
+          : '';
         return `${firstInitial}${secondInitial}`;
       } else {
         const singleInitial = isAlphabetic(names[0][0])
           ? names[0][0].toUpperCase()
-          : "";
+          : '';
         return `${singleInitial}`;
       }
     }
-    return "??";
+    return '??';
   };
 
   return (

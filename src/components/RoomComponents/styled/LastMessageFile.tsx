@@ -21,7 +21,7 @@ const LastMessageFile: FC<LastMessageFileProps> = ({
   locationPreview,
 }) => {
   const [imgSrc, setImgSrc] = useState(locationPreview);
-  
+
   return (
     <LastRoomMessageContainer>
       <LastRoomMessageName>{user?.name || ''}:</LastRoomMessageName>

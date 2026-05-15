@@ -31,16 +31,16 @@ const DEFAULT_RETRY_LIMIT = 2;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const messageTimestamp = (m: IMessage): number => {
-  if (!m) return 0;
+  if (!m) {return 0;}
   const t = (m as any).timestamp;
-  if (Number.isFinite(t) && t > 0) return Number(t);
+  if (Number.isFinite(t) && t > 0) {return Number(t);}
   const id = Number(m.id);
-  if (Number.isFinite(id) && id > 0) return id;
+  if (Number.isFinite(id) && id > 0) {return id;}
   return 0;
 };
 
 const getRoomLastActivityScore = (room: IRoom): number => {
-  if (!room?.messages?.length) return 0;
+  if (!room?.messages?.length) {return 0;}
   return room.messages.reduce((max, m) => Math.max(max, messageTimestamp(m)), 0);
 };
 
@@ -49,25 +49,25 @@ const computeUnreadCapped = (
   messages: IMessage[],
   pageSize: number
 ): boolean => {
-  if (!room) return false;
-  if (!messages || messages.length < pageSize) return false;
-  if (room.historyComplete === true) return false;
+  if (!room) {return false;}
+  if (!messages || messages.length < pageSize) {return false;}
+  if (room.historyComplete === true) {return false;}
 
   const countable = messages.filter(
     (msg) => !!msg && msg.id !== 'delimiter-new' && !msg.pending
   );
-  if (countable.length < pageSize) return false;
+  if (countable.length < pageSize) {return false;}
 
   const lastViewed = Number(room.lastViewedTimestamp) || 0;
-  if (lastViewed <= 0) return true;
+  if (lastViewed <= 0) {return true;}
 
   const oldestTs = countable.reduce<number>((minTs, m) => {
     const ts = messageTimestamp(m);
-    if (!Number.isFinite(ts) || ts <= 0) return minTs;
+    if (!Number.isFinite(ts) || ts <= 0) {return minTs;}
     return Math.min(minTs, ts);
   }, Number.MAX_SAFE_INTEGER);
   if (!Number.isFinite(oldestTs) || oldestTs === Number.MAX_SAFE_INTEGER)
-    return false;
+    {return false;}
   return oldestTs > lastViewed;
 };
 
@@ -77,8 +77,8 @@ const getRoomPriority = (
   selectedRoomJid: string | null,
   defaultRoomJids: Set<string>
 ): number => {
-  if (selectedRoomJid && selectedRoomJid === jid) return 0;
-  if (defaultRoomJids.has(jid)) return 1;
+  if (selectedRoomJid && selectedRoomJid === jid) {return 0;}
+  if (defaultRoomJids.has(jid)) {return 1;}
   return 2;
 };
 
@@ -107,7 +107,7 @@ export const runHistoryPreloadScheduler = async (
     forceReload = false,
   } = options;
 
-  if (signal?.aborted) return;
+  if (signal?.aborted) {return;}
 
   const state = store.getState();
   const rooms = (state.rooms.rooms || {}) as Record<string, IRoom>;
@@ -122,7 +122,7 @@ export const runHistoryPreloadScheduler = async (
       readyAt: Date.now(),
     }))
     .sort((a, b) => {
-      if (a.priority !== b.priority) return a.priority - b.priority;
+      if (a.priority !== b.priority) {return a.priority - b.priority;}
       if (a.activityScore !== b.activityScore) {
         return b.activityScore - a.activityScore;
       }
@@ -138,7 +138,7 @@ export const runHistoryPreloadScheduler = async (
   let consecutiveErrorCount = 0;
 
   while (queue.length > 0) {
-    if (signal?.aborted) return;
+    if (signal?.aborted) {return;}
 
     if (!client.isActiveRoomGateOpen()) {
       await sleep(80);
@@ -172,7 +172,7 @@ export const runHistoryPreloadScheduler = async (
     await Promise.all(
       batch.map(async (item) => {
         const queueIndex = queue.findIndex((queued) => queued.jid === item.jid);
-        if (queueIndex !== -1) queue.splice(queueIndex, 1);
+        if (queueIndex !== -1) {queue.splice(queueIndex, 1);}
 
         const task = (async () => {
           const currentRoom = store.getState().rooms.rooms[item.jid];
@@ -200,7 +200,7 @@ export const runHistoryPreloadScheduler = async (
                 source: 'background',
               }
             );
-            if (signal?.aborted) return;
+            if (signal?.aborted) {return;}
             if (typeof fetchedMessages === 'undefined') {
               throw new Error('history_timeout');
             }

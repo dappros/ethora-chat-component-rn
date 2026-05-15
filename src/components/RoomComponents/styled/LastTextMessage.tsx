@@ -17,31 +17,31 @@ const getPlainText = (body: string | undefined): string => {
   let text = decodeHTMLEntities(body);
 
   text = text.replace(/^#{1,6}\s+/gm, '');
-  
+
   text = text.replace(/\*\*([^*]+)\*\*/g, '$1');
   text = text.replace(/__([^_]+)__/g, '$1');
-  
+
   text = text.replace(/\*([^*]+)\*/g, '$1');
   text = text.replace(/_([^_]+)_/g, '$1');
-  
+
   text = text.replace(/~~([^~]+)~~/g, '$1');
-  
+
   text = text.replace(/`([^`]+)`/g, '$1');
-  
+
   text = text.replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1');
-  
+
   text = text.replace(/^[\s]*[-*+]\s+/gm, '');
-  
+
   text = text.replace(/^\s*\d+\.\s+/gm, '');
-  
+
   text = text.replace(/\|/g, ' ');
-  
+
   text = text.replace(/```[\s\S]*?```/g, '');
-  
+
   text = text.replace(/<[^>]+>/g, '');
-  
+
   text = text.replace(/\s+/g, ' ');
-  
+
   text = text.replace(/\n/g, ' ').trim();
 
   return text || 'Chat created';

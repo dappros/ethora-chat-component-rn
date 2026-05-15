@@ -1,32 +1,32 @@
 /** @format */
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import { ChatContainer, NonRoomChat } from "../styled/StyledComponents";
-import { useDispatch } from "react-redux";
-import MessageList from "./MessageList";
-import SendInput from "../styled/SendInput";
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { ChatContainer, NonRoomChat } from '../styled/StyledComponents';
+import { useDispatch } from 'react-redux';
+import MessageList from './MessageList';
+import SendInput from '../styled/SendInput';
 import {
   deleteRoomMessage,
   setEditAction,
   setLastViewedTimestamp,
-} from "../../roomStore/roomsSlice";
-import Loader from "../styled/Loader";
-import { useXmppClient } from "../../context/xmppProvider";
-import ChatHeader from "./ChatHeader";
-import NoMessagesPlaceholder from "./NoMessagesPlaceholder";
-import NewChatModal from "../Modals/NewChatModal/NewChatModal";
-import { EditWrapper } from "./EditWrapper";
-import { NoSelectedChatIcon } from "../../assets/icons";
-import { ChooseChatMessage } from "./ChooseChatMessage";
-import { useRoomUrl } from "../../hooks/useRoomUrl";
-import { useSendMessage } from "../../hooks/useSendMessage";
-import { IConfig } from "../../types/models/config.model";
-import { useRoomInitialization } from "../../hooks/useRoomInitialization";
-import { useRoomState } from "../../hooks/useRoomState";
-import { useChatSettingState } from "../../hooks/useChatSettingState";
-import CustomTypingIndicator from "../styled/StyledInputComponents/CustomTypingIndicator";
+} from '../../roomStore/roomsSlice';
+import Loader from '../styled/Loader';
+import { useXmppClient } from '../../context/xmppProvider';
+import ChatHeader from './ChatHeader';
+import NoMessagesPlaceholder from './NoMessagesPlaceholder';
+import NewChatModal from '../Modals/NewChatModal/NewChatModal';
+import { EditWrapper } from './EditWrapper';
+import { NoSelectedChatIcon } from '../../assets/icons';
+import { ChooseChatMessage } from './ChooseChatMessage';
+import { useRoomUrl } from '../../hooks/useRoomUrl';
+import { useSendMessage } from '../../hooks/useSendMessage';
+import { IConfig } from '../../types/models/config.model';
+import { useRoomInitialization } from '../../hooks/useRoomInitialization';
+import { useRoomState } from '../../hooks/useRoomState';
+import { useChatSettingState } from '../../hooks/useChatSettingState';
+import CustomTypingIndicator from '../styled/StyledInputComponents/CustomTypingIndicator';
 // import {PanGestureHandler} from 'react-native-gesture-handler';
-import { FlatList } from "react-native";
+import { FlatList } from 'react-native';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -34,8 +34,8 @@ import {
   Keyboard,
   View,
   KeyboardEvent,
-} from "react-native";
-import useComposing from "../../hooks/useComposing";
+} from 'react-native';
+import useComposing from '../../hooks/useComposing';
 
 interface ChatRoomProps {
   CustomMessageComponent?: any;
@@ -44,7 +44,7 @@ interface ChatRoomProps {
   CustomDaySeparator?: React.ComponentType<any>;
   CustomNewMessageLabel?: React.ComponentType<any>;
   handleBackClick?: (value: boolean) => void;
-  eventHandlers?: IConfig["eventHandlers"];
+  eventHandlers?: IConfig['eventHandlers'];
 }
 
 const ChatRoom: React.FC<ChatRoomProps> = React.memo(
@@ -112,7 +112,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
 
     const sendMedia = useCallback(
       (data: any, type: string) => {
-        sendMessageMedia(data, type, activeRoomJID || "");
+        sendMessageMedia(data, type, activeRoomJID || '');
       },
       [activeRoomJID],
     );
@@ -121,7 +121,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
       async (chatJID: string, max: number, idOfMessageBefore?: number) => {
         if (!isLoadingMore && !roomsList?.[chatJID]?.historyComplete) {
           const lastMsgId =
-            typeof idOfMessageBefore !== "string"
+            typeof idOfMessageBefore !== 'string'
               ? idOfMessageBefore
               : Number(
                   roomsList[chatJID].messages[
@@ -170,7 +170,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
         dispatch(
           deleteRoomMessage({
             roomJID: activeRoomJID,
-            messageId: "delimiter-new",
+            messageId: 'delimiter-new',
           }),
         );
         setIsLoadingMore(false);
@@ -181,7 +181,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
     // useRoomUrl(activeRoomJID || "", roomsList, config);
 
     useRoomInitialization(
-      activeRoomJID || "",
+      activeRoomJID || '',
       roomsList,
       configWithEventHandlers || storeConfig || {},
       roomMessages.length,
@@ -205,7 +205,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
         <ChatContainer
           style={
             configWithEventHandlers?.chatRoomStyles
-              ? (configWithEventHandlers.chatRoomStyles as import("react-native").ViewStyle)
+              ? (configWithEventHandlers.chatRoomStyles as import('react-native').ViewStyle)
               : undefined
           }
         >
@@ -222,8 +222,8 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
               <View
                 style={{
                   flex: 1,
-                  justifyContent: "center",
-                  alignItems: "center",
+                  justifyContent: 'center',
+                  alignItems: 'center',
                 }}
               >
                 <Loader color={configWithEventHandlers?.colors?.primary} />
@@ -232,8 +232,8 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
               <View
                 style={{
                   flex: 1,
-                  justifyContent: "center",
-                  alignItems: "center",
+                  justifyContent: 'center',
+                  alignItems: 'center',
                 }}
               >
                 <NoSelectedChatIcon />
@@ -242,9 +242,9 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
               <View
                 style={{
                   flex: 1,
-                  justifyContent: "center",
-                  alignItems: "center",
-                  backgroundColor: "black",
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  backgroundColor: 'black',
                 }}
               >
                 <NoMessagesPlaceholder />
@@ -292,12 +292,12 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
                         }
                         text={
                           typeof configWithEventHandlers.customTypingIndicator
-                            .text === "function"
+                            .text === 'function'
                             ? configWithEventHandlers.customTypingIndicator.text(
                                 roomsList[activeRoomJID]?.composingList || [],
                               )
                             : configWithEventHandlers.customTypingIndicator
-                                .text || "Typing..."
+                                .text || 'Typing...'
                         }
                         isVisible={true}
                       />
@@ -321,7 +321,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
             )}
           </View>
           {editAction && editAction.isEdit && (
-            <EditWrapper text={editAction.text || ""} onClose={onCloseEdit} />
+            <EditWrapper text={editAction.text || ''} onClose={onCloseEdit} />
           )}
           {CustomInputComponent ? (
             <CustomInputComponent
@@ -357,13 +357,13 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
 
           {configWithEventHandlers?.customTypingIndicator?.enabled &&
             (configWithEventHandlers.customTypingIndicator.position ===
-              "overlay" ||
+              'overlay' ||
               configWithEventHandlers.customTypingIndicator.position ===
-                "floating") &&
+                'floating') &&
             roomsList[activeRoomJID]?.composing && (
               <CustomTypingIndicator
                 usersTyping={
-                  roomsList[activeRoomJID]?.composingList || ["User"]
+                  roomsList[activeRoomJID]?.composingList || ['User']
                 }
                 text={configWithEventHandlers.customTypingIndicator.text}
                 position={

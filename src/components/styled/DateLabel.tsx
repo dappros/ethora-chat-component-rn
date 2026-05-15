@@ -1,7 +1,7 @@
-import React from "react";
-import styled from "styled-components/native";
-import { Line } from "./StyledComponents";
-import { Text } from "react-native";
+import React from 'react';
+import styled from 'styled-components/native';
+import { Line } from './StyledComponents';
+import { Text } from 'react-native';
 
 interface DateLabelProps {
   date: Date;
@@ -31,7 +31,7 @@ export const StyledDateLabel = styled.View<{
 `;
 
 export const StyledDateText = styled.Text<{ primary?: string }>`
-  color: ${(props) => "#0052cd"};
+  color: ${(props) => '#0052cd'};
   font-size: 12px;
   font-weight: 400;
   line-height: 14px;
@@ -53,14 +53,14 @@ const DateLabel: React.FC<DateLabelProps> = ({ date, colors }) => {
 
   let label: string;
   if (sameDay(date, today)) {
-    label = "Today";
+    label = 'Today';
   } else if (sameDay(date, yesterday)) {
-    label = "Yesterday";
+    label = 'Yesterday';
   } else {
     const options: Intl.DateTimeFormatOptions = sameYear(date, today)
-      ? { month: "long", day: "numeric" }
-      : { month: "long", day: "numeric", year: "numeric" };
-    label = date.toLocaleDateString("en-US", options);
+      ? { month: 'long', day: 'numeric' }
+      : { month: 'long', day: 'numeric', year: 'numeric' };
+    label = date.toLocaleDateString('en-US', options);
   }
 
   return (

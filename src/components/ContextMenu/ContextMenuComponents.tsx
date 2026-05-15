@@ -1,5 +1,5 @@
-import { Picker } from "emoji-mart";
-import styled from "styled-components/native";
+import { Picker } from 'emoji-mart';
+import styled from 'styled-components/native';
 
 export const ContainerInteractions = styled.View`
   position: absolute;

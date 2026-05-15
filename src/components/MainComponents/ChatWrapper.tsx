@@ -119,7 +119,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
   // Tell the XMPP client which room is currently active so the QoS
   // scheduler can prioritize its history fetches.
   useEffect(() => {
-    if (!client) return;
+    if (!client) {return;}
     client.setActiveRoomJid?.(activeRoomJID || null);
   }, [client, activeRoomJID]);
 
@@ -131,7 +131,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
     const initXmmpClient = async () => {
       // Only sync config to redux if we have one — passing `undefined`
       // wipes whatever XmppProvider already set up.
-      if (config) dispatch(setConfig(config));
+      if (config) {dispatch(setConfig(config));}
       try {
         const hasUser =
           !!user?.defaultWallet?.walletAddress &&
@@ -188,7 +188,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
             });
           });
           setInited(true);
-          if (config?.refreshTokens?.enabled) refresh();
+          if (config?.refreshTokens?.enabled) {refresh();}
         } else if (storedClient) {
           devPushLog('rn', 'ChatWrapper: reusing storedClient');
           setClient(storedClient);
@@ -198,7 +198,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
             });
           }
           setInited(true);
-          if (config?.refreshTokens?.enabled) refresh();
+          if (config?.refreshTokens?.enabled) {refresh();}
         } else if (client) {
           devPushLog('rn', 'ChatWrapper: reusing provider client');
           if (!activeRoomJID) {
@@ -208,7 +208,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
           }
           client.getChatsPrivateStoreRequestStanza();
           setInited(true);
-          if (config?.refreshTokens?.enabled) refresh();
+          if (config?.refreshTokens?.enabled) {refresh();}
         }
 
         dispatch(setIsLoading({loading: false}));
@@ -238,7 +238,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
     user.xmppUsername === '' &&
     !config?.initBeforeLoad
   )
-    return <LoginForm config={config} />;
+    {return <LoginForm config={config} />;}
 
   return (
     <>

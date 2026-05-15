@@ -1,5 +1,5 @@
-import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import React from 'react';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 
 interface RadioInputProps {
   option: { label: string; value?: boolean };
@@ -12,7 +12,7 @@ export const RadioInput: React.FC<RadioInputProps> = ({
   option,
   checked,
   onChange,
-  radioColor = "#0052CD",
+  radioColor = '#0052CD',
 }) => {
   return (
     <View style={styles.container}>
@@ -26,7 +26,7 @@ export const RadioInput: React.FC<RadioInputProps> = ({
             styles.radioCircle,
             {
               borderColor: radioColor,
-              backgroundColor: checked ? radioColor : "transparent",
+              backgroundColor: checked ? radioColor : 'transparent',
             },
           ]}
         />
@@ -38,11 +38,11 @@ export const RadioInput: React.FC<RadioInputProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: "column",
+    flexDirection: 'column',
   },
   radioContainer: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 10,
   },
   radioCircle: {
@@ -54,6 +54,6 @@ const styles = StyleSheet.create({
   },
   radioLabel: {
     fontSize: 16,
-    color: "#333",
+    color: '#333',
   },
 });

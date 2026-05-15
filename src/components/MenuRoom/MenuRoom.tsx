@@ -1,7 +1,7 @@
-import { FC, useMemo } from "react";
-import DropdownMenu from "../DropdownMenu/DropdownMenu";
-import Button from "../styled/Button";
-import { LeaveIcon, MoreIcon, ReportIcon } from "../../assets/icons";
+import { FC, useMemo } from 'react';
+import DropdownMenu from '../DropdownMenu/DropdownMenu';
+import Button from '../styled/Button';
+import { LeaveIcon, MoreIcon, ReportIcon } from '../../assets/icons';
 
 interface RoomMenuProps {
   handleLeaveClick: () => void;
@@ -11,20 +11,20 @@ export const RoomMenu: FC<RoomMenuProps> = ({ handleLeaveClick }) => {
   const menuOptions = useMemo(
     () => [
       {
-        label: "Report",
+        label: 'Report',
         icon: <ReportIcon />,
         onClick: () => {
-          console.log("Report clicked");
+          console.log('Report clicked');
         },
-        styles: { color: "red" },
+        styles: { color: 'red' },
       },
       {
-        label: "Leave",
+        label: 'Leave',
         icon: <LeaveIcon />,
         onClick: () => {
           handleLeaveClick();
         },
-        styles: { color: "red" },
+        styles: { color: 'red' },
       },
     ],
     [handleLeaveClick]

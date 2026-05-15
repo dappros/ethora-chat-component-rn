@@ -1,12 +1,12 @@
-import { View } from "react-native";
+import { View } from 'react-native';
 import {
   MediaContainer,
   MediaImage,
-} from "./StyledInputComponents/StyledInputComponents";
-import { FileIcon } from "../../assets/icons";
-import { RemoveButton, RemoveButtonText } from "./StyledComponents";
-import { FC } from "react";
-import { MediaFile } from "../../types/types";
+} from './StyledInputComponents/StyledInputComponents';
+import { FileIcon } from '../../assets/icons';
+import { RemoveButton, RemoveButtonText } from './StyledComponents';
+import { FC } from 'react';
+import { MediaFile } from '../../types/types';
 
 interface MediaFilePreviewProps {
   filePreviews: MediaFile[];
@@ -21,7 +21,7 @@ export const MediaFilePreview: FC<MediaFilePreviewProps> = ({
     <MediaContainer>
       {filePreviews.map((file, index) => {
         const isImageOrVideo =
-          file.type?.startsWith("image") || file.type?.startsWith("video");
+          file.type?.startsWith('image') || file.type?.startsWith('video');
         return (
           <View key={`${file.name}_${index}`}>
             {isImageOrVideo ? (

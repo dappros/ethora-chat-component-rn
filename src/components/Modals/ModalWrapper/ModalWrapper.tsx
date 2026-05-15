@@ -1,4 +1,4 @@
-import { FC, useRef, useState } from "react";
+import { FC, useRef, useState } from 'react';
 import {
   CloseButton,
   GroupContainer,
@@ -6,10 +6,10 @@ import {
   ModalContainer,
   ModalDescription,
   ModalTitle,
-} from "../styledModalComponents";
-import { TextareaInput } from "../../styled/StyledInputComponents/StyledInputComponents";
-import Button from "../../styled/Button";
-import { Modal, Text, TextInput } from "react-native";
+} from '../styledModalComponents';
+import { TextareaInput } from '../../styled/StyledInputComponents/StyledInputComponents';
+import Button from '../../styled/Button';
+import { Modal, Text, TextInput } from 'react-native';
 
 interface ModalWrapperProps {
   iconTitle?: any;
@@ -62,7 +62,7 @@ export const ModalWrapper: FC<ModalWrapperProps> = ({
           {description && <ModalDescription>{description}</ModalDescription>}
           {isTextarea && (
             <GroupContainer
-              style={{ flexDirection: "column", position: "relative" }}
+              style={{ flexDirection: 'column', position: 'relative' }}
             >
               {/* <TextareaInput
               ref={textareaRef}
@@ -74,12 +74,12 @@ export const ModalWrapper: FC<ModalWrapperProps> = ({
             /> */}
             </GroupContainer>
           )}
-          {!buttonText && <GroupContainer></GroupContainer>}
+          {!buttonText && <GroupContainer />}
           <GroupContainer>
             <Button
               onPress={handleCloseModal}
-              text={"Cancel"}
-              style={{ width: "100%" }}
+              text={'Cancel'}
+              style={{ width: '100%' }}
               unstyled
               variant="outlined"
             />
@@ -88,7 +88,7 @@ export const ModalWrapper: FC<ModalWrapperProps> = ({
                 onPress={handleClick}
                 text={buttonText}
                 style={{
-                  width: "100%",
+                  width: '100%',
                   backgroundColor: backgroundColorButton,
                 }}
                 unstyled

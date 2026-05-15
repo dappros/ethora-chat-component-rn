@@ -8,7 +8,7 @@ export function findError(node: Element): {
   }
   for (let i = 0; i < node.children.length; i++) {
     const result = findError(node.children[i]);
-    if (result.hasError) return result;
+    if (result.hasError) {return result;}
   }
   return { hasError: false, errorText: null };
 }

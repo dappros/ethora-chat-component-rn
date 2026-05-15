@@ -10,7 +10,7 @@ export const unreadMiddleware: Middleware =
       console.error('Invalid action in unreadMiddleware:', action);
       return next(action);
     }
-    
+
     if (action?.type === 'roomMessages/deleteRoomMessage') {
       return next(action);
     }

@@ -21,11 +21,11 @@ const Modal: React.FC<ModalProps> = ({ children, modal, setOpenModal }) => {
     dispatch(setActiveModal(MODAL_TYPES.SETTINGS));
 
   const renderModalContent = () => {
-    if (!modal) return null;
+    if (!modal) {return null;}
 
     const ModalComponent = MODAL_COMPONENTS[modal];
 
-    if (!ModalComponent) return null;
+    if (!ModalComponent) {return null;}
 
     const handleClose =
       modal === MODAL_TYPES.MANAGE_DATA ||

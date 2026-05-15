@@ -1,7 +1,7 @@
 /** @format */
 
-import styled from "styled-components/native";
-import Button from "../styled/Button";
+import styled from 'styled-components/native';
+import Button from '../styled/Button';
 
 export const ModalBackground = styled.View`
   width: 100%;

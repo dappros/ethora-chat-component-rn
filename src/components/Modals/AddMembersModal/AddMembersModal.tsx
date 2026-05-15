@@ -46,8 +46,8 @@ const AddMembersModal: React.FC = () => {
 
   const handleAddUser = async () => {
     try {
-      if(!activeRoom) return;
-      
+      if(!activeRoom) {return;}
+
       await postAddRoomMember({
         chatName: activeRoom.jid.split('@')[0],
         members: [userName],

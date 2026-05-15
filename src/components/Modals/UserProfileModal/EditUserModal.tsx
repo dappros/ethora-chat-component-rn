@@ -1,26 +1,26 @@
-import React, { useState } from "react";
-import { ProfileImagePlaceholder } from "../../MainComponents/ProfileImagePlaceholder";
-import Button from "../../styled/Button";
-import InputWithLabel from "../../styled/StyledInput";
-import ModalHeaderComponent from "../ModalHeaderComponent";
-import { CenterContainer } from "../styledModalComponents";
-import { updateProfile } from "../../../networking/api-requests/user.api";
-import { useDispatch } from "react-redux";
-import { updateUser } from "../../../roomStore/chatSettingsSlice";
-import { View } from "react-native";
-import { AddPhotoIcon } from "../../../assets/icons";
+import React, { useState } from 'react';
+import { ProfileImagePlaceholder } from '../../MainComponents/ProfileImagePlaceholder';
+import Button from '../../styled/Button';
+import InputWithLabel from '../../styled/StyledInput';
+import ModalHeaderComponent from '../ModalHeaderComponent';
+import { CenterContainer } from '../styledModalComponents';
+import { updateProfile } from '../../../networking/api-requests/user.api';
+import { useDispatch } from 'react-redux';
+import { updateUser } from '../../../roomStore/chatSettingsSlice';
+import { View } from 'react-native';
+import { AddPhotoIcon } from '../../../assets/icons';
 // import { actionUpdateUser } from '../actions';
 
 const base64ToFile = (base64String: string, fileName: string) => {
-  const byteString = atob(base64String.split(",")[1]);
+  const byteString = atob(base64String.split(',')[1]);
   const arrayBuffer = new ArrayBuffer(byteString.length);
   const uintArray = new Uint8Array(arrayBuffer);
   for (let i = 0; i < byteString.length; i++) {
     uintArray[i] = byteString.charCodeAt(i);
   }
-  const blob = new Blob([uintArray], { type: "image/jpeg" });
+  const blob = new Blob([uintArray], { type: 'image/jpeg' });
   return new File([blob], fileName, {
-    type: "image/jpeg",
+    type: 'image/jpeg',
     lastModified: Date.now(),
   });
 };
@@ -38,9 +38,9 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
 }) => {
   const dispatch = useDispatch();
 
-  const [firstName, setFirstName] = useState(modalUser?.firstName || "");
-  const [lastName, setLastName] = useState(modalUser?.lastName || "");
-  const [description, setDescription] = useState(modalUser?.description || "");
+  const [firstName, setFirstName] = useState(modalUser?.firstName || '');
+  const [lastName, setLastName] = useState(modalUser?.lastName || '');
+  const [description, setDescription] = useState(modalUser?.description || '');
   const [profileImage, setProfileImage] = useState<string | File>(
     modalUser?.profileImage
   );
@@ -50,18 +50,18 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
       let fd = new FormData();
 
       if (
-        typeof profileImage === "string" &&
-        profileImage.startsWith("data:image/")
+        typeof profileImage === 'string' &&
+        profileImage.startsWith('data:image/')
       ) {
-        const file = base64ToFile(profileImage, "profileImage.jpg");
-        fd.append("file", file);
+        const file = base64ToFile(profileImage, 'profileImage.jpg');
+        fd.append('file', file);
       } else if (profileImage instanceof File) {
-        fd.append("file", profileImage);
+        fd.append('file', profileImage);
       }
 
-      fd.append("firstName", firstName);
-      fd.append("lastName", lastName);
-      fd.append("description", description);
+      fd.append('firstName', firstName);
+      fd.append('lastName', lastName);
+      fd.append('description', description);
 
       const { user } = await updateProfile(fd);
 
@@ -78,7 +78,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
 
       setIsEditing(false);
     } catch (error) {
-      console.log("error", error);
+      console.log('error', error);
     }
   };
 
@@ -126,12 +126,12 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
       </CenterContainer>
       <View
         style={{
-          display: "flex",
-          flexDirection: "column",
+          display: 'flex',
+          flexDirection: 'column',
           gap: 32,
-          width: "100%",
-          justifyContent: "center",
-          alignItems: "center",
+          width: '100%',
+          justifyContent: 'center',
+          alignItems: 'center',
         }}
       >
         <InputWithLabel

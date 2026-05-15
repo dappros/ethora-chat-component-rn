@@ -1,21 +1,21 @@
-import React, { useState, useEffect, useCallback } from "react";
-import styled from "styled-components/native";
-import { MessageInput } from "../styled/StyledComponents";
-import Button from "../styled/Button";
-import { GoogleIcon } from "../../assets/icons";
-import { IConfig } from "../../types/types";
+import React, { useState, useEffect, useCallback } from 'react';
+import styled from 'styled-components/native';
+import { MessageInput } from '../styled/StyledComponents';
+import Button from '../styled/Button';
+import { GoogleIcon } from '../../assets/icons';
+import { IConfig } from '../../types/types';
 import {
   checkEmailExist,
   loginEmail,
   loginSocial,
   registerSocial,
   // signInWithGoogle,
-} from "../../networking/api-requests/auth.api";
-import { useDispatch } from "react-redux";
-import { useLocalStorage } from "../../hooks/useLocalStorage";
-import { setUser, unpackAndTransform } from "../../roomStore/chatSettingsSlice";
-import { localStorageConstants } from "../../helpers/constants/LOCAL_STORAGE";
-import { Text, TextInput, View } from "react-native";
+} from '../../networking/api-requests/auth.api';
+import { useDispatch } from 'react-redux';
+import { useLocalStorage } from '../../hooks/useLocalStorage';
+import { setUser, unpackAndTransform } from '../../roomStore/chatSettingsSlice';
+import { localStorageConstants } from '../../helpers/constants/LOCAL_STORAGE';
+import { Text, TextInput, View } from 'react-native';
 
 interface LoginFormProps {
   config?: IConfig;
@@ -25,21 +25,21 @@ const LoginForm: React.FC<LoginFormProps> = ({ config }) => {
   const dispatch = useDispatch();
   const { set } = useLocalStorage(localStorageConstants.ETHORA_USER);
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [errors, setErrors] = useState({ email: "", password: "" });
+  const [errors, setErrors] = useState({ email: '', password: '' });
 
   const validateForm = () => {
-    let emailError = "";
-    let passwordError = "";
+    let emailError = '';
+    let passwordError = '';
 
     if (!/\S+@\S+\.\S+/.test(email)) {
-      emailError = "Invalid email format";
+      emailError = 'Invalid email format';
     }
 
     if (password.length < 6) {
-      passwordError = "Password must be at least 6 characters long";
+      passwordError = 'Password must be at least 6 characters long';
     }
 
     return { emailError, passwordError };
@@ -47,14 +47,14 @@ const LoginForm: React.FC<LoginFormProps> = ({ config }) => {
 
   const handleRegularLogin = useCallback(async () => {
     setIsLoading(true);
-    
+
     try {
       const authData = await loginEmail(email, password);
 
       if (authData?.status === 401) {
         setErrors((prev) => ({
           ...prev,
-          password: "You entered wrong data. Try again",
+          password: 'You entered wrong data. Try again',
         }));
         setIsLoading(false);
         return null;
@@ -69,7 +69,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ config }) => {
 
       await set(unpackAndTransform(user));
     } catch (error) {
-      console.error("Login failed:", error);
+      console.error('Login failed:', error);
       setIsLoading(false);
 
       return null;
@@ -152,10 +152,10 @@ const LoginForm: React.FC<LoginFormProps> = ({ config }) => {
         <View
           style={{
             height: 40,
-            width: "100%",
-            display: "flex",
+            width: '100%',
+            display: 'flex',
             gap: 4,
-            flexDirection: "column",
+            flexDirection: 'column',
           }}
         >
           {/* <TextInput value={email} onChangeText={(text) => setEmail(text)} /> */}
@@ -165,7 +165,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ config }) => {
             onChangeText={(text) => setEmail(text)}
             style={{
               borderWidth: 1,
-              borderColor: config ? config.colors?.primary : "#3498db",
+              borderColor: config ? config.colors?.primary : '#3498db',
               borderRadius: 4,
             }}
           />
@@ -177,10 +177,10 @@ const LoginForm: React.FC<LoginFormProps> = ({ config }) => {
         <View
           style={{
             height: 40,
-            width: "100%",
-            display: "flex",
+            width: '100%',
+            display: 'flex',
             gap: 4,
-            flexDirection: "column",
+            flexDirection: 'column',
           }}
         >
           <MessageInput
@@ -189,12 +189,12 @@ const LoginForm: React.FC<LoginFormProps> = ({ config }) => {
             onChangeText={(text) => setPassword(text)}
             style={{
               borderWidth: 1,
-              borderColor: config ? config.colors?.primary : "#3498db",
+              borderColor: config ? config.colors?.primary : '#3498db',
               borderRadius: 4,
             }}
           />
           <Text>
-            {" "}
+            {' '}
             {errors.password && <ErrorMessage>{errors.password}</ErrorMessage>}
           </Text>
         </View>
@@ -203,9 +203,9 @@ const LoginForm: React.FC<LoginFormProps> = ({ config }) => {
           onPress={handleSubmit}
           text="Login to Ethora Chat"
           style={{
-            width: "100%",
+            width: '100%',
             height: 40,
-            backgroundColor: config?.colors?.primary || "#0052CD",
+            backgroundColor: config?.colors?.primary || '#0052CD',
           }}
           color="white"
           disabled={isLoading}
@@ -226,11 +226,11 @@ const LoginForm: React.FC<LoginFormProps> = ({ config }) => {
           <Text>Don't have an account? </Text>
           <Text
             style={{
-              textDecorationLine: "underline",
-              color: "#0052CD",
+              textDecorationLine: 'underline',
+              color: '#0052CD',
               fontSize: 14,
-              display: "flex",
-              fontWeight: "400",
+              display: 'flex',
+              fontWeight: '400',
             }}
           >
             Sign Up to Ethora

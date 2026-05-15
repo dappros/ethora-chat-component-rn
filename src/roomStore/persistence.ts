@@ -29,9 +29,15 @@ interface PersistedRoomsState {
 }
 
 const sanitizeUser = (user?: User): User | null => {
-  if (!user) return null;
-  // Drop secrets we don't want at rest.
-  const { token, refreshToken, xmppPassword, ...rest } = user as any;
+  if (!user) {return null;}
+  // Drop secrets we don't want at rest — destructure to omit, then
+  // explicitly zero them in the persisted shape.
+  const {
+    token: _token,
+    refreshToken: _refreshToken,
+    xmppPassword: _xmppPassword,
+    ...rest
+  } = user as any;
   return {
     ...rest,
     token: '',
@@ -41,19 +47,19 @@ const sanitizeUser = (user?: User): User | null => {
 };
 
 const sanitizeMessages = (messages: IMessage[]): IMessage[] => {
-  if (!Array.isArray(messages)) return [];
-  if (messages.length <= MESSAGE_LIMIT) return messages;
+  if (!Array.isArray(messages)) {return [];}
+  if (messages.length <= MESSAGE_LIMIT) {return messages;}
   return messages.slice(-MESSAGE_LIMIT);
 };
 
 const sanitizeRooms = (
   rooms: Record<string, IRoom>
 ): Record<string, IRoom> => {
-  if (!rooms || typeof rooms !== 'object') return {};
+  if (!rooms || typeof rooms !== 'object') {return {};}
   const out: Record<string, IRoom> = {};
   for (const [jid, room] of Object.entries(rooms)) {
-    if (!jid || typeof jid !== 'string' || !jid.includes('@')) continue;
-    if (!room || typeof room !== 'object' || Array.isArray(room)) continue;
+    if (!jid || typeof jid !== 'string' || !jid.includes('@')) {continue;}
+    if (!room || typeof room !== 'object' || Array.isArray(room)) {continue;}
     out[jid] = {
       ...room,
       messages: sanitizeMessages(room?.messages || []),
@@ -88,7 +94,7 @@ export const persistenceMiddleware: Middleware = (storeAPI) => (next) => (
     return result;
   }
 
-  if (writeTimer) clearTimeout(writeTimer);
+  if (writeTimer) {clearTimeout(writeTimer);}
   writeTimer = setTimeout(() => {
     try {
       const state = storeAPI.getState();

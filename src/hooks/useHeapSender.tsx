@@ -11,12 +11,12 @@ export const useHeapSender = (client: XmppClient | null) => {
   const inFlightRef = useRef<Map<string, number>>(new Map());
 
   const sendHeapMessages = useCallback(async () => {
-    if (!client || queue.length === 0) return;
+    if (!client || queue.length === 0) {return;}
     if (!client.presencesReady) {
       console.warn('Presences not ready, delaying heap send');
       return;
     }
-    if (sendingRef.current) return;
+    if (sendingRef.current) {return;}
     sendingRef.current = true;
     try {
       for (const msg of queue) {

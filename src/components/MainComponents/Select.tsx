@@ -1,13 +1,13 @@
-import React, { useEffect, useRef, useState } from "react";
-import styled from "styled-components/native";
+import React, { useEffect, useRef, useState } from 'react';
+import styled from 'styled-components/native';
 import {
   Animated,
   TextInput,
   TouchableOpacity,
   FlatList,
   Keyboard,
-} from "react-native";
-import { Iso639_1Codes } from "../../types/types";
+} from 'react-native';
+import { Iso639_1Codes } from '../../types/types';
 
 const SelectWrapper = styled.View`
   position: relative;
@@ -19,7 +19,7 @@ const SelectBox = styled.TouchableOpacity<{
   borderColor?: string;
 }>`
   border: ${({ borderColor }) =>
-    borderColor ? `1px solid ${borderColor}` : "1px solid #ccc"};
+    borderColor ? `1px solid ${borderColor}` : '1px solid #ccc'};
   padding: 10px;
   flex-direction: row;
   justify-content: space-between;
@@ -27,7 +27,7 @@ const SelectBox = styled.TouchableOpacity<{
   background-color: #fff;
   border-radius: 5px;
   box-shadow: ${({ isOpen }) =>
-    isOpen ? "0px 4px 8px rgba(0, 0, 0, 0.1)" : "none"};
+    isOpen ? '0px 4px 8px rgba(0, 0, 0, 0.1)' : 'none'};
 `;
 
 const Placeholder = styled.Text`
@@ -79,13 +79,13 @@ const Select: React.FC<SelectProps> = ({
   placeholder,
   onSelect,
   accentColor,
-  selectedValue = null
+  selectedValue = null,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [selected, setSelected] = useState<{ name: string; id: string } | null>(
     selectedValue
   );
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState('');
   const rotationAnim = useRef(new Animated.Value(0)).current;
 
   const toggleDropdown = () => {
@@ -101,7 +101,7 @@ const Select: React.FC<SelectProps> = ({
     setSelected(option);
     onSelect(option);
     setIsOpen(false);
-    setSearchTerm("");
+    setSearchTerm('');
     Keyboard.dismiss();
   };
 
@@ -111,7 +111,7 @@ const Select: React.FC<SelectProps> = ({
 
   const rotateInterpolation = rotationAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: ["0deg", "180deg"],
+    outputRange: ['0deg', '180deg'],
   });
 
   return (

@@ -78,7 +78,7 @@ const addRequestToQueue = (config: any) => {
 const processQueue = (newAccessToken: string) => {
   for (const request of failedQueue) {
     if (newAccessToken) {
-      request.config.headers['Authorization'] = newAccessToken;
+      request.config.headers.Authorization = newAccessToken;
     }
 
     request.resolve(http(request.config));
@@ -133,12 +133,12 @@ http.interceptors.response.use(
             const tokens = await refresh();
             console.log('tokens', tokens);
             isRefreshing = false;
-            originalRequest.headers['Authorization'] = tokens.data.token;
+            originalRequest.headers.Authorization = tokens.data.token;
             processQueue(tokens.data.token);
             return http(originalRequest);
-          } catch (error) {
+          } catch (refreshErr) {
             isRefreshing = false;
-            return error;
+            return refreshErr;
           }
         }
       }

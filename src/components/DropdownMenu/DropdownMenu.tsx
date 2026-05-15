@@ -1,4 +1,4 @@
-import React, { useState, useEffect, ReactElement, useRef } from "react";
+import React, { useState, useEffect, ReactElement, useRef } from 'react';
 import {
   View,
   TouchableOpacity,
@@ -8,10 +8,10 @@ import {
   TextStyle,
   TouchableWithoutFeedback,
   Modal,
-} from "react-native";
-import { BurgerMenuIcon } from "../../assets/icons";
-import { IConfig } from "../../types/types";
-import Button from "../styled/Button";
+} from 'react-native';
+import { BurgerMenuIcon } from '../../assets/icons';
+import { IConfig } from '../../types/types';
+import Button from '../styled/Button';
 
 const positionMenu = {
   right: { top: 95, right: 10 },
@@ -31,7 +31,7 @@ interface DropdownMenuProps {
   options: MenuOption[];
   onClose?: any;
   openButton?: ReactElement | ((onPress: () => void) => ReactElement);
-  position?: "left" | "right" | "rightBottom" | "leftBottom";
+  position?: 'left' | 'right' | 'rightBottom' | 'leftBottom';
   config?: IConfig;
   menuIcon?: React.ReactNode;
 }
@@ -39,7 +39,7 @@ interface DropdownMenuProps {
 const DropdownMenu: React.FC<DropdownMenuProps> = ({
   options,
   openButton,
-  position = "right",
+  position = 'right',
   menuIcon,
   config,
   onClose,
@@ -87,9 +87,9 @@ const DropdownMenu: React.FC<DropdownMenuProps> = ({
         typeof openButton === 'function' ? (
           openButton(toggleMenu)
         ) : (
-          React.cloneElement(openButton as React.ReactElement<any>, { 
+          React.cloneElement(openButton as React.ReactElement<any>, {
             onPress: toggleMenu,
-            key: 'dropdown-button'
+            key: 'dropdown-button',
           })
         )
       ) : (
@@ -100,7 +100,7 @@ const DropdownMenu: React.FC<DropdownMenuProps> = ({
           style={{
             padding: 8,
             borderRadius: 16,
-            backgroundColor: "transparent",
+            backgroundColor: 'transparent',
           }}
           color="black"
           unstyled
@@ -109,9 +109,9 @@ const DropdownMenu: React.FC<DropdownMenuProps> = ({
         />
       )}
       {isOpen && (
-        <Modal 
-          transparent 
-          visible={isOpen} 
+        <Modal
+          transparent
+          visible={isOpen}
           animationType="fade"
           onRequestClose={() => {
             setIsOpen(false);
@@ -149,7 +149,7 @@ const DropdownMenu: React.FC<DropdownMenuProps> = ({
                         try {
                           option.onClick();
                         } catch (error) {
-                          console.error("Error in option.onClick:", error);
+                          console.error('Error in option.onClick:', error);
                         }
                       }, 200);
                     }}
@@ -157,7 +157,7 @@ const DropdownMenu: React.FC<DropdownMenuProps> = ({
                     <View
                       style={{
                         width: 22,
-                        alignItems: "center",
+                        alignItems: 'center',
                       }}
                     >
                       {option.icon}
@@ -185,51 +185,51 @@ export default DropdownMenu;
 
 const styles = StyleSheet.create({
   container: {
-    position: "relative",
+    position: 'relative',
     zIndex: 100,
   },
   overlay: {
     flex: 1,
-    width: "100%",
-    height: "100%",
-    backgroundColor: "rgba(0, 0, 0, 0.3)",
+    width: '100%',
+    height: '100%',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
   },
   menuContainer: {
     flex: 1,
-    width: "100%",
-    height: "100%",
-    position: "relative",
+    width: '100%',
+    height: '100%',
+    position: 'relative',
   },
   button: {
     padding: 10,
-    backgroundColor: "#0052CD",
+    backgroundColor: '#0052CD',
     borderRadius: 8,
   },
   icon: {
-    color: "#fff",
+    color: '#fff',
     fontSize: 24,
   },
   menu: {
-    position: "absolute",
-    backgroundColor: "#fcfcfc",
+    position: 'absolute',
+    backgroundColor: '#fcfcfc',
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 8,
     minWidth: 150,
     zIndex: 1000,
     elevation: 10, // Android
-    shadowColor: "#121219", // iOS
+    shadowColor: '#121219', // iOS
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 6,
   },
   menuItemWrapper: {
-    display: "flex",
-    flexDirection: "column",
+    display: 'flex',
+    flexDirection: 'column',
   },
   menuItem: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     padding: 8,
   },
   label: {
@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    width: "100%",
-    backgroundColor: "#0052cd0d",
+    width: '100%',
+    backgroundColor: '#0052cd0d',
   },
 });

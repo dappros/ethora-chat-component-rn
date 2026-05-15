@@ -1,7 +1,7 @@
-import React, { FC } from "react";
-import { EditIcon } from "../../assets/icons";
-import { styled } from "styled-components/native";
-import { Text, TouchableOpacity, View } from "react-native";
+import React, { FC } from 'react';
+import { EditIcon } from '../../assets/icons';
+import { styled } from 'styled-components/native';
+import { Text, TouchableOpacity, View } from 'react-native';
 
 export const EditContainer = styled.View`
   background-color: #0052cd0d;
@@ -36,7 +36,7 @@ interface EditWrapperProps {
 }
 
 export const EditWrapper: FC<EditWrapperProps> = ({ text, onClose }) => {
-  console.log("text", text);
+  console.log('text', text);
   return (
     <EditContainer>
       <EditInfoBox>
@@ -46,8 +46,8 @@ export const EditWrapper: FC<EditWrapperProps> = ({ text, onClose }) => {
             paddingRight: 20,
             paddingLeft: 0,
             borderRightWidth: 1,
-            borderRightColor: "#0052CD",
-            borderStyle: "solid",
+            borderRightColor: '#0052CD',
+            borderStyle: 'solid',
           }}
         >
           <EditIcon color="#0052CD" />
@@ -65,7 +65,7 @@ export const EditWrapper: FC<EditWrapperProps> = ({ text, onClose }) => {
         }}
         onPress={onClose}
       >
-        <Text style={{ fontSize: 24, color: "#888" }}>&times;</Text>
+        <Text style={{ fontSize: 24, color: '#888' }}>&times;</Text>
       </TouchableOpacity>
     </EditContainer>
   );

@@ -103,10 +103,10 @@ export const useMessageQueue = (
   useEffect(() => {
     const processQueue = async () => {
       const queue = messageQueue.current;
-      if (queue.isEmpty()) return;
+      if (queue.isEmpty()) {return;}
 
       const roomsToProcess = queue.pop(5);
-      if (roomsToProcess.length === 0) return;
+      if (roomsToProcess.length === 0) {return;}
 
       await Promise.all(
         roomsToProcess.map(async (room) => {

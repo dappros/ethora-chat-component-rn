@@ -32,7 +32,7 @@ import { store } from '../roomStore';
 import { logout, setStoreClient } from '../roomStore/chatSettingsSlice';
 import { setLogoutState } from '../roomStore/roomsSlice';
 import { runHistoryPreloadScheduler } from '../helpers/historyPreloadScheduler';
-import { useLocalStorage } from '../hooks/useLocalStorage';
+import { asyncLocalStorage } from '../hooks/useLocalStorage';
 import { localStorageConstants } from '../helpers/constants/LOCAL_STORAGE';
 import { clearPersistedState } from '../roomStore/persistence';
 import { pushLog as devPushLog } from '../utils/devLogger';
@@ -168,7 +168,7 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
           devPushLog('rn', 'initBeforeLoad: clearStoreBeforeInit');
           store.dispatch(setLogoutState());
           store.dispatch(logout());
-          await useLocalStorage(localStorageConstants.ETHORA_USER).remove().catch(() => undefined);
+          await asyncLocalStorage(localStorageConstants.ETHORA_USER).remove().catch(() => undefined);
         }
 
         await ensureScopedChatCache(config);
@@ -178,7 +178,7 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
           config,
           signal: abortController.signal,
         });
-        if (cancelled) return;
+        if (cancelled) {return;}
 
         if (!resolved || !resolved.xmppPassword || !resolved.xmppUsername) {
           devPushLog('error', 'initBeforeLoad: user resolve failed', {
@@ -201,11 +201,11 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
           resolved.xmppPassword,
           config?.xmppSettings
         );
-        if (cancelled) return;
+        if (cancelled) {return;}
         devPushLog('rn', 'initBeforeLoad: xmpp client created, waiting online…');
 
         await c.waitForOnline();
-        if (cancelled) return;
+        if (cancelled) {return;}
         devPushLog('xmpp', 'initBeforeLoad: xmpp online');
 
         try {
@@ -244,7 +244,7 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
           roomLimit: qos?.preloadTopKRooms,
         }).catch((err) => console.warn('History preload scheduler failed', err));
       } catch (error: any) {
-        if (cancelled) return;
+        if (cancelled) {return;}
         devPushLog('error', 'initBeforeLoad: bootstrap threw', {
           message: error?.message,
           status: error?.response?.status,
@@ -291,8 +291,8 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
   // Reconnect / reinit on disconnect
   // -----------------------------------------------------------
   useEffect(() => {
-    if (!client) return;
-    if (client.status !== 'offline') return;
+    if (!client) {return;}
+    if (client.status !== 'offline') {return;}
 
     if (reconnectAttempts < 3) {
       console.log(`xmpp reconnect attempt ${reconnectAttempts + 1}`);

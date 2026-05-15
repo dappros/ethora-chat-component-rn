@@ -37,7 +37,7 @@
 //   // Handle notification press - navigate to chat
 //   const handleNotificationPress = (data: any) => {
 //     console.log('[PushProvider] Notification pressed:', data);
-    
+
 //     if (data?.chatJid) {
 //       // Find the room and set it as current
 //       const room = rooms.find((r) => r.jid === data.chatJid);

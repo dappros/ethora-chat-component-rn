@@ -1,9 +1,9 @@
 /** @format */
 
-import styled from "styled-components/native";
-import { Dimensions } from "react-native";
+import styled from 'styled-components/native';
+import { Dimensions } from 'react-native';
 
-const { width, height } = Dimensions.get("window");
+const { width, height } = Dimensions.get('window');
 
 // General Containers
 export const ChatContainer = styled.View`
@@ -45,12 +45,12 @@ export const CenterContainer = styled.View<{
   justify-content: center;
   width: ${({ rightSpace, leftSpace }) =>
     rightSpace && !leftSpace
-      ? "100%"
+      ? '100%'
       : rightSpace || !leftSpace
-        ? "90%"
-        : "70%"};
-  padding-right: ${({ rightSpace }) => (rightSpace ? "16" : "0")}px;
-  padding-left: ${({ leftSpace }) => (leftSpace ? "16" : "0")}px;
+        ? '90%'
+        : '70%'};
+  padding-right: ${({ rightSpace }) => (rightSpace ? '16' : '0')}px;
+  padding-left: ${({ leftSpace }) => (leftSpace ? '16' : '0')}px;
 `;
 
 export const ChatContainerHeaderBoxInfo = styled.TouchableOpacity`
@@ -114,13 +114,13 @@ export const MessageTimestamp = styled.Text`
 `;
 
 export const Message = styled.View<{ isUser: boolean }>`
-  background-color: ${(props) => (props.isUser ? "#3a3a3a" : "#2a2a2a")};
+  background-color: ${(props) => (props.isUser ? '#3a3a3a' : '#2a2a2a')};
   padding: 10px;
   margin: 10px 0;
   border-radius: 8px;
   max-width: 60%;
   flex-direction: row;
-  align-self: ${(props) => (props.isUser ? "flex-end" : "flex-start")};
+  align-self: ${(props) => (props.isUser ? 'flex-end' : 'flex-start')};
 `;
 
 export const MessageText = styled.Text`
@@ -170,8 +170,8 @@ export const AvatarCircle = styled.TouchableOpacity<{
   size?: number;
   isClickable: boolean;
 }>`
-  width: ${({ size }) => `${size}px` || "64px"};
-  height: ${({ size }) => `${size}px` || "64px"};
+  width: ${({ size }) => `${size}px` || '64px'};
+  height: ${({ size }) => `${size}px` || '64px'};
   border-radius: 60px;
   background-color: ${({ bgColor }) => bgColor};
   display: flex;
@@ -206,8 +206,8 @@ export const RemoveButtonText = styled.Text`
 `;
 
 export const InitialsText = styled.Text<{ size?: number; color?: string }>`
-  font-size: ${({ size }) => (size && size >= 64 ? "24px" : "18px")};
-  color: ${({ color }) => (color ? color : "#fff")};
+  font-size: ${({ size }) => (size && size >= 64 ? '24px' : '18px')};
+  color: ${({ color }) => (color ? color : '#fff')};
   font-weight: bold;
 `;
 
@@ -231,7 +231,7 @@ export const CustomMessageText = styled.Text<{
 }>`
   margin: 0px;
   color: ${({ color, isUser, colorUser }) =>
-    isUser ? colorUser || "#000" : color || "#000"};
+    isUser ? colorUser || '#000' : color || '#000'};
 `;
 
 export const FileInput = styled.TextInput`
@@ -285,8 +285,8 @@ export const Wrapper = styled.View<{
   size?: number;
   isClickable: boolean;
 }>`
-  width: ${({ size }) => `${size}px` || "64px"};
-  height: ${({ size }) => `${size}px` || "64px"};
+  width: ${({ size }) => `${size}px` || '64px'};
+  height: ${({ size }) => `${size}px` || '64px'};
   margin: 8px 0 8px 8px;
   border-radius: 60px;
   background-color: ${({ bgColor }) => bgColor};
@@ -313,8 +313,8 @@ export const MessageFooter = styled.View<{ isUser: boolean }>`
   position: absolute;
   gap: 6px;
   bottom: -25px;
-  left: ${(props) => (!props.isUser ? "10px" : "auto")};
-  right: ${(props) => (props.isUser ? "10px" : "auto")};
+  left: ${(props) => (!props.isUser ? '10px' : 'auto')};
+  right: ${(props) => (props.isUser ? '10px' : 'auto')};
 
   @media (max-width: 675px) {
     font-size: 12px;

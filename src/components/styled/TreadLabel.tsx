@@ -1,6 +1,6 @@
-import React from "react";
-import styled from "styled-components/native";
-import { Line } from "./StyledComponents";
+import React from 'react';
+import styled from 'styled-components/native';
+import { Line } from './StyledComponents';
 
 interface DateLabelProps {
   reply: number;
@@ -21,7 +21,7 @@ export const StyledDateLabel = styled.Text<{
   secondary?: string;
 }>`
   margin: 0;
-  color: ${(props) => props.primary || "#0052cd"};
+  color: ${(props) => props.primary || '#0052cd'};
   border-radius: 118px;
   padding: 5px 8px;
   display: flex;
@@ -30,7 +30,7 @@ export const StyledDateLabel = styled.Text<{
   font-size: 12px;
   line-height: 14px;
   font-weight: 600;
-  background-color: ${(props) => props.secondary || "#e7edf9"};
+  background-color: ${(props) => props.secondary || '#e7edf9'};
   height: 24px;
   white-space: nowrap;
 `;
@@ -40,7 +40,7 @@ const TreadLabel: React.FC<DateLabelProps> = ({ reply, colors }) => {
     <Container>
       <Line />
       <StyledDateLabel {...colors}>
-        {reply} {reply > 1 ? "replies" : "reply"}
+        {reply} {reply > 1 ? 'replies' : 'reply'}
       </StyledDateLabel>
       <Line />
     </Container>

@@ -1,11 +1,11 @@
 /** @format */
 
-import React, { FC, useMemo } from "react";
-import { View, StyleSheet, Image, Text } from "react-native";
-import { ProfileImagePlaceholder } from "../MainComponents/ProfileImagePlaceholder";
-import { useChatSettingState } from "../../hooks/useChatSettingState";
-import { BurgerMenuIcon } from "../../assets/icons";
-import Button from "../styled/Button";
+import React, { FC, useMemo } from 'react';
+import { View, StyleSheet, Image, Text } from 'react-native';
+import { ProfileImagePlaceholder } from '../MainComponents/ProfileImagePlaceholder';
+import { useChatSettingState } from '../../hooks/useChatSettingState';
+import { BurgerMenuIcon } from '../../assets/icons';
+import Button from '../styled/Button';
 
 interface HeaderRoomListProps {
   setDrawerOpen: () => void;
@@ -20,10 +20,10 @@ export const HeaderRoomList: FC<HeaderRoomListProps> = ({ setDrawerOpen }) => {
     const image = config?.headerLogo;
 
     if (image) {
-      if (typeof image === "function") {
+      if (typeof image === 'function') {
         const SvgComponent = image as React.FC<React.SVGProps<SVGSVGElement>>;
         return <SvgComponent />;
-      } else if (typeof image === "string") {
+      } else if (typeof image === 'string') {
         return <Image source={{ uri: image }} />;
       } else {
         return image;
@@ -72,33 +72,33 @@ export const HeaderRoomList: FC<HeaderRoomListProps> = ({ setDrawerOpen }) => {
 
 const styles = StyleSheet.create({
   headerContainer: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 8,
     paddingVertical: 2,
     paddingTop: 62, // 60px top padding + 2px for header content
     maxHeight: 24,
     minHeight: 24,
-    justifyContent: "space-between",
+    justifyContent: 'space-between',
   },
   menuButton: {
     padding: 8,
     borderRadius: 16,
-    backgroundColor: "transparent",
+    backgroundColor: 'transparent',
   },
   leftContainer: {
     flex: 1,
-    alignItems: "flex-start",
+    alignItems: 'flex-start',
   },
   centerContainer: {
-    position: "absolute",
+    position: 'absolute',
     left: 0,
     right: 0,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   rightContainer: {
     flex: 1,
-    alignItems: "flex-end",
+    alignItems: 'flex-end',
   },
 });

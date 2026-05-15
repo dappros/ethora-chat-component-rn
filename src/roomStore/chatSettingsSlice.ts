@@ -10,7 +10,7 @@ import {
 } from '../types/types';
 import { Iso639_1Codes } from '../types/models/language.model';
 import { localStorageConstants } from '../helpers/constants/LOCAL_STORAGE';
-import { useLocalStorage } from '../hooks/useLocalStorage';
+import { asyncLocalStorage } from '../hooks/useLocalStorage';
 
 interface ChatState {
   user: User;
@@ -101,7 +101,7 @@ export const chatSlice = createSlice({
   reducers: {
     setUser: (state, action: PayloadAction<User>) => {
       state.user = unpackAndTransform(action.payload);
-      useLocalStorage(localStorageConstants.ETHORA_USER).set(
+      asyncLocalStorage(localStorageConstants.ETHORA_USER).set(
         unpackAndTransform(action.payload)
       );
     },
@@ -143,14 +143,14 @@ export const chatSlice = createSlice({
       state.user.refreshToken = action.payload.refreshToken;
       state.user.token = action.payload.token;
       // AsyncStorage is async; fire-and-forget so the reducer stays sync.
-      useLocalStorage(localStorageConstants.ETHORA_USER).set(state.user);
+      asyncLocalStorage(localStorageConstants.ETHORA_USER).set(state.user);
     },
     logout: (state) => {
       state.user = unpackAndTransform();
       state.config = undefined;
       state.client = undefined;
       state.langSource = undefined;
-      useLocalStorage(localStorageConstants.ETHORA_USER).remove();
+      asyncLocalStorage(localStorageConstants.ETHORA_USER).remove();
     },
     setLangSource: (
       state,

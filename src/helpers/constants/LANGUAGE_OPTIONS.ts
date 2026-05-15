@@ -1,4 +1,4 @@
-import { Iso639_1Codes } from "../../types/types";
+import { Iso639_1Codes } from '../../types/types';
 
 type LanguageOption = {
   name: string;

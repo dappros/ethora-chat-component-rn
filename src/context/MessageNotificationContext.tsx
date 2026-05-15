@@ -95,7 +95,7 @@ export const MessageNotificationProvider: React.FC<ProviderProps> = ({
   // Periodic prune when active.
   useEffect(() => {
     const interval = setInterval(() => {
-      if (!appActiveRef.current) return;
+      if (!appActiveRef.current) {return;}
       const now = Date.now();
       setToasts((prev) => prev.filter((t) => now - t.timestamp < duration));
     }, 1000);
@@ -104,7 +104,7 @@ export const MessageNotificationProvider: React.FC<ProviderProps> = ({
 
   // Clear toasts when their room becomes active.
   useEffect(() => {
-    if (!activeRoomJID) return;
+    if (!activeRoomJID) {return;}
     setToasts((prev) => prev.filter((t) => t.roomJID !== activeRoomJID));
   }, [activeRoomJID]);
 
@@ -128,7 +128,7 @@ export const MessageNotificationProvider: React.FC<ProviderProps> = ({
         ).catch((e) => console.error('onClick handler error', e));
         return;
       }
-      if (roomJID) dispatch(setCurrentRoom({ roomJID }));
+      if (roomJID) {dispatch(setCurrentRoom({ roomJID }));}
     },
     [dispatch, notificationConfig]
   );
@@ -140,9 +140,9 @@ export const MessageNotificationProvider: React.FC<ProviderProps> = ({
       senderName: string,
       roomJID: string
     ) => {
-      if (!isEnabled) return;
+      if (!isEnabled) {return;}
       // Don't toast for the currently active room.
-      if (activeRoomJID && activeRoomJID === roomJID) return;
+      if (activeRoomJID && activeRoomJID === roomJID) {return;}
       const id = `msg-notification-${message.id}-${Date.now()}`;
       const item: ToastItem = {
         id,
@@ -164,7 +164,7 @@ export const MessageNotificationProvider: React.FC<ProviderProps> = ({
 
   // Register with the global manager.
   useEffect(() => {
-    if (!isEnabled) return;
+    if (!isEnabled) {return;}
     const unsubscribe = messageNotificationManager.addCallback(
       showMessageNotification
     );

@@ -1,4 +1,4 @@
-import React from "react";
+import React from 'react';
 
 import {
   ModalContainerFullScreen,
@@ -7,21 +7,21 @@ import {
   LabelData,
   BorderedContainer,
   CenterContainer,
-} from "../../styledModalComponents";
-import ModalHeaderComponent from "../../ModalHeaderComponent";
-import Button from "../../../styled/Button";
-import { ReferalsIcon, SendCoinIcon } from "../../../../assets/icons";
+} from '../../styledModalComponents';
+import ModalHeaderComponent from '../../ModalHeaderComponent';
+import Button from '../../../styled/Button';
+import { ReferalsIcon, SendCoinIcon } from '../../../../assets/icons';
 import {
   RowWrapper,
   SharedSettingsColumnContainer,
   SharedSettingsStyledLabel,
-} from "../SharedStyledComponents";
-import InputWithLabel from "../../../styled/StyledInput";
-import { StyledInput } from "../../../styled/StyledInputComponents/StyledInputComponents";
-import { useSelector } from "react-redux";
-import { RootState } from "../../../../roomStore";
-import { View, Text } from "react-native";
-import Animated from "react-native-reanimated";
+} from '../SharedStyledComponents';
+import InputWithLabel from '../../../styled/StyledInput';
+import { StyledInput } from '../../../styled/StyledInputComponents/StyledInputComponents';
+import { useSelector } from 'react-redux';
+import { RootState } from '../../../../roomStore';
+import { View, Text } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 interface ReferralsModalProps {
   handleCloseModal: any;
@@ -36,7 +36,7 @@ const ReferralsModal: React.FC<ReferralsModalProps> = ({
     <ModalContainerFullScreen>
       <ModalHeaderComponent
         handleCloseModal={handleCloseModal}
-        headerTitle={"Referrals"}
+        headerTitle={'Referrals'}
       />
       <CenterContainer>
         <ReferalsIcon />
@@ -50,12 +50,12 @@ const ReferralsModal: React.FC<ReferralsModalProps> = ({
             Send friends invite with your personal invitation code.
           </SharedSettingsStyledLabel>
         </Animated.View>
-        <SharedSettingsColumnContainer style={{ width: "100%" }}>
+        <SharedSettingsColumnContainer style={{ width: '100%' }}>
           <SharedSettingsStyledLabel>
             Your invitation code
           </SharedSettingsStyledLabel>
           <StyledInput
-            color={config?.colors?.primary || ""}
+            color={config?.colors?.primary || ''}
             placeholder="Your invitation code"
             // label={'About'}
             // value={message}
@@ -66,7 +66,7 @@ const ReferralsModal: React.FC<ReferralsModalProps> = ({
             // disabled={isLoading}
           />
         </SharedSettingsColumnContainer>
-        <SharedSettingsColumnContainer style={{ width: "100%" }}>
+        <SharedSettingsColumnContainer style={{ width: '100%' }}>
           <SharedSettingsStyledLabel>
             Or enter your referral code to earn coins
           </SharedSettingsStyledLabel>

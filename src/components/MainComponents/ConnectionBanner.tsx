@@ -1,7 +1,7 @@
 /** @format */
 
-import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 
 const ConnectionBanner: React.FC = () => {
   return (
@@ -13,19 +13,19 @@ const ConnectionBanner: React.FC = () => {
 
 const styles = StyleSheet.create({
   bannerContainer: {
-    backgroundColor: "#ff9800",
+    backgroundColor: '#ff9800',
     padding: 8,
     paddingHorizontal: 16,
-    width: "100%",
-    alignItems: "center",
-    justifyContent: "center",
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
     zIndex: 1000,
   },
   bannerText: {
-    color: "#ffffff",
+    color: '#ffffff',
     fontSize: 14,
-    fontWeight: "500",
-    textAlign: "center",
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });
 

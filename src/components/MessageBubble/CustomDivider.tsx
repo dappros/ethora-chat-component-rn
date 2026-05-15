@@ -1,4 +1,4 @@
-import styled from "styled-components/native";
+import styled from 'styled-components/native';
 export const CustomDivider = styled.View<{
   configColor?: string;
 }>`
@@ -6,5 +6,5 @@ export const CustomDivider = styled.View<{
   height: 1px;
   width: 100%;
   background-color: ${(props) =>
-    props.configColor ? props.configColor : "#0052CD"};
+    props.configColor ? props.configColor : '#0052CD'};
 `;

@@ -45,7 +45,7 @@ const useGetNewArchRoom = () => {
             console.error('Failed to subscribe to loaded rooms for push:', error);
           });
       }
-      
+
       return rooms?.items || [];
     },
     [dispatch]

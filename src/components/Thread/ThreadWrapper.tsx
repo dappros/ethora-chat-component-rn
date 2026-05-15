@@ -1,35 +1,35 @@
-import { FC, useCallback, useEffect, useRef, useState } from "react";
-import { IMessage, User } from "../../types/types";
+import { FC, useCallback, useEffect, useRef, useState } from 'react';
+import { IMessage, User } from '../../types/types';
 import {
   AlsoCheckbox,
   AlsoContainer,
   ChatContainer,
   ThreadContainer,
-} from "../styled/StyledComponents";
-import SendInput from "../styled/SendInput";
-import { useDispatch } from "react-redux";
-import { useXmppClient } from "../../context/xmppProvider";
-import MessageList from "../MainComponents/MessageList";
-import ModalHeaderComponent from "../Modals/ModalHeaderComponent";
+} from '../styled/StyledComponents';
+import SendInput from '../styled/SendInput';
+import { useDispatch } from 'react-redux';
+import { useXmppClient } from '../../context/xmppProvider';
+import MessageList from '../MainComponents/MessageList';
+import ModalHeaderComponent from '../Modals/ModalHeaderComponent';
 import {
   deleteRoomMessage,
   setCloseActiveMessage,
   setEditAction,
   setLastViewedTimestamp,
-} from "../../roomStore/roomsSlice";
-import { EditWrapper } from "../MainComponents/EditWrapper";
-import { useSendMessage } from "../../hooks/useSendMessage";
-import { createMainMessageForThread } from "../../helpers/createMainMessageForThread";
-import { useRoomState } from "../../hooks/useRoomState";
-import { useChatSettingState } from "../../hooks/useChatSettingState";
+} from '../../roomStore/roomsSlice';
+import { EditWrapper } from '../MainComponents/EditWrapper';
+import { useSendMessage } from '../../hooks/useSendMessage';
+import { createMainMessageForThread } from '../../helpers/createMainMessageForThread';
+import { useRoomState } from '../../hooks/useRoomState';
+import { useChatSettingState } from '../../hooks/useChatSettingState';
 import {
   Animated,
   Text,
   TouchableOpacity,
   StyleSheet,
   PanResponder,
-} from "react-native";
-import CustomTypingIndicator from "../styled/StyledInputComponents/CustomTypingIndicator";
+} from 'react-native';
+import CustomTypingIndicator from '../styled/StyledInputComponents/CustomTypingIndicator';
 
 interface ThreadWrapperProps {
   activeMessage: IMessage;
@@ -195,7 +195,7 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
       <AlsoContainer onPress={() => setIsChecked((prev) => !prev)}>
         <AlsoCheckbox
           accentColor={
-            isChecked ? config?.colors?.primary || "#0052CD" : "#fff"
+            isChecked ? config?.colors?.primary || '#0052CD' : '#fff'
           }
           // checked={isChecked}
           // onPress={() => setIsChecked(!isChecked)}
@@ -204,7 +204,7 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
         <TouchableOpacity onPress={closeThread}>
           <Text
             style={{
-              color: config?.colors?.primary || "#0052CD",
+              color: config?.colors?.primary || '#0052CD',
               fontWeight: 500,
             }}
           >
@@ -213,10 +213,10 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
         </TouchableOpacity>
       </AlsoContainer>
       {editAction && editAction.isEdit && (
-        <EditWrapper text={editAction.text || ""} onClose={onCloseEdit} />
+        <EditWrapper text={editAction.text || ''} onClose={onCloseEdit} />
       )}
       <SendInput
-        editMessage={editAction &&editAction.text}
+        editMessage={editAction && editAction.text}
         sendMedia={sendMedia}
         sendMessage={editAction && editAction.isEdit ? sendEditMessage : sendMessage}
         config={config}
@@ -252,19 +252,19 @@ export default ThreadWrapper;
 const styles = StyleSheet.create({
   threadContainer: {
     zIndex: 999,
-    position: "absolute",
+    position: 'absolute',
     top: 0,
     bottom: 0,
     right: 0,
-    width: "100%",
-    height: "100%",
-    backgroundColor: "#f3f6fc",
-    flexDirection: "column",
-    justifyContent: "space-between",
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#f3f6fc',
+    flexDirection: 'column',
+    justifyContent: 'space-between',
     flex: 1,
   },
   text: {
-    color: "#fff",
+    color: '#fff',
     fontSize: 18,
   },
 });

@@ -41,14 +41,14 @@ export const updateMessagesTillLast = async (
       await Promise.all(
         currentBatch.map(async (jid, index) => {
           try {
-            if (index > 0) await new Promise((res) => setTimeout(res, 125));
+            if (index > 0) {await new Promise((res) => setTimeout(res, 125));}
 
             let counter = 0;
             let isMessageFound = false;
             let currentJidNewMessages: IMessage[] = [];
 
             const lastCachedMessagesTimeStamp = lastTimestampsByJid[jid];
-            if (!lastCachedMessagesTimeStamp) return;
+            if (!lastCachedMessagesTimeStamp) {return;}
 
             while (!isMessageFound && counter < maxFetchAttempts) {
               const lastMessageId =
@@ -60,7 +60,7 @@ export const updateMessagesTillLast = async (
                 Number(lastMessageId)
               );
 
-              if (!fetchedMessages.length) break;
+              if (!fetchedMessages.length) {break;}
 
               counter++;
 

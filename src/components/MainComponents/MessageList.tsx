@@ -6,7 +6,7 @@ import React, {
   useMemo,
   useRef,
   useState,
-} from "react";
+} from 'react';
 import {
   View,
   StyleSheet,
@@ -17,15 +17,15 @@ import {
   TouchableOpacity,
   Keyboard,
   ImageSourcePropType,
-} from "react-native";
-import { IMessage, User, IConfig, IRoom } from "../../types/types";
-import Composing from "../styled/StyledInputComponents/Composing";
-import TreadLabel from "../styled/TreadLabel";
-import { MessageContainer } from "./MessageContainer";
-import { useRoomState } from "../../hooks/useRoomState";
-import Loader from "../styled/Loader";
-import { ArowDownIcon } from "../../assets/icons";
-import CustomTypingIndicator from "../styled/StyledInputComponents/CustomTypingIndicator";
+} from 'react-native';
+import { IMessage, User, IConfig, IRoom } from '../../types/types';
+import Composing from '../styled/StyledInputComponents/Composing';
+import TreadLabel from '../styled/TreadLabel';
+import { MessageContainer } from './MessageContainer';
+import { useRoomState } from '../../hooks/useRoomState';
+import Loader from '../styled/Loader';
+import { ArowDownIcon } from '../../assets/icons';
+import CustomTypingIndicator from '../styled/StyledInputComponents/CustomTypingIndicator';
 
 interface MessageListProps<TMessage extends IMessage> {
   CustomMessage?: React.ComponentType<{
@@ -102,15 +102,15 @@ const MessageList = <TMessage extends IMessage>({
         (item: IMessage) =>
           item.roomJid === roomJID &&
           item.isReply &&
-          item.isReply === "true" &&
+          item.isReply === 'true' &&
           item.mainMessage &&
           JSON.parse(item.mainMessage).id === activeMessage?.id
       );
     } else {
       return nonDeletedMessages.filter(
         (item: IMessage) =>
-          item.showInChannel === "true" ||
-          ((!item.isReply || item.isReply === "false") && !item.mainMessage)
+          item.showInChannel === 'true' ||
+          ((!item.isReply || item.isReply === 'false') && !item.mainMessage)
       );
     }
   }, [addReplyMessages, isReply, roomJID, activeMessage]);
@@ -140,7 +140,7 @@ const MessageList = <TMessage extends IMessage>({
         Number(oldestMessage.id)
       );
     } catch (error) {
-      console.error("Error loading more messages:", error);
+      console.error('Error loading more messages:', error);
     } finally {
       setTimeout(() => {
         setIsLoadingMore(false);
@@ -266,7 +266,7 @@ const MessageList = <TMessage extends IMessage>({
     const image = config?.backgroundChat?.image;
 
     if (image) {
-      if (typeof image === "function") {
+      if (typeof image === 'function') {
         const SvgComponent = image as React.FC<React.SVGProps<SVGSVGElement>>;
         return <SvgComponent width="100%" />;
       } else {
@@ -281,7 +281,7 @@ const MessageList = <TMessage extends IMessage>({
     <View
       style={[
         styles.container,
-        { backgroundColor: config?.backgroundChat?.color || "#F3F6FC" },
+        { backgroundColor: config?.backgroundChat?.color || '#F3F6FC' },
       ]}
     >
       <View style={styles.backgroundImageContainer}>{BackgroundImage}</View>
@@ -329,9 +329,9 @@ const MessageList = <TMessage extends IMessage>({
       )}
       {config?.customTypingIndicator?.enabled && composing && (
         <CustomTypingIndicator
-          usersTyping={composingList || ["User"]}
+          usersTyping={composingList || ['User']}
           text={config.customTypingIndicator.text}
-          position={config.customTypingIndicator.position || "bottom"}
+          position={config.customTypingIndicator.position || 'bottom'}
           styles={config.customTypingIndicator.styles}
           customComponent={config.customTypingIndicator.customComponent}
           isVisible={composing}
@@ -340,7 +340,7 @@ const MessageList = <TMessage extends IMessage>({
 
       {!config?.customTypingIndicator?.enabled &&
         config?.disableHeader &&
-        composing && <Composing usersTyping={composingList || ["User"]} />}
+        composing && <Composing usersTyping={composingList || ['User']} />}
     </View>
   );
 };
@@ -350,7 +350,7 @@ export default MessageList;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    width: "100%",
+    width: '100%',
   },
   flatListContent: {
     paddingHorizontal: 10,
@@ -359,11 +359,11 @@ const styles = StyleSheet.create({
   messageList: {
     paddingHorizontal: 10,
     flexGrow: 1,
-    backgroundColor: "#434343",
+    backgroundColor: '#434343',
   },
   backgroundImageContainer: {
-    width: "100%",
-    position: "absolute",
+    width: '100%',
+    position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
@@ -371,24 +371,24 @@ const styles = StyleSheet.create({
     zIndex: -1,
   },
   image: {
-    position: "absolute",
+    position: 'absolute',
     top: 0,
     left: 0,
-    width: "100%",
-    height: "100%",
+    width: '100%',
+    height: '100%',
   },
   newMessageIndicator: {
-    position: "absolute",
+    position: 'absolute',
     width: 40,
     height: 40,
     bottom: 20,
     right: 20,
-    backgroundColor: "#007AFF",
+    backgroundColor: '#007AFF',
     padding: 10,
     borderRadius: 20,
   },
   newMessageText: {
-    color: "#fff",
-    fontWeight: "bold",
+    color: '#fff',
+    fontWeight: 'bold',
   },
 });

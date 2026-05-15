@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useRef } from "react";
-import styled, { css } from "styled-components/native";
+import React, { useState, useEffect, useRef } from 'react';
+import styled, { css } from 'styled-components/native';
 import {
   TextInput,
   View,
   TouchableOpacity,
   TextInputProps,
-} from "react-native";
+} from 'react-native';
 
 const shouldForwardProp = (prop: string) =>
   prop !== 'animated' && prop !== 'expanded' && prop !== 'direction';
@@ -27,7 +27,7 @@ const SearchInputWrapper = styled.View.withConfig({ shouldForwardProp })<{
   ${({ animated, expanded }) =>
     animated &&
     css`
-      justify-content: ${expanded ? "flex-start" : "center"};
+      justify-content: ${expanded ? 'flex-start' : 'center'};
       transition: width 0.7s ease-in-out;
     `};
 `;
@@ -51,7 +51,7 @@ const StyledInput = styled(TextInput)<{
   color: #000;
   opacity: ${({ animated, expanded }) => (animated && !expanded ? 0 : 1)};
   display: ${({ animated, expanded }) =>
-    animated && !expanded ? "none" : "flex"};
+    animated && !expanded ? 'none' : 'flex'};
   ${({ animated }) =>
     animated &&
     css`
@@ -62,7 +62,7 @@ const StyledInput = styled(TextInput)<{
 interface SearchInputProps extends TextInputProps {
   icon?: React.ReactNode;
   animated?: boolean;
-  direction?: "left" | "right";
+  direction?: 'left' | 'right';
   placeholder?: string;
   value: string;
 }
@@ -70,7 +70,7 @@ interface SearchInputProps extends TextInputProps {
 const SearchInput: React.FC<SearchInputProps> = ({
   icon,
   animated = false,
-  direction = "left",
+  direction = 'left',
   placeholder,
   ...props
 }) => {

@@ -1,14 +1,14 @@
 /** @format */
 
-import styled from "styled-components/native";
+import styled from 'styled-components/native';
 
 // Theme variables for reuse
 const colors = {
-  primary: "#141414",
-  secondary: "#f5f7f9",
-  border: "#ccc",
-  white: "#fff",
-  black: "#000",
+  primary: '#141414',
+  secondary: '#f5f7f9',
+  border: '#ccc',
+  white: '#fff',
+  black: '#000',
 };
 
 export const InputContainer = styled.View<{ isText?: boolean }>`
@@ -47,7 +47,7 @@ export const MessageInput = styled.TextInput<{
   border-radius: 12px;
   border-width: 1px;
   border-color: ${(props) =>
-    props.isFocused ? props.color || "#0052CD" : "transparent"};
+    props.isFocused ? props.color || '#0052CD' : 'transparent'};
   color: #141414;
   background-color: #f5f7f9;
   width: 70%;

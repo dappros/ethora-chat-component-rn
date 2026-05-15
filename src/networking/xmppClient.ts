@@ -1,4 +1,4 @@
-import xmpp, { Client, xml } from '@xmpp/client';
+import xmpp, { Client } from '@xmpp/client';
 import { walletToUsername } from '../helpers/walletUsername';
 import { xmppSettingsInterface } from '../types/types';
 
@@ -90,13 +90,13 @@ export class XmppClient {
     const qos = this.xmppSettings?.historyQoS;
     if (qos) {
       if (typeof qos.maxInFlightHistory === 'number')
-        this.maxInFlightHistory = qos.maxInFlightHistory;
+        {this.maxInFlightHistory = qos.maxInFlightHistory;}
       if (typeof qos.softPauseAfterSendMs === 'number')
-        this.softPauseAfterSendMs = qos.softPauseAfterSendMs;
+        {this.softPauseAfterSendMs = qos.softPauseAfterSendMs;}
       if (typeof qos.activeRoomBoostTtlMs === 'number')
-        this.activeRoomBoostTtlMs = qos.activeRoomBoostTtlMs;
+        {this.activeRoomBoostTtlMs = qos.activeRoomBoostTtlMs;}
       if (typeof qos.alwaysPrioritizeActiveRoom === 'boolean')
-        this.alwaysPrioritizeActiveRoom = qos.alwaysPrioritizeActiveRoom;
+        {this.alwaysPrioritizeActiveRoom = qos.alwaysPrioritizeActiveRoom;}
     }
 
     this.username = username;
@@ -109,7 +109,7 @@ export class XmppClient {
   // ===================================================================
   setActiveRoomJid(roomJID: string | null) {
     this.activeRoomJID = roomJID;
-    if (roomJID) this.promoteRoomHistory(roomJID);
+    if (roomJID) {this.promoteRoomHistory(roomJID);}
   }
 
   promoteRoomHistory(_roomJID: string) {
@@ -121,15 +121,15 @@ export class XmppClient {
    * room for more concurrent MAM fetches. Scheduler uses this to backoff.
    */
   isActiveRoomGateOpen(): boolean {
-    if (this.mamInFlightByRoom.size >= this.maxInFlightHistory) return false;
-    if (Date.now() < this.softPauseUntil) return false;
+    if (this.mamInFlightByRoom.size >= this.maxInFlightHistory) {return false;}
+    if (Date.now() < this.softPauseUntil) {return false;}
     return true;
   }
 
   /** Called right before a critical send. Soft-pauses background MAM. */
   onCriticalSend(roomJID: string, _messageId?: string) {
     this.softPauseUntil = Date.now() + this.softPauseAfterSendMs;
-    if (roomJID) this.promoteRoomHistory(roomJID);
+    if (roomJID) {this.promoteRoomHistory(roomJID);}
   }
 
   /**
@@ -336,11 +336,11 @@ export class XmppClient {
    * Mirrors the web client's `ensureConnected` helper.
    */
   waitForOnline(timeoutMs: number = 15000): Promise<void> {
-    if (this.status === 'online') return Promise.resolve();
+    if (this.status === 'online') {return Promise.resolve();}
     return new Promise((resolve, reject) => {
       const start = Date.now();
       const tick = () => {
-        if (this.status === 'online') return resolve();
+        if (this.status === 'online') {return resolve();}
         if (this.status === 'error') {
           return reject(new Error('XMPP client error'));
         }
@@ -359,7 +359,7 @@ export class XmppClient {
   }
 
   scheduleReconnect() {
-    if (this.suppressReconnect) return;
+    if (this.suppressReconnect) {return;}
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       console.error('Max reconnect attempts reached.');
       return;
@@ -372,7 +372,7 @@ export class XmppClient {
   }
 
   reconnect() {
-    if (this.suppressReconnect) return;
+    if (this.suppressReconnect) {return;}
     console.log('Attempting to reconnect xmpp client...');
     if (this.client) {
       this.client.stop().finally(() => {
@@ -384,7 +384,7 @@ export class XmppClient {
   }
 
   async disconnect(options?: { suppressReconnect?: boolean }): Promise<void> {
-    if (options?.suppressReconnect) this.suppressReconnect = true;
+    if (options?.suppressReconnect) {this.suppressReconnect = true;}
     return this.close();
   }
 
@@ -504,7 +504,7 @@ export class XmppClient {
   }
 
   getChatsPrivateStoreRequestStanza = async () => {
-    if (this.disableLastRead) return null;
+    if (this.disableLastRead) {return null;}
     try {
       return await getChatsPrivateStoreRequest(this.client);
     } catch (error) {
@@ -518,7 +518,7 @@ export class XmppClient {
     timestamp: number,
     chats?: string[]
   ) {
-    if (this.disableLastRead) return;
+    if (this.disableLastRead) {return;}
     try {
       await actionSetTimestampToPrivateStore(
         this.client,

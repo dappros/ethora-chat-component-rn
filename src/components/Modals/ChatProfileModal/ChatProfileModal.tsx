@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   CenterContainer,
   UserInfo,
@@ -10,35 +10,35 @@ import {
   LabelData,
   Viewider,
   Divider,
-} from "../styledModalComponents";
-import { Pressable, View, Text, ScrollView, Alert, Linking, Platform } from "react-native";
-import ModalHeaderComponent from "../ModalHeaderComponent";
-import { ProfileImagePlaceholder } from "../../MainComponents/ProfileImagePlaceholder";
-import { useDispatch, useSelector } from "react-redux";
-import { RootState, getActiveRoom } from "../../../roomStore";
-import { uploadFile } from "../../../networking/api-requests/auth.api";
-import { useXmppClient } from "../../../context/xmppProvider";
-import { updateRoom } from "../../../roomStore/roomsSlice";
-import ImagePicker from "react-native-image-crop-picker";
+} from '../styledModalComponents';
+import { Pressable, View, Text, ScrollView, Alert, Linking, Platform } from 'react-native';
+import ModalHeaderComponent from '../ModalHeaderComponent';
+import { ProfileImagePlaceholder } from '../../MainComponents/ProfileImagePlaceholder';
+import { useDispatch, useSelector } from 'react-redux';
+import { RootState, getActiveRoom } from '../../../roomStore';
+import { uploadFile } from '../../../networking/api-requests/auth.api';
+import { useXmppClient } from '../../../context/xmppProvider';
+import { updateRoom } from '../../../roomStore/roomsSlice';
+import ImagePicker from 'react-native-image-crop-picker';
 import {
   check,
   request,
   PERMISSIONS,
   RESULTS,
   Permission,
-} from "react-native-permissions";
-import Loader from "../../styled/Loader";
-import Button from "../../styled/Button";
-import { DeleteIcon, MoreIcon, QrIcon } from "../../../assets/icons";
-import Switch from "../../MainComponents/Switch";
-import { useChatSettingState } from "../../../hooks/useChatSettingState";
-import { deleteRoomMember } from "../../../networking/api-requests/rooms.api";
-import { RoomMember } from "../../../types/models/room.model";
-import { setActiveModal, setSelectedUser } from "../../../roomStore/chatSettingsSlice";
-import { MODAL_TYPES } from "../../../helpers/constants/MODAL_TYPES";
-import DropdownMenu, { MenuOption } from "../../DropdownMenu/DropdownMenu";
+} from 'react-native-permissions';
+import Loader from '../../styled/Loader';
+import Button from '../../styled/Button';
+import { DeleteIcon, MoreIcon, QrIcon } from '../../../assets/icons';
+import Switch from '../../MainComponents/Switch';
+import { useChatSettingState } from '../../../hooks/useChatSettingState';
+import { deleteRoomMember } from '../../../networking/api-requests/rooms.api';
+import { RoomMember } from '../../../types/models/room.model';
+import { setActiveModal, setSelectedUser } from '../../../roomStore/chatSettingsSlice';
+import { MODAL_TYPES } from '../../../helpers/constants/MODAL_TYPES';
+import DropdownMenu, { MenuOption } from '../../DropdownMenu/DropdownMenu';
 import SelectUsersModal from '../SelectUsersModal/SelectUsersModal';
-import { useToast } from "../../../context/ToastContext";
+import { useToast } from '../../../context/ToastContext';
 import DeleteChatModal from './DeleteChatModal';
 
 
@@ -93,26 +93,26 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
       loadingSet = true;
 
       const permission =
-        Platform.OS === "ios"
+        Platform.OS === 'ios'
           ? PERMISSIONS.IOS.PHOTO_LIBRARY
           : PERMISSIONS.ANDROID.READ_EXTERNAL_STORAGE;
       const permissionStatus = await checkPermission(permission);
 
       if (permissionStatus !== RESULTS.GRANTED) {
         Alert.alert(
-          "Permission required",
-          "Photo library permission is needed to select images.",
+          'Permission required',
+          'Photo library permission is needed to select images.',
           [
             {
-              text: "Cancel",
+              text: 'Cancel',
               onPress: () => {
                 setLoading(false);
-                console.log("Photo permission cancelled");
+                console.log('Photo permission cancelled');
               },
-              style: "cancel",
+              style: 'cancel',
             },
             {
-              text: "Open Settings",
+              text: 'Open Settings',
               onPress: () => Linking.openSettings(),
             },
           ]
@@ -128,7 +128,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
         compressImageQuality: 0.8,
       });
 
-      const originalName = image.path.split("/").pop();
+      const originalName = image.path.split('/').pop();
       const fileObject = {
         uri: image.path,
         type: image.mime || 'image/jpeg',
@@ -146,7 +146,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
         dispatch(
           updateRoom({ jid: activeRoom?.jid || '', updates: { icon: location } })
         );
-        
+
         showToast({
           id: Date.now().toString(),
           title: 'Success',
@@ -159,7 +159,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
         console.log('User cancelled image selection');
         return;
       }
-      
+
       console.error('File upload failed or location is missing:', error);
       showToast({
         id: Date.now().toString(),
@@ -268,7 +268,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
   }
 
   return (
-    <ModalContainerFullScreen style={{ position: "relative" }}>
+    <ModalContainerFullScreen style={{ position: 'relative' }}>
       <ModalHeaderComponent
         handleCloseModal={handleCloseModal}
         headerTitle={'Chat Profile'}

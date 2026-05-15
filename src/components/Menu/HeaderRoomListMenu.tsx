@@ -1,4 +1,4 @@
-import React, { FC, useMemo } from "react";
+import React, { FC, useMemo } from 'react';
 import {
   Animated,
   Text,
@@ -7,13 +7,13 @@ import {
   StyleSheet,
   Dimensions,
   View,
-} from "react-native";
-import { AddNewIcon, ProfileIcon, SettingIcon } from "../../assets/icons";
-import { useDispatch } from "react-redux";
-import { setActiveModal } from "../../roomStore/chatSettingsSlice";
-import { MODAL_TYPES } from "../../helpers/constants/MODAL_TYPES";
+} from 'react-native';
+import { AddNewIcon, ProfileIcon, SettingIcon } from '../../assets/icons';
+import { useDispatch } from 'react-redux';
+import { setActiveModal } from '../../roomStore/chatSettingsSlice';
+import { MODAL_TYPES } from '../../helpers/constants/MODAL_TYPES';
 
-const { width } = Dimensions.get("window");
+const { width } = Dimensions.get('window');
 
 interface HeaderRoomListMenuProps {
   isDrawerOpen: boolean;
@@ -38,28 +38,28 @@ export const HeaderRoomListMenu: FC<HeaderRoomListMenuProps> = ({
   const menuOptions = useMemo(
     () => [
       {
-        label: "New Chat",
+        label: 'New Chat',
         icon: <AddNewIcon color="#8C8C8C" />,
         onClick: () => {
           dispatch(setActiveModal(MODAL_TYPES.NEW_CHAT));
-          console.log("New chat clicked");
+          console.log('New chat clicked');
         },
-        styles: { color: "#141414" },
+        styles: { color: '#141414' },
       },
       {
-        label: "Profile",
+        label: 'Profile',
         icon: <ProfileIcon color="#8C8C8C" />,
         onClick: () => {
           dispatch(setActiveModal(MODAL_TYPES.PROFILE));
-          console.log("Profile clicked");
+          console.log('Profile clicked');
         },
       },
       {
-        label: "Settings",
+        label: 'Settings',
         icon: <SettingIcon color="#8C8C8C" />,
         onClick: () => {
           dispatch(setActiveModal(MODAL_TYPES.SETTINGS));
-          console.log("Settings clicked");
+          console.log('Settings clicked');
         },
       },
       // {
@@ -90,7 +90,7 @@ export const HeaderRoomListMenu: FC<HeaderRoomListMenuProps> = ({
               <View
                 style={{
                   width: 22,
-                  alignItems: "center",
+                  alignItems: 'center',
                 }}
               >
                 {option.icon}
@@ -114,12 +114,12 @@ export const HeaderRoomListMenu: FC<HeaderRoomListMenuProps> = ({
 
 const styles = StyleSheet.create({
   menuItemWrapper: {
-    display: "flex",
-    flexDirection: "column",
+    display: 'flex',
+    flexDirection: 'column',
   },
   menuItem: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     padding: 16,
   },
   label: {
@@ -128,18 +128,18 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    width: "100%",
-    backgroundColor: "#0052cd0d",
+    width: '100%',
+    backgroundColor: '#0052cd0d',
   },
   drawer: {
-    position: "absolute",
+    position: 'absolute',
     top: 0,
     bottom: 0,
     right: 0,
     width: width * 0.7,
-    backgroundColor: "#fff",
+    backgroundColor: '#fff',
     padding: 20,
-    shadowColor: "#000",
+    shadowColor: '#000',
     shadowOpacity: 0.3,
     shadowOffset: { width: -2, height: 0 },
     shadowRadius: 5,
@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
   },
   drawerTitle: {
     fontSize: 20,
-    fontWeight: "bold",
+    fontWeight: 'bold',
     marginBottom: 20,
   },
   drawerItem: {
@@ -156,14 +156,14 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   overlay: {
-    position: "absolute",
+    position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
     flex: 1,
-    width: "100%",
-    height: "100%",
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    width: '100%',
+    height: '100%',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
 });

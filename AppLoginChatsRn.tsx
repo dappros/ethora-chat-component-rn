@@ -284,7 +284,7 @@ const SetupTab: React.FC<{
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={{ flex: 1 }}
+      style={styles.flex1}
     >
       <ScrollView
         contentContainerStyle={styles.setupBody}
@@ -478,10 +478,10 @@ const Field: React.FC<{
   multiline?: boolean;
   children: React.ReactNode;
 }> = ({ label, multiline, children }) => (
-  <View style={{ marginBottom: 12 }}>
+  <View style={styles.mb12}>
     <Text style={styles.fieldLabel}>{label}</Text>
     {children}
-    {multiline ? <View style={{ height: 4 }} /> : null}
+    {multiline ? <View style={styles.fieldSpacer} /> : null}
   </View>
 );
 
@@ -490,7 +490,7 @@ const Field: React.FC<{
 // ---------------------------------------------------------------------
 const ChatPane: React.FC<{ creds: Creds | null }> = ({ creds }) => {
   const config = useMemo<IConfig | null>(() => {
-    if (!creds) return null;
+    if (!creds) {return null;}
     const base = {
       baseUrl: creds.baseUrl,
       xmppSettings: {
@@ -504,14 +504,14 @@ const ChatPane: React.FC<{ creds: Creds | null }> = ({ creds }) => {
     } as IConfig;
 
     if (creds.mode === 'jwt') {
-      if (!creds.jwt) return null;
+      if (!creds.jwt) {return null;}
       return {
         ...base,
         jwtLogin: { enabled: true, token: creds.jwt },
       } as IConfig;
     }
     // email mode — user already resolved by Setup's "Test connection".
-    if (!creds.resolvedUser || !creds.appToken) return null;
+    if (!creds.resolvedUser || !creds.appToken) {return null;}
     return {
       ...base,
       customAppToken: creds.appToken,
@@ -522,8 +522,8 @@ const ChatPane: React.FC<{ creds: Creds | null }> = ({ creds }) => {
   // Stable cache key so the chat re-mounts only when meaningful auth
   // identity changes (not on every keystroke during setup).
   const keyId = useMemo(() => {
-    if (!creds) return 'no-creds';
-    if (creds.mode === 'jwt') return `jwt:${creds.jwt.slice(0, 24)}`;
+    if (!creds) {return 'no-creds';}
+    if (creds.mode === 'jwt') {return `jwt:${creds.jwt.slice(0, 24)}`;}
     return `email:${creds.resolvedUser?._id || creds.email}`;
   }, [creds]);
 
@@ -538,7 +538,7 @@ const ChatPane: React.FC<{ creds: Creds | null }> = ({ creds }) => {
   }
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={styles.flex1}>
       {/*
         `key` on the chat forces a hard remount when the user picks a
         different account. Without it the in-flight XMPP client would
@@ -590,19 +590,19 @@ const LogsPane: React.FC = () => {
   const toggleFilter = (k: LogKind) => {
     setFilters((prev) => {
       const next = new Set(prev);
-      if (next.has(k)) next.delete(k);
-      else next.add(k);
+      if (next.has(k)) {next.delete(k);}
+      else {next.add(k);}
       return next;
     });
   };
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={styles.flex1}>
       <View style={styles.logsToolbar}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingRight: 8 }}
+          contentContainerStyle={styles.pr8}
         >
           {ALL_KINDS.map((k) => {
             const active = filters.has(k);
@@ -613,6 +613,7 @@ const LogsPane: React.FC = () => {
                 onPress={() => toggleFilter(k)}
                 style={[
                   styles.filterChip,
+                  // eslint-disable-next-line react-native/no-inline-styles -- dynamic theme color
                   {
                     backgroundColor: active ? c.bg : 'white',
                     borderColor: active ? c.fg : BORDER,
@@ -728,7 +729,7 @@ const AppLoginChatsRn: React.FC = () => {
           const ready =
             (parsed.mode === 'jwt' && !!parsed.jwt) ||
             (parsed.mode === 'email' && !!parsed.resolvedUser);
-          if (ready) setTab('chat');
+          if (ready) {setTab('chat');}
         }
       } catch (err) {
         pushLog('error', 'Failed to read creds', err);
@@ -761,7 +762,7 @@ const AppLoginChatsRn: React.FC = () => {
     <SafeAreaView style={styles.root}>
       <StatusBar barStyle="dark-content" />
       <TabBar active={tab} onChange={setTab} />
-      <View style={{ flex: 1 }}>
+      <View style={styles.flex1}>
         {/*
           Render all three panels with display:flex/none so state is
           preserved across tab switches (logs especially — we want the
@@ -770,7 +771,7 @@ const AppLoginChatsRn: React.FC = () => {
         <View
           style={[
             styles.pane,
-            { display: tab === 'setup' ? 'flex' : 'none' },
+            tab === 'setup' ? styles.paneShown : styles.paneHidden,
           ]}
           pointerEvents={tab === 'setup' ? 'auto' : 'none'}
         >
@@ -782,7 +783,7 @@ const AppLoginChatsRn: React.FC = () => {
         <View
           style={[
             styles.pane,
-            { display: tab === 'chat' ? 'flex' : 'none' },
+            tab === 'chat' ? styles.paneShown : styles.paneHidden,
           ]}
           pointerEvents={tab === 'chat' ? 'auto' : 'none'}
         >
@@ -791,7 +792,7 @@ const AppLoginChatsRn: React.FC = () => {
         <View
           style={[
             styles.pane,
-            { display: tab === 'logs' ? 'flex' : 'none' },
+            tab === 'logs' ? styles.paneShown : styles.paneHidden,
           ]}
           pointerEvents={tab === 'logs' ? 'auto' : 'none'}
         >
@@ -809,10 +810,16 @@ export { AppLoginChatsRn };
 // Styles
 // ---------------------------------------------------------------------
 const styles = StyleSheet.create({
+  flex1: { flex: 1 },
+  mb12: { marginBottom: 12 },
+  pr8: { paddingRight: 8 },
+  fieldSpacer: { height: 4 },
   root: { flex: 1, backgroundColor: 'white' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   muted: { color: MUTED },
   pane: { ...StyleSheet.absoluteFillObject },
+  paneShown: { display: 'flex' },
+  paneHidden: { display: 'none' },
   // tab bar
   tabBar: {
     flexDirection: 'row',

@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from "react";
-import styled from "styled-components/native";
-import { MessageInput } from "../styled/StyledComponents";
-import Button from "../styled/Button";
-import { GoogleIcon } from "../../assets/icons";
-import { IConfig } from "../../types/types";
+import React, { useState, useEffect } from 'react';
+import styled from 'styled-components/native';
+import { MessageInput } from '../styled/StyledComponents';
+import Button from '../styled/Button';
+import { GoogleIcon } from '../../assets/icons';
+import { IConfig } from '../../types/types';
 
 interface LoginFormProps {
   config?: IConfig;
@@ -11,15 +11,15 @@ interface LoginFormProps {
 
 const LoginForm: React.FC<LoginFormProps> = ({ config }) => {
   const handleSubmit = () => {
-    console.log("Form submitted");
+    console.log('Form submitted');
   };
 
   return (
     <FormContainer>
       <Button
         onPress={handleSubmit}
-        text={"Login anonymously"}
-        style={{ width: "100%", height: 40 }}
+        text={'Login anonymously'}
+        style={{ width: '100%', height: 40 }}
       />
 
       <Delimiter>Only could send text messages</Delimiter>

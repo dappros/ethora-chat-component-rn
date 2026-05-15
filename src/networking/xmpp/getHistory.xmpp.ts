@@ -12,7 +12,7 @@ export const getHistory = async (
   before?: number,
   otherId?: string
 ): Promise<IMessage[] | undefined> => {
-  if (typeof chatJID !== 'string') return;
+  if (typeof chatJID !== 'string') {return;}
   // If a caller passes a bare local-part (no `@host`), pick a default
   // conference based on the client's actual service URL — never leak a
   // hard-coded dev domain.
@@ -44,8 +44,8 @@ export const getHistory = async (
 
       if (
         stanza.is('message') &&
-        stanza.attrs['from'] &&
-        stanza.attrs['from'].startsWith(fixedChatJid) &&
+        stanza.attrs.from &&
+        stanza.attrs.from.startsWith(fixedChatJid) &&
         result
       ) {
         const messageEl = result.getChild('forwarded')?.getChild('message');
@@ -55,8 +55,8 @@ export const getHistory = async (
 
       if (
         stanza.is('iq') &&
-        stanza.attrs['id'] === id &&
-        stanza.attrs['type'] === 'result'
+        stanza.attrs.id === id &&
+        stanza.attrs.type === 'result'
       ) {
         let mainMessages: IMessage[] = [];
 

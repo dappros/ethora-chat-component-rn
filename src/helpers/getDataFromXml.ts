@@ -3,7 +3,7 @@ import { Iso639_1Codes, IUser } from '../types/types';
 import { transformArrayToObject } from './transformTranslatations';
 
 const extractTimestamp = (str: string, stanza?: any): string | null => {
-  if (!str) return null;
+  if (!str) {return null;}
   if (typeof str !== 'string') {
     console.log(str, stanza.toString());
     return null;
@@ -55,7 +55,7 @@ export const getDataFromXml = async (stanza: Element): Promise<DataXml | undefin
     : new Date().toISOString();
 
   const data = fullData?.getChild('data') || stanza?.getChild('data');
-  const photoURL = data?.attrs?.['photo'];
+  const photoURL = data?.attrs?.photo;
 
   const user = {
     id: userWallet,

@@ -11,7 +11,7 @@ const logoutService = {
   performLogout: () => {
     // Clear any pending notifications
     DeviceEventEmitter.emit('chat:clear-notifications');
-    
+
     pushSubscriptionService.reset();
     store.dispatch(logout());
     store.dispatch(setLogoutState());

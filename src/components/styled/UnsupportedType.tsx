@@ -1,4 +1,4 @@
-import React from "react";
+import React from 'react';
 
 import {
   BackgroundFile,
@@ -7,16 +7,16 @@ import {
   FileSize,
   FileSizeContainer,
   UnsupportedContainer,
-} from "./StyledInputComponents/MediaComponents";
-import { useDispatch } from "react-redux";
-import { MODAL_TYPES } from "../../helpers/constants/MODAL_TYPES";
+} from './StyledInputComponents/MediaComponents';
+import { useDispatch } from 'react-redux';
+import { MODAL_TYPES } from '../../helpers/constants/MODAL_TYPES';
 import {
   setActiveFile,
   setActiveModal,
-} from "../../roomStore/chatSettingsSlice";
-import { Text, View } from "react-native";
-import { useChatSettingState } from "../../hooks/useChatSettingState";
-import { FileIcon } from "../../assets/icons";
+} from '../../roomStore/chatSettingsSlice';
+import { Text, View } from 'react-native';
+import { useChatSettingState } from '../../hooks/useChatSettingState';
+import { FileIcon } from '../../assets/icons';
 
 interface FileDownloadProps {
   fileName: string;
@@ -38,7 +38,7 @@ const FileDownload: React.FC<FileDownloadProps> = ({
     const size = parseInt(sizeInBytes, 10);
 
     if (isNaN(size)) {
-      return "Invalid size";
+      return 'Invalid size';
     }
 
     if (size < 1024) {
@@ -53,8 +53,8 @@ const FileDownload: React.FC<FileDownloadProps> = ({
   };
 
   const formatFileName = (name: string, maxLength: number): string => {
-    const dotIndex = name.lastIndexOf(".");
-    const extension = dotIndex !== -1 ? name.substring(dotIndex) : "";
+    const dotIndex = name.lastIndexOf('.');
+    const extension = dotIndex !== -1 ? name.substring(dotIndex) : '';
 
     const baseName = dotIndex !== -1 ? name.substring(0, dotIndex) : name;
 

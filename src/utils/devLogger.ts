@@ -26,10 +26,6 @@ let entries: LogEntry[] = [];
 let listeners: Set<() => void> = new Set();
 let nextId = 1;
 
-function snapshot(): LogEntry[] {
-  return entries;
-}
-
 export function pushLog(
   kind: LogKind,
   message: string,
@@ -88,9 +84,9 @@ function safeStringify(value: any): string {
     return JSON.stringify(
       value,
       (_key, v) => {
-        if (typeof v === 'bigint') return v.toString();
+        if (typeof v === 'bigint') {return v.toString();}
         if (v instanceof Error)
-          return { name: v.name, message: v.message, stack: v.stack };
+          {return { name: v.name, message: v.message, stack: v.stack };}
         return v;
       },
       2
@@ -110,7 +106,7 @@ function safeStringify(value: any): string {
 let consolePatched = false;
 
 export function installConsoleCapture() {
-  if (consolePatched) return;
+  if (consolePatched) {return;}
   consolePatched = true;
   (['log', 'info', 'warn', 'error'] as const).forEach((level) => {
     const original = (console as any)[level].bind(console);
@@ -136,7 +132,7 @@ export function installConsoleCapture() {
 let axiosPatched = false;
 
 export function installAxiosCapture(axiosInstance: any) {
-  if (axiosPatched || !axiosInstance?.interceptors) return;
+  if (axiosPatched || !axiosInstance?.interceptors) {return;}
   axiosPatched = true;
 
   axiosInstance.interceptors.request.use(
@@ -180,7 +176,7 @@ export function installAxiosCapture(axiosInstance: any) {
 }
 
 function redactHeaders(headers: any) {
-  if (!headers || typeof headers !== 'object') return headers;
+  if (!headers || typeof headers !== 'object') {return headers;}
   const out: any = {};
   for (const k of Object.keys(headers)) {
     const v = headers[k];
@@ -194,8 +190,8 @@ function redactHeaders(headers: any) {
 }
 
 function truncateBody(body: any) {
-  if (body == null) return body;
+  if (body == null) {return body;}
   const str = typeof body === 'string' ? body : safeStringify(body);
-  if (str.length <= 2000) return str;
+  if (str.length <= 2000) {return str;}
   return str.slice(0, 2000) + `… [+${str.length - 2000} chars]`;
 }

@@ -2,7 +2,7 @@ import { IConfig } from '../types/types';
 import { store } from '../roomStore';
 import { logout } from '../roomStore/chatSettingsSlice';
 import { setLogoutState } from '../roomStore/roomsSlice';
-import { useLocalStorage } from '../hooks/useLocalStorage';
+import { asyncLocalStorage } from '../hooks/useLocalStorage';
 import { localStorageConstants } from './constants/LOCAL_STORAGE';
 import { clearRoomsRestCache } from '../networking/api-requests/rooms.api';
 import { clearPersistedState } from '../roomStore/persistence';
@@ -25,14 +25,14 @@ interface ScopeRecord {
  * against the new tenant. Mirrors web ensureScopedChatCache.
  */
 export async function ensureScopedChatCache(config?: IConfig): Promise<void> {
-  if (!config?.appId && !config?.baseUrl) return;
+  if (!config?.appId && !config?.baseUrl) {return;}
 
   const next: ScopeRecord = {
     appId: config.appId,
     baseUrl: config.baseUrl,
   };
 
-  const scopeStore = useLocalStorage<ScopeRecord>(SCOPE_KEY);
+  const scopeStore = asyncLocalStorage<ScopeRecord>(SCOPE_KEY);
   const previous = await scopeStore.get();
 
   const changed =
@@ -53,7 +53,7 @@ export async function ensureScopedChatCache(config?: IConfig): Promise<void> {
     clearRoomsRestCache();
     store.dispatch(setLogoutState());
     store.dispatch(logout());
-    await useLocalStorage(localStorageConstants.ETHORA_USER).remove();
+    await asyncLocalStorage(localStorageConstants.ETHORA_USER).remove();
     await clearPersistedState();
   }
 

@@ -135,14 +135,14 @@ const renderTextWithLinks = (text: string) => {
   const nodes: Array<string | JSX.Element> = [];
   let lastIndex = 0;
 
-  if (!text) return nodes;
+  if (!text) {return nodes;}
 
   let match: RegExpExecArray | null;
   while ((match = urlRegex.exec(text)) !== null) {
     const url = match[0];
     const start = match.index;
 
-    if (start > lastIndex) nodes.push(text.slice(lastIndex, start));
+    if (start > lastIndex) {nodes.push(text.slice(lastIndex, start));}
 
     nodes.push(
       <Pressable key={`link-${elementKeyCounter++}`} onPress={() => Linking.openURL(url)}>
@@ -153,7 +153,7 @@ const renderTextWithLinks = (text: string) => {
     lastIndex = start + url.length;
   }
 
-  if (lastIndex < text.length) nodes.push(text.slice(lastIndex));
+  if (lastIndex < text.length) {nodes.push(text.slice(lastIndex));}
   return nodes;
 };
 
@@ -238,8 +238,8 @@ const renderMarkdownTableRN = (
     const seg = (separator[idx] || '').trim();
     const left = seg.startsWith(':');
     const right = seg.endsWith(':');
-    if (left && right) return 'center';
-    if (right) return 'right';
+    if (left && right) {return 'center';}
+    if (right) {return 'right';}
     return 'left';
   });
 
@@ -313,7 +313,7 @@ export const parseMessageBody = (text: string): JSX.Element => {
   let codeLines: string[] = [];
 
   const flushList = () => {
-    if (listBuffer.length === 0) return;
+    if (listBuffer.length === 0) {return;}
 
     const renderListItems = (items: typeof listBuffer, depth: number): JSX.Element[] => {
       const result: JSX.Element[] = [];
@@ -455,7 +455,7 @@ export const parseMessageBody = (text: string): JSX.Element => {
             !nextLine.match(/^\s*-?\s*\[[\sxX]\]/)
           ) {
             let rowCells = parseTableRow(nextLine);
-            while (rowCells.length < headerCount) rowCells.push('');
+            while (rowCells.length < headerCount) {rowCells.push('');}
             rowCells = rowCells.slice(0, headerCount);
             rows.push(rowCells);
             current++;

@@ -14,7 +14,7 @@ export const presenceInRoom = async (
     let settled = false;
 
     const finish = (cb: (value?: any) => void, value?: any) => {
-      if (settled) return;
+      if (settled) {return;}
       settled = true;
 
       setTimeout(() => {

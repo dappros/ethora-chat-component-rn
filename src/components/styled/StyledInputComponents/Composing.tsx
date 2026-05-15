@@ -1,5 +1,5 @@
-import React, { FC, useEffect, useRef } from "react";
-import { View, Text, StyleSheet, Animated } from "react-native";
+import React, { FC, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, Animated } from 'react-native';
 
 // Define props
 interface ComposingProps {
@@ -8,7 +8,7 @@ interface ComposingProps {
 }
 
 // Composing component
-const Composing: FC<ComposingProps> = ({ usersTyping = ["User"], style }) => {
+const Composing: FC<ComposingProps> = ({ usersTyping = ['User'], style }) => {
   const fadeAnim1 = useRef(new Animated.Value(0.2)).current;
   const fadeAnim2 = useRef(new Animated.Value(0.2)).current;
   const fadeAnim3 = useRef(new Animated.Value(0.2)).current;
@@ -45,7 +45,7 @@ const Composing: FC<ComposingProps> = ({ usersTyping = ["User"], style }) => {
   } else if (usersTyping.length > 2) {
     typingText = `${usersTyping.length} people are typing`;
   } else {
-    typingText = "";
+    typingText = '';
   }
 
   return (
@@ -72,9 +72,9 @@ const Composing: FC<ComposingProps> = ({ usersTyping = ["User"], style }) => {
 
 const styles = StyleSheet.create({
   wrapper: {
-    flexDirection: "row",
-    alignItems: "center",
-    position: "absolute",
+    flexDirection: 'row',
+    alignItems: 'center',
+    position: 'absolute',
     bottom: 4,
     left: 16,
     zIndex: 1000,
@@ -82,16 +82,16 @@ const styles = StyleSheet.create({
   typingText: {
     marginRight: 5,
     fontSize: 14,
-    color: "#555",
+    color: '#555',
   },
   dotsContainer: {
-    flexDirection: "row",
+    flexDirection: 'row',
   },
   dot: {
     fontSize: 24,
     lineHeight: 24,
     marginHorizontal: 2,
-    color: "#555",
+    color: '#555',
   },
 });
 

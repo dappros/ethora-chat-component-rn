@@ -17,13 +17,13 @@ export function createRoomPresence(roomId: string, client: Client) {
     stanzaHdlrPointer = (stanza: Element) => {
       if (
         stanza.is('presence') &&
-        stanza.attrs['from'].split('/')[0] === roomId
+        stanza.attrs.from.split('/')[0] === roomId
       ) {
         const xEls = stanza.getChildren('x');
 
         if (xEls.length === 2) {
           const x = xEls.find(
-            (el) => el.attrs['xmlns'] === 'http://jabber.org/protocol/muc#user'
+            (el) => el.attrs.xmlns === 'http://jabber.org/protocol/muc#user'
           );
 
           if (x) {
@@ -34,7 +34,7 @@ export function createRoomPresence(roomId: string, client: Client) {
               reject('!statuses');
             }
 
-            const codes = statuses.map((el) => el.attrs['code']);
+            const codes = statuses.map((el) => el.attrs.code);
 
             if (codes.includes('201') && codes.includes('110')) {
               console.log('createRoomPresence:resolve true');

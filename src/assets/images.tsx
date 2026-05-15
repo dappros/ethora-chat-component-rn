@@ -1,11 +1,11 @@
-import React from "react";
+import React from 'react';
 import Svg, {
   Defs,
   Image,
   Path,
   Pattern,
   Use,
-} from "react-native-svg";
+} from 'react-native-svg';
 
 export const SendItemIcon = ({ color = '#8C8C8C', ...props }) => (
     <Svg

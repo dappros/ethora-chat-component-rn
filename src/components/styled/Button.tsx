@@ -1,5 +1,5 @@
-import React, { ReactElement, ReactNode } from "react";
-import styled from "styled-components/native";
+import React, { ReactElement, ReactNode } from 'react';
+import styled from 'styled-components/native';
 import {
   TouchableOpacity,
   View,
@@ -8,21 +8,21 @@ import {
   ActivityIndicator,
   ViewStyle,
   PixelRatio,
-} from "react-native";
-import Loader from "./Loader";
-import { getTintedColor } from "../../helpers/getTintedColor";
+} from 'react-native';
+import Loader from './Loader';
+import { getTintedColor } from '../../helpers/getTintedColor';
 
 const CustomButton = styled(TouchableOpacity)<{
   disabled: boolean;
   backgroundColor?: string;
   unstyled?: boolean;
-  variant?: "default" | "filled" | "outlined";
+  variant?: 'default' | 'filled' | 'outlined';
 }>`
-  border-width: ${({ variant }) => (variant === "outlined" ? 1 : 0)}px;
-  border-color: ${({ backgroundColor }) => backgroundColor || "#0052CD"};
+  border-width: ${({ variant }) => (variant === 'outlined' ? 1 : 0)}px;
+  border-color: ${({ backgroundColor }) => backgroundColor || '#0052CD'};
   border-radius: 20px;
   background-color: ${({ variant, backgroundColor }) =>
-    variant === "filled" ? backgroundColor || "#0052CD" : "transparent"};
+    variant === 'filled' ? backgroundColor || '#0052CD' : 'transparent'};
   flex-direction: row;
   justify-content: center;
   align-items: center;
@@ -34,11 +34,11 @@ const CustomButton = styled(TouchableOpacity)<{
 `;
 
 const ButtonText = styled.Text<{
-  variant?: "default" | "filled" | "outlined";
+  variant?: 'default' | 'filled' | 'outlined';
   backgroundColor?: string;
 }>`
   color: ${({ variant, backgroundColor }) =>
-    variant === "filled" ? "#FFFFFF" : backgroundColor || "#0052CD"};
+    variant === 'filled' ? '#FFFFFF' : backgroundColor || '#0052CD'};
   font-size: ${PixelRatio.getFontScale() * 14}px;
   font-weight: bold;
 `;
@@ -50,7 +50,7 @@ interface ButtonProps {
   loading?: boolean;
   disabled?: boolean;
   unstyled?: boolean;
-  variant?: "default" | "filled" | "outlined";
+  variant?: 'default' | 'filled' | 'outlined';
   backgroundColor?: string;
   color?: string;
   style?: ViewStyle;
@@ -64,7 +64,7 @@ const Button: React.FC<ButtonProps> = ({
   loading = false,
   disabled = false,
   unstyled = false,
-  variant = "default",
+  variant = 'default',
   backgroundColor,
   onPress,
   StartIcon,
@@ -85,7 +85,7 @@ const Button: React.FC<ButtonProps> = ({
       {!loading &&
         (children || (
           <ButtonText
-            style={[{ color: color || "black" }]}
+            style={[{ color: color || 'black' }]}
             variant={variant}
             backgroundColor={backgroundColor}
           >

@@ -61,7 +61,7 @@ export const persistorReady = (async () => {
   }
   if (rooms?.rooms) {
     for (const [jid, room] of Object.entries(rooms.rooms)) {
-      if (!jid || !room) continue;
+      if (!jid || !room) {continue;}
       store.dispatch(addRoom({ roomData: room as IRoom }));
     }
   }

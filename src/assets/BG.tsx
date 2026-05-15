@@ -1,6 +1,6 @@
-import Svg, { G, Path } from "react-native-svg";
+import Svg, { G, Path } from 'react-native-svg';
 
-export const BG = ({ color = "#0052CD", ...props }) => (
+export const BG = ({ color = '#0052CD', ...props }) => (
   <Svg width="393" height="444" viewBox="0 0 393 444" fill="none" {...props}>
     <G opacity="0.4">
       <Path

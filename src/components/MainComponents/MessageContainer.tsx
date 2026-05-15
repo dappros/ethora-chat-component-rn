@@ -1,15 +1,15 @@
-import React, { FC, Fragment, useMemo } from "react";
-import { IConfig, IMessage } from "../../types/types";
-import DateLabel from "../styled/DateLabel";
-import SystemMessage from "./SystemMessage";
-import NewMessageLabel from "../styled/NewMessageLabel";
+import React, { FC, Fragment, useMemo } from 'react';
+import { IConfig, IMessage } from '../../types/types';
+import DateLabel from '../styled/DateLabel';
+import SystemMessage from './SystemMessage';
+import NewMessageLabel from '../styled/NewMessageLabel';
 import {
   Message,
   MessageText,
   MessageTimestamp,
   UserName,
-} from "../styled/StyledComponents";
-import { View } from "react-native";
+} from '../styled/StyledComponents';
+import { View } from 'react-native';
 
 interface MessageContainerProps {
   CustomMessage?: React.ComponentType<{
@@ -50,15 +50,15 @@ export const MessageContainer: FC<MessageContainerProps> = ({
 
   const messageDate = new Date(message.date);
 
-  if (message?.isSystemMessage === "true") {
+  if (message?.isSystemMessage === 'true') {
     const SystemMessageComponent = config?.customSystemMessage;
     return (
       <Fragment key={message.id}>
         {showDateLabel && (
           CustomDaySeparator ? (
-            <CustomDaySeparator 
-              date={messageDate} 
-              formattedDate={messageDate.toLocaleDateString()} 
+            <CustomDaySeparator
+              date={messageDate}
+              formattedDate={messageDate.toLocaleDateString()}
             />
           ) : (
             <DateLabel date={messageDate} colors={config?.colors} />
@@ -73,7 +73,7 @@ export const MessageContainer: FC<MessageContainerProps> = ({
     );
   }
 
-  if (message?.id === "delimiter-new") {
+  if (message?.id === 'delimiter-new') {
     return CustomNewMessageLabel ? (
       <CustomNewMessageLabel color={config?.colors?.primary} />
     ) : (
@@ -85,11 +85,11 @@ export const MessageContainer: FC<MessageContainerProps> = ({
 
   return (
     <View key={message.id}>
-      {showDateLabel && !activeMessage && message.id !== "delimiter-new" ? (
+      {showDateLabel && !activeMessage && message.id !== 'delimiter-new' ? (
         CustomDaySeparator ? (
-          <CustomDaySeparator 
-            date={messageDate} 
-            formattedDate={messageDate.toLocaleDateString()} 
+          <CustomDaySeparator
+            date={messageDate}
+            formattedDate={messageDate.toLocaleDateString()}
           />
         ) : (
           <DateLabel date={messageDate} colors={config?.colors} />

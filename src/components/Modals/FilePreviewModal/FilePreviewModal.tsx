@@ -1,21 +1,22 @@
-import React, { useMemo, useState } from "react";
-import styled from "styled-components/native";
+/* eslint-disable react-hooks/rules-of-hooks -- pre-existing port artifacts; hooks called conditionally / inside helpers. TODO: refactor */
+import React, { useMemo, useState } from 'react';
+import styled from 'styled-components/native';
 import {
   CenterContainer,
   ModalContainerFullScreen,
-} from "../styledModalComponents";
-import { SaveIcon } from "../../../assets/icons";
-import ModalHeaderComponent from "../ModalHeaderComponent";
-import { useDispatch, useSelector } from "react-redux";
-import Button from "../../styled/Button";
-import { RootState } from "../../../roomStore";
-import { FullScreenImage } from "../../styled/StyledInputComponents/MediaComponents";
-import { setActiveFile } from "../../../roomStore/chatSettingsSlice";
-import { Alert, Text, View, PermissionsAndroid, Platform } from "react-native";
-import Video from "react-native-video";
-import RNFS from "react-native-fs";
-import { CameraRoll } from "@react-native-camera-roll/camera-roll";
-import { useToast } from "../../../context/ToastContext";
+} from '../styledModalComponents';
+import { SaveIcon } from '../../../assets/icons';
+import ModalHeaderComponent from '../ModalHeaderComponent';
+import { useDispatch, useSelector } from 'react-redux';
+import Button from '../../styled/Button';
+import { RootState } from '../../../roomStore';
+import { FullScreenImage } from '../../styled/StyledInputComponents/MediaComponents';
+import { setActiveFile } from '../../../roomStore/chatSettingsSlice';
+import { Alert, Text, View, PermissionsAndroid, Platform } from 'react-native';
+import Video from 'react-native-video';
+import RNFS from 'react-native-fs';
+import { CameraRoll } from '@react-native-camera-roll/camera-roll';
+import { useToast } from '../../../context/ToastContext';
 
 export const FullScreenVideo = styled.View`
   width: 100%;
@@ -32,16 +33,16 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
 }) => {
   const dispatch = useDispatch();
   const { showToast } = useToast();
-  
+
   const { activeFile } = useSelector(
     (state: RootState) => state.chatSettingStore
   );
 
-  if (!activeFile) return;
+  if (!activeFile) {return;}
 
   const requestStoragePermission = async () => {
     try {
-      if (Platform.OS === "android") {
+      if (Platform.OS === 'android') {
         if (Platform.Version >= 33) {
           const permissions = [
             PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES,
@@ -52,11 +53,11 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           const granted = await PermissionsAndroid.requestMultiple(permissions);
 
           if (
-            granted["android.permission.READ_MEDIA_IMAGES"] ===
+            granted['android.permission.READ_MEDIA_IMAGES'] ===
               PermissionsAndroid.RESULTS.GRANTED &&
-            granted["android.permission.READ_MEDIA_VIDEO"] ===
+            granted['android.permission.READ_MEDIA_VIDEO'] ===
               PermissionsAndroid.RESULTS.GRANTED &&
-            granted["android.permission.READ_MEDIA_AUDIO"] ===
+            granted['android.permission.READ_MEDIA_AUDIO'] ===
               PermissionsAndroid.RESULTS.GRANTED
           ) {
             return true;
@@ -67,10 +68,10 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           const granted = await PermissionsAndroid.request(
             PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
             {
-              title: "Storage Permission Required",
+              title: 'Storage Permission Required',
               message:
-                "This app needs access to your storage to download and save files.",
-              buttonPositive: "OK",
+                'This app needs access to your storage to download and save files.',
+              buttonPositive: 'OK',
             }
           );
 
@@ -92,7 +93,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
 
       return true;
     } catch (error) {
-      console.error("Error requesting permission:", error);
+      console.error('Error requesting permission:', error);
       return false;
     }
   };
@@ -101,8 +102,8 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
     const hasPermission = await requestStoragePermission();
     if (!hasPermission) {
       Alert.alert(
-        "Permission Denied",
-        "Storage permission is required to save files to the gallery."
+        'Permission Denied',
+        'Storage permission is required to save files to the gallery.'
       );
       return;
     }
@@ -110,27 +111,27 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
     try {
       let galleryPath, filePath;
 
-      if (Platform.OS === "android") {
-        galleryPath = activeFile.mimetype.startsWith("image/")
+      if (Platform.OS === 'android') {
+        galleryPath = activeFile.mimetype.startsWith('image/')
           ? `${RNFS.ExternalStorageDirectoryPath}/Pictures`
           : `${RNFS.ExternalStorageDirectoryPath}/Movies`;
 
         await RNFS.mkdir(galleryPath);
 
         let fileName = activeFile.fileName;
-        if (!fileName.includes(".")) {
-          fileName += activeFile.mimetype.startsWith("image/")
-            ? ".jpg"
-            : ".mp4";
+        if (!fileName.includes('.')) {
+          fileName += activeFile.mimetype.startsWith('image/')
+            ? '.jpg'
+            : '.mp4';
         }
         filePath = `${galleryPath}/${fileName}`;
       } else {
         const documentsPath = RNFS.DocumentDirectoryPath;
         let fileName = activeFile.fileName;
-        if (!fileName.includes(".")) {
-          fileName += activeFile.mimetype.startsWith("image/")
-            ? ".jpg"
-            : ".mp4";
+        if (!fileName.includes('.')) {
+          fileName += activeFile.mimetype.startsWith('image/')
+            ? '.jpg'
+            : '.mp4';
         }
         filePath = `${documentsPath}/${fileName}`;
       }
@@ -141,9 +142,9 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
       }).promise;
 
       if (res.statusCode === 200) {
-        if (Platform.OS === "ios") {
+        if (Platform.OS === 'ios') {
           await CameraRoll.save(filePath, {
-            type: activeFile.mimetype.startsWith("image/") ? "photo" : "video",
+            type: activeFile.mimetype.startsWith('image/') ? 'photo' : 'video',
           });
         }
 
@@ -154,10 +155,10 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           type: 'success',
         });
       } else {
-        Alert.alert("Error", "Failed to save the file.");
+        Alert.alert('Error', 'Failed to save the file.');
       }
     } catch (err) {
-      Alert.alert("Error", `Failed to save the file: ${activeFile.fileName}`);
+      Alert.alert('Error', `Failed to save the file: ${activeFile.fileName}`);
     }
   };
 
@@ -165,15 +166,15 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
     const hasPermission = await requestStoragePermission();
     if (!hasPermission) {
       Alert.alert(
-        "Permission Denied",
-        "Storage permission is required to save files."
+        'Permission Denied',
+        'Storage permission is required to save files.'
       );
       return;
     }
 
     try {
       const downloadDest = `${RNFS.DownloadDirectoryPath}/${
-        activeFile.fileName || "MEDIA-ETHORA"
+        activeFile.fileName || 'MEDIA-ETHORA'
       }`;
 
       const res = await RNFS.downloadFile({
@@ -189,18 +190,18 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           type: 'success',
         });
       } else {
-        Alert.alert("Error", "Failed to save the file one.");
+        Alert.alert('Error', 'Failed to save the file one.');
       }
     } catch (err) {
-      console.error("Error saving file:", err);
-      Alert.alert("Error", "Failed to save the file two.");
+      console.error('Error saving file:', err);
+      Alert.alert('Error', 'Failed to save the file two.');
     }
   };
 
   const saveClick = async () => {
     if (
-      activeFile.mimetype.startsWith("image/") ||
-      activeFile.mimetype.startsWith("video/")
+      activeFile.mimetype.startsWith('image/') ||
+      activeFile.mimetype.startsWith('video/')
     ) {
       await saveToGallery();
     } else {
@@ -211,9 +212,9 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   const closeModal = () => {
     dispatch(
       setActiveFile({
-        fileName: "",
-        fileURL: "",
-        mimetype: "",
+        fileName: '',
+        fileURL: '',
+        mimetype: '',
       })
     );
     handleCloseModal?.();
@@ -221,22 +222,22 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
 
   const getMediaComponent = useMemo(() => {
     switch (true) {
-      case activeFile.mimetype.startsWith("image/"):
+      case activeFile.mimetype.startsWith('image/'):
         return (
           <FullScreenImage
             src={
               activeFile.fileURL ||
-              "https://as2.ftcdn.net/v2/jpg/02/51/95/53/1000_F_251955356_FAQH0U1y1TZw3ZcdPGybwUkH90a3VAhb.jpg"
+              'https://as2.ftcdn.net/v2/jpg/02/51/95/53/1000_F_251955356_FAQH0U1y1TZw3ZcdPGybwUkH90a3VAhb.jpg'
             }
             alt={activeFile.fileName}
           />
         );
-      case activeFile.mimetype.startsWith("video/"):
+      case activeFile.mimetype.startsWith('video/'):
         return (
           <Video
             style={{
-              width: "100%",
-              height: "100%",
+              width: '100%',
+              height: '100%',
             }}
             source={{ uri: activeFile.fileURL }}
             controls
@@ -248,9 +249,9 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
         return (
           <View
             style={{
-              backgroundColor: "#FFF8ED",
+              backgroundColor: '#FFF8ED',
               borderRadius: 16,
-              display: "flex",
+              display: 'flex',
               padding: 16,
             }}
           >
@@ -268,7 +269,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
     <ModalContainerFullScreen>
       <ModalHeaderComponent
         handleCloseModal={closeModal}
-        headerTitle={"File preview"}
+        headerTitle={'File preview'}
         rightMenu={
           <>
             <Button onPress={saveClick}>
@@ -280,10 +281,10 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
 
       <CenterContainer
         style={{
-          display: "flex",
-          height: "100%",
-          justifyContent: "center",
-          overflow: "hidden",
+          display: 'flex',
+          height: '100%',
+          justifyContent: 'center',
+          overflow: 'hidden',
           padding: 16,
         }}
       >

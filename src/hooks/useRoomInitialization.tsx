@@ -21,7 +21,7 @@ export const useRoomInitialization = (
 
   useEffect(() => {
     const getDefaultHistory = async () => {
-      if (!client) return;
+      if (!client) {return;}
       dispatch(setIsLoading({ loading: true, chatJID: activeRoomJID }));
       const res = await client.getHistoryStanza(activeRoomJID, 30);
       if (res && countUndefinedText(res) > 0) {

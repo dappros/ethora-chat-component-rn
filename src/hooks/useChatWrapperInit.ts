@@ -1,23 +1,23 @@
 /** @format */
 
-import { useEffect, useRef, useState } from "react";
-import { useDispatch, useSelector } from "react-redux";
-import { IConfig } from "../types/types";
-import XmppClient from "../networking/xmppClient";
-import { AppDispatch, RootState } from "../roomStore";
-import { useXmppClient } from "../context/xmppProvider";
-import { chatAutoEnterer } from "../helpers/chatAutoEnterer";
-import { initRoomsPresence } from "../helpers/initRoomsPresence";
-import { updatedChatLastTimestamps } from "../helpers/updatedChatLastTimestamps";
-import { updateMessagesTillLast } from "../helpers/updateMessagesTillLast";
-import { refresh } from "../networking/apiClient";
-import { setLangSource, setConfig } from "../roomStore/chatSettingsSlice";
-import { setIsLoading } from "../roomStore/roomsSlice";
-import { useRoomState } from "./useRoomState";
-import { useChatSettingState } from "./useChatSettingState";
-import { isChatIdPresentInArray } from "../helpers/isChatIdPresentInArray";
-import useGetNewArchRoom from "./useGetNewArchRoom";
-import { getRoomsWithRetry } from "../helpers/getRoomsWithRetry";
+import { useEffect, useRef, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { IConfig } from '../types/types';
+import XmppClient from '../networking/xmppClient';
+import { AppDispatch, RootState } from '../roomStore';
+import { useXmppClient } from '../context/xmppProvider';
+import { chatAutoEnterer } from '../helpers/chatAutoEnterer';
+import { initRoomsPresence } from '../helpers/initRoomsPresence';
+import { updatedChatLastTimestamps } from '../helpers/updatedChatLastTimestamps';
+import { updateMessagesTillLast } from '../helpers/updateMessagesTillLast';
+import { refresh } from '../networking/apiClient';
+import { setLangSource, setConfig } from '../roomStore/chatSettingsSlice';
+import { setIsLoading } from '../roomStore/roomsSlice';
+import { useRoomState } from './useRoomState';
+import { useChatSettingState } from './useChatSettingState';
+import { isChatIdPresentInArray } from '../helpers/isChatIdPresentInArray';
+import useGetNewArchRoom from './useGetNewArchRoom';
+import { getRoomsWithRetry } from '../helpers/getRoomsWithRetry';
 
 interface useChatWrapperInitProps {
   roomJID: string | null | undefined;
@@ -27,7 +27,7 @@ interface useChatWrapperInitProps {
 
 interface useChatWrapperInitResult {
   inited: boolean;
-  isRetrying: boolean | "norooms";
+  isRetrying: boolean | 'norooms';
   showModal: boolean;
   setInited: React.Dispatch<React.SetStateAction<boolean>>;
   setShowModal: React.Dispatch<React.SetStateAction<boolean>>;
@@ -45,7 +45,7 @@ const useChatWrapperInit = ({
   const [inited, setInited] = useState<boolean>(false);
   const [showModal, setShowModal] = useState<boolean>(false);
   const [isConnectionLost, setConnectionLost] = useState<boolean>(false);
-  const [isRetrying, setIsRetrying] = useState<boolean | "norooms">(false);
+  const [isRetrying, setIsRetrying] = useState<boolean | 'norooms'>(false);
   const hasSyncedHistoryRef = useRef<boolean>(false);
 
   const { client, initializeClient, setClient } = useXmppClient();
@@ -57,8 +57,8 @@ const useChatWrapperInit = ({
 
   useEffect(() => {
     return () => {
-      if (client && user.xmppPassword === "") {
-        console.log("closing client");
+      if (client && user.xmppPassword === '') {
+        console.log('closing client');
         client.close();
         setClient(null);
       }
@@ -74,7 +74,7 @@ const useChatWrapperInit = ({
       roomJID
     );
     if (!retryRooms) {
-      setIsRetrying("norooms");
+      setIsRetrying('norooms');
       return;
     }
     setIsRetrying(false);
@@ -86,7 +86,7 @@ const useChatWrapperInit = ({
   ) => {
     !disableLoad &&
       dispatch(
-        setIsLoading({ loading: true, loadingText: "Loading rooms..." })
+        setIsLoading({ loading: true, loadingText: 'Loading rooms...' })
       );
     const rooms = await syncRooms(client, config);
     dispatch(setIsLoading({ loading: false, loadingText: undefined }));
@@ -105,7 +105,7 @@ const useChatWrapperInit = ({
       try {
         if (!user.xmppUsername) {
           setShowModal(true);
-          console.error("Error, no user");
+          console.error('Error, no user');
         } else {
           chatAutoEnterer({ roomJID, wasAutoSelected, config, dispatch });
 
@@ -114,36 +114,36 @@ const useChatWrapperInit = ({
               setInited(false);
               setShowModal(false);
 
-              console.log(" No client, initializing one");
+              console.log(' No client, initializing one');
               const newClient = await initializeClient(
                 user.xmppUsername || user?.defaultWallet?.walletAddress,
                 user?.xmppPassword,
                 config?.xmppSettings,
                 roomsList
               ).then((client) => {
-                console.log(" Client initialized", client?.status);
+                console.log(' Client initialized', client?.status);
                 return client;
               });
 
               if (roomsList && Object.keys(roomsList).length > 0) {
                 console.log(
-                  " Using existing roomsList",
+                  ' Using existing roomsList',
                   Object.keys(roomsList).length
                 );
                 setInited(true);
                 await initRoomsPresence(newClient, roomsList);
               } else {
                 if (config?.newArch) {
-                  console.log(" Loading rooms with newArch");
+                  console.log(' Loading rooms with newArch');
                   const loadedRooms = await loadRooms(newClient);
-                  console.log(" Loaded rooms", loadedRooms?.length || 0);
+                  console.log(' Loaded rooms', loadedRooms?.length || 0);
                   if (config?.enableRoomsRetry?.enabled) {
                     const isSelectedRoomPresent = isChatIdPresentInArray(
                       roomJID,
                       loadedRooms
                     );
                     console.log(
-                      " Selected room present?",
+                      ' Selected room present?',
                       isSelectedRoomPresent,
                       roomJID
                     );
@@ -153,7 +153,7 @@ const useChatWrapperInit = ({
                   }
                   setInited(true);
                 } else {
-                  console.log(" Using old arch, getting rooms stanza");
+                  console.log(' Using old arch, getting rooms stanza');
                   await newClient.getRoomsStanza();
                 }
               }
@@ -164,18 +164,18 @@ const useChatWrapperInit = ({
                     roomTimestampObject: [jid: string, timestamp: string]
                   ) => {
                     console.log(
-                      "Got chats private store",
+                      'Got chats private store',
                       roomTimestampObject?.length || 0
                     );
                     updatedChatLastTimestamps(roomTimestampObject, dispatch);
                     if (!hasSyncedHistoryRef.current) {
-                      console.log("Updating messages till last");
+                      console.log('Updating messages till last');
                       await updateMessagesTillLast(rooms, newClient);
                       hasSyncedHistoryRef.current = true;
                     }
                     setClient(newClient);
                     setConnectionLost(false);
-                    console.log("Initialization complete");
+                    console.log('Initialization complete');
                   }
                 );
 
@@ -183,7 +183,7 @@ const useChatWrapperInit = ({
                 config?.refreshTokens?.enabled && refresh();
               }
             } catch (error) {
-              console.error(" Error during initialization", error);
+              console.error(' Error during initialization', error);
               setConnectionLost(true);
               retryTimeout = setTimeout(initXmmpClient, 5000);
             }
@@ -195,7 +195,7 @@ const useChatWrapperInit = ({
                   roomsList
                 );
                 console.log(
-                  "Selected room present in existing client?",
+                  'Selected room present in existing client?',
                   isSelectedRoomPresent
                 );
                 if (!isSelectedRoomPresent) {
@@ -204,7 +204,7 @@ const useChatWrapperInit = ({
               }
             }
             setInited(true);
-            console.log(" Getting chats private store for existing client");
+            console.log(' Getting chats private store for existing client');
             await client
               .getChatsPrivateStoreRequestStanza()
               .then(
@@ -212,20 +212,20 @@ const useChatWrapperInit = ({
                   roomTimestampObject: [jid: string, timestamp: string]
                 ) => {
                   console.log(
-                    "Got chats private store for existing client",
+                    'Got chats private store for existing client',
                     roomTimestampObject?.length || 0
                   );
                   updatedChatLastTimestamps(roomTimestampObject, dispatch);
                   if (!hasSyncedHistoryRef.current) {
                     console.log(
-                      "Updating messages till last for existing client"
+                      'Updating messages till last for existing client'
                     );
                     await updateMessagesTillLast(rooms, client);
                     hasSyncedHistoryRef.current = true;
                   }
                   setClient(client);
                   setConnectionLost(false);
-                  console.log(" Initialization complete for existing client");
+                  console.log(' Initialization complete for existing client');
                 }
               );
             {
@@ -235,7 +235,7 @@ const useChatWrapperInit = ({
         }
         dispatch(setIsLoading({ loading: false }));
       } catch (error) {
-        console.error(" Fatal error", error);
+        console.error(' Fatal error', error);
         setShowModal(false);
         setConnectionLost(true);
         setInited(false);

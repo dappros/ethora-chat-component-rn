@@ -1,14 +1,14 @@
 /** @format */
 
-import React, { useEffect, useRef } from "react";
-import { Animated, Easing, View, StyleSheet } from "react-native";
+import React, { useEffect, useRef } from 'react';
+import { Animated, Easing, View, StyleSheet } from 'react-native';
 
 interface LoaderProps {
   size?: number;
   color?: string;
 }
 
-export default function Loader({ size = 32, color = "#3498db" }: LoaderProps) {
+export default function Loader({ size = 32, color = '#3498db' }: LoaderProps) {
   const spinValue = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -30,7 +30,7 @@ export default function Loader({ size = 32, color = "#3498db" }: LoaderProps) {
 
   const spin = spinValue.interpolate({
     inputRange: [0, 1],
-    outputRange: ["0deg", "360deg"],
+    outputRange: ['0deg', '360deg'],
   });
 
   const borderWidth = size ? size / 8 : 4;
@@ -45,9 +45,9 @@ export default function Loader({ size = 32, color = "#3498db" }: LoaderProps) {
             borderRadius: size / 2,
             borderWidth: borderWidth,
             borderTopColor: color,
-            borderRightColor: "transparent",
-            borderBottomColor: "transparent",
-            borderLeftColor: "transparent",
+            borderRightColor: 'transparent',
+            borderBottomColor: 'transparent',
+            borderLeftColor: 'transparent',
             transform: [{ rotate: spin }],
           },
         ]}
@@ -58,8 +58,8 @@ export default function Loader({ size = 32, color = "#3498db" }: LoaderProps) {
 
 const styles = StyleSheet.create({
   container: {
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
     padding: 8,
   },
 });

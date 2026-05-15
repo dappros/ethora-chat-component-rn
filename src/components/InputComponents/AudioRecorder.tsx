@@ -1,14 +1,14 @@
-import React, { useState, useRef, useCallback, useEffect } from "react";
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   RecordContainer,
   Timer,
-} from "../styled/StyledInputComponents/StyledInputComponents";
-import { RecordIcon, RemoveIcon, SendIcon } from "../../assets/icons";
-import Button from "../styled/Button";
-import RecordingIndicator from "./RecordingIndicator";
-import { Platform, View } from "react-native";
-import AudioRecorderPlayer from "react-native-audio-recorder-player";
-import RNFS from "react-native-fs";
+} from '../styled/StyledInputComponents/StyledInputComponents';
+import { RecordIcon, RemoveIcon, SendIcon } from '../../assets/icons';
+import Button from '../styled/Button';
+import RecordingIndicator from './RecordingIndicator';
+import { Platform, View } from 'react-native';
+import AudioRecorderPlayer from 'react-native-audio-recorder-player';
+import RNFS from 'react-native-fs';
 
 interface AudioRecorderProps {
   setIsRecording: (state: boolean) => void;
@@ -22,7 +22,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
   handleSendClick,
 }) => {
   const audioRecorderPlayer = useRef(new AudioRecorderPlayer()).current;
-  const [timer, setTimer] = useState("00:00");
+  const [timer, setTimer] = useState('00:00');
   const [audioPath, setAudioPath] = useState<string | null>(null);
 
   useEffect(() => {
@@ -45,15 +45,15 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
         const minutes = Math.floor(e.currentPosition / 60000);
         const seconds = Math.floor((e.currentPosition % 60000) / 1000);
         setTimer(
-          `${minutes.toString().padStart(2, "0")}:${seconds
+          `${minutes.toString().padStart(2, '0')}:${seconds
             .toString()
-            .padStart(2, "0")}`
+            .padStart(2, '0')}`
         );
       });
 
       setIsRecording(true);
     } catch (error) {
-      console.error("Error starting recording:", error);
+      console.error('Error starting recording:', error);
     }
   };
 
@@ -63,13 +63,13 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
       audioRecorderPlayer.removeRecordBackListener();
       setIsRecording(false);
     } catch (error) {
-      console.error("Error stopping recording:", error);
+      console.error('Error stopping recording:', error);
     }
   };
 
   const sendAudio = () => {
     if (audioPath) {
-      console.log("Audio sent:", audioPath);
+      console.log('Audio sent:', audioPath);
       handleSendClick(audioPath);
       resetState();
     }
@@ -77,17 +77,17 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
 
   const resetState = () => {
     setAudioPath(null);
-    setTimer("00:00");
+    setTimer('00:00');
     setIsRecording(false);
   };
   return isRecording ? (
     <RecordContainer>
-      <View style={{ display: "flex", alignItems: "center" }}>
+      <View style={{ display: 'flex', alignItems: 'center' }}>
         {isRecording && <RecordingIndicator />}
         <Timer>{timer}</Timer>
       </View>
 
-      <View style={{ display: "flex", gap: 8 }}>
+      <View style={{ display: 'flex', gap: 8 }}>
         <Button onPress={stopRecording} EndIcon={<RemoveIcon />} unstyled />
         <Button onPress={sendAudio} EndIcon={<SendIcon />} unstyled />
       </View>

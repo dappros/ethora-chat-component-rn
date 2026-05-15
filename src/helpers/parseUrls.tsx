@@ -1,5 +1,5 @@
 export const parseMessageBody = (text: string): (string | JSX.Element)[] => {
-  if (typeof text !== 'string') return [text];
+  if (typeof text !== 'string') {return [text];}
 
   const urlRegex =
     /(https:\/\/[\w.-]+(?:\.[\w.-]+)+[\w\-\._~:/?#[\]@!\$&'\(\)\*\+,;=.]+)/g;

@@ -8,7 +8,7 @@ export const newMessageMidlleware: Middleware =
       console.error('Invalid action in newMessageMiddleware:', action);
       return next(action);
     }
-    
+
     if (action.type !== 'roomMessages/addRoomMessage') {
       return next(action);
     }

@@ -30,7 +30,7 @@ export const sendTextMessage = (
         id: id,
       },
       xml('data', {
-        xmlns: devServer || `wss://xmpp.ethoradev.com/ws`,
+        xmlns: devServer || 'wss://xmpp.ethoradev.com/ws',
         senderFirstName: firstName,
         senderLastName: lastName,
         fullName: `${firstName} ${lastName}`,

@@ -1,4 +1,4 @@
-import styled from "styled-components/native";
+import styled from 'styled-components/native';
 import CheckBox from '@react-native-community/checkbox';
 
 export const ScrollableContainer = styled.View`

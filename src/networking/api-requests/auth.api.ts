@@ -84,7 +84,7 @@ export async function loginViaJwt(clientToken: string): Promise<User> {
     refreshToken: string;
     token: string;
   }>('/users/client', null, { headers: { 'x-custom-token': clientToken } });
-  
+
   console.log('✅ loginViaJwt: Received response', {
     hasUser: !!response.data.user,
     hasToken: !!response.data.token,
@@ -97,13 +97,13 @@ export async function loginViaJwt(clientToken: string): Promise<User> {
       xmppUsername: response.data.user.xmppUsername,
     } : null,
   });
-  
+
   const user = {
     ...response.data.user,
     refreshToken: response.data.refreshToken,
     token: response.data.token,
   };
-  
+
   return user;
 }
 

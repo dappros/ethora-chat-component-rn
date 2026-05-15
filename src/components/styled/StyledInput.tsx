@@ -1,5 +1,5 @@
-import React from "react";
-import { View, Text, TextInput, StyleSheet } from "react-native";
+import React from 'react';
+import { View, Text, TextInput, StyleSheet } from 'react-native';
 
 interface StyledInputProps {
   label?: string;
@@ -28,8 +28,8 @@ const StyledInput = ({
     style={[
       styles.input,
       {
-        borderColor: error ? "red" : color || "#0052CD",
-        backgroundColor: "#F5F7F9",
+        borderColor: error ? 'red' : color || '#0052CD',
+        backgroundColor: '#F5F7F9',
       },
     ]}
     {...props}
@@ -43,7 +43,7 @@ const HelperText = ({
   children: React.ReactNode;
   error?: boolean;
 }) => (
-  <Text style={[styles.helperText, { color: error ? "red" : "#8c8c8c" }]}>
+  <Text style={[styles.helperText, { color: error ? 'red' : '#8c8c8c' }]}>
     {children}
   </Text>
 );
@@ -66,23 +66,23 @@ const InputWithLabel: React.FC<StyledInputProps> = ({
 
 const styles = StyleSheet.create({
   inputWrapper: {
-    flexDirection: "column",
-    width: "100%",
-    justifyContent: "flex-start",
-    alignItems: "flex-start",
-    position: "relative",
+    flexDirection: 'column',
+    width: '100%',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-start',
+    position: 'relative',
     height: 48,
     borderRadius: 15,
     paddingHorizontal: 16,
   },
   label: {
     fontSize: 14,
-    color: "#8c8c8c",
+    color: '#8c8c8c',
     marginBottom: 4,
     marginLeft: 8,
   },
   input: {
-    width: "100%",
+    width: '100%',
     padding: 12,
     paddingHorizontal: 16,
     borderRadius: 12,
@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
     marginLeft: 8,
-    position: "absolute",
+    position: 'absolute',
     top: 42,
   },
 });

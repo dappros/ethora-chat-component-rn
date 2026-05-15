@@ -237,7 +237,7 @@ export const roomsStore = createSlice({
     ) => {
       const { roomJID, messageId, reactions } = action.payload;
       const room = state.rooms[roomJID];
-      if (!room?.messages) return;
+      if (!room?.messages) {return;}
       for (const msg of room.messages) {
         if (msg?.id === messageId) {
           (msg as any).reactions = reactions;
@@ -286,7 +286,7 @@ export const roomsStore = createSlice({
       const { rooms } = action.payload;
       for (const patch of rooms) {
         const room = state.rooms[patch.jid];
-        if (!room) continue;
+        if (!room) {continue;}
         if (typeof patch.historyPreloadState !== 'undefined') {
           room.historyPreloadState = patch.historyPreloadState;
         }
@@ -313,12 +313,12 @@ const countNewerMessages = (
   messages: IMessage[],
   timestamp: number
 ): number => {
-  if (!messages?.length || !timestamp) return 0;
+  if (!messages?.length || !timestamp) {return 0;}
   let count = 0;
   for (const message of messages) {
-    if (!message || message.id === 'delimiter-new' || message.pending) continue;
+    if (!message || message.id === 'delimiter-new' || message.pending) {continue;}
     const ms = new Date(message.date as any).getTime();
-    if (Number.isFinite(ms) && ms > timestamp) count += 1;
+    if (Number.isFinite(ms) && ms > timestamp) {count += 1;}
   }
   return count;
 };

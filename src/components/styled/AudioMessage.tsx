@@ -1,12 +1,12 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from 'react';
 import {
   View,
   TouchableOpacity,
   Text,
   StyleSheet,
   ScrollView,
-} from "react-native";
-import RNFetchBlob from "rn-fetch-blob";
+} from 'react-native';
+import RNFetchBlob from 'rn-fetch-blob';
 
 const AudioMessage = ({ src }: { src: string }) => {
   const [amplitudes, setAmplitudes] = useState<number[]>([]);
@@ -69,13 +69,13 @@ export default AudioMessage;
 
 const styles = StyleSheet.create({
   waveformContainer: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 5,
   },
   waveBar: {
     width: 4,
-    backgroundColor: "#007AFF",
+    backgroundColor: '#007AFF',
     marginHorizontal: 1,
     borderRadius: 2,
   },

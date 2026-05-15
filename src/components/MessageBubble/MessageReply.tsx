@@ -1,23 +1,23 @@
-import { FC } from "react";
-import { IMessage } from "../../types/types";
-import { styled } from "styled-components/native";
-import { Text } from "react-native";
+import { FC } from 'react';
+import { IMessage } from '../../types/types';
+import { styled } from 'styled-components/native';
+import { Text } from 'react-native';
 
 export const StyledMessageReply = styled.TouchableOpacity<{
   isUser: boolean;
   configColor: string;
 }>`
-  background-color: ${(props) => (props.isUser ? "#ffffff" : "#E7EDF9")};
+  background-color: ${(props) => (props.isUser ? '#ffffff' : '#E7EDF9')};
   padding: 8px 16px;
   margin-bottom: 8px;
   border-radius: 4px;
   border-style: solid;
   border-start-width: ${(props) => (props.isUser ? 4 : 0)}px;
   border-start-color: ${(props) =>
-    props.isUser ? props.configColor : "transparent"};
+    props.isUser ? props.configColor : 'transparent'};
   border-end-width: ${(props) => (!props.isUser ? 4 : 0)}px;
   border-end-color: ${(props) =>
-    !props.isUser ? props.configColor : "transparent"};
+    !props.isUser ? props.configColor : 'transparent'};
 `;
 
 const StyledText = styled.Text`
@@ -35,7 +35,7 @@ interface MessageReplyProps {
 export const MessageReply: FC<MessageReplyProps> = ({
   isUser,
   text,
-  color = "#0052CD",
+  color = '#0052CD',
   handleReplyMessage,
 }) => {
   return (

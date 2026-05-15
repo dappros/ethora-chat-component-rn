@@ -1,17 +1,17 @@
-import React, { useMemo } from "react";
-import { IConfig, IRoom } from "../../types/types";
-import { ProfileImagePlaceholder } from "../MainComponents/ProfileImagePlaceholder";
+import React, { useMemo } from 'react';
+import { IConfig, IRoom } from '../../types/types';
+import { ProfileImagePlaceholder } from '../MainComponents/ProfileImagePlaceholder';
 import {
   ChatItem,
   ChatInfo,
   ChatName,
   LastMessage,
   UserCount,
-} from "../styled/RoomListComponents";
-import Composing from "../styled/StyledInputComponents/Composing";
-import { Text, View } from "react-native";
-import LastMessageItem from "./LastMessageItem";
-import { LastRoomMessageText } from "./styled/StyledRoomComponents";
+} from '../styled/RoomListComponents';
+import Composing from '../styled/StyledInputComponents/Composing';
+import { Text, View } from 'react-native';
+import LastMessageItem from './LastMessageItem';
+import { LastRoomMessageText } from './styled/StyledRoomComponents';
 
 interface ChatRoomItemProps {
   chat: IRoom;
@@ -27,8 +27,8 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
   config,
 }) => {
   const lastMessage = useMemo(() => {
-    if (!chat?.messages || chat.messages.length === 0) return undefined;
-    
+    if (!chat?.messages || chat.messages.length === 0) {return undefined;}
+
     for (let i = chat.messages.length - 1; i >= 0; i--) {
       const msg = chat.messages[i];
       if (!msg.deleted && !msg.isDeleted) {
@@ -40,9 +40,9 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
 
   const formatTimeToHHMM = (isoTime: string | Date): string => {
     const date = new Date(isoTime);
-    const hours = date.getHours().toString().padStart(2, "0");
-    const minutes = date.getMinutes().toString().padStart(2, "0");
-    return `${hours}:${minutes}` || "";
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}` || '';
   };
 
   return (
@@ -50,29 +50,29 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
       <ProfileImagePlaceholder name={chat.name} icon={chat?.icon} active={false} />
       <View
         style={{
-          flexDirection: "column",
-          justifyContent: "space-between",
+          flexDirection: 'column',
+          justifyContent: 'space-between',
           flex: 2,
-          width: "100%",
+          width: '100%',
           paddingVertical: 8,
           paddingRight: 8,
           borderBottomWidth: 1,
-          borderBottomColor: "#F0F0F0",
+          borderBottomColor: '#F0F0F0',
         }}
       >
         <View
           style={{
-            flexDirection: "row",
-            alignItems: "center",
+            flexDirection: 'row',
+            alignItems: 'center',
           }}
         >
           <ChatInfo>
-            <ChatName text={chat.name || ""} />
+            <ChatName text={chat.name || ''} />
           </ChatInfo>
           {lastMessage ? (
             <UserCount
               style={{
-                color: "#8C8C8C",
+                color: '#8C8C8C',
                 fontSize: 12,
               }}
               text={formatTimeToHHMM(lastMessage.date)}
@@ -81,10 +81,10 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
         </View>
         <View
           style={{
-            width: "100%",
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
+            width: '100%',
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
             minHeight: 40,
           }}
         >
@@ -148,28 +148,28 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
                 padding: 2,
                 minWidth: 24,
                 minHeight: 24,
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                marginLeft: "auto",
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                marginLeft: 'auto',
               }}
             >
               <Text
                 style={{
                   // color: isChatActive ? "#141414" : "#fff",
-                  color: "#141414",
+                  color: '#141414',
                   fontSize: 14,
-                  fontWeight: "600",
+                  fontWeight: '600',
                 }}
               >
-                {chat.unreadMessages || ""}
+                {chat.unreadMessages || ''}
               </Text>
             </View>
           ) : null}
         </View>
         {isDriver && (
           <View
-            style={{ height: 1, backgroundColor: "#0052CD0D", marginTop: 8 }}
+            style={{ height: 1, backgroundColor: '#0052CD0D', marginTop: 8 }}
           />
         )}
       </View>

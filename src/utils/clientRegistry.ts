@@ -18,7 +18,7 @@ export function buildXmppClientKey(
 }
 
 export function isXmppClientReusable(client: XmppClient | null): boolean {
-  if (!client) return false;
+  if (!client) {return false;}
   return client.status === 'online' || client.status === 'connecting';
 }
 
@@ -39,8 +39,8 @@ export function getGlobalXmppClientKey(): string {
 }
 
 export function getReusableXmppClientByKey(key: string): XmppClient | null {
-  if (!key || key !== currentClientKey) return null;
-  if (!isXmppClientReusable(currentClient)) return null;
+  if (!key || key !== currentClientKey) {return null;}
+  if (!isXmppClientReusable(currentClient)) {return null;}
   return currentClient;
 }
 
@@ -49,7 +49,7 @@ export async function withXmppClientInitLock(
   init: () => Promise<XmppClient>
 ): Promise<XmppClient> {
   const existing = initLocks.get(key);
-  if (existing) return existing;
+  if (existing) {return existing;}
 
   const createdPromise = init().finally(() => {
     if (initLocks.get(key) === createdPromise) {

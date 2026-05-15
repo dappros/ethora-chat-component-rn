@@ -1,19 +1,19 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState } from 'react';
 import {
   ContextMenu,
   Delimeter,
   MenuItem,
   Overlay,
-} from "../ContextMenu/ContextMenuComponents";
-import { useDispatch, useSelector } from "react-redux";
-import { RootState } from "../../roomStore";
+} from '../ContextMenu/ContextMenuComponents';
+import { useDispatch, useSelector } from 'react-redux';
+import { RootState } from '../../roomStore';
 import {
   MESSAGE_INTERACTIONS,
   MESSAGE_INTERACTIONS_ICONS,
-} from "../../helpers/constants/MESSAGE_INTERACTIONS";
-import { IMessage } from "../../types/types";
-import { useXmppClient } from "../../context/xmppProvider";
-import { setActiveMessage } from "../../roomStore/roomsSlice";
+} from '../../helpers/constants/MESSAGE_INTERACTIONS';
+import { IMessage } from '../../types/types';
+import { useXmppClient } from '../../context/xmppProvider';
+import { setActiveMessage } from '../../roomStore/roomsSlice';
 import {
   Alert,
   Modal,
@@ -22,23 +22,23 @@ import {
   StyleSheet,
   View,
   Pressable,
-} from "react-native";
-import Clipboard from "@react-native-clipboard/clipboard";
-import { useToast } from "../../context/ToastContext";
-import EmojiPicker from "react-native-emoji-selector";
+} from 'react-native';
+import Clipboard from '@react-native-clipboard/clipboard';
+import { useToast } from '../../context/ToastContext';
+import EmojiPicker from 'react-native-emoji-selector';
 
-const fixedEmojiIds = ["joy", "heart", "fire", "+1", "smile", "scream"];
+const fixedEmojiIds = ['joy', 'heart', 'fire', '+1', 'smile', 'scream'];
 
 function convertIdToEmoji(id: string) {
   const mapping = {
-    joy: "😂",
-    heart: "❤️",
-    fire: "🔥",
-    "+1": "👍",
-    smile: "😄",
-    scream: "😱",
+    joy: '😂',
+    heart: '❤️',
+    fire: '🔥',
+    '+1': '👍',
+    smile: '😄',
+    scream: '😱',
   };
-  return mapping[id as keyof typeof mapping] || "❓";
+  return mapping[id as keyof typeof mapping] || '❓';
 }
 
 interface MessageInteractionsProps {
@@ -125,7 +125,7 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
     }
   }, [position, isUser]);
 
-  if (config?.disableInteractions) return null;
+  if (config?.disableInteractions) {return null;}
 
   return (
     <Modal
@@ -150,7 +150,7 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
             <MESSAGE_INTERACTIONS_ICONS.SEND_ITEM />{' '}
           </MenuItem> */}
             {/* <Delimeter /> */}
-            <View style={{ flexDirection: "row", paddingBottom: 10 }}>
+            <View style={{ flexDirection: 'row', paddingBottom: 10 }}>
             {fixedEmojiIds.map((id) => (
               <Pressable
                 key={id}
@@ -227,14 +227,14 @@ export default MessageInteractions;
 const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 0, 0, 0.3)",
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
   },
   contextMenu: {
-    position: "absolute",
-    backgroundColor: "white",
+    position: 'absolute',
+    backgroundColor: 'white',
     padding: 10,
     borderRadius: 8,
-    shadowColor: "#000",
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 4,

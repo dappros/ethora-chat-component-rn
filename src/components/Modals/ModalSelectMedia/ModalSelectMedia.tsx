@@ -1,23 +1,23 @@
-import React, { FC, useMemo } from "react";
-import { Alert, Linking, Platform } from "react-native";
-import Button from "../../styled/Button";
-import DropdownMenu from "../../DropdownMenu/DropdownMenu";
-import DocumentPicker from "react-native-document-picker";
-import ImagePicker from "react-native-image-crop-picker";
+import React, { FC, useMemo } from 'react';
+import { Alert, Linking, Platform } from 'react-native';
+import Button from '../../styled/Button';
+import DropdownMenu from '../../DropdownMenu/DropdownMenu';
+import DocumentPicker from 'react-native-document-picker';
+import ImagePicker from 'react-native-image-crop-picker';
 import {
   check,
   request,
   PERMISSIONS,
   RESULTS,
   Permission,
-} from "react-native-permissions";
+} from 'react-native-permissions';
 import {
   AttachIcon,
   CameraIcon,
   DocumentIcon,
   MediaIcon,
-} from "../../../assets/icons";
-import { MediaFile } from "../../../types/types";
+} from '../../../assets/icons';
+import { MediaFile } from '../../../types/types';
 
 interface ModalSelectMediaProps {
   onFileSelect: (files: MediaFile[]) => void;
@@ -25,11 +25,11 @@ interface ModalSelectMediaProps {
 }
 
 interface Permissions {
-  UNAVAILABLE: "unavailable";
-  BLOCKED: "blocked";
-  DENIED: "denied";
-  GRANTED: "granted";
-  LIMITED: "limited";
+  UNAVAILABLE: 'unavailable';
+  BLOCKED: 'blocked';
+  DENIED: 'denied';
+  GRANTED: 'granted';
+  LIMITED: 'limited';
 }
 
 export const ModalSelectMedia: FC<ModalSelectMediaProps> = ({
@@ -57,23 +57,23 @@ export const ModalSelectMedia: FC<ModalSelectMediaProps> = ({
 
   const handleCameraSelection = async () => {
     const permission =
-      Platform.OS === "ios"
+      Platform.OS === 'ios'
         ? PERMISSIONS.IOS.CAMERA
         : PERMISSIONS.ANDROID.CAMERA;
     const permissionStatus = await checkPermission(permission);
 
     if (permissionStatus !== RESULTS.GRANTED) {
       Alert.alert(
-        "Permission required",
-        "Camera permission is needed to take photos.",
+        'Permission required',
+        'Camera permission is needed to take photos.',
         [
           {
-            text: "Cancel",
-            onPress: () => console.log("Camera permission cancelled"),
-            style: "cancel",
+            text: 'Cancel',
+            onPress: () => console.log('Camera permission cancelled'),
+            style: 'cancel',
           },
           {
-            text: "Open Settings",
+            text: 'Open Settings',
             onPress: () => Linking.openSettings(),
           },
         ]
@@ -88,7 +88,7 @@ export const ModalSelectMedia: FC<ModalSelectMediaProps> = ({
         cropping: true,
       });
 
-      const originalName = image.path.split("/").pop();
+      const originalName = image.path.split('/').pop();
       const file = {
         uri: image.path,
         type: image.mime,
@@ -97,23 +97,23 @@ export const ModalSelectMedia: FC<ModalSelectMediaProps> = ({
       onFileSelect([file]);
     } catch (error: any) {
       const errorMessage = error?.message || String(error);
-      const isSimulatorError = 
-        errorMessage.includes("simulator") || 
-        errorMessage.includes("Cannot run camera") ||
-        errorMessage.includes("Camera not available");
-      
+      const isSimulatorError =
+        errorMessage.includes('simulator') ||
+        errorMessage.includes('Cannot run camera') ||
+        errorMessage.includes('Camera not available');
+
       if (isSimulatorError) {
         Alert.alert(
-          "Camera unavailable",
-          "Camera is not available on iOS Simulator. Please test on a real device.",
-          [{ text: "OK" }]
+          'Camera unavailable',
+          'Camera is not available on iOS Simulator. Please test on a real device.',
+          [{ text: 'OK' }]
         );
-      } else if (error?.code !== "E_PICKER_CANCELLED") {
-        console.error("Camera error:", error);
+      } else if (error?.code !== 'E_PICKER_CANCELLED') {
+        console.error('Camera error:', error);
         Alert.alert(
-          "Camera error",
-          errorMessage || "Failed to open camera. Please try again.",
-          [{ text: "OK" }]
+          'Camera error',
+          errorMessage || 'Failed to open camera. Please try again.',
+          [{ text: 'OK' }]
         );
       }
     }
@@ -123,7 +123,7 @@ export const ModalSelectMedia: FC<ModalSelectMediaProps> = ({
     try {
       let permission: Permission;
 
-      if (Platform.OS === "ios") {
+      if (Platform.OS === 'ios') {
         permission = PERMISSIONS.IOS.PHOTO_LIBRARY;
       } else if (Number(Platform.Version) >= 33) {
         permission = PERMISSIONS.ANDROID.READ_MEDIA_IMAGES;
@@ -131,23 +131,23 @@ export const ModalSelectMedia: FC<ModalSelectMediaProps> = ({
         permission = PERMISSIONS.ANDROID.READ_EXTERNAL_STORAGE;
       }
 
-      console.log("handleGallerySelection - checking permission:", permission);
+      console.log('handleGallerySelection - checking permission:', permission);
       const permissionStatus = await checkPermission(permission);
-      console.log("handleGallerySelection - permission status:", permissionStatus);
+      console.log('handleGallerySelection - permission status:', permissionStatus);
 
       if (permissionStatus !== RESULTS.GRANTED) {
-        console.log("handleGallerySelection - permission not granted, showing alert");
+        console.log('handleGallerySelection - permission not granted, showing alert');
         Alert.alert(
-          "Permission required",
-          "Gallery permission is needed to select photos.",
+          'Permission required',
+          'Gallery permission is needed to select photos.',
           [
             {
-              text: "Cancel",
-              onPress: () => console.log("Gallery permission cancelled"),
-              style: "cancel",
+              text: 'Cancel',
+              onPress: () => console.log('Gallery permission cancelled'),
+              style: 'cancel',
             },
             {
-              text: "Open Settings",
+              text: 'Open Settings',
               onPress: () => Linking.openSettings(),
             },
           ]
@@ -158,36 +158,36 @@ export const ModalSelectMedia: FC<ModalSelectMediaProps> = ({
       await new Promise(resolve => setTimeout(resolve, 300));
       const image = await ImagePicker.openPicker({
         multiple: false,
-        mediaType: "any",
+        mediaType: 'any',
       });
-      console.log("handleGallerySelection - image selected:", image);
+      console.log('handleGallerySelection - image selected:', image);
 
-      const originalName = image.path.split("/").pop();
+      const originalName = image.path.split('/').pop();
       const file = {
         uri: image.path,
         type: image.mime,
         name:
           originalName ||
           `gallery_${Date.now()}${
-            image.mime.includes("video") ? ".mp4" : ".jpg"
+            image.mime.includes('video') ? '.mp4' : '.jpg'
           }`,
       };
 
       onFileSelect([file]);
     } catch (error: any) {
-      if (error?.code === "E_PICKER_CANCELLED") {
+      if (error?.code === 'E_PICKER_CANCELLED') {
         return;
       }
-      
-      console.error("Gallery error:", error);
-      console.error("Gallery error code:", error?.code);
-      console.error("Gallery error message:", error?.message);
-      
+
+      console.error('Gallery error:', error);
+      console.error('Gallery error code:', error?.code);
+      console.error('Gallery error message:', error?.message);
+
       const errorMessage = error?.message || String(error);
       Alert.alert(
-        "Gallery error",
-        errorMessage || "Failed to open gallery. Please try again.",
-        [{ text: "OK" }]
+        'Gallery error',
+        errorMessage || 'Failed to open gallery. Please try again.',
+        [{ text: 'OK' }]
       );
     }
   };
@@ -203,7 +203,7 @@ export const ModalSelectMedia: FC<ModalSelectMediaProps> = ({
         const originalName = file.name;
         return {
           uri: file.uri,
-          type: file.type || "unknown",
+          type: file.type || 'unknown',
           name: originalName || `file_${Date.now()}`,
         };
       });
@@ -211,14 +211,14 @@ export const ModalSelectMedia: FC<ModalSelectMediaProps> = ({
       onFileSelect(files);
     } catch (err: any) {
       if (DocumentPicker.isCancel(err)) {
-        console.log("User cancelled file picker");
+        console.log('User cancelled file picker');
       } else {
-        console.error("DocumentPicker Error:", err);
+        console.error('DocumentPicker Error:', err);
         const errorMessage = err?.message || String(err);
         Alert.alert(
-          "File selection error",
-          errorMessage || "Failed to select file. Please try again.",
-          [{ text: "OK" }]
+          'File selection error',
+          errorMessage || 'Failed to select file. Please try again.',
+          [{ text: 'OK' }]
         );
       }
     }
@@ -227,7 +227,7 @@ export const ModalSelectMedia: FC<ModalSelectMediaProps> = ({
   const menuOptions = useMemo(
     () => [
       {
-        label: "Camera",
+        label: 'Camera',
         icon: <CameraIcon />,
         onClick: async () => {
           setTimeout(async () => {
@@ -236,14 +236,14 @@ export const ModalSelectMedia: FC<ModalSelectMediaProps> = ({
         },
       },
       {
-        label: "Media File",
+        label: 'Media File',
         icon: <MediaIcon />,
         onClick: async () => {
           await handleGallerySelection();
         },
       },
       {
-        label: "Document",
+        label: 'Document',
         icon: <DocumentIcon />,
         onClick: async () => {
           setTimeout(async () => {
@@ -260,11 +260,11 @@ export const ModalSelectMedia: FC<ModalSelectMediaProps> = ({
       position="leftBottom"
       options={menuOptions}
       openButton={(onPress) => {
-        console.log("🔵 [ModalSelectMedia] Rendering attach button");
+        console.log('🔵 [ModalSelectMedia] Rendering attach button');
         return (
           <Button
-            style={{ 
-              padding: 0, 
+            style={{
+              padding: 0,
               height: 40,
               width: 40,
               justifyContent: 'center',
@@ -272,9 +272,9 @@ export const ModalSelectMedia: FC<ModalSelectMediaProps> = ({
               backgroundColor: 'transparent',
               margin: 0,
             }}
-            EndIcon={<AttachIcon color={config?.colors?.primary || "#0052CD"} />}
+            EndIcon={<AttachIcon color={config?.colors?.primary || '#0052CD'} />}
             onPress={() => {
-              console.log("🔵 [ModalSelectMedia] Attach button pressed");
+              console.log('🔵 [ModalSelectMedia] Attach button pressed');
               onPress();
             }}
           />

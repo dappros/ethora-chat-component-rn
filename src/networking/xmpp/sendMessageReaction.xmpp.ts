@@ -13,7 +13,7 @@ export function sendMessageReaction(
   const dataReaction = {
     senderFirstName: data.firstName,
     senderLastName: data.lastName,
-  }
+  };
 
   const message = xml(
     'message',

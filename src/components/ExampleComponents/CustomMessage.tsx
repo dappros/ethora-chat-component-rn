@@ -1,20 +1,20 @@
-import React, { forwardRef } from "react";
+import React, { forwardRef } from 'react';
 
-import styled from "styled-components/native";
-import { MessageProps } from "../../types/types";
-import { View } from "react-native";
+import styled from 'styled-components/native';
+import { MessageProps } from '../../types/types';
+import { View } from 'react-native';
 
 export const MessageContainer = styled.View<{ isUser: boolean }>`
   display: flex;
-  flex-direction: ${(props) => (!props.isUser ? "row" : "row-reverse")};
+  flex-direction: ${(props) => (!props.isUser ? 'row' : 'row-reverse')};
   align-items: center;
   margin: 10px 0;
   width: 100%;
 `;
 
 export const MessageBubble = styled.View<{ isUser: boolean }>`
-  background-color: ${(props) => (!props.isUser ? "#f1f0f0" : "#0052CD")};
-  color: ${(props) => (!props.isUser ? "#000" : "#fff")};
+  background-color: ${(props) => (!props.isUser ? '#f1f0f0' : '#0052CD')};
+  color: ${(props) => (!props.isUser ? '#000' : '#fff')};
   border-radius: 12px;
   padding: 10px;
   max-width: 60%;
@@ -28,7 +28,7 @@ export const MessageText = styled.View`
 export const UserName = styled.Text<{ isUser: boolean; color?: string }>`
   font-weight: bold;
   color: ${(props) =>
-    props.color ? props.color : props.isUser ? "#0052CD" : "#333"};
+    props.color ? props.color : props.isUser ? '#0052CD' : '#333'};
   margin-right: 8px;
 `;
 
@@ -72,10 +72,10 @@ const CustomMessageExample = forwardRef<View, MessageProps>(
         ref={ref}
         style={[
           {
-            flexDirection: isUser ? "row-reverse" : "row",
-            alignItems: "center",
+            flexDirection: isUser ? 'row-reverse' : 'row',
+            alignItems: 'center',
             marginVertical: 10,
-            width: "100%",
+            width: '100%',
           },
         ]}
       >

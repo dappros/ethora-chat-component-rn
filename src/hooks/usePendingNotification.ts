@@ -16,7 +16,7 @@ export function usePendingNotification() {
 
   useEffect(() => {
     const checkPendingNotification = async () => {
-      if (isLoading) return;
+      if (isLoading) {return;}
 
       let jidToOpen = pendingNotificationJid;
 

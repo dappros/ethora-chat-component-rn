@@ -16,14 +16,14 @@ const getMessagingInstance = () => {
   if (cachedMessagingInstance) {
     return cachedMessagingInstance;
   }
-  
+
   if (!appInstance) {
     try {
       appInstance = getApp();
     } catch (e) {
     }
   }
-  
+
   cachedMessagingInstance = messaging();
   return cachedMessagingInstance;
 };
@@ -54,26 +54,26 @@ export async function getFCMToken(): Promise<string | null> {
     if (!messagingInstance.isDeviceRegisteredForRemoteMessages) {
       await messagingInstance.registerDeviceForRemoteMessages();
     }
-    
+
     if (Platform.OS === 'ios') {
       await new Promise(resolve => setTimeout(resolve, 2000));
-      
+
       let apnsToken = await messagingInstance.getAPNSToken();
-      
+
       if (!apnsToken) {
         await new Promise(resolve => setTimeout(resolve, 3000));
         apnsToken = await messagingInstance.getAPNSToken();
       }
-      
+
       // No APNS token means push not configured - this is OK for development
       if (!apnsToken) {
         console.log('Push notifications not configured (missing APNs). App will work without push.');
         return null;
       }
     }
-    
+
     const token = await messagingInstance.getToken();
-    
+
     return token;
   } catch (error: any) {
     // Silently handle missing aps-environment (push not configured in Xcode)
@@ -120,9 +120,9 @@ export async function getInitialNotification(): Promise<any | null> {
 }
 
 export async function initPushNotifications(): Promise<string | null> {
-  
+
   const hasPermission = await requestNotificationPermission();
-  
+
   if (!hasPermission) {
     console.error('Push notification permission denied');
     return null;

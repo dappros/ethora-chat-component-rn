@@ -5,7 +5,7 @@ import { IConfig, User } from '../types/types';
 import { store } from '../roomStore';
 import { setUser } from '../roomStore/chatSettingsSlice';
 import { walletToUsername } from './walletUsername';
-import { useLocalStorage } from '../hooks/useLocalStorage';
+import { asyncLocalStorage } from '../hooks/useLocalStorage';
 import { localStorageConstants } from './constants/LOCAL_STORAGE';
 
 interface ResolveInitBeforeLoadUserOptions {
@@ -40,7 +40,7 @@ const hasXmppCredentials = (user?: Partial<User> | null): boolean =>
   );
 
 const normalizeUserForXmpp = (user?: User | null): User | null => {
-  if (!user) return null;
+  if (!user) {return null;}
   const normalizedXmppUsername =
     user.xmppUsername || walletToUsername(user?.defaultWallet?.walletAddress || '');
   return { ...user, xmppUsername: normalizedXmppUsername };
@@ -59,7 +59,7 @@ const refreshWithToken = async (refreshToken: string) => {
 };
 
 const mergeUsers = (base?: User | null, patch?: User | null): User | null => {
-  if (!base && !patch) return null;
+  if (!base && !patch) {return null;}
   return {
     ...(base || ({} as User)),
     ...(patch || ({} as User)),
@@ -77,7 +77,7 @@ const tryHydrateViaMy = async (
   myEndpoint?: string,
   signal?: AbortSignal
 ): Promise<User | null> => {
-  if (signal?.aborted) return null;
+  if (signal?.aborted) {return null;}
 
   const mergedCandidate = normalizeUserForXmpp(candidate);
 
@@ -96,7 +96,7 @@ const tryHydrateViaMy = async (
 
   const fallbackWithCreds = (): User | null => {
     const normalized = normalizeUserForXmpp(candidateWithCurrentTokens());
-    if (normalized && hasXmppCredentials(normalized)) return normalized;
+    if (normalized && hasXmppCredentials(normalized)) {return normalized;}
     return null;
   };
 
@@ -110,9 +110,9 @@ const tryHydrateViaMy = async (
       }
       return merged;
     } catch (error) {
-      if (signal?.aborted || isAbortError(error)) return null;
+      if (signal?.aborted || isAbortError(error)) {return null;}
       if (isAuthError(error)) {
-        if (!workingRefresh) return fallbackWithCreds();
+        if (!workingRefresh) {return fallbackWithCreds();}
         // fall through to refresh path
       } else {
         const fallback = fallbackWithCreds();
@@ -121,7 +121,7 @@ const tryHydrateViaMy = async (
     }
   }
 
-  if (!workingRefresh) return mergedCandidate;
+  if (!workingRefresh) {return mergedCandidate;}
 
   try {
     const refreshed = await refreshWithToken(workingRefresh);
@@ -139,15 +139,15 @@ const tryHydrateViaMy = async (
       }
       return merged;
     } catch (myError) {
-      if (signal?.aborted || isAbortError(myError)) return null;
+      if (signal?.aborted || isAbortError(myError)) {return null;}
       const fallback = fallbackWithCreds();
-      if (fallback) return fallback;
-      if (isAuthError(myError)) return null;
+      if (fallback) {return fallback;}
+      if (isAuthError(myError)) {return null;}
       throw myError;
     }
   } catch (error) {
-    if (signal?.aborted || isAbortError(error)) return null;
-    if (isAuthError(error)) return null;
+    if (signal?.aborted || isAbortError(error)) {return null;}
+    if (isAuthError(error)) {return null;}
     throw error;
   }
 };
@@ -156,7 +156,7 @@ export const resolveInitBeforeLoadUser = async (
   options?: ResolveInitBeforeLoadUserOptions
 ): Promise<User | null> => {
   const { config, signal } = options || {};
-  if (signal?.aborted) return null;
+  if (signal?.aborted) {return null;}
 
   if (config?.baseUrl) {
     setBaseURL(config.baseUrl, config.customAppToken);
@@ -168,12 +168,12 @@ export const resolveInitBeforeLoadUser = async (
   const explicitUser = config?.userLogin?.enabled ? config?.userLogin?.user : null;
   if (explicitUser) {
     const candidate = normalizeUserForXmpp(explicitUser);
-    if (candidate && hasXmppCredentials(candidate)) return candidate;
+    if (candidate && hasXmppCredentials(candidate)) {return candidate;}
 
     const hydrated = await tryHydrateViaMy(explicitUser, myEndpoint, signal).catch(
       () => null
     );
-    if (hydrated && hasXmppCredentials(hydrated)) return hydrated;
+    if (hydrated && hasXmppCredentials(hydrated)) {return hydrated;}
     return null;
   }
 
@@ -183,14 +183,14 @@ export const resolveInitBeforeLoadUser = async (
       const customUser = await config.customLogin.loginFunction();
       if (customUser) {
         const candidate = normalizeUserForXmpp(customUser);
-        if (candidate && hasXmppCredentials(candidate)) return candidate;
+        if (candidate && hasXmppCredentials(candidate)) {return candidate;}
         const hydrated = await tryHydrateViaMy(customUser, myEndpoint, signal).catch(
           () => null
         );
-        if (hydrated && hasXmppCredentials(hydrated)) return hydrated;
+        if (hydrated && hasXmppCredentials(hydrated)) {return hydrated;}
       }
     } catch (error) {
-      if (signal?.aborted || isAbortError(error) || isAuthError(error)) return null;
+      if (signal?.aborted || isAbortError(error) || isAuthError(error)) {return null;}
     }
   }
 
@@ -199,9 +199,9 @@ export const resolveInitBeforeLoadUser = async (
     try {
       const jwtUser = await loginViaJwt(config.jwtLogin.token);
       const normalized = normalizeUserForXmpp(jwtUser);
-      if (normalized && hasXmppCredentials(normalized)) return normalized;
+      if (normalized && hasXmppCredentials(normalized)) {return normalized;}
     } catch (error) {
-      if (signal?.aborted || isAbortError(error) || isAuthError(error)) return null;
+      if (signal?.aborted || isAbortError(error) || isAuthError(error)) {return null;}
       throw error;
     }
   }
@@ -212,18 +212,18 @@ export const resolveInitBeforeLoadUser = async (
     const hydrated = await tryHydrateViaMy(currentUser as User, myEndpoint, signal).catch(
       () => null
     );
-    if (hydrated && hasXmppCredentials(hydrated)) return hydrated;
+    if (hydrated && hasXmppCredentials(hydrated)) {return hydrated;}
   }
 
   // Priority 5: persisted user in AsyncStorage
   try {
-    const storedUser = await useLocalStorage<User>(localStorageConstants.ETHORA_USER).get();
+    const storedUser = await asyncLocalStorage<User>(localStorageConstants.ETHORA_USER).get();
     if (storedUser && (storedUser.token || storedUser.refreshToken || storedUser.xmppPassword)) {
       const hydrated = await tryHydrateViaMy(storedUser, myEndpoint, signal).catch(
         () => null
       );
-      if (hydrated && hasXmppCredentials(hydrated)) return hydrated;
-      await useLocalStorage(localStorageConstants.ETHORA_USER).remove();
+      if (hydrated && hasXmppCredentials(hydrated)) {return hydrated;}
+      await asyncLocalStorage(localStorageConstants.ETHORA_USER).remove();
     }
   } catch {
     // ignore storage errors
@@ -233,7 +233,7 @@ export const resolveInitBeforeLoadUser = async (
 };
 
 export const applyResolvedUserToStore = (user?: User | null) => {
-  if (!user) return;
+  if (!user) {return;}
   store.dispatch(setUser(user));
 };
 

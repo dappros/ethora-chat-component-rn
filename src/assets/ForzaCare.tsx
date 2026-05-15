@@ -1,5 +1,5 @@
-import React from "react";
-import Svg, { Defs, Image, Pattern, Rect, Use } from "react-native-svg";
+import React from 'react';
+import Svg, { Defs, Image, Pattern, Rect, Use } from 'react-native-svg';
 
 export const ForzaCare = () => (
   <Svg width="139" height="40" viewBox="0 0 139 40" fill="none">

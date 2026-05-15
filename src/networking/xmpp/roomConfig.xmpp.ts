@@ -22,7 +22,7 @@ export function roomConfig(
 
   const responsePromise = new Promise((resolve) => {
     stanzaHdlrPointer = (stanza: { attrs: { [x: string]: string } }) => {
-      if (stanza.attrs['id'] === id && stanza.attrs['type'] === 'result') {
+      if (stanza.attrs.id === id && stanza.attrs.type === 'result') {
         unsubscribe();
         resolve(true);
       }

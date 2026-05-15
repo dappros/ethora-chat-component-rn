@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   CenterContainer,
   UserInfo,
@@ -14,36 +14,36 @@ import {
   CloseButton,
   ModalTitle,
   GroupContainer,
-} from "../styledModalComponents";
-import { ChatIcon, DeleteIcon, DownloadIcon, EditIcon, IconDoc, LeaveIcon, MoreIcon } from "../../../assets/icons";
-import ModalHeaderComponent from "../ModalHeaderComponent";
-import { useSelector } from "react-redux";
-import { RootState } from "../../../roomStore";
-import { ProfileImagePlaceholder } from "../../MainComponents/ProfileImagePlaceholder";
-import Button from "../../styled/Button";
-import DropdownMenu from "../../DropdownMenu/DropdownMenu";
+} from '../styledModalComponents';
+import { ChatIcon, DeleteIcon, DownloadIcon, EditIcon, IconDoc, LeaveIcon, MoreIcon } from '../../../assets/icons';
+import ModalHeaderComponent from '../ModalHeaderComponent';
+import { useSelector } from 'react-redux';
+import { RootState } from '../../../roomStore';
+import { ProfileImagePlaceholder } from '../../MainComponents/ProfileImagePlaceholder';
+import Button from '../../styled/Button';
+import DropdownMenu from '../../DropdownMenu/DropdownMenu';
 import {
   logout,
   setActiveModal,
   setLangSource,
   setSelectedUser,
-} from "../../../roomStore/chatSettingsSlice";
-import { addRoomViaApi, setCurrentRoom, setLogoutState } from "../../../roomStore/roomsSlice";
-import EditUserModal from "./EditUserModal";
-import { walletToUsername } from "../../../helpers/walletUsername";
-import { useXmppClient } from "../../../context/xmppProvider";
-import Loader from "../../styled/Loader";
-import { ApiRoom, IRoom, Iso639_1Codes } from "../../../types/types";
-import Select from "../../MainComponents/Select";
-import { useAppDispatch, useAppSelector } from "../../../hooks/hooks";
-import { ScrollView, Text, View } from "react-native";
-import { postPrivateRoom } from "../../../networking/api-requests/rooms.api";
-import { createRoomFromApi } from "../../../helpers/createRoomFromApi";
-import { useToast } from "../../../context/ToastContext";
-import { LANGUAGE_OPTIONS } from "../../../helpers/constants/LANGUAGE_OPTIONS";
-import { deleteDocument, getDocuments } from "../../../networking/api-requests/user.api";
-import { useChatSettingState } from "../../../hooks/useChatSettingState";
-import { DateTime } from "luxon";
+} from '../../../roomStore/chatSettingsSlice';
+import { addRoomViaApi, setCurrentRoom, setLogoutState } from '../../../roomStore/roomsSlice';
+import EditUserModal from './EditUserModal';
+import { walletToUsername } from '../../../helpers/walletUsername';
+import { useXmppClient } from '../../../context/xmppProvider';
+import Loader from '../../styled/Loader';
+import { ApiRoom, IRoom, Iso639_1Codes } from '../../../types/types';
+import Select from '../../MainComponents/Select';
+import { useAppDispatch, useAppSelector } from '../../../hooks/hooks';
+import { ScrollView, Text, View } from 'react-native';
+import { postPrivateRoom } from '../../../networking/api-requests/rooms.api';
+import { createRoomFromApi } from '../../../helpers/createRoomFromApi';
+import { useToast } from '../../../context/ToastContext';
+import { LANGUAGE_OPTIONS } from '../../../helpers/constants/LANGUAGE_OPTIONS';
+import { deleteDocument, getDocuments } from '../../../networking/api-requests/user.api';
+import { useChatSettingState } from '../../../hooks/useChatSettingState';
+import { DateTime } from 'luxon';
 
 interface UserProfileModalProps {
   handleCloseModal: any;
@@ -86,7 +86,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     } finally {
       setShowDelete(false);
     }
-  }
+  };
 
   const handleGetDocs = async () => {
     try {
@@ -97,7 +97,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     } catch (error) {
       console.error('Error getting docs', error);
     }
-  }
+  };
 
   useEffect(() => {
     handleGetDocs();
@@ -134,7 +134,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const EditClick = useCallback(() => {
     setIsEditing(true);
   }, []);
-  
+
 
   const handleRoomCreation = async (
     newChat: ApiRoom,
@@ -218,15 +218,15 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const modalUser: any = selectedUser ?? user;
 
   const findLanguage = () => {
-    if(!langSource) return null;
-    
+    if(!langSource) {return null;}
+
     const language = LANGUAGE_OPTIONS.find((lang) => lang.id === langSource);
     return language || null;
   };
 
   const showDeleteModal = (docId: string) => {
     setDeleteDocumentId(docId);
-    setShowDelete(true)
+    setShowDelete(true);
   };
 
   const DefaultBody = useMemo(
@@ -345,7 +345,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
             </ScrollView>
           </BorderedContainer>
 
-          
+
           {/* <EmptySection /> */}
         </CenterContainer>
       </>
@@ -369,7 +369,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
       <ModalContainerFullScreen>
         {!isEditing ? DefaultBody : EditingBody}
       </ModalContainerFullScreen>
-      
+
       {showDelete && (
         <ModalBackground style={{ position: 'absolute', zIndex: 9999 }}>
           <ModalContainer>

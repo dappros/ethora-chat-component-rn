@@ -1,8 +1,8 @@
 /** @format */
 
-import React from "react";
-import { IConfig, IMessage, MessageProps } from "../types";
-import { ViewStyle } from "react-native";
+import React from 'react';
+import { IConfig, IMessage, MessageProps } from '../types';
+import { ViewStyle } from 'react-native';
 
 export interface DaySeparatorProps {
   date: Date;

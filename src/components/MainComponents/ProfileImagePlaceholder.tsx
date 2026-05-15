@@ -1,7 +1,7 @@
-import React, { useMemo } from "react";
-import styled from "styled-components/native";
-import { TouchableOpacity, Image, Text } from "react-native";
-import { EditIcon } from "../../assets/icons";
+import React, { useMemo } from 'react';
+import styled from 'styled-components/native';
+import { TouchableOpacity, Image, Text } from 'react-native';
+import { EditIcon } from '../../assets/icons';
 import {
   AvatarCircle,
   AvatarImage,
@@ -10,7 +10,7 @@ import {
   RemoveButton,
   RemoveButtonText,
   Wrapper,
-} from "../styled/StyledComponents";
+} from '../styled/StyledComponents';
 import { nameToColor } from '../../helpers/hashcolor';
 
 interface ProfileImagePlaceholderProps {
@@ -51,57 +51,57 @@ export const ProfileImagePlaceholder: React.FC<
 }) => {
   const backgroundColor = useMemo(() => {
     if(!name) {
-      return { backgroundColor: "transparent" };
+      return { backgroundColor: 'transparent' };
     }
     return nameToColor(name);
   }, [name]);
 
   const getTwoUppercaseLetters = (fullName: string) => {
-    if (!fullName) return "";
+    if (!fullName) {return '';}
 
-    const words = fullName.trim().split(" ").filter(word => word.length > 0);
+    const words = fullName.trim().split(' ').filter(word => word.length > 0);
 
-    if (words.length === 0) return "";
+    if (words.length === 0) {return '';}
 
     if (words.length >= 2) {
-      const firstLetter = /^[a-zA-Zа-яА-ЯёЁ]$/.test(words[0]?.[0] || "")
+      const firstLetter = /^[a-zA-Zа-яА-ЯёЁ]$/.test(words[0]?.[0] || '')
         ? words[0][0].toUpperCase()
-        : "";
-      const secondLetter = /^[a-zA-Zа-яА-ЯёЁ]$/.test(words[1]?.[0] || "")
+        : '';
+      const secondLetter = /^[a-zA-Zа-яА-ЯёЁ]$/.test(words[1]?.[0] || '')
         ? words[1][0].toUpperCase()
-        : "";
+        : '';
       return firstLetter + secondLetter;
     }
 
     if (words.length === 1 && words[0].length >= 2) {
-      const firstLetter = /^[a-zA-Zа-яА-ЯёЁ]$/.test(words[0][0] || "")
+      const firstLetter = /^[a-zA-Zа-яА-ЯёЁ]$/.test(words[0][0] || '')
         ? words[0][0].toUpperCase()
-        : "";
-      const secondLetter = /^[a-zA-Zа-яА-ЯёЁ]$/.test(words[0][1] || "")
+        : '';
+      const secondLetter = /^[a-zA-Zа-яА-ЯёЁ]$/.test(words[0][1] || '')
         ? words[0][1].toUpperCase()
-        : "";
+        : '';
       return firstLetter + secondLetter;
     }
 
     if (words.length === 1 && words[0].length === 1) {
-      return /^[a-zA-Zа-яА-ЯёЁ]$/.test(words[0][0] || "")
+      return /^[a-zA-Zа-яА-ЯёЁ]$/.test(words[0][0] || '')
         ? words[0][0].toUpperCase()
-        : "";
+        : '';
     }
 
-    return "";
+    return '';
   };
 
-  const getInitials = () => (!icon && name ? getTwoUppercaseLetters(name) : "");
+  const getInitials = () => (!icon && name ? getTwoUppercaseLetters(name) : '');
 
   return (
     <Wrapper
-      bgColor={icon ? "transparent" : backgroundColor?.backgroundColor}
+      bgColor={icon ? 'transparent' : backgroundColor?.backgroundColor}
       size={size}
       isClickable={active || !!upload?.active}
     >
       <AvatarCircle
-        bgColor={icon ? "transparent" : backgroundColor?.backgroundColor}
+        bgColor={icon ? 'transparent' : backgroundColor?.backgroundColor}
         size={size}
         isClickable={active || !!upload?.active}
         onPress={
@@ -114,7 +114,7 @@ export const ProfileImagePlaceholder: React.FC<
       >
         {icon ? (
           <AvatarImage
-            source={typeof icon === "string" ? { uri: icon } : icon}
+            source={typeof icon === 'string' ? { uri: icon } : icon}
             size={size}
           />
         ) : placeholderIcon ? (
@@ -130,7 +130,7 @@ export const ProfileImagePlaceholder: React.FC<
           </Overlay>
         )}
       </AvatarCircle>
-      {remove?.enabled && icon && role !== "participant" && (
+      {remove?.enabled && icon && role !== 'participant' && (
         <RemoveButton onPress={remove.onRemoveClick}>
           <RemoveButtonText>&times;</RemoveButtonText>
         </RemoveButton>

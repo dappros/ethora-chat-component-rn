@@ -1,12 +1,12 @@
-import React from "react";
+import React from 'react';
 import {
   HeaderContainer,
   HeaderLeft,
   HeaderRight,
-} from "./styledModalComponents";
-import { BackIcon, MoreIcon, QrIcon } from "../../assets/icons";
-import Button from "../styled/Button";
-import { Text } from "react-native";
+} from './styledModalComponents';
+import { BackIcon, MoreIcon, QrIcon } from '../../assets/icons';
+import Button from '../styled/Button';
+import { Text } from 'react-native';
 
 interface ModalHeaderComponentProps {
   handleCloseModal?: any;
@@ -29,7 +29,7 @@ const ModalHeaderComponent: React.FC<ModalHeaderComponentProps> = ({
         ) : (
           <>
             <Button EndIcon={<BackIcon />} onPress={handleCloseModal} />
-            <Text>{headerTitle ?? "Go back"}</Text>
+            <Text>{headerTitle ?? 'Go back'}</Text>
           </>
         )}
       </HeaderLeft>

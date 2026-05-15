@@ -6,7 +6,7 @@ import React, {
   useCallback,
   useMemo,
   useRef,
-} from "react";
+} from 'react';
 import {
   View,
   StyleSheet,
@@ -15,15 +15,15 @@ import {
   Animated,
   Text,
   TouchableOpacity,
-} from "react-native";
-import { IRoom } from "../../types/types";
-import { SearchInput } from "../InputComponents/Search";
-import { BurgerMenuIcon, SearchIcon } from "../../assets/icons";
-import ChatRoomItem from "../RoomComponents/ChatRoomItem";
-import { useChatSettingState } from "../../hooks/useChatSettingState";
-import Button from "../styled/Button";
-import { HeaderRoomList } from "../Header/HeaderRoomList";
-import { HeaderRoomListMenu } from "../Menu/HeaderRoomListMenu";
+} from 'react-native';
+import { IRoom } from '../../types/types';
+import { SearchInput } from '../InputComponents/Search';
+import { BurgerMenuIcon, SearchIcon } from '../../assets/icons';
+import ChatRoomItem from '../RoomComponents/ChatRoomItem';
+import { useChatSettingState } from '../../hooks/useChatSettingState';
+import Button from '../styled/Button';
+import { HeaderRoomList } from '../Header/HeaderRoomList';
+import { HeaderRoomListMenu } from '../Menu/HeaderRoomListMenu';
 
 const LONG_PRESS_THRESHOLD = 200;
 
@@ -41,7 +41,7 @@ const RoomList: React.FC<RoomListProps> = ({
   const { config } = useChatSettingState();
 
   const [open, setOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState('');
   const [isLongPress, setIsLongPress] = useState(false);
   const [isDrawerOpen, setDrawerOpen] = useState(false);
 
@@ -158,7 +158,7 @@ const RoomList: React.FC<RoomListProps> = ({
           style={{
             padding: 8,
             borderRadius: 16,
-            backgroundColor: "transparent",
+            backgroundColor: 'transparent',
           }}
           color="black"
           unstyled
@@ -215,28 +215,28 @@ const styles = StyleSheet.create({
   burgerButton: {
     fontSize: 24,
     padding: 10,
-    color: "#333",
+    color: '#333',
   },
   container: {
-    width: "100%",
-    height: "100%",
+    width: '100%',
+    height: '100%',
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: '#fff',
   },
   scrollContainer: {
     flexGrow: 1,
   },
   headerContainer: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     padding: 16,
-    justifyContent: "space-between",
+    justifyContent: 'space-between',
   },
   chatList: {
     flex: 1,
     paddingTop: 10,
     paddingHorizontal: 8,
-    backgroundColor: "#FAFAFA",
+    backgroundColor: '#FAFAFA',
   },
 });
 

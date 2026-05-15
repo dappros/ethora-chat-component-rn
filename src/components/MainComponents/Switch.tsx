@@ -1,12 +1,12 @@
-import React, { useCallback, useRef, useState } from "react";
-import { Animated } from "react-native";
-import styled from "styled-components/native";
+import React, { useCallback, useRef, useState } from 'react';
+import { Animated } from 'react-native';
+import styled from 'styled-components/native';
 
 const SwitchContainer = styled.Pressable<{ isOn: boolean; bgColor?: string }>`
   width: 34px;
   height: 18px;
   background-color: ${({ isOn, bgColor }) =>
-    isOn ? (bgColor ? bgColor : "#0056d2") : "#8C8C8C"};
+    isOn ? (bgColor ? bgColor : '#0056d2') : '#8C8C8C'};
   border-radius: 100px;
   display: flex;
   transition: background-color 0.3s;

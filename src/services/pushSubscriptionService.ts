@@ -13,8 +13,8 @@ export class PushSubscriptionService {
   private isInitialized: boolean = false;
 
   private async loadSubscribedRoomsFromStorage(): Promise<void> {
-    if (this.isInitialized) return;
-    
+    if (this.isInitialized) {return;}
+
     try {
       const storedRooms = await AsyncStorage.getItem(SUBSCRIBED_ROOMS_KEY);
       if (storedRooms) {
@@ -43,7 +43,7 @@ export class PushSubscriptionService {
   ): Promise<void> {
     const walletAddress = user.defaultWallet?.walletAddress || user.walletAddress;
     const subscriptionKey = `${fcmToken}_${walletAddress}`;
-    
+
     if (this.isPushSubscribed && this.lastSubscriptionKey === subscriptionKey) {
       console.log('⚠️ Push already subscribed with this token, skipping...');
       return;
@@ -51,11 +51,11 @@ export class PushSubscriptionService {
 
     try {
       const userJid: string = user.xmppUsername || '';
-      
+
       if (!userJid) {
         throw new Error('User JID is required for push subscription');
       }
-      
+
       await subscribeToPushNotifications(fcmToken, userJid, projectName);
       this.isPushSubscribed = true;
       this.lastSubscriptionKey = subscriptionKey;
@@ -70,7 +70,7 @@ export class PushSubscriptionService {
     userNick?: string
   ): Promise<boolean> {
     await this.loadSubscribedRoomsFromStorage();
-    
+
     if (this.subscribedRooms.has(roomJID)) {
       return true;
     }
@@ -97,12 +97,12 @@ export class PushSubscriptionService {
     let successful = 0;
     let failed = 0;
 
-    console.log("test roomJIDs", roomJIDs);
+    console.log('test roomJIDs', roomJIDs);
 
     for (const roomJID of roomJIDs) {
       try {
         const result = await this.subscribeToRoom(client, roomJID, userNick);
-        console.log("test roomJID-1", result);
+        console.log('test roomJID-1', result);
         if (result) {
           successful++;
         } else {
@@ -123,7 +123,7 @@ export class PushSubscriptionService {
     this.isPushSubscribed = false;
     this.lastSubscriptionKey = null;
     this.isInitialized = false;
-    
+
     try {
       await AsyncStorage.removeItem(SUBSCRIBED_ROOMS_KEY);
       console.log('[PushService] Subscribed rooms cleared from storage');
