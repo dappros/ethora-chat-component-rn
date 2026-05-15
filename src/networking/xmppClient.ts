@@ -21,7 +21,7 @@ import { inviteRoomRequest } from './xmpp/inviteRoomRequest.xmpp';
 import { getRooms } from './xmpp/getRooms.xmpp';
 import { handleStanza } from './xmpp/handleStanzas.xmpp';
 
-const DEFAULT_DEV_SERVER = 'xmpp.chat.ethora.com:5443';
+const DEFAULT_DEV_SERVER = 'xmpp.chat.ethora.com';
 
 type HistorySource = 'active' | 'send_ack' | 'background' | 'default';
 

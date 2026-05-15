@@ -82,7 +82,7 @@ const DEFAULT_CREDS: Creds = {
   jwt: '',
   baseUrl: 'https://api.chat.ethora.com/v1',
   xmppHost: 'xmpp.chat.ethora.com',
-  xmppDevServer: 'xmpp.chat.ethora.com:5443',
+  xmppDevServer: 'xmpp.chat.ethora.com',
   conference: 'conference.xmpp.chat.ethora.com',
 };
 
@@ -241,7 +241,7 @@ const SetupTab: React.FC<{
           <TextInput
             value={xmppDevServer}
             onChangeText={setXmppDevServer}
-            placeholder="xmpp.chat.ethora.com:5443"
+            placeholder="xmpp.chat.ethora.com"
             autoCapitalize="none"
             autoCorrect={false}
             style={styles.input}

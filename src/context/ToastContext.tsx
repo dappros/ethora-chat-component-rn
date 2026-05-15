@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { ToastType, Toast } from '../components/Toast';
 import { View } from 'react-native';
-import { toastEmitter } from '../../../../utils/toastEmitter';
+import { toastEmitter } from '../utils/toastEmitter';
 
 interface ToastContextType {
   showToast: (toast: ToastType) => void;

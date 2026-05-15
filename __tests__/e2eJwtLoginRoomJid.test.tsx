@@ -136,7 +136,7 @@ test('jwtLogin + roomJID: provider bootstraps end-to-end', async () => {
     baseUrl: 'https://api.example.com/v1',
     customAppToken: 'app-token',
     jwtLogin: { enabled: true, token: 'jwt-abc' },
-    xmppSettings: { devServer: 'host:5443' },
+    xmppSettings: { devServer: 'host' },
   };
 
   let tree: any;
@@ -168,7 +168,7 @@ test('jwtLogin + roomJID: provider bootstraps end-to-end', async () => {
   expect(xmppClientInstances[0].username).toBe('0xabc');
   expect(xmppClientInstances[0].password).toBe('xpw');
   expect(xmppClientInstances[0].xmppSettings).toMatchObject({
-    devServer: 'host:5443',
+    devServer: 'host',
   });
 
   // 4. Provider drove the post-online chain.

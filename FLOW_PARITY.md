@@ -282,7 +282,7 @@ canonical definition.
     baseUrl: 'https://api.chat.ethora.com/v1',
     customAppToken: APP_TOKEN,
     xmppSettings: {
-      devServer: 'xmpp.chat.ethora.com:5443',
+      devServer: 'xmpp.chat.ethora.com',
       historyQoS: { stagedPreloadConcurrency: 3, preloadTopKRooms: 10 },
     },
     userLogin:   { enabled: true, user: storedUser },

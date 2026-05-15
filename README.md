@@ -22,7 +22,7 @@ The package defaults to the canonical Ethora Cloud endpoints:
 | Purpose | Default value |
 |---------|---------------|
 | API base URL | `https://api.chat.ethora.com/v1` |
-| XMPP WebSocket | `wss://xmpp.chat.ethora.com:5443/ws` |
+| XMPP WebSocket | `wss://xmpp.chat.ethora.com/ws` |
 | XMPP host | `xmpp.chat.ethora.com` |
 | XMPP MUC (conference) | `conference.xmpp.chat.ethora.com` |
 | Web / sign up | `https://app.chat.ethora.com` |
@@ -61,7 +61,7 @@ export default function App() {
             appId: 'YOUR_APP_ID',
             baseUrl: 'https://api.chat.ethora.com/v1',
             xmppSettings: {
-              devServer: 'wss://xmpp.chat.ethora.com:5443/ws',
+              devServer: 'wss://xmpp.chat.ethora.com/ws',
               host: 'xmpp.chat.ethora.com',
               conference: 'conference.xmpp.chat.ethora.com',
             },

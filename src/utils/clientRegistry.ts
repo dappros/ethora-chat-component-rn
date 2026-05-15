@@ -5,7 +5,7 @@ let currentClient: XmppClient | null = null;
 let currentClientKey = '';
 const initLocks = new Map<string, Promise<XmppClient>>();
 
-const DEFAULT_DEV_SERVER = 'xmpp.chat.ethora.com:5443';
+const DEFAULT_DEV_SERVER = 'xmpp.chat.ethora.com';
 
 export function buildXmppClientKey(
   username: string,

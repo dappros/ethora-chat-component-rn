@@ -19,12 +19,12 @@ afterEach(() => {
 describe('buildXmppClientKey', () => {
   it('is deterministic for same user + settings', () => {
     const a = buildXmppClientKey('alice', {
-      devServer: 'xmpp.host:5443',
+      devServer: 'xmpp.host',
       host: 'host',
       conference: 'conf.host',
     });
     const b = buildXmppClientKey('alice', {
-      devServer: 'xmpp.host:5443',
+      devServer: 'xmpp.host',
       host: 'host',
       conference: 'conf.host',
     });
@@ -39,8 +39,8 @@ describe('buildXmppClientKey', () => {
 
   it('differs across devServers', () => {
     expect(
-      buildXmppClientKey('u', { devServer: 'a:5443' })
-    ).not.toBe(buildXmppClientKey('u', { devServer: 'b:5443' }));
+      buildXmppClientKey('u', { devServer: 'a' })
+    ).not.toBe(buildXmppClientKey('u', { devServer: 'b' }));
   });
 });
 

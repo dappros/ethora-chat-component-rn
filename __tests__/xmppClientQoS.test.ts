@@ -27,7 +27,7 @@ const mockedGetHistory = getHistory as jest.Mock;
 
 function makeClient(qos: Partial<any> = {}) {
   return new XmppClient('u', 'p', {
-    devServer: 'host:5443',
+    devServer: 'host',
     historyQoS: {
       maxInFlightHistory: 2,
       softPauseAfterSendMs: 200,

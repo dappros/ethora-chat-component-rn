@@ -33,7 +33,7 @@ export const useXmppInitialization = (
   const {
     chatToken,
     xmppSettings = {
-      devServer: "wss://xmpp.ethoradev.com:5443/ws",
+      devServer: "wss://xmpp.ethoradev.com/ws",
       host: "xmpp.ethoradev.com",
       conference: "conference.xmpp.ethoradev.com",
     },
