@@ -119,22 +119,29 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
 
     const loadMoreMessages = useCallback(
       async (chatJID: string, max: number, idOfMessageBefore?: number) => {
-        if (!isLoadingMore && !roomsList?.[chatJID]?.historyComplete) {
-          const lastMsgId =
-            typeof idOfMessageBefore !== 'string'
-              ? idOfMessageBefore
-              : Number(
-                  roomsList[chatJID].messages[
-                    roomsList[chatJID].messages.length - 2
-                  ].id,
-                );
-          setIsLoadingMore(true);
-          client?.getHistoryStanza(chatJID, max, lastMsgId).then(() => {
-            setIsLoadingMore(false);
-          });
+        if (isLoadingMore || roomsList?.[chatJID]?.historyComplete) {return;}
+        const lastMsgId =
+          typeof idOfMessageBefore !== 'string'
+            ? idOfMessageBefore
+            : Number(
+                roomsList[chatJID].messages[
+                  roomsList[chatJID].messages.length - 2
+                ]?.id,
+              );
+        setIsLoadingMore(true);
+        try {
+          // Return the promise so MessageList's `await loadMoreMessages`
+          // actually waits for MAM to respond before its own onEndReached
+          // re-arms — otherwise the awaited call resolves with `undefined`
+          // immediately and rapid scrolls fire repeat requests that step
+          // on each other.
+          await client?.getHistoryStanza(chatJID, max, lastMsgId);
+        } finally {
+          setIsLoadingMore(false);
         }
       },
-      [client?.client?.jid],
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [client?.client?.jid, isLoadingMore, roomsList],
     );
 
     const onCloseEdit = () => {

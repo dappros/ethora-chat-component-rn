@@ -212,7 +212,6 @@ const SendInput: React.FC<SendInputProps> = ({
                 <TouchableOpacity
                   onPress={handleAttachPress}
                   style={{
-                    marginRight: 8,
                     width: 40,
                     height: 40,
                     justifyContent: 'center',
@@ -269,7 +268,11 @@ const SendInput: React.FC<SendInputProps> = ({
               />
             }
             style={{
-              borderRadius: 100,
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              alignItems: 'center',
+              justifyContent: 'center',
               backgroundColor:
                 message || filePreviews.length > 0
                   ? config?.colors?.primary
@@ -278,11 +281,6 @@ const SendInput: React.FC<SendInputProps> = ({
             }}
           />
         </MessageInputContainer>
-        <View
-          style={{
-            paddingHorizontal: 16,
-          }}
-         />
       </InputContainer>
   );
 };

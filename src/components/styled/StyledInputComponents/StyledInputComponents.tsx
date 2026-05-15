@@ -13,12 +13,14 @@ const colors = {
 
 export const InputContainer = styled.View<{ isText?: boolean }>`
   flex-direction: column;
-  padding: 16px 0;
+  padding: 12px 16px;
   background-color: ${colors.white};
   z-index: 100;
   width: 100%;
   bottom: 0;
   left: 0;
+  border-top-width: 1px;
+  border-top-color: #e5e7eb;
 `;
 
 export const MediaContainer = styled.View`
@@ -35,24 +37,24 @@ export const MediaImage = styled.Image`
 
 export const MessageInputContainer = styled.View`
   flex-direction: row;
-  align-items: flex-end;
+  align-items: center;
   width: 100%;
+  gap: 8px;
 `;
 
 export const MessageInput = styled.TextInput<{
   isFocused?: boolean;
   color?: string;
 }>`
-  padding: 10px;
-  border-radius: 12px;
+  padding: 10px 14px;
+  border-radius: 20px;
   border-width: 1px;
   border-color: ${(props) =>
     props.isFocused ? props.color || '#0052CD' : 'transparent'};
   color: #141414;
   background-color: #f5f7f9;
-  width: 70%;
-  text-align-vertical: top;
-  padding-vertical: 0;
+  flex: 1;
+  text-align-vertical: center;
   line-height: 20px;
   include-font-padding: false;
 `;
