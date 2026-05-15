@@ -274,13 +274,19 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
                 }}>
                 <ChatRoom
                   CustomMessageComponent={CustomMessageComponent || Message}
-                  handleBackClick={() => {
-                    // Tapping back drops the active room so the list
-                    // takes over (web's `isChatVisible=false` analog).
-                    if (!roomJID) {
-                      dispatch(setCurrentRoom({ roomJID: '' }));
-                    }
-                  }}
+                  // Only show the back button when there's a room list to
+                  // return to. In single-room mode (`roomJID` preselected
+                  // by the consumer) or when the consumer disabled the
+                  // list (`disableRooms`), there's nowhere to go back to,
+                  // so we omit the handler and ChatHeader renders without
+                  // the back arrow.
+                  handleBackClick={
+                    roomJID || config?.disableRooms
+                      ? undefined
+                      : () => {
+                          dispatch(setCurrentRoom({ roomJID: '' }));
+                        }
+                  }
                 />
               </ChatWrapperBox>
             )}

@@ -42,7 +42,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
 import { ReduxWrapper as Chat } from './src/components/MainComponents/ReduxWrapper';
-import type { IConfig } from './src/types/types';
+import { store as chatStore } from './src/roomStore';
+import type { IConfig, IRoom } from './src/types/types';
 import {
   clearLogs,
   getLogs,
@@ -127,29 +128,69 @@ const DEFAULT_CREDS: Creds = {
 // ---------------------------------------------------------------------
 type Tab = 'setup' | 'chat' | 'logs';
 
+// Subscribe to the chat library's module store so the TabBar (which
+// lives outside `<Chat>` and therefore outside its react-redux
+// Provider) can read room.unreadMessages without prop drilling.
+const subscribeChatStore = (cb: () => void) => chatStore.subscribe(cb);
+const getRoomsSnapshot = () => chatStore.getState().rooms.rooms;
+
+const useTotalUnread = (): number => {
+  const rooms = useSyncExternalStore(subscribeChatStore, getRoomsSnapshot);
+  return useMemo(() => {
+    let total = 0;
+    for (const r of Object.values(rooms || {}) as IRoom[]) {
+      const n = Number(r?.unreadMessages || 0);
+      if (Number.isFinite(n) && n > 0) {total += n;}
+    }
+    return total;
+  }, [rooms]);
+};
+
 const TabBar: React.FC<{ active: Tab; onChange: (t: Tab) => void }> = ({
   active,
   onChange,
-}) => (
-  <View style={styles.tabBar}>
-    {(['setup', 'chat', 'logs'] as const).map((t) => (
-      <Pressable
-        key={t}
-        onPress={() => onChange(t)}
-        style={[styles.tabBtn, active === t && styles.tabBtnActive]}
-      >
-        <Text
-          style={[
-            styles.tabBtnText,
-            active === t && styles.tabBtnTextActive,
-          ]}
+}) => {
+  const unread = useTotalUnread();
+  return (
+    <View style={styles.tabBar}>
+      {(['setup', 'chat', 'logs'] as const).map((t) => (
+        <Pressable
+          key={t}
+          onPress={() => onChange(t)}
+          style={[styles.tabBtn, active === t && styles.tabBtnActive]}
         >
-          {t === 'setup' ? 'Setup' : t === 'chat' ? 'Chat' : 'Logs'}
-        </Text>
-      </Pressable>
-    ))}
-  </View>
-);
+          <View style={styles.tabBtnRow}>
+            <Text
+              style={[
+                styles.tabBtnText,
+                active === t && styles.tabBtnTextActive,
+              ]}
+            >
+              {t === 'setup' ? 'Setup' : t === 'chat' ? 'Chat' : 'Logs'}
+            </Text>
+            {t === 'chat' && unread > 0 ? (
+              <View
+                style={[
+                  styles.tabBadge,
+                  active === t && styles.tabBadgeOnActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.tabBadgeText,
+                    active === t && styles.tabBadgeTextOnActive,
+                  ]}
+                >
+                  {unread > 99 ? '99+' : unread}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        </Pressable>
+      ))}
+    </View>
+  );
+};
 
 // ---------------------------------------------------------------------
 // Setup tab — JWT or Email mode, test + save
@@ -925,6 +966,31 @@ const styles = StyleSheet.create({
   tabBtnActive: { backgroundColor: PRIMARY },
   tabBtnText: { color: MUTED, fontWeight: '500' },
   tabBtnTextActive: { color: 'white', fontWeight: '600' },
+  tabBtnRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  tabBadge: {
+    backgroundColor: PRIMARY,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabBadgeOnActive: {
+    backgroundColor: 'white',
+  },
+  tabBadgeText: {
+    color: 'white',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  tabBadgeTextOnActive: {
+    color: PRIMARY,
+  },
   // setup
   setupBody: { padding: 16, paddingBottom: 48 },
   h2: { fontSize: 18, fontWeight: '600', marginBottom: 6 },
