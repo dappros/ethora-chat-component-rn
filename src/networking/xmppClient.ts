@@ -180,24 +180,27 @@ export class XmppClient {
       await new Promise((r) => setTimeout(r, wait));
     }
 
-    let promise: Promise<any>;
-    promise = (async () => {
+    // Self-reference via an outer holder so the IIFE's `finally` can
+    // identify "is the registry entry I started still the current one?"
+    // without TS's TDZ false-positive (TS2454 on a bare `let promise`).
+    const handle: { p?: Promise<any> } = {};
+    handle.p = (async () => {
       try {
         return await getHistory(this.client, chatJID, max, before, id);
       } finally {
         const cur = this.mamInFlightByRoom.get(chatJID);
-        if (cur && cur.promise === promise) {
+        if (cur && cur.promise === handle.p) {
           this.mamInFlightByRoom.delete(chatJID);
         }
       }
     })();
 
     this.mamInFlightByRoom.set(chatJID, {
-      promise,
+      promise: handle.p,
       source,
       startedAt: Date.now(),
     });
-    return promise;
+    return handle.p;
   }
 
   private sourceRank(s: HistorySource): number {
