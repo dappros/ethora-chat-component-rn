@@ -15,6 +15,26 @@
 import React from 'react';
 import AppLoginChatsRn from './AppLoginChatsRn';
 
+// Hermes/RN error reporter — log full stack so we can find the
+// `Cannot read property 'toString' of undefined` that fires after
+// XMPP comes online.
+const ErrorUtils = (global as any).ErrorUtils;
+if (ErrorUtils && !(global as any).__claudeErrTrap) {
+  (global as any).__claudeErrTrap = true;
+  const prev = ErrorUtils.getGlobalHandler?.();
+  ErrorUtils.setGlobalHandler?.((err: any, isFatal: boolean) => {
+    try {
+      console.log('🔥 [GlobalError]', {
+        message: err?.message,
+        name: err?.name,
+        isFatal,
+        stack: (err?.stack || '').split('\n').slice(0, 15).join('\n'),
+      });
+    } catch {}
+    if (prev) {prev(err, isFatal);}
+  });
+}
+
 function App(): React.JSX.Element {
   return <AppLoginChatsRn />;
 }

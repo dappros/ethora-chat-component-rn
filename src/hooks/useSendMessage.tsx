@@ -11,13 +11,16 @@ export const useSendMessage = (_configOverride?: IConfig) => {
   const { client } = useXmppClient();
   const dispatch = useDispatch();
 
-  const { user, config, editAction, rooms } = useSelector((state: RootState) => ({
-    activeRoomJID: state.rooms.activeRoomJID,
-    user: state.chatSettingStore.user,
-    config: state.chatSettingStore.config,
-    editAction: state.rooms.editAction,
-    rooms: state.rooms.rooms,
-  }));
+  // Split selectors so each returns a primitive/stable reference — the
+  // single-object selector above caused a "returned a different result
+  // when called with the same parameters" warning and unnecessary
+  // rerenders on every redux update.
+  const user = useSelector((state: RootState) => state.chatSettingStore.user);
+  const config = useSelector(
+    (state: RootState) => state.chatSettingStore.config
+  );
+  const editAction = useSelector((state: RootState) => state.rooms.editAction);
+  const rooms = useSelector((state: RootState) => state.rooms.rooms);
 
   const {
     handleMessageSent,

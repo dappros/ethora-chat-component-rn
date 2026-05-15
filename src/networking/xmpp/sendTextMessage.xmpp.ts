@@ -1,5 +1,27 @@
 import { Client, xml } from '@xmpp/client';
 
+/**
+ * Normalize devServer to the WSS service URL that the server uses as
+ * the data-element xmlns. The user-facing `xmppDevServer` config
+ * typically holds a bare hostname (`xmpp.chat.ethora.com`); the server
+ * registers messages under the full `wss://<host>/ws` URL, and stanzas
+ * carrying just the bare host as xmlns get silently dropped.
+ *
+ * Mirrors web's `SERVICE` derivation (utils/runtimeHostConfig.ts).
+ */
+const toServiceXmlns = (devServer: string | undefined, client: Client): string => {
+  // Prefer the URL the client is actually connected to — guaranteed to
+  // be the one the server expects.
+  const clientService = (client as any)?.options?.service as string | undefined;
+  if (clientService && /^wss?:\/\//.test(clientService)) {return clientService;}
+  const ds = (devServer || '').trim();
+  if (!ds) {return 'wss://xmpp.ethoradev.com/ws';}
+  if (/^wss?:\/\//.test(ds)) {return ds;}
+  if (ds.includes('://')) {return ds;}
+  // Bare host → wss://<host>/ws
+  return `wss://${ds.replace(/^\/+|\/+$/g, '')}/ws`;
+};
+
 export const sendTextMessage = (
   client: Client,
   roomJID: string,
@@ -30,7 +52,7 @@ export const sendTextMessage = (
         id: id,
       },
       xml('data', {
-        xmlns: devServer || 'wss://xmpp.ethoradev.com/ws',
+        xmlns: toServiceXmlns(devServer, client),
         senderFirstName: firstName,
         senderLastName: lastName,
         fullName: `${firstName} ${lastName}`,
@@ -49,8 +71,29 @@ export const sendTextMessage = (
       }),
       xml('body', {}, userMessage)
     );
-    client.send(message);
+    console.log('🟢 [sendTextMessage] sending stanza', {
+      id,
+      to: roomJID,
+      bodyLen: userMessage?.length,
+      clientJid: client.jid?.toString(),
+      xmlns: toServiceXmlns(devServer, client),
+    });
+    const sendResult = client.send(message);
+    if (sendResult && typeof (sendResult as any).then === 'function') {
+      (sendResult as Promise<unknown>)
+        .then(() => console.log('🟢 [sendTextMessage] client.send resolved', { id }))
+        .catch((err) =>
+          console.error('🔴 [sendTextMessage] client.send REJECTED', {
+            id,
+            message: (err as any)?.message,
+            name: (err as any)?.name,
+            stack: (err as any)?.stack,
+          })
+        );
+    } else {
+      console.log('🟡 [sendTextMessage] client.send returned non-promise', { id, type: typeof sendResult });
+    }
   } catch (error) {
-    console.error('An error occurred while sending message:', error);
+    console.error('🔴 [sendTextMessage] sync error', error);
   }
 };
