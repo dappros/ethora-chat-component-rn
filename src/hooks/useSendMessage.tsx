@@ -1,11 +1,11 @@
 import { useCallback } from 'react';
 import { useXmppClient } from '../context/xmppProvider';
 import { useDispatch, useSelector } from 'react-redux';
-import { setEditAction } from '../roomStore/roomsSlice';
+import { addRoomMessage, setEditAction } from '../roomStore/roomsSlice';
 import { uploadFile } from '../networking/api-requests/auth.api';
 import { RootState } from '../roomStore';
 import { useEventHandlers } from './useEventHandlers';
-import type { IConfig } from '../types/types';
+import type { IConfig, IMessage } from '../types/types';
 
 export const useSendMessage = (_configOverride?: IConfig) => {
   const { client } = useXmppClient();
@@ -64,6 +64,41 @@ export const useSendMessage = (_configOverride?: IConfig) => {
       // Critical-send hint to the QoS scheduler.
       client?.onCriticalSend?.(activeRoomJID);
 
+      // Optimistic pending render — push the message into redux
+      // immediately with `pending: true` so the bubble shows
+      // "sending..." while the stanza is in flight. The server echoes
+      // it back with the same id and insertMessageWithDelimiter
+      // dedupes by id and flips `pending: false` → DoubleTick renders.
+      // Without this, the user taps send and sees nothing for ~200ms
+      // until the echo lands, which feels broken.
+      const optimisticId = `send-text-message-${Date.now()}`;
+      const optimisticDate = new Date().toISOString();
+      const selfId =
+        (user as any)?.xmppUsername || (user as any)?.walletAddress || '';
+      const optimisticMessage: IMessage = {
+        id: optimisticId,
+        // Also set xmppId so the echo (which carries our outer stanza
+        // id as xmppId via getDataFromXml) can be matched and dedup'd
+        // by insertMessageWithDelimiter (`msg.xmppId === message.id`
+        // branch).
+        xmppId: optimisticId,
+        body: message,
+        roomJid: activeRoomJID,
+        date: optimisticDate,
+        pending: true,
+        isDeleted: false,
+        user: {
+          ...(user as any),
+          id: selfId,
+          name: `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || selfId,
+        } as any,
+      } as IMessage;
+      if (!config?.disableSentLogic) {
+        dispatch(
+          addRoomMessage({ roomJID: activeRoomJID, message: optimisticMessage })
+        );
+      }
+
       console.log('🔵 [useSendMessage] sending', {
         room: activeRoomJID,
         hasClient: !!client,
@@ -71,12 +106,18 @@ export const useSendMessage = (_configOverride?: IConfig) => {
         last: user?.lastName,
         wallet: user?.walletAddress,
         len: message?.length,
+        optimisticId,
       });
 
       try {
         if (!client) {
           throw new Error('No XMPP client');
         }
+        // Pass the optimistic id as the stanza id so the server echoes
+        // it back with the same value — the reducer's dedupe lookup
+        // matches and the bubble flips from pending → delivered in-place
+        // (instead of rendering two copies, which is what happens when
+        // ids don't match).
         client.sendMessage(
           activeRoomJID,
           user.firstName,
@@ -87,7 +128,8 @@ export const useSendMessage = (_configOverride?: IConfig) => {
           '',
           isReply || false,
           isChecked || false,
-          mainMessage || ''
+          mainMessage || '',
+          optimisticId
         );
         await handleMessageSent({
           message,

@@ -473,7 +473,8 @@ export class XmppClient {
     notDisplayedValue?: string,
     isReply?: boolean,
     showInChannel?: boolean,
-    mainMessage?: string
+    mainMessage?: string,
+    customId?: string
   ) => {
     sendTextMessage(
       this.client,
@@ -487,7 +488,8 @@ export class XmppClient {
       isReply,
       showInChannel,
       mainMessage,
-      this.devServer || DEFAULT_DEV_SERVER
+      this.devServer || DEFAULT_DEV_SERVER,
+      customId
     );
   };
 

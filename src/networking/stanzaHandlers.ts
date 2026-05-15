@@ -12,6 +12,7 @@ import {
 } from '../roomStore/roomsSlice';
 import { IRoom } from '../types/types';
 import { createMessageFromXml } from '../helpers/createMessageFromXml';
+import { getDataFromXml } from '../helpers/getDataFromXml';
 import { setDeleteModal } from '../roomStore/chatSettingsSlice';
 import { messageNotificationManager } from '../utils/messageNotificationManager';
 
@@ -58,13 +59,19 @@ const onRealtimeMessage = async (stanza: Element) => {
       return;
     }
 
-    const message = await createMessageFromXml(
-      data.attrs,
-      body,
-      id,
-      stanza.attrs.from,
-      !!deleted
-    );
+    // Use the same parser as MAM so the message carries `xmppId` (the
+    // outer stanza id = our original send id). insertMessageWithDelimiter
+    // dedupes by xmppId, which is how the optimistic pending bubble flips
+    // to delivered in-place instead of rendering twice.
+    const parsed = await getDataFromXml(stanza);
+    const { data: pData, id: pId, body: pBody, ...pRest } = parsed || ({} as any);
+    const message = await createMessageFromXml({
+      data: pData || data.attrs,
+      id: pId || id,
+      body: pBody,
+      ...pRest,
+      isDeleted: !!deleted || !!(pRest as any)?.deleted,
+    });
 
     const roomJID = stanza.attrs.from.split('/')[0];
     store.dispatch(
