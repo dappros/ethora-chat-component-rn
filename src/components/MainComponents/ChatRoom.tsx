@@ -238,13 +238,13 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
               >
                 <NoSelectedChatIcon />
               </View>
-            ) : roomMessages && roomMessages.length === 1 ? (
+            ) : !roomMessages || roomMessages.length === 0 ? (
               <View
                 style={{
                   flex: 1,
                   justifyContent: 'center',
                   alignItems: 'center',
-                  backgroundColor: 'black',
+                  backgroundColor: '#ffffff',
                 }}
               >
                 <NoMessagesPlaceholder />

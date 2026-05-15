@@ -11,7 +11,7 @@ export const ChatContainer = styled.View`
   flex-direction: column;
   flex: 1;
   width: 100%;
-  background-color: #1a1a1a;
+  background-color: #ffffff;
 `;
 
 export const ThreadContainer = styled.View`
@@ -19,20 +19,17 @@ export const ThreadContainer = styled.View`
   justify-content: space-between;
   flex: 1;
   width: 100%;
-  background-color: #1a1a1a;
+  background-color: #ffffff;
 `;
 
 export const ChatContainerHeader = styled.View`
   flex-direction: row;
-  padding: 2px 8px;
-  padding-top: 62px;
-  max-height: 24px;
-  min-height: 24px;
-  background-color: #2a2a2a;
+  padding: 12px 16px;
+  background-color: #ffffff;
   align-items: center;
   justify-content: space-between;
   border-bottom-width: 1px;
-  border-bottom-color: #3a3a3a;
+  border-bottom-color: #e5e7eb;
   border-style: solid;
   z-index: 1000;
 `;
@@ -76,7 +73,7 @@ export const ChatContainerHeaderInfo = styled.View`
 `;
 
 export const ChatContainerHeaderLabel = styled.Text`
-  color: #ffffff;
+  color: #141414;
   font-weight: 600;
   font-size: 16px;
   text-align: left;
@@ -114,7 +111,7 @@ export const MessageTimestamp = styled.Text`
 `;
 
 export const Message = styled.View<{ isUser: boolean }>`
-  background-color: ${(props) => (props.isUser ? '#3a3a3a' : '#2a2a2a')};
+  background-color: ${(props) => (props.isUser ? '#e8eafd' : '#f3f6fc')};
   padding: 10px;
   margin: 10px 0;
   border-radius: 8px;
@@ -125,17 +122,17 @@ export const Message = styled.View<{ isUser: boolean }>`
 
 export const MessageText = styled.Text`
   margin: 0;
-  color: #ffffff;
+  color: #141414;
 `;
 
 export const UserName = styled.Text`
   font-weight: bold;
-  color: #ffffff;
+  color: #141414;
 `;
 
 // Input Components
 export const InputContainer = styled.View`
-  background-color: #2a2a2a;
+  background-color: #ffffff;
   flex-direction: row;
   gap: 5px;
   padding: 8px;
@@ -146,9 +143,9 @@ export const InputContainer = styled.View`
 export const MessageInput = styled.TextInput`
   padding: 10px;
   border-radius: 8px;
-  border: 1px solid #3a3a3a;
-  background-color: #3a3a3a;
-  color: #ffffff;
+  border: 1px solid #e5e7eb;
+  background-color: #f5f7f9;
+  color: #141414;
 `;
 
 export const SendButton = styled.TouchableOpacity`
