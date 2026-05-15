@@ -20,8 +20,11 @@ import { editMessage } from './xmpp/editMessage.xmpp';
 import { inviteRoomRequest } from './xmpp/inviteRoomRequest.xmpp';
 import { getRooms } from './xmpp/getRooms.xmpp';
 import { handleStanza } from './xmpp/handleStanzas.xmpp';
+import { pushLog as devPushLog } from '../utils/devLogger';
 
-const DEFAULT_DEV_SERVER = 'xmpp.chat.ethora.com';
+// Canonical production XMPP WSS endpoint listens on :5443.
+// Stripping the port breaks the wss handshake (443 isn't bound).
+const DEFAULT_DEV_SERVER = 'xmpp.chat.ethora.com:5443';
 
 type HistorySource = 'active' | 'send_ack' | 'background' | 'default';
 
@@ -229,21 +232,39 @@ export class XmppClient {
       });
 
       // Wrap `send` so the dev logger sees outgoing stanzas too.
-      const origSend = this.client.send?.bind(this.client);
-      if (origSend) {
-        this.client.send = (stanza: any) => {
-          try {
-            const tag = stanza?.name || 'stanza';
-            const id = stanza?.attrs?.id || '';
-            const to = stanza?.attrs?.to || '';
-            require('../utils/devLogger').pushLog(
-              'xmpp',
-              `→ ${tag}${id ? ` id=${id}` : ''}${to ? ` to=${to.split('/')[0]}` : ''}`,
-              stanza?.toString ? stanza.toString() : undefined
-            );
-          } catch {}
-          return origSend(stanza);
-        };
+      // Guarded: some @xmpp/client builds define `send` as a getter or
+      // non-writable property, and overwriting would throw silently and
+      // strand the whole pipeline. We catch everything and fall back to
+      // the unwrapped client.
+      try {
+        const origSend = this.client.send?.bind(this.client);
+        if (origSend) {
+          const wrapped = (stanza: any) => {
+            try {
+              const tag = stanza?.name || 'stanza';
+              const id = stanza?.attrs?.id || '';
+              const to = stanza?.attrs?.to || '';
+              devPushLog(
+                'xmpp',
+                `→ ${tag}${id ? ` id=${id}` : ''}${to ? ` to=${to.split('/')[0]}` : ''}`,
+                stanza?.toString ? stanza.toString() : undefined
+              );
+            } catch {}
+            return origSend(stanza);
+          };
+          // Property may be non-writable on some builds; defineProperty
+          // gives us a clearer error than a plain assignment.
+          Object.defineProperty(this.client, 'send', {
+            value: wrapped,
+            writable: true,
+            configurable: true,
+          });
+        }
+      } catch (err) {
+        console.warn(
+          'XmppClient: could not wrap client.send for dev logging',
+          err
+        );
       }
 
       this.attachEventListeners();
@@ -264,7 +285,7 @@ export class XmppClient {
       try {
         // lazy-require to avoid pulling devLogger into prod bundles
         // that don't reference it; tree-shaken via dead-code elim.
-        require('../utils/devLogger').pushLog('xmpp', 'disconnect');
+        devPushLog('xmpp', 'disconnect');
       } catch {}
     });
 
@@ -273,7 +294,7 @@ export class XmppClient {
       this.status = 'online';
       this.reconnectAttempts = 0;
       try {
-        require('../utils/devLogger').pushLog(
+        devPushLog(
           'xmpp',
           'online',
           this.username
@@ -284,7 +305,7 @@ export class XmppClient {
     this.client.on('error', (error) => {
       console.error('XMPP client error:', error);
       try {
-        require('../utils/devLogger').pushLog(
+        devPushLog(
           'xmpp',
           'error',
           (error && error.message) || error
@@ -298,7 +319,7 @@ export class XmppClient {
         const id = stanza?.attrs?.id || '';
         const from = stanza?.attrs?.from || '';
         const type = stanza?.attrs?.type || '';
-        require('../utils/devLogger').pushLog(
+        devPushLog(
           'xmpp',
           `← ${tag}${id ? ` id=${id}` : ''}${type ? ` type=${type}` : ''}${from ? ` from=${from.split('/')[0]}` : ''}`,
           stanza?.toString ? stanza.toString() : undefined

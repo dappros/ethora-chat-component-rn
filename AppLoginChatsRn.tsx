@@ -46,6 +46,7 @@ import type { IConfig } from './src/types/types';
 import {
   clearLogs,
   getLogs,
+  installAxiosCapture,
   installConsoleCapture,
   LogEntry,
   LogKind,
@@ -54,8 +55,10 @@ import {
 } from './src/utils/devLogger';
 
 // Install console capture eagerly so logs collected during the very
-// first render are kept.
+// first render are kept. Also instrument the default axios instance so
+// the Setup tab's `axios.post(.../users/client)` shows up in Logs.
 installConsoleCapture();
+installAxiosCapture(axios);
 
 // ---------------------------------------------------------------------
 // Theme
@@ -66,12 +69,35 @@ const BORDER = '#E5E7EB';
 const MUTED = '#71717A';
 
 // ---------------------------------------------------------------------
-// Settings model
+// Settings model — Setup tab persists both auth modes in one bag.
 // ---------------------------------------------------------------------
 const CREDS_KEY = '@apploginchatsrn/creds';
 
+type LoginMode = 'jwt' | 'email';
+
+interface AppUser {
+  _id?: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  token: string;
+  refreshToken?: string;
+  xmppUsername: string;
+  xmppPassword: string;
+  walletAddress?: string;
+  defaultWallet?: { walletAddress: string };
+}
+
 interface Creds {
+  mode: LoginMode;
+  // JWT mode
   jwt: string;
+  // Email mode
+  appToken: string;
+  email: string;
+  password: string;
+  resolvedUser: AppUser | null; // populated by "Test connection" in email mode
+  // Server
   baseUrl: string;
   xmppHost: string;
   xmppDevServer: string;
@@ -79,10 +105,15 @@ interface Creds {
 }
 
 const DEFAULT_CREDS: Creds = {
+  mode: 'jwt',
   jwt: '',
+  appToken: '',
+  email: '',
+  password: '',
+  resolvedUser: null,
   baseUrl: 'https://api.chat.ethora.com/v1',
   xmppHost: 'xmpp.chat.ethora.com',
-  xmppDevServer: 'xmpp.chat.ethora.com',
+  xmppDevServer: 'xmpp.chat.ethora.com:5443',
   conference: 'conference.xmpp.chat.ethora.com',
 };
 
@@ -116,13 +147,23 @@ const TabBar: React.FC<{ active: Tab; onChange: (t: Tab) => void }> = ({
 );
 
 // ---------------------------------------------------------------------
-// Setup tab — cred entry + test
+// Setup tab — JWT or Email mode, test + save
 // ---------------------------------------------------------------------
 const SetupTab: React.FC<{
   initial: Creds;
   onSave: (c: Creds) => void;
 }> = ({ initial, onSave }) => {
+  const [mode, setMode] = useState<LoginMode>(initial.mode);
+  // JWT fields
   const [jwt, setJwt] = useState(initial.jwt);
+  // Email fields
+  const [appToken, setAppToken] = useState(initial.appToken);
+  const [email, setEmail] = useState(initial.email);
+  const [password, setPassword] = useState(initial.password);
+  const [resolvedUser, setResolvedUser] = useState<AppUser | null>(
+    initial.resolvedUser
+  );
+  // Server fields
   const [baseUrl, setBaseUrl] = useState(initial.baseUrl);
   const [xmppHost, setXmppHost] = useState(initial.xmppHost);
   const [xmppDevServer, setXmppDevServer] = useState(initial.xmppDevServer);
@@ -134,43 +175,80 @@ const SetupTab: React.FC<{
     text: string;
   } | null>(null);
 
-  const collect = (): Creds => ({
+  const collect = (overrides: Partial<Creds> = {}): Creds => ({
+    mode,
     jwt: jwt.trim(),
+    appToken: appToken.trim(),
+    email: email.trim(),
+    password,
+    resolvedUser,
     baseUrl: baseUrl.trim().replace(/\/$/, ''),
     xmppHost: xmppHost.trim(),
     xmppDevServer: xmppDevServer.trim(),
     conference: conference.trim() || `conference.${xmppHost.trim()}`,
+    ...overrides,
   });
 
   const handleTest = async () => {
     setBusy(true);
     setTestResult(null);
     const c = collect();
-    if (!c.jwt) {
-      setTestResult({ ok: false, text: 'Paste a JWT first.' });
-      setBusy(false);
-      return;
-    }
     try {
-      const res = await axios.post(
-        `${c.baseUrl}/users/client`,
-        null,
-        { headers: { 'x-custom-token': c.jwt } }
-      );
-      const u = res.data?.user;
-      if (!u || !res.data?.token) {
-        setTestResult({ ok: false, text: 'Response missing user/token.' });
+      if (c.mode === 'jwt') {
+        if (!c.jwt) {
+          setTestResult({ ok: false, text: 'Paste a JWT first.' });
+          return;
+        }
+        const res = await axios.post(`${c.baseUrl}/users/client`, null, {
+          headers: { 'x-custom-token': c.jwt },
+        });
+        const u = res.data?.user;
+        if (!u || !res.data?.token) {
+          setTestResult({ ok: false, text: 'Response missing user/token.' });
+        } else {
+          setTestResult({
+            ok: true,
+            text: `JWT OK\nuser: ${u.firstName || u.email || u._id}\nxmppUsername: ${u.xmppUsername}`,
+          });
+        }
       } else {
+        // email mode
+        if (!c.appToken) {
+          setTestResult({ ok: false, text: 'App token required.' });
+          return;
+        }
+        if (!c.email || !c.password) {
+          setTestResult({ ok: false, text: 'Email and password required.' });
+          return;
+        }
+        const res = await axios.post(
+          `${c.baseUrl}/users/login-with-email`,
+          { email: c.email, password: c.password },
+          { headers: { Authorization: c.appToken } }
+        );
+        const data = res.data || {};
+        const user: AppUser = {
+          ...(data.user || {}),
+          token: data.token,
+          refreshToken: data.refreshToken,
+        };
+        if (!user.token || !user.xmppUsername || !user.xmppPassword) {
+          setTestResult({
+            ok: false,
+            text: 'Email login returned incomplete user (missing token/xmppUsername/xmppPassword).',
+          });
+          setResolvedUser(null);
+          return;
+        }
+        setResolvedUser(user);
         setTestResult({
           ok: true,
-          text: `OK: ${u.firstName || u.email || u._id}\nxmppUsername=${u.xmppUsername}`,
+          text: `Email OK\nuser: ${user.firstName || user.email || user._id}\nxmppUsername: ${user.xmppUsername}`,
         });
       }
     } catch (err: any) {
       const msg =
-        err?.response?.data?.message ||
-        err?.message ||
-        'Unknown error';
+        err?.response?.data?.message || err?.message || 'Unknown error';
       setTestResult({ ok: false, text: `Failed: ${msg}` });
     } finally {
       setBusy(false);
@@ -179,9 +257,26 @@ const SetupTab: React.FC<{
 
   const handleSave = () => {
     const c = collect();
-    if (!c.jwt) {
-      setTestResult({ ok: false, text: 'JWT required.' });
-      return;
+    if (c.mode === 'jwt') {
+      if (!c.jwt) {
+        setTestResult({ ok: false, text: 'JWT required.' });
+        return;
+      }
+    } else {
+      if (!c.appToken || !c.email || !c.password) {
+        setTestResult({
+          ok: false,
+          text: 'App token, email, and password required.',
+        });
+        return;
+      }
+      if (!c.resolvedUser) {
+        setTestResult({
+          ok: false,
+          text: 'Hit "Test connection" first to resolve the user.',
+        });
+        return;
+      }
     }
     onSave(c);
   };
@@ -197,23 +292,99 @@ const SetupTab: React.FC<{
       >
         <Text style={styles.h2}>Chat credentials</Text>
         <Text style={styles.helpText}>
-          The local chat component (`ReduxWrapper`) will POST your JWT to
-          `/users/client` (jwtLogin flow) and use the returned creds to
-          connect to XMPP. Save and switch to the Chat tab to start.
+          Choose JWT (client-token via `/users/client`) or Email (login via
+          `/users/login-with-email` with an app token in `Authorization`).
+          Save and switch to the Chat tab to start.
         </Text>
 
-        <Field label="JWT" multiline>
-          <TextInput
-            value={jwt}
-            onChangeText={setJwt}
-            placeholder="eyJhbGciOi..."
-            multiline
-            numberOfLines={6}
-            autoCapitalize="none"
-            autoCorrect={false}
-            style={styles.inputMulti}
-          />
-        </Field>
+        {/* Mode toggle */}
+        <View style={styles.modeRow}>
+          {(['jwt', 'email'] as const).map((m) => (
+            <Pressable
+              key={m}
+              testID={`mode-${m}`}
+              onPress={() => {
+                setMode(m);
+                setTestResult(null);
+              }}
+              style={[
+                styles.modeBtn,
+                mode === m && styles.modeBtnActive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.modeBtnText,
+                  mode === m && styles.modeBtnTextActive,
+                ]}
+              >
+                {m === 'jwt' ? 'JWT' : 'Email'}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {mode === 'jwt' ? (
+          <Field label="JWT (client token)" multiline>
+            <TextInput
+              testID="input-jwt"
+              value={jwt}
+              onChangeText={setJwt}
+              placeholder="eyJhbGciOi..."
+              multiline
+              numberOfLines={6}
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={styles.inputMulti}
+            />
+          </Field>
+        ) : (
+          <>
+            <Field label="App token (Authorization header)" multiline>
+              <TextInput
+                testID="input-app-token"
+                value={appToken}
+                onChangeText={setAppToken}
+                placeholder="eyJhbGciOi... (paste your app's JWT)"
+                multiline
+                numberOfLines={5}
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={styles.inputMulti}
+              />
+            </Field>
+            <Field label="Email">
+              <TextInput
+                testID="input-email"
+                value={email}
+                onChangeText={setEmail}
+                placeholder="user@example.com"
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="email-address"
+                style={styles.input}
+              />
+            </Field>
+            <Field label="Password">
+              <TextInput
+                testID="input-password"
+                value={password}
+                onChangeText={setPassword}
+                placeholder="••••••••"
+                autoCapitalize="none"
+                autoCorrect={false}
+                secureTextEntry
+                style={styles.input}
+              />
+            </Field>
+            {resolvedUser ? (
+              <Text style={styles.resolvedHint}>
+                Resolved user: {resolvedUser.firstName || resolvedUser.email}{' '}
+                ({resolvedUser.xmppUsername})
+              </Text>
+            ) : null}
+          </>
+        )}
 
         <Field label="Base URL">
           <TextInput
@@ -241,7 +412,7 @@ const SetupTab: React.FC<{
           <TextInput
             value={xmppDevServer}
             onChangeText={setXmppDevServer}
-            placeholder="xmpp.chat.ethora.com"
+            placeholder="xmpp.chat.ethora.com:5443"
             autoCapitalize="none"
             autoCorrect={false}
             style={styles.input}
@@ -319,8 +490,8 @@ const Field: React.FC<{
 // ---------------------------------------------------------------------
 const ChatPane: React.FC<{ creds: Creds | null }> = ({ creds }) => {
   const config = useMemo<IConfig | null>(() => {
-    if (!creds || !creds.jwt) return null;
-    return {
+    if (!creds) return null;
+    const base = {
       baseUrl: creds.baseUrl,
       xmppSettings: {
         devServer: creds.xmppDevServer,
@@ -330,8 +501,30 @@ const ChatPane: React.FC<{ creds: Creds | null }> = ({ creds }) => {
       colors: { primary: PRIMARY, secondary: SECONDARY },
       refreshTokens: { enabled: true },
       initBeforeLoad: true,
-      jwtLogin: { enabled: true, token: creds.jwt },
     } as IConfig;
+
+    if (creds.mode === 'jwt') {
+      if (!creds.jwt) return null;
+      return {
+        ...base,
+        jwtLogin: { enabled: true, token: creds.jwt },
+      } as IConfig;
+    }
+    // email mode — user already resolved by Setup's "Test connection".
+    if (!creds.resolvedUser || !creds.appToken) return null;
+    return {
+      ...base,
+      customAppToken: creds.appToken,
+      userLogin: { enabled: true, user: creds.resolvedUser as any },
+    } as IConfig;
+  }, [creds]);
+
+  // Stable cache key so the chat re-mounts only when meaningful auth
+  // identity changes (not on every keystroke during setup).
+  const keyId = useMemo(() => {
+    if (!creds) return 'no-creds';
+    if (creds.mode === 'jwt') return `jwt:${creds.jwt.slice(0, 24)}`;
+    return `email:${creds.resolvedUser?._id || creds.email}`;
   }, [creds]);
 
   if (!config) {
@@ -347,11 +540,11 @@ const ChatPane: React.FC<{ creds: Creds | null }> = ({ creds }) => {
   return (
     <View style={{ flex: 1 }}>
       {/*
-        `key` on the chat ensures a hard remount when the user saves
-        different creds. Without it, an already-online XMPP client
-        would keep the old JWT.
+        `key` on the chat forces a hard remount when the user picks a
+        different account. Without it the in-flight XMPP client would
+        carry over with the old session.
       */}
-      <Chat key={creds!.jwt} config={config} />
+      <Chat key={keyId} config={config} />
     </View>
   );
 };
@@ -637,6 +830,31 @@ const styles = StyleSheet.create({
   setupBody: { padding: 16, paddingBottom: 48 },
   h2: { fontSize: 18, fontWeight: '600', marginBottom: 6 },
   helpText: { fontSize: 12, color: MUTED, lineHeight: 18, marginBottom: 16 },
+  modeRow: {
+    flexDirection: 'row',
+    backgroundColor: '#F4F4F5',
+    borderRadius: 8,
+    padding: 4,
+    marginBottom: 16,
+  },
+  modeBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: 6,
+  },
+  modeBtnActive: { backgroundColor: 'white', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 2, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
+  modeBtnText: { color: MUTED, fontWeight: '500' },
+  modeBtnTextActive: { color: PRIMARY, fontWeight: '700' },
+  resolvedHint: {
+    fontSize: 12,
+    color: '#166534',
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    marginBottom: 12,
+  },
   fieldLabel: {
     fontSize: 12,
     fontWeight: '600',

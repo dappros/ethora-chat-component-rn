@@ -51,6 +51,16 @@ jest.mock('../src/components/MainComponents/ReduxWrapper', () => {
         Text,
         { testID: 'redux-wrapper-baseurl' },
         props?.config?.baseUrl ?? ''
+      ),
+      React.createElement(
+        Text,
+        { testID: 'redux-wrapper-app-token' },
+        props?.config?.customAppToken ?? ''
+      ),
+      React.createElement(
+        Text,
+        { testID: 'redux-wrapper-user' },
+        props?.config?.userLogin?.user?.xmppUsername ?? ''
       )
     );
   return { __esModule: true, ReduxWrapper };
@@ -164,10 +174,15 @@ test('persisted creds skip the Setup tab and land directly on Chat', async () =>
   await AsyncStorage.setItem(
     '@apploginchatsrn/creds',
     JSON.stringify({
+      mode: 'jwt',
       jwt: JWT,
+      appToken: '',
+      email: '',
+      password: '',
+      resolvedUser: null,
       baseUrl: 'https://api.chat.ethora.com/v1',
       xmppHost: 'xmpp.chat.ethora.com',
-      xmppDevServer: 'xmpp.chat.ethora.com',
+      xmppDevServer: 'xmpp.chat.ethora.com:5443',
     })
   );
 
@@ -182,6 +197,96 @@ test('persisted creds skip the Setup tab and land directly on Chat', async () =>
   });
   expect(jwtLabels.length).toBeGreaterThan(0);
   expect(jwtLabels[0].props.children).toBe(JWT);
+
+  tree.unmount();
+});
+
+test('Email mode: Test connection hits /users/login-with-email, then Save → Chat', async () => {
+  const APP_TOKEN = 'app-jwt-token';
+  const EMAIL = 'user@example.com';
+  const PASSWORD = 'secret123';
+
+  // Server response shape mirrors what AuthForms expect.
+  (axios as any).post.mockResolvedValue({
+    data: {
+      token: 'srv-token',
+      refreshToken: 'srv-refresh',
+      user: {
+        _id: 'u-email',
+        firstName: 'Bob',
+        email: EMAIL,
+        xmppUsername: '0xbob',
+        xmppPassword: 'bxpw',
+      },
+    },
+  });
+
+  let tree: any;
+  await act(async () => {
+    tree = renderer.create(<AppLoginChatsRn />);
+    await flush();
+  });
+
+  // Switch mode to Email.
+  const emailModeBtn = tree.root.findByProps({ testID: 'mode-email' });
+  await act(async () => {
+    emailModeBtn.props.onPress();
+  });
+
+  const appTokenInput = tree.root.findByProps({ testID: 'input-app-token' });
+  const emailInput = tree.root.findByProps({ testID: 'input-email' });
+  const passwordInput = tree.root.findByProps({ testID: 'input-password' });
+  await act(async () => {
+    appTokenInput.props.onChangeText(APP_TOKEN);
+    emailInput.props.onChangeText(EMAIL);
+    passwordInput.props.onChangeText(PASSWORD);
+  });
+
+  // Test connection.
+  const testBtn = tree.root.findByProps({ testID: 'setup-test' });
+  await act(async () => {
+    testBtn.props.onPress();
+    await flush();
+  });
+  expect((axios as any).post).toHaveBeenCalledWith(
+    expect.stringContaining('/users/login-with-email'),
+    { email: EMAIL, password: PASSWORD },
+    expect.objectContaining({
+      headers: expect.objectContaining({ Authorization: APP_TOKEN }),
+    })
+  );
+
+  // Save.
+  const saveBtn = tree.root.findByProps({ testID: 'setup-save' });
+  await act(async () => {
+    saveBtn.props.onPress();
+    await flush();
+  });
+
+  const stored = await AsyncStorage.getItem('@apploginchatsrn/creds');
+  expect(stored).toBeTruthy();
+  const parsed = JSON.parse(stored!);
+  expect(parsed.mode).toBe('email');
+  expect(parsed.appToken).toBe(APP_TOKEN);
+  expect(parsed.resolvedUser?.xmppUsername).toBe('0xbob');
+
+  // The Chat tab is now active; the ReduxWrapper stub does NOT carry a
+  // jwtLogin in email mode — instead `customAppToken` + `userLogin.user`
+  // are set.
+  const jwtLabels = tree.root.findAllByProps({
+    testID: 'redux-wrapper-jwt',
+  });
+  expect(jwtLabels[0].props.children).toBe('');
+
+  const appTokenLabels = tree.root.findAllByProps({
+    testID: 'redux-wrapper-app-token',
+  });
+  expect(appTokenLabels[0].props.children).toBe(APP_TOKEN);
+
+  const userLabels = tree.root.findAllByProps({
+    testID: 'redux-wrapper-user',
+  });
+  expect(userLabels[0].props.children).toBe('0xbob');
 
   tree.unmount();
 });

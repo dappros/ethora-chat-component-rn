@@ -3,6 +3,7 @@ import { store } from '../roomStore';
 
 import { logout, refreshTokens } from '../roomStore/chatSettingsSlice';
 import { appToken as defaultAppToken } from '../../api.config';
+import { installAxiosCapture } from '../utils/devLogger';
 
 const DEFAULT_BASE_URL = 'https://api.chat.ethora.com/v1';
 
@@ -13,13 +14,9 @@ const http = axios.create({
   baseURL: currentBaseURL,
 });
 
-// Dev-logger hook: capture every request + response. Same-module so
-// it's wired before any consumer of `http`. Safe to install once.
-try {
-  require('../utils/devLogger').installAxiosCapture(http);
-} catch {
-  /* dev-only — never block prod */
-}
+// Dev-logger hook: capture every request + response on the shared
+// `http` instance.
+installAxiosCapture(http);
 
 export function setBaseURL(baseUrl?: string, appToken?: string) {
   if (baseUrl && baseUrl !== currentBaseURL) {
