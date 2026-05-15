@@ -1,7 +1,16 @@
 import { store } from '../../roomStore';
+import { addRoom } from '../../roomStore/roomsSlice';
+import { IRoom } from '../../types/types';
 import http from '../apiClient';
 
+interface ApiRoomMember {
+  _id: string;
+  firstName?: string;
+  lastName?: string;
+}
+
 interface ApiRoom {
+  _id?: string;
   name: string;
   title?: string;
   jid?: string;
@@ -9,6 +18,52 @@ interface ApiRoom {
   participants?: number;
   type?: string;
   icon?: string;
+  picture?: string;
+  members?: ApiRoomMember[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/**
+ * Materialize a REST `/chats/my` item into an `IRoom` + dispatch
+ * `addRoom`. Without this, REST-fetched rooms never make it into
+ * `state.rooms.rooms` and `ChatRoom` falls back to the "no rooms,
+ * create one!" empty state even when the user has rooms server-side.
+ *
+ * The room jid is derived from the conference host. We try several
+ * places:
+ *   1. explicit `room.jid` from the server (if present)
+ *   2. `<name>@conference.<xmppHost>` where xmppHost comes from the
+ *      provider's `xmppSettings.host` saved to `chatSettingStore.config`
+ *   3. fallback: `<name>@conference.xmpp.chat.ethora.com`
+ */
+function dispatchRoomsFromRestItems(items: ApiRoom[]): void {
+  if (!items?.length) return;
+  const config = store.getState().chatSettingStore?.config as any;
+  const host: string =
+    config?.xmppSettings?.host ||
+    config?.xmppSettings?.conference?.replace(/^conference\./, '') ||
+    'xmpp.chat.ethora.com';
+  const conference =
+    config?.xmppSettings?.conference || `conference.${host}`;
+
+  for (const item of items) {
+    if (!item) continue;
+    const jid = item.jid || `${item.name}@${conference}`;
+    if (!jid.includes('@')) continue;
+    const room: IRoom = {
+      id: item._id || jid,
+      jid,
+      name: item.name,
+      title: item.title || item.name,
+      usersCnt: item.members?.length ?? 0,
+      messages: [],
+      isLoading: false,
+      roomBg: '',
+      icon: item.picture || item.icon,
+    };
+    store.dispatch(addRoom({ roomData: room }));
+  }
 }
 
 const GET_ROOMS_CACHE_MS = 60_000;
@@ -47,6 +102,7 @@ export async function getRooms(): Promise<{ items: ApiRoom[] }> {
     lastGetRoomsResponse = response.data;
     lastGetRoomsResponseAt = Date.now();
     lastGetRoomsResponseToken = token;
+    dispatchRoomsFromRestItems(response.data?.items || []);
     return response.data;
   })();
 

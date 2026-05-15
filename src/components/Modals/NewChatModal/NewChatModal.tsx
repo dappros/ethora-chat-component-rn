@@ -34,7 +34,13 @@ interface NewChatModalProps {
   handleCloseModal?: any;
 }
 
-const NewChatModal: React.FC<NewChatModalProps> = ({ handleCloseModal: handleClose }) => {
+const NewChatModal: React.FC<NewChatModalProps> = ({
+  // Some call sites mount `<NewChatModal />` with no props (e.g. the
+  // empty-state in ChatRoom when roomsList is empty). Default to a noop
+  // so the Close/Cancel buttons don't throw "handleClose is not a
+  // function".
+  handleCloseModal: handleClose = () => {},
+}) => {
  const config = useAppSelector(
     (state: RootState) => state.chatSettingStore.config
   );
