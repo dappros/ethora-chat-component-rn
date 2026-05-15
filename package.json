@@ -2,6 +2,27 @@
   "name": "@ethora/chat-component",
   "version": "1.0.0",
   "main": "index.js",
+  "react-native": "src/main.ts",
+  "source": "src/main.ts",
+  "types": "src/main.ts",
+  "files": [
+    "src",
+    "metro.js",
+    "empty-shim.js",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-native": ">=0.73.0",
+    "react-native-async-storage": "*",
+    "react-native-reanimated": ">=3.0.0",
+    "react-native-svg": ">=14.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react-native-async-storage": { "optional": true },
+    "react-native-reanimated": { "optional": false },
+    "react-native-svg": { "optional": false }
+  },
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
