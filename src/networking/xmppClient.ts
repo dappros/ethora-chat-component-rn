@@ -228,6 +228,24 @@ export class XmppClient {
         password: this.password,
       });
 
+      // Wrap `send` so the dev logger sees outgoing stanzas too.
+      const origSend = this.client.send?.bind(this.client);
+      if (origSend) {
+        this.client.send = (stanza: any) => {
+          try {
+            const tag = stanza?.name || 'stanza';
+            const id = stanza?.attrs?.id || '';
+            const to = stanza?.attrs?.to || '';
+            require('../utils/devLogger').pushLog(
+              'xmpp',
+              `→ ${tag}${id ? ` id=${id}` : ''}${to ? ` to=${to.split('/')[0]}` : ''}`,
+              stanza?.toString ? stanza.toString() : undefined
+            );
+          } catch {}
+          return origSend(stanza);
+        };
+      }
+
       this.attachEventListeners();
       this.client.start().catch((error) => {
         console.error('Error starting xmpp client:', error);
@@ -243,19 +261,49 @@ export class XmppClient {
     this.client.on('disconnect', () => {
       console.log('XMPP disconnected.');
       this.status = 'offline';
+      try {
+        // lazy-require to avoid pulling devLogger into prod bundles
+        // that don't reference it; tree-shaken via dead-code elim.
+        require('../utils/devLogger').pushLog('xmpp', 'disconnect');
+      } catch {}
     });
 
     this.client.on('online', () => {
       console.log('XMPP online.', new Date());
       this.status = 'online';
       this.reconnectAttempts = 0;
+      try {
+        require('../utils/devLogger').pushLog(
+          'xmpp',
+          'online',
+          this.username
+        );
+      } catch {}
     });
 
     this.client.on('error', (error) => {
       console.error('XMPP client error:', error);
+      try {
+        require('../utils/devLogger').pushLog(
+          'xmpp',
+          'error',
+          (error && error.message) || error
+        );
+      } catch {}
     });
 
-    this.client.on('stanza', (stanza) => {
+    this.client.on('stanza', (stanza: any) => {
+      try {
+        const tag = stanza?.name || 'stanza';
+        const id = stanza?.attrs?.id || '';
+        const from = stanza?.attrs?.from || '';
+        const type = stanza?.attrs?.type || '';
+        require('../utils/devLogger').pushLog(
+          'xmpp',
+          `← ${tag}${id ? ` id=${id}` : ''}${type ? ` type=${type}` : ''}${from ? ` from=${from.split('/')[0]}` : ''}`,
+          stanza?.toString ? stanza.toString() : undefined
+        );
+      } catch {}
       handleStanza.bind(this, stanza, this)();
     });
   }

@@ -13,6 +13,14 @@ const http = axios.create({
   baseURL: currentBaseURL,
 });
 
+// Dev-logger hook: capture every request + response. Same-module so
+// it's wired before any consumer of `http`. Safe to install once.
+try {
+  require('../utils/devLogger').installAxiosCapture(http);
+} catch {
+  /* dev-only — never block prod */
+}
+
 export function setBaseURL(baseUrl?: string, appToken?: string) {
   if (baseUrl && baseUrl !== currentBaseURL) {
     currentBaseURL = baseUrl;
