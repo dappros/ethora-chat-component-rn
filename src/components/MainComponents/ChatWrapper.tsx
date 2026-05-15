@@ -290,6 +290,20 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
                 />
               </ChatWrapperBox>
             )}
+            {/*
+              Mount the active-modal renderer so ChatHeader's onPress
+              (dispatch setActiveModal(CHAT_PROFILE)) actually surfaces
+              a modal. Without this, tapping the header was a no-op:
+              redux state flipped but nothing was listening. Web's
+              ChatWrapper mounts the same component (web ChatWrapper
+              lines 331-336).
+            */}
+            <Modal
+              modal={activeModal}
+              setOpenModal={(value?: ModalType) =>
+                dispatch(setActiveModal(value))
+              }
+            />
           </ChatWrapperBox>
         ) : (
           <StyledLoaderWrapper>

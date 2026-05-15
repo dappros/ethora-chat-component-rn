@@ -296,7 +296,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
       />
       <CenterContainer>
         <ProfileImagePlaceholder
-          name={activeRoom.name}
+          name={activeRoom.title || activeRoom.name}
           icon={activeRoom.icon}
           upload={{
             onUpload,
@@ -307,7 +307,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
           size={128}
         />
         <UserInfo>
-          <UserName>{activeRoom.name}</UserName>
+          <UserName>{activeRoom.title || activeRoom.name}</UserName>
           <UserStatus>
             {activeRoom.usersCnt}{' '}
             {activeRoom.usersCnt > 1 ? 'members' : 'member'}
