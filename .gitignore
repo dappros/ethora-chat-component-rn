@@ -74,3 +74,14 @@ yarn-error.log
 !.yarn/versions
 
 .claude/
+
+# Expo
+.expo/
+expo-env.d.ts
+dist/
+.expo-shared/
+
+# Expo prebuild now owns ios/ and android/; the source of truth is
+# app.json + config plugins. Don't commit the generated native dirs.
+/ios/
+/android/

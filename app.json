@@ -1,4 +1,30 @@
 {
-  "name": "ethoraChatComponentRN",
-  "displayName": "ethoraChatComponentRN"
+  "expo": {
+    "name": "ethoraChatComponentRN",
+    "slug": "ethora-chat-component-rn",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "bundleIdentifier": "com.ethora.chatcomponentrn",
+      "supportsTablet": false
+    },
+    "android": {
+      "package": "com.ethora.chatcomponentrn"
+    },
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "15.1"
+          }
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": false
+    }
+  }
 }

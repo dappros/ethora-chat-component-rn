@@ -1,5 +1,5 @@
 module.exports = {
-  preset: 'react-native',
+  preset: 'jest-expo',
   testPathIgnorePatterns: [
     '/node_modules/',
     '/.claude/',
@@ -19,6 +19,10 @@ module.exports = {
       'react-native|' +
       '@react-native|' +
       '@react-native-async-storage|' +
+      'expo|' +
+      'expo-modules-core|' +
+      '@expo|' +
+      'expo-status-bar|' +
       '@xmpp|' +
       '@reduxjs/toolkit|' +
       'react-redux|' +

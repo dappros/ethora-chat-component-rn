@@ -1,9 +1,17 @@
+// Expo SDK 54 metro config. The previous bare-RN config used
+// `@react-native/metro-config`; with Expo we use `expo/metro-config`
+// which already wires up the bare flow + Hermes + asset resolution.
 const path = require('path');
-const {getDefaultConfig, mergeConfig} = require('@react-native/metro-config');
+const { getDefaultConfig } = require('expo/metro-config');
 
-// Optional native modules that the source tree imports statically but
-// the testbed never invokes. Without these shims metro fails to bundle.
-// Install the real packages if/when the UI that uses them goes live.
+const config = getDefaultConfig(__dirname);
+
+// Native modules that the chat source tree imports statically but the
+// testbed never actually invokes. Without these shims metro fails to
+// bundle because the packages aren't installed. Install the real
+// packages (or the Expo equivalents like expo-image-picker /
+// expo-document-picker / expo-clipboard) if/when the UI that uses
+// them goes live.
 const shim = path.resolve(__dirname, 'empty-shim.js');
 const NATIVE_SHIMS = {
   'react-native-image-crop-picker': shim,
@@ -18,9 +26,7 @@ const NATIVE_SHIMS = {
   '@react-native-camera-roll/camera-roll': shim,
   '@react-native-community/checkbox': shim,
   'react-native-qrcode-svg': shim,
-  // react-native-svg is now installed; don't shim it.
   'emoji-mart': shim,
-  // pure-JS optional deps the UI pulls in but the testbed doesn't use
   luxon: shim,
   'react-native-pdf': shim,
   'react-native-image-zoom-viewer': shim,
@@ -30,18 +36,15 @@ const NATIVE_SHIMS = {
   'react-native-share': shim,
 };
 
-const config = {
-  resolver: {
-    resolveRequest: (context, moduleName, platform) => {
-      if (Object.prototype.hasOwnProperty.call(NATIVE_SHIMS, moduleName)) {
-        return {
-          filePath: NATIVE_SHIMS[moduleName],
-          type: 'sourceFile',
-        };
-      }
-      return context.resolveRequest(context, moduleName, platform);
-    },
-  },
+const defaultResolveRequest = config.resolver.resolveRequest;
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (Object.prototype.hasOwnProperty.call(NATIVE_SHIMS, moduleName)) {
+    return { filePath: NATIVE_SHIMS[moduleName], type: 'sourceFile' };
+  }
+  if (defaultResolveRequest) {
+    return defaultResolveRequest(context, moduleName, platform);
+  }
+  return context.resolveRequest(context, moduleName, platform);
 };
 
-module.exports = mergeConfig(getDefaultConfig(__dirname), config);
+module.exports = config;
