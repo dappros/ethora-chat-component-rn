@@ -89,7 +89,10 @@ const RoomList: React.FC<RoomListProps> = ({
 
     if (!chatsMap.has(lowerCaseSearchTerm)) {
       const result = chats
-        .filter((chat) => chat.name.toLowerCase().includes(lowerCaseSearchTerm))
+        .filter((chat) => {
+          const hay = `${chat?.title || ''} ${chat?.name || ''}`.toLowerCase();
+          return hay.includes(lowerCaseSearchTerm);
+        })
         .sort((a, b) => {
           if (getLastMessage(a)?.id && getLastMessage(b)?.id) {
             return Number(getLastMessage(b).id) - Number(getLastMessage(a).id);

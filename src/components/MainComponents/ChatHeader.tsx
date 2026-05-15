@@ -103,7 +103,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
           >
             <View>
               <ProfileImagePlaceholder
-                name={currentRoom.name}
+                name={currentRoom?.title || currentRoom?.name}
                 size={40}
                 icon={currentRoom?.icon}
                 active={!config?.disableProfilesInteractions || true}
@@ -111,7 +111,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
             </View>
             <ChatContainerHeaderInfo>
               <ChatContainerHeaderLabel numberOfLines={1} ellipsizeMode="tail">
-                {currentRoom?.title}
+                {currentRoom?.title || currentRoom?.name}
               </ChatContainerHeaderLabel>
               <View>
                 {composing ? (

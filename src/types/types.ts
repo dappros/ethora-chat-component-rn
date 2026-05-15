@@ -57,6 +57,8 @@ export interface IRoom {
   unreadMessages?: number;
   noMessages?: boolean;
   role?: string;
+  createdAt?: string | number | Date;
+  updatedAt?: string | number | Date;
 
   roomMembers?: RoomMember[];
 

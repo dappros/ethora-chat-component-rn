@@ -26,6 +26,8 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
   isDriver,
   config,
 }) => {
+  const displayName = String(chat?.title || chat?.name || '').trim();
+
   const lastMessage = useMemo(() => {
     if (!chat?.messages || chat.messages.length === 0) {return undefined;}
 
@@ -38,16 +40,53 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
     return undefined;
   }, [chat?.messages]);
 
-  const formatTimeToHHMM = (isoTime: string | Date): string => {
-    const date = new Date(isoTime);
-    const hours = date.getHours().toString().padStart(2, '0');
-    const minutes = date.getMinutes().toString().padStart(2, '0');
-    return `${hours}:${minutes}` || '';
+  // Mirrors web's formatter: tolerates undefined/garbage inputs (returns
+  // undefined instead of "NaN:NaN"), and uses HH:MM today / MM/DD this
+  // year / YYYY/MM/DD older.
+  const formatTimeToHHMM = (
+    isoTime?: string | Date | number
+  ): string | undefined => {
+    if (isoTime == null) {return undefined;}
+    let date: Date;
+    try {
+      if (isoTime instanceof Date) {
+        date = isoTime;
+      } else if (typeof isoTime === 'number') {
+        date = new Date(isoTime);
+      } else if (typeof isoTime === 'string') {
+        const trimmed = isoTime.trim();
+        date = /^\d+$/.test(trimmed)
+          ? new Date(parseInt(trimmed, 10))
+          : new Date(trimmed);
+      } else {
+        return undefined;
+      }
+      if (isNaN(date.getTime())) {return undefined;}
+      const now = new Date();
+      if (date.getFullYear() !== now.getFullYear()) {
+        const year = date.getFullYear();
+        const month = (date.getMonth() + 1).toString().padStart(2, '0');
+        const day = date.getDate().toString().padStart(2, '0');
+        return `${year}/${month}/${day}`;
+      }
+      if (date.toDateString() === now.toDateString()) {
+        const hours = date.getHours().toString().padStart(2, '0');
+        const minutes = date.getMinutes().toString().padStart(2, '0');
+        return `${hours}:${minutes}`;
+      }
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const day = date.getDate().toString().padStart(2, '0');
+      return `${month}/${day}`;
+    } catch {
+      return undefined;
+    }
   };
+
+  const stamp = formatTimeToHHMM(lastMessage?.date ?? chat?.createdAt);
 
   return (
     <ChatItem key={index}>
-      <ProfileImagePlaceholder name={chat.name} icon={chat?.icon} active={false} />
+      <ProfileImagePlaceholder name={displayName} icon={chat?.icon} active={false} />
       <View
         style={{
           flexDirection: 'column',
@@ -67,15 +106,15 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
           }}
         >
           <ChatInfo>
-            <ChatName text={chat.name || ''} />
+            <ChatName text={displayName} />
           </ChatInfo>
-          {lastMessage ? (
+          {stamp ? (
             <UserCount
               style={{
                 color: '#8C8C8C',
                 fontSize: 12,
               }}
-              text={formatTimeToHHMM(lastMessage.date)}
+              text={stamp}
             />
           ) : null}
         </View>

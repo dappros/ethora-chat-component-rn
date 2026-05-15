@@ -61,6 +61,8 @@ function dispatchRoomsFromRestItems(items: ApiRoom[]): void {
       isLoading: false,
       roomBg: '',
       icon: item.picture || item.icon,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
     };
     store.dispatch(addRoom({ roomData: room }));
   }
