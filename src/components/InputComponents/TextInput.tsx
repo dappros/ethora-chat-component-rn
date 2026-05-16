@@ -49,7 +49,7 @@ const TextInput: React.FC<TextInputProps> = ({
         onSubmitEditing={handleSendClick}
         onFocus={onFocus}
         onBlur={onBlur}
-        editable={isLoading}
+        editable={!isLoading}
       />
       <Button
         onPress={handleSendClick}

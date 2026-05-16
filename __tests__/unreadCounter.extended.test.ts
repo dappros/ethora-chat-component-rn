@@ -24,7 +24,9 @@ import roomsReducer, {
   setLastViewedTimestamp,
   setRoomMessages,
 } from '../src/roomStore/roomsSlice';
-import chatSettingsReducer from '../src/roomStore/chatSettingsSlice';
+import chatSettingsReducer, {
+  setUser,
+} from '../src/roomStore/chatSettingsSlice';
 import { unreadMiddleware } from '../src/roomStore/Middleware/unreadMidlleware';
 import { configureStore } from '@reduxjs/toolkit';
 import type { IMessage, IRoom } from '../src/types/types';
@@ -262,39 +264,39 @@ describe('unread counter — middleware cross-room behavior', () => {
   });
 });
 
-// ---------- known RN divergence from Android/iOS Cluster E -----------
+// ---------- own-message exclusion (parity with Android/iOS Cluster E) -
 
-describe('unread counter — RN divergence from cross-platform contract', () => {
-  it('DIVERGENCE: counts own messages as unread (Android/iOS exclude)', () => {
-    // KNOWN GAP: The Android `RoomStore.updateUnreadCount` and iOS
+describe('unread counter — own-message exclusion (cross-platform parity)', () => {
+  it('does not count messages authored by the current user', () => {
+    // Android `RoomStore.updateUnreadCount` and iOS
     // `RoomStore.recomputeUnreadForRoom` both exclude messages
     // authored by the current user (cluster E in QA_SCENARIOS.md).
-    // RN's `unreadMiddleware` does NOT — it counts any message
-    // newer than `lastViewedTimestamp`, regardless of sender.
+    // RN's `unreadMiddleware` now matches: it filters out messages
+    // whose `user.id` / `user.userJID` / `user.xmppUsername` /
+    // `xmppFrom` resolve to the same local part as the current
+    // user's `xmppUsername` or `walletAddress` from
+    // `chatSettingStore.user`.
     //
-    // Field impact: after a re-login, the user's own historical
-    // messages (which arrive via MAM replay) get counted as
-    // unread until the user opens the room. The badge over-counts.
-    //
-    // When this is fixed, flip the expectation below from 2 to 0.
-    // The fix would be: in `unreadMiddleware`, filter out messages
-    // where `msg.user.id` matches the current user. See the
-    // Android implementation at `RoomStore.kt:415-417`.
+    // Field motivation: after a re-login, the user's own historical
+    // messages (which arrive via MAM replay) used to get counted as
+    // unread until the user opened the room. The badge over-counted.
     const store = makeStore();
     const baseTs = Date.parse('2026-05-15T10:00:00Z');
     const ownUserId = 'me@xmpp';
     store.dispatch(
+      setUser({
+        xmppUsername: 'me',
+        defaultWallet: { walletAddress: '0xself' },
+      } as any)
+    );
+    store.dispatch(
       addRoom({
-        roomData: makeRoom('a@h', {
-          lastViewedTimestamp: baseTs,
-        }),
+        roomData: makeRoom('a@h', { lastViewedTimestamp: baseTs }),
       })
     );
     store.dispatch(
       addRoom({
-        roomData: makeRoom('b@h', {
-          lastViewedTimestamp: baseTs,
-        }),
+        roomData: makeRoom('b@h', { lastViewedTimestamp: baseTs }),
       })
     );
     store.dispatch(setCurrentRoom({ roomJID: 'a@h' }));
@@ -319,9 +321,37 @@ describe('unread counter — RN divergence from cross-platform contract', () => 
       })
     );
 
-    // Today: both own messages get counted → 2.
-    // Desired (post-fix): 0.
-    expect(store.getState().rooms.rooms['b@h'].unreadMessages).toBe(2);
+    expect(store.getState().rooms.rooms['b@h'].unreadMessages).toBe(0);
+  });
+
+  it('still counts messages from a different user (own-filter is precise)', () => {
+    // Regression guard for the fix above — filtering must NOT be
+    // over-broad. A message from any other sender past the cutoff
+    // still bumps the badge.
+    const store = makeStore();
+    const baseTs = Date.parse('2026-05-15T10:00:00Z');
+    store.dispatch(setUser({ xmppUsername: 'me' } as any));
+    store.dispatch(
+      addRoom({
+        roomData: makeRoom('a@h', { lastViewedTimestamp: baseTs }),
+      })
+    );
+    store.dispatch(
+      addRoom({
+        roomData: makeRoom('b@h', { lastViewedTimestamp: baseTs }),
+      })
+    );
+    store.dispatch(setCurrentRoom({ roomJID: 'a@h' }));
+    store.dispatch(
+      addRoomMessage({
+        roomJID: 'b@h',
+        message: makeMsg('other-1', '2026-05-15T11:00:00Z', {
+          user: { id: 'someone-else', name: 'them', token: '', refreshToken: '' } as any,
+        }),
+        start: true,
+      })
+    );
+    expect(store.getState().rooms.rooms['b@h'].unreadMessages).toBe(1);
   });
 });
 

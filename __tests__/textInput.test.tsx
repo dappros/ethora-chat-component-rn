@@ -153,19 +153,16 @@ describe('<TextInput />', () => {
     expect(input.props.onKeyPress).toBeUndefined();
   });
 
-  it('passes the editable prop through (documents current `editable={isLoading}` wiring)', async () => {
-    // KNOWN QUIRK in TextInput.tsx:52:
-    //   editable={isLoading}
-    // Conventionally an input should be DISABLED when loading
-    // (i.e. `editable={!isLoading}`). The current code reads
-    // backwards. This test documents what's there today; if the
-    // direction is flipped in a fix, the assertion below will need
-    // to be inverted to reflect the new contract.
+  it('editable=!isLoading — input is enabled when idle, disabled while sending', async () => {
+    // The convention `editable={!isLoading}` lands here. While a
+    // send is in flight (isLoading=true), the input is locked so
+    // the user can't keep typing into a half-finished send buffer
+    // and lose work to a race. When idle, typing is free.
     const idleRendered = await renderTextInput({ isLoading: false });
-    expect(findMessageInput(idleRendered.tree.root).props.editable).toBe(false);
+    expect(findMessageInput(idleRendered.tree.root).props.editable).toBe(true);
 
     const loadingRendered = await renderTextInput({ isLoading: true });
-    expect(findMessageInput(loadingRendered.tree.root).props.editable).toBe(true);
+    expect(findMessageInput(loadingRendered.tree.root).props.editable).toBe(false);
   });
 
   it('respects an explicit config.colors.primary by passing it through to MessageInput', async () => {

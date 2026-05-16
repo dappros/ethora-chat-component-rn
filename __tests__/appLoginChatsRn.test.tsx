@@ -13,42 +13,12 @@
 
 // AsyncStorage mock is provided by jest.setup.js.
 
-// Stub devLogger to break the `installConsoleCapture()` → `pushLog`
-// → `useSyncExternalStore(subscribeLogs, getLogs)` re-render loop.
-// Background:
-//   AppLoginChatsRn.tsx:61-62 calls `installConsoleCapture()` at
-//   module-load time, which patches `console.log/info/warn/error` to
-//   route through `pushLog`. In a Jest test, React's development build
-//   emits `console.error` during act() for various legitimate reasons
-//   (deprecated APIs, propType validation, act-warning fallbacks).
-//   Each call routes to pushLog → schedules a notify microtask →
-//   listeners (any subscribeLogs subscriber) re-render → next render
-//   may log again → "Maximum update depth exceeded" → suite hangs
-//   forever, even with --testTimeout.
-// The mock returns stable references from `getLogs` / `subscribeLogs`
-// and stubs `installConsoleCapture` / `installAxiosCapture` to no-op
-// so the capture wrappers are never installed in the first place.
-// Tests that need to assert on captured logs should re-mock with a
-// fresh accumulator.
-const __DEV_LOG_STABLE_EMPTY: ReadonlyArray<unknown> = [];
-jest.mock('../src/utils/devLogger', () => ({
-  __esModule: true,
-  installConsoleCapture: jest.fn(),
-  installAxiosCapture: jest.fn(),
-  subscribeLogs: () => () => {},
-  getLogs: () => __DEV_LOG_STABLE_EMPTY,
-  pushLog: jest.fn(),
-  clearLogs: jest.fn(),
-  ALL_KINDS: ['log', 'info', 'warn', 'error', 'http', 'rn'],
-  KIND_COLORS: {
-    log: { fg: '#000', bg: '#fff' },
-    info: { fg: '#000', bg: '#fff' },
-    warn: { fg: '#000', bg: '#fff' },
-    error: { fg: '#000', bg: '#fff' },
-    http: { fg: '#000', bg: '#fff' },
-    rn: { fg: '#000', bg: '#fff' },
-  },
-}));
+// `installConsoleCapture()` is now a no-op when NODE_ENV==='test'
+// (devLogger.ts), so the previous `console.* → pushLog → microtask
+// notify → useSyncExternalStore re-render` feedback loop that hung
+// this suite is broken at the source. No devLogger mock needed here.
+// If a test ever needs to assert on captured logs, mock it locally
+// inside that test with a fresh accumulator.
 
 jest.mock('axios', () => {
   const fn = jest.fn();
