@@ -79,7 +79,15 @@
     "node": ">=18"
   },
   "author": "Ethora",
-  "license": "AGPL-3.0-only",
+  "homepage": "https://playground.chat.ethora.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dappros/ethora-chat-component-rn.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dappros/ethora-chat-component-rn/issues"
+  },
+  "license": "MIT",
   "keywords": [
     "chat",
     "messaging",
