@@ -101,10 +101,16 @@ const flushAsync = async () => {
   }
 };
 
-beforeEach(() => {
+beforeEach(async () => {
   xmppClientInstances.length = 0;
   jest.clearAllMocks();
   store.dispatch(logout());
+  // logoutMiddleware queues a setTimeout(0) that emits
+  // 'ethora-xmpp-logout' for the XmppProvider listener. Flush it
+  // BEFORE the test mounts the provider — otherwise the deferred
+  // emit fires after the provider mounts and resets the status from
+  // 'ready' back to 'idle', failing the bootstrap assertion.
+  await new Promise((r) => setTimeout(r, 5));
 });
 
 const Probe: React.FC = () => {
