@@ -114,19 +114,75 @@ Sign up at [app.chat.ethora.com/register](https://app.chat.ethora.com/register) 
 
 ## Local development
 
-This repo is bootstrapped with `@react-native-community/cli`. To run it as its own RN sample app rather than as a library:
+This repo doubles as an Expo testbed app: `App.tsx` mounts
+`AppLoginChatsRn`, a 3-tab (Setup / Chat / Logs) shell that drives the
+SDK end-to-end via either paste-a-JWT or email + app-token login. Run
+it against the canonical Ethora Cloud endpoints, your QA tenant, or a
+self-hosted Ethora instance — all configurable from the Setup tab at
+runtime.
+
+### Prerequisites
+
+- Node.js 18+
+- Xcode 15+ (iOS), Android Studio with a working AVD (Android)
+- Java JDK 17+ — Android Studio's bundled JBR works:
+  `export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"`
+- Android SDK with platform-tools on `$PATH`:
+  `export ANDROID_HOME="$HOME/Library/Android/sdk"`
+- **CocoaPods 1.13+** for iOS. macOS system Ruby (2.6) is too old for
+  the bundled Gemfile — install via Homebrew: `brew install cocoapods`
+
+### Build + run
 
 ```bash
 git clone https://github.com/dappros/ethora-chat-component-rn.git
 cd ethora-chat-component-rn
-yarn install
+npm install
+
+# iOS
 cd ios && pod install && cd ..
-yarn start            # Metro
-yarn ios              # in another terminal
-yarn android          # in another terminal
+npx expo run:ios --device "iPhone 16"
+
+# Android — write local.properties if expo prebuild didn't create it
+echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+npx expo run:android
 ```
 
-> Make sure you have completed the [React Native environment setup](https://reactnative.dev/docs/environment-setup) before proceeding.
+The first `expo run:*` will `expo prebuild` to generate `ios/` and
+`android/` from `app.json`. Both directories are gitignored — the
+source of truth is `app.json` + the config plugins it lists.
+
+### Known first-run gotchas
+
+- **iOS `pod install` fails on system Ruby**: the Gemfile resolves
+  to ffi >= 1.17, which needs Ruby 3.0+. Install CocoaPods via
+  `brew install cocoapods` (uses brew's bundled Ruby) and run
+  `pod install` directly — skip Bundler.
+- **`expo run:android` errors with "SDK location not found"**: write
+  `android/local.properties` with `sdk.dir=$ANDROID_HOME` (the
+  Expo prebuild flow doesn't currently generate this).
+- **`expo run:ios` crashes at the very end on osascript**: the CLI
+  tries to count Simulator processes via AppleScript and fails if
+  Terminal lacks Automation permission. The build succeeds and the
+  app is installed — grant permission via System Settings →
+  Privacy & Security → Automation, or just open the Simulator
+  manually before the build.
+- **First-bundle ANR on Android emulator**: the debug bundle is
+  ~1500 modules and the cold JS eval can briefly trip the watchdog
+  on a fresh AVD. Tap "Wait" — the Setup tab will render. Release
+  builds (Hermes precompiled) don't show this.
+
+### Tests
+
+```bash
+npm test                          # jest, ~2s for the full suite
+npm test -- --watch               # watch mode
+npm test -- some.test.ts          # single file
+```
+
+> Already have your RN environment set up? See the
+> [React Native environment setup](https://reactnative.dev/docs/environment-setup)
+> doc if any of the above feels unfamiliar.
 
 ## Related
 

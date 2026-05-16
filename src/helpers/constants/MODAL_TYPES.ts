@@ -1,14 +1,13 @@
-import ChatProfileModal from '../../components/Modals/ChatProfileModal/ChatProfileModal';
-import FilePreviewModal from '../../components/Modals/FilePreviewModal/FilePreviewModal';
-import NewChatModal from '../../components/Modals/NewChatModal/NewChatModal';
-import BlockedUsersModal from '../../components/Modals/SettingsModals/BlockedUsers/BlockedUsersModal';
-import DocumentSharesModal from '../../components/Modals/SettingsModals/DocumentShares/DocumentSharesModal';
-import ManageDataModal from '../../components/Modals/SettingsModals/ManageDataModal/ManageDataModal';
-import ProfileSharesModal from '../../components/Modals/SettingsModals/ProfileShares/ProfileShares';
-import ReferralsModal from '../../components/Modals/SettingsModals/Referrals/Referrals';
-import VisibilityModal from '../../components/Modals/SettingsModals/Visibility/VisibilityModal';
-import UserProfileModal from '../../components/Modals/UserProfileModal/UserProfileModal';
-import UserSettingsModal from '../../components/Modals/UserSettingsModal/UserSettingsModal';
+// Modal type-id constants only — no React imports.
+//
+// Previously this file also held the `MODAL_COMPONENTS` registry,
+// which imported every modal component. Several of those components
+// (ChatProfileModal, UserSettingsModal) reference MODAL_TYPES.* to
+// dispatch sub-modals — creating a runtime require cycle that Metro
+// surfaced as "Require cycle: MODAL_TYPES.ts -> ChatProfileModal.tsx
+// -> MODAL_TYPES.ts" on app boot. Splitting the registry out into
+// its own module (MODAL_COMPONENTS.tsx) means the modal components
+// only depend on these constants, dissolving the cycle.
 
 export const MODAL_TYPES = {
   SETTINGS: 'settings',
@@ -26,32 +25,4 @@ export const MODAL_TYPES = {
   FILE_PREVIEW: 'file_preview',
 
   NEW_CHAT: 'new_chat',
-
-  // SETTINGS: 'Settings',
-  // PROFILE: 'Profile',
-  // CHAT_PROFILE: 'Chat Profile',
-
-  // MANAGE_DATA: 'Manage Data',
-  // VISIBILITY: 'Visiblility',
-  // PROFILE_SHARES: 'Profile Shares',
-  // DOCUMENT_SHARES: 'Document Shares',
-  // BLOCKED_USERS: 'Blocked Users',
-  // REFERRALS: 'Referrals',
-};
-
-export const MODAL_COMPONENTS: Record<
-  string,
-  React.FC<{ handleCloseModal: () => void }>
-> = {
-  [MODAL_TYPES.SETTINGS]: UserSettingsModal,
-  [MODAL_TYPES.NEW_CHAT]: NewChatModal,
-  [MODAL_TYPES.PROFILE]: UserProfileModal,
-  [MODAL_TYPES.CHAT_PROFILE]: ChatProfileModal,
-  [MODAL_TYPES.MANAGE_DATA]: ManageDataModal,
-  [MODAL_TYPES.VISIBILITY]: VisibilityModal,
-  [MODAL_TYPES.REFERRALS]: ReferralsModal,
-  [MODAL_TYPES.DOCUMENT_SHARES]: DocumentSharesModal,
-  [MODAL_TYPES.PROFILE_SHARES]: ProfileSharesModal,
-  [MODAL_TYPES.BLOCKED_USERS]: BlockedUsersModal,
-  [MODAL_TYPES.FILE_PREVIEW]: FilePreviewModal,
 };
