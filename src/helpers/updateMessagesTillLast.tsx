@@ -1,12 +1,16 @@
 import XmppClient from '../networking/xmppClient';
 import { store } from '../roomStore';
-import {
-  getLastMessageTimestamp,
-  insertUsers,
-  setRoomMessages,
-} from '../roomStore/roomsSlice';
+import { setRoomMessages } from '../roomStore/roomsSlice';
 import { IMessage, IRoom } from '../types/types';
 import { checkUniqueUsers } from './checkUniqueUsers';
+
+// BUGFIX: previously this module imported `getLastMessageTimestamp`
+// + `insertUsers` from roomsSlice — neither exists in the slice, so
+// any caller (useChatWrapperInit) crashed at runtime with
+// "getLastMessageTimestamp is not a function" the first time the
+// reducer was hit. Replaced the lookup with an inline read of
+// `room.lastMessageTimestamp`; the dead `insertUsers` dispatch was
+// dropped (no action exists to receive it).
 
 export const updateMessagesTillLast = async (
   rooms: {
@@ -28,14 +32,12 @@ export const updateMessagesTillLast = async (
       );
 
       const lastTimestampsByJid = currentBatch.reduce(
-        (acc, current: string) => {
-          acc[current] = getLastMessageTimestamp(
-            store.getState().rooms,
-            current
-          );
+        (acc: Record<string, number>, current: string) => {
+          const room = (store.getState() as any).rooms?.rooms?.[current];
+          acc[current] = Number(room?.lastMessageTimestamp ?? 0) || 0;
           return acc;
         },
-        {}
+        {} as Record<string, number>
       );
 
       await Promise.all(
@@ -75,12 +77,13 @@ export const updateMessagesTillLast = async (
               );
 
               if (!isMessageFound && !(counter <= maxFetchAttempts - 1)) {
-                const fixedUsers = await checkUniqueUsers(
-                  currentJidNewMessages
-                );
-                if (fixedUsers && fixedUsers.length > 0) {
-                  store.dispatch(insertUsers({ newUsers: fixedUsers }));
-                }
+                // Fire-and-forget — checkUniqueUsers resolves to an
+                // updated RoomMember list, but there's no slice
+                // action wired to receive it on RN yet (the web SDK
+                // has one; the port left a TODO). Keep the call so
+                // the API request goes out (it warms the cache for
+                // later renders) but stop short of dispatching.
+                await checkUniqueUsers(currentJidNewMessages);
 
                 store.dispatch(
                   setRoomMessages({
