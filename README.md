@@ -172,6 +172,27 @@ source of truth is `app.json` + the config plugins it lists.
   on a fresh AVD. Tap "Wait" — the Setup tab will render. Release
   builds (Hermes precompiled) don't show this.
 
+### `expo prebuild` and the `dependencies` guard
+
+`npm run prebuild|ios|android` each chain through to `expo prebuild`
+on first run, and `expo prebuild` likes to hoist `expo`, `react`,
+and `react-native` from `devDependencies` into `dependencies`.
+That's wrong for a published library — consumers of
+`@ethora/chat-component-rn` would install a duplicate copy of React
+and crash at runtime with the "two copies of React" reconciler
+error.
+
+To prevent the regression, those three npm scripts each invoke
+`scripts/fix-prebuild-deps.js` right after, which surgically strips
+the offending lines back out of `package.json` (preserving the rest
+of the file byte-for-byte). You can also run it manually:
+
+```bash
+npm run fix-prebuild-deps
+```
+
+It's idempotent — runs are silent when there's nothing to fix.
+
 ### Tests
 
 ```bash
