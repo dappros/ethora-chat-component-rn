@@ -13,6 +13,43 @@
 
 // AsyncStorage mock is provided by jest.setup.js.
 
+// Stub devLogger to break the `installConsoleCapture()` → `pushLog`
+// → `useSyncExternalStore(subscribeLogs, getLogs)` re-render loop.
+// Background:
+//   AppLoginChatsRn.tsx:61-62 calls `installConsoleCapture()` at
+//   module-load time, which patches `console.log/info/warn/error` to
+//   route through `pushLog`. In a Jest test, React's development build
+//   emits `console.error` during act() for various legitimate reasons
+//   (deprecated APIs, propType validation, act-warning fallbacks).
+//   Each call routes to pushLog → schedules a notify microtask →
+//   listeners (any subscribeLogs subscriber) re-render → next render
+//   may log again → "Maximum update depth exceeded" → suite hangs
+//   forever, even with --testTimeout.
+// The mock returns stable references from `getLogs` / `subscribeLogs`
+// and stubs `installConsoleCapture` / `installAxiosCapture` to no-op
+// so the capture wrappers are never installed in the first place.
+// Tests that need to assert on captured logs should re-mock with a
+// fresh accumulator.
+const __DEV_LOG_STABLE_EMPTY: ReadonlyArray<unknown> = [];
+jest.mock('../src/utils/devLogger', () => ({
+  __esModule: true,
+  installConsoleCapture: jest.fn(),
+  installAxiosCapture: jest.fn(),
+  subscribeLogs: () => () => {},
+  getLogs: () => __DEV_LOG_STABLE_EMPTY,
+  pushLog: jest.fn(),
+  clearLogs: jest.fn(),
+  ALL_KINDS: ['log', 'info', 'warn', 'error', 'http', 'rn'],
+  KIND_COLORS: {
+    log: { fg: '#000', bg: '#fff' },
+    info: { fg: '#000', bg: '#fff' },
+    warn: { fg: '#000', bg: '#fff' },
+    error: { fg: '#000', bg: '#fff' },
+    http: { fg: '#000', bg: '#fff' },
+    rn: { fg: '#000', bg: '#fff' },
+  },
+}));
+
 jest.mock('axios', () => {
   const fn = jest.fn();
   // axios is used as both a function and as `axios.post/get`.
@@ -108,15 +145,17 @@ test('Setup → Test → Save → Chat tab mounts ReduxWrapper with the entered 
   });
 
   // Setup tab is active by default (no persisted creds).
-  const tabPressables = tree.root
-    .findAllByType(require('react-native').Pressable)
-    .filter((p: any) => {
-      const c = p.props.children;
-      // Tab button children = <Text>Setup</Text> / etc.
-      const text = c?.props?.children;
-      return typeof text === 'string' && ['Setup', 'Chat', 'Logs'].includes(text);
-    });
-  expect(tabPressables.length).toBe(3);
+  // Locate tab buttons by matching their visible Text label.
+  // (Earlier shape was <Pressable><Text>{label}</Text></Pressable>;
+  // the current shape adds a wrapper <View><Text/>{badge?}</View>
+  // inside each Pressable for the unread-count badge, so a single-
+  // hop children lookup no longer works.)
+  const Text = require('react-native').Text;
+  const tabLabels = tree.root.findAllByType(Text).filter((t: any) => {
+    const c = t.props.children;
+    return typeof c === 'string' && ['Setup', 'Chat', 'Logs'].includes(c);
+  });
+  expect(tabLabels.length).toBe(3);
 
   // Locate inputs: JWT is the first multiline; baseUrl is the 2nd.
   const inputs = tree.root.findAllByType(require('react-native').TextInput);
