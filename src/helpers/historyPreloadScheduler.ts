@@ -160,6 +160,19 @@ export const runHistoryPreloadScheduler = async (
 
     const batch = readyItems.slice(0, Math.max(1, concurrency));
 
+    // Snapshot each room's historyPreloadState BEFORE marking the
+    // batch as 'loading'. Without this snapshot the per-task
+    // `currentRoom.historyPreloadState === 'done'` skip check below
+    // is dead — the dispatch immediately overwrites 'done' with
+    // 'loading', so the task never sees the original value and
+    // always re-fetches.
+    const preBatchPreloadStateByJid = new Map<string, string | undefined>(
+      batch.map((item) => [
+        item.jid,
+        store.getState().rooms.rooms[item.jid]?.historyPreloadState,
+      ])
+    );
+
     store.dispatch(
       applyRoomsPreloadBatch({
         rooms: batch.map((item) => ({
@@ -176,9 +189,10 @@ export const runHistoryPreloadScheduler = async (
 
         const task = (async () => {
           const currentRoom = store.getState().rooms.rooms[item.jid];
+          const preState = preBatchPreloadStateByJid.get(item.jid);
           if (
             !currentRoom ||
-            (!forceReload && currentRoom.historyPreloadState === 'done')
+            (!forceReload && preState === 'done')
           ) {
             store.dispatch(
               applyRoomsPreloadBatch({
