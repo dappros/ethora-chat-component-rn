@@ -182,6 +182,11 @@ const RoomList: React.FC<RoomListProps> = ({
                 keyExtractor={(item) => item.jid}
                 renderItem={({ item }) => (
                   <Pressable
+                    // Stable testID so e2e drivers can target a room
+                    // row by its jid local-part (e.g. Main chat under
+                    // app id `..._...759` → testID `room-...759`).
+                    testID={`room-${(item.jid || '').split('@')[0]}`}
+                    accessibilityLabel={`room-${item.title || item.name}`}
                     onPress={() => performClick(item)}
                     onPressIn={handlePressIn}
                     onPressOut={handlePressOut}

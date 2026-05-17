@@ -201,6 +201,42 @@ npm test -- --watch               # watch mode
 npm test -- some.test.ts          # single file
 ```
 
+### E2E (Maestro)
+
+`e2e/auth-and-send.yaml` drives the full Setup → Email auth → Chat
+tab → enter room → send message → assert it appears flow against a
+real backend. Credentials come from any profile in
+`~/.ethora/profiles.json` (the file the `@ethora/setup` CLI writes
+to), so you don't have to hardcode anything.
+
+Prerequisites:
+
+```bash
+# Install Maestro
+curl -fsSL https://get.maestro.mobile.dev | bash
+export PATH="$PATH:$HOME/.maestro/bin"
+
+# JDK 17+ — Android Studio's bundled JBR works; the runner script
+# auto-detects it on macOS so you don't have to set JAVA_HOME.
+```
+
+Run against an already-built + installed app + a booted simulator:
+
+```bash
+# Default profile "mychatapp QA", room "Main chat"
+npm run e2e:ios
+npm run e2e:android
+
+# Or pass a different profile / room
+scripts/run-e2e.sh ios "Vitall Dev2" "General"
+```
+
+The flow targets stable `testID`s wired into the SDK
+(`chat-message-input`, `chat-send-button`, plus `room-<jid-local>`
+on each room row) — please keep those identifiers stable for
+downstream e2e drivers (Detox, Appium) that rely on the same
+contracts.
+
 > Already have your RN environment set up? See the
 > [React Native environment setup](https://reactnative.dev/docs/environment-setup)
 > doc if any of the above feels unfamiliar.

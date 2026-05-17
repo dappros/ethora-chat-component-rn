@@ -42,6 +42,11 @@ const TextInput: React.FC<TextInputProps> = ({
   return (
     <>
       <MessageInput
+        // Stable testIDs so Maestro / Detox / Appium can drive the
+        // chat-send flow reliably. accessibilityLabel mirrors the
+        // testID so iOS accessibility-id lookups also work.
+        testID="chat-message-input"
+        accessibilityLabel="chat-message-input"
         color={config?.colors?.primary}
         placeholder="Type message"
         value={message}
@@ -52,6 +57,8 @@ const TextInput: React.FC<TextInputProps> = ({
         editable={!isLoading}
       />
       <Button
+        testID="chat-send-button"
+        accessibilityLabel="chat-send-button"
         onPress={handleSendClick}
         EndIcon={<SendIcon color={!message ? '#D4D4D8' : '#fff'} />}
         style={{
