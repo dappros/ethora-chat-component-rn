@@ -112,6 +112,71 @@ Sign up at [app.chat.ethora.com/register](https://app.chat.ethora.com/register) 
 />
 ```
 
+## Quality & test coverage
+
+### Jest (unit + integration)
+
+```bash
+npm test          # ~2s, full suite
+```
+
+45 files, 486 tests cover the SDK's substantive surface:
+
+| Layer                          | Coverage |
+|--------------------------------|----------|
+| Redux slices (rooms, chatSettings, roomHeap) | reducers + slice contracts |
+| Middleware (unread, new-message, reactions, logout) | dispatch wiring + edge cases |
+| XMPP client                    | constructor, state machine, reconnect backoff, disconnect, QoS / coalesced MAM, delegating helpers |
+| XMPP stanza builders (~25 files) | exact wire shape via real `@xmpp/client` `xml()` |
+| REST API wrappers              | URL + body + headers + redux side effects, 60s cache, 401 refresh interceptor with queue-during-refresh |
+| Persistence                    | AsyncStorage rehydrate, debounced writes, key filtering, room cap |
+| Helpers                        | parseMessageBody (markdown render), markdownParser, insertMessageWithDelimiter, createMessageFromXml, ensureScopedChatCache, scheduler, etc. |
+| L2 components                  | ChatRoomItem (unread badge), TextInput, DeletedMessage, MessageReply, MessageReaction |
+| L3 / e2e (jest)                | `appLoginChatsRn` 3-tab testbed, JWT-login + room mount |
+
+### Maestro (live backend)
+
+```bash
+npm run e2e:ios            # boots iPhone 16 sim, runs auth-and-send flow
+npm run e2e:android        # ditto Pixel_6
+```
+
+Uses any profile in `~/.ethora/profiles.json` (the same file the
+`@ethora/setup` CLI writes to). The runner logs the test user via
+REST, seeds the testbed's AsyncStorage with the resolved Creds, and
+exercises the full pipeline against a real tenant:
+
+> REST login → AsyncStorage persisted Creds → app boot →
+> `/chats/my` → XMPP WebSocket → MUC presence join → MAM history →
+> chat thread rendered with input + send button visible.
+
+If any link in that chain breaks, Maestro fails — making this a
+single high-signal smoke for the most-likely class of regressions
+(auth flow, XMPP transport, room hydration).
+
+### Live deep test
+A documented session log + screenshots from a side-by-side
+alice/iOS ↔ bob/Android run against chat-qa.ethora.com lives at
+`docs/260517_deep-test-chat-qa.md`. Useful as a reproducer recipe.
+
+### Bugs surfaced + fixed (full history on PR #4)
+The test pass surfaced a handful of latent bugs that had been
+silently shipping. All fixed in the same branch:
+- **`apiClient` interceptor**: five separate bugs that combined to
+  swallow auth errors and hang the refresh-on-401 path.
+- **`unreadMiddleware`**: didn't filter own messages → MAM-replayed
+  own messages bumped the unread badge on re-login.
+- **`logoutMiddleware`**: filtered on the redux store key instead
+  of the slice's action prefix → the XMPP disconnect event never
+  fired on logout.
+- **`updateMessagesTillLast`**: imported two reducer exports that
+  don't exist → any call site crashed at runtime.
+- **`historyPreloadScheduler`**: the "skip if already preloaded"
+  check was dead — the batch-loading dispatch overwrote the state
+  the check read.
+- **`TextInput`**: `editable={isLoading}` was inverted vs convention.
+- **`MODAL_TYPES`** require cycle (logged on every app boot).
+
 ## Local development
 
 This repo doubles as an Expo testbed app: `App.tsx` mounts
