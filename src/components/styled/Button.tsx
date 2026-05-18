@@ -56,6 +56,11 @@ interface ButtonProps {
   style?: ViewStyle;
   onPress?: () => void;
   children?: React.ReactNode;
+  // Forwarded for e2e test drivers (Maestro / Detox / Appium). Without
+  // these the styled TouchableOpacity has no stable identifier for
+  // flow scripts to target.
+  testID?: string;
+  accessibilityLabel?: string;
 }
 
 const Button: React.FC<ButtonProps> = ({
@@ -71,9 +76,13 @@ const Button: React.FC<ButtonProps> = ({
   style: containerStyle,
   color,
   children,
+  testID,
+  accessibilityLabel,
 }) => {
   return (
     <CustomButton
+      testID={testID}
+      accessibilityLabel={accessibilityLabel}
       style={[containerStyle]}
       disabled={disabled || loading}
       onPress={onPress}

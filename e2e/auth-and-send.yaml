@@ -1,0 +1,63 @@
+# Maestro flow — auth + chat-thread mount smoke against a real
+# backend. Proves the full pipeline:
+#   REST login → AsyncStorage persisted Creds → app boot → /chats/my
+#   → XMPP WebSocket → MUC presence join → MAM initial history →
+#   room thread render.
+#
+# Assumes scripts/run-e2e.sh has already:
+#   1. Logged in the test user against the configured tenant
+#   2. Seeded the testbed's AsyncStorage with the resolved Creds
+#      (mode=email, resolvedUser populated, singleRoom=true pointing
+#      at the target room JID)
+#
+# Pre-seeding sidesteps two problems with driving the Setup UI:
+#   • Maestro's `inputText` is slow and lossy on the ~600-char JWT
+#     app token (sims occasionally drop chars on long pastes).
+#   • iOS QuickPath ("Speed up your typing") tutorial popup can
+#     intercept taps mid-flow on a fresh sim.
+#
+# WHAT THIS FLOW DOESN'T COVER (yet):
+#   Driving the actual send via UI. Maestro's `inputText` on iOS
+#   calls UITextField `setText:` which doesn't fire
+#   UIControlEventEditingChanged on a multiline RN TextInput, so
+#   React's `message` state stays empty → send button stays
+#   `disabled={!message}` → tap is a no-op → input visibly clears
+#   on the next render making it look like a send happened when
+#   nothing went out. Workarounds attempted: blur+refocus (the
+#   header tap target moves under the keyboard), `pressKey: Enter`
+#   (a newline doesn't trigger submit on multiline), `pasteText`
+#   (Maestro 2.x needs a copy source). The right next step is
+#   adding `onSubmitEditing` (with `blurOnSubmit + returnKeyType:
+#   send`) to SendInput's MessageInput, OR exposing an
+#   accessibility action `accessibilityActions={[{name: 'activate'}]}`
+#   the test driver can fire. Tracked as a follow-up.
+#
+# For now we still get high signal from the "thread renders" smoke:
+# if auth or REST or XMPP fails, the chat-message-input never
+# appears. The unit-test layer (jest, 486 tests) already locks the
+# in-app send pipeline.
+#
+# Required env vars (set by run-e2e.sh):
+#   MAESTRO_RUN_ID — unique probe-message suffix per run (unused
+#                    until the send-via-UI gap is closed)
+
+appId: com.ethora.chatcomponentrn
+---
+- launchApp:
+    # NOTE: do NOT clearState — that wipes the AsyncStorage Creds
+    # the seed script just wrote and we'd land back on Setup.
+    clearState: false
+    arguments: {}
+
+# The chat-message-input testID only renders inside a room; this
+# is the surest single signal that auth + REST /chats/my + XMPP
+# MUC join + MAM initial-history have all completed.
+- extendedWaitUntil:
+    visible:
+      id: "chat-message-input"
+    timeout: 30000
+
+# Sanity: the send button is also present (proves the SendInput
+# component mounted end-to-end, not just the bare TextInput).
+- assertVisible:
+    id: "chat-send-button"

@@ -301,6 +301,10 @@ describe('useSendMessage — text', () => {
     });
 
     expect(mockSpyClient.onCriticalSend).toHaveBeenCalledWith(ROOM);
+    // Trailing correlation id (`send-text-message-<timestamp>`) was
+    // added in commit b1204d7 (optimistic pending bubble that flips
+    // to delivered on server echo). Asserted with a regex so the
+    // timestamp doesn't make the test time-dependent.
     expect(mockSpyClient.sendMessage).toHaveBeenCalledWith(
       ROOM,
       LIVE_USER.firstName,
@@ -311,7 +315,8 @@ describe('useSendMessage — text', () => {
       '',
       false,
       false,
-      ''
+      '',
+      expect.stringMatching(/^send-text-message-\d+$/)
     );
     expect(onMessageSent).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -439,6 +444,8 @@ describe('useSendMessage — media', () => {
     expect(mockUploadFile).toHaveBeenCalledTimes(1);
     expect(mockUploadFile.mock.calls[0][0]).toBeDefined();
 
+    // Trailing correlation id (`send-media-message-<timestamp>`)
+    // added in commit b1204d7 — same shape as the text-send path.
     expect(mockSpyClient.sendMediaMessageStanza).toHaveBeenCalledWith(
       ROOM,
       expect.objectContaining({
@@ -449,7 +456,8 @@ describe('useSendMessage — media', () => {
         location: 'https://files.chat.ethora.com/photo.jpg',
         mimetype: 'image/jpeg',
         attachmentId: 'file-1',
-      })
+      }),
+      expect.stringMatching(/^send-media-message-\d+$/)
     );
     expect(onMessageSent).toHaveBeenCalledWith(
       expect.objectContaining({ messageType: 'media', roomJID: ROOM })
