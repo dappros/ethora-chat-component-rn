@@ -14,6 +14,7 @@
  */
 import React from 'react';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AppLoginChatsRn from './AppLoginChatsRn';
 
 // Hermes/RN error reporter — log full stack so we can find the
@@ -38,9 +39,11 @@ if (ErrorUtils && !(global as any).__claudeErrTrap) {
 
 function App(): React.JSX.Element {
   return (
-    <KeyboardProvider>
-      <AppLoginChatsRn />
-    </KeyboardProvider>
+    <SafeAreaProvider>
+      <KeyboardProvider>
+        <AppLoginChatsRn />
+      </KeyboardProvider>
+    </SafeAreaProvider>
   );
 }
 

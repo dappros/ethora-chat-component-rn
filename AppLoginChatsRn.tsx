@@ -30,7 +30,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -40,6 +39,12 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
+// `SafeAreaView` from `react-native` is deprecated and crucially does
+// not subtract the Android nav-bar / gesture-bar inset, so the chat
+// input collides with system controls on real devices. The
+// context-aware version handles top + bottom insets on iOS and
+// Android equally.
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ReduxWrapper as Chat } from './src/components/MainComponents/ReduxWrapper';
 import { store as chatStore } from './src/roomStore';
@@ -623,7 +628,7 @@ const ChatPane: React.FC<{ creds: Creds | null }> = ({ creds }) => {
       initBeforeLoad: true,
       disableInteractions: false,
       disableReactions: false,
-      keyboardVerticalOffset: Platform.OS === 'ios' ? 130 : 0,
+      keyboardVerticalOffset: Platform.OS === 'ios' ? 130 : 100,
     } as IConfig;
 
     if (creds.mode === 'jwt') {

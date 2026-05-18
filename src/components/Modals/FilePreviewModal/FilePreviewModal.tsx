@@ -17,6 +17,7 @@ import Video from 'react-native-video';
 import RNFS from 'react-native-fs';
 import { CameraRoll } from '@react-native-camera-roll/camera-roll';
 import { useToast } from '../../../context/ToastContext';
+import PdfViewer from './PdfView';
 
 export const FullScreenVideo = styled.View`
   width: 100%;
@@ -245,6 +246,8 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
             paused={true}
           />
         );
+      case activeFile.mimetype === 'application/pdf':
+        return <PdfViewer pdfUrl={activeFile.fileURL} />;
       default:
         return (
           <View
