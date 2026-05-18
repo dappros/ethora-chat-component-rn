@@ -99,16 +99,6 @@ export const useSendMessage = (_configOverride?: IConfig) => {
         );
       }
 
-      console.log('🔵 [useSendMessage] sending', {
-        room: activeRoomJID,
-        hasClient: !!client,
-        first: user?.firstName,
-        last: user?.lastName,
-        wallet: user?.walletAddress,
-        len: message?.length,
-        optimisticId,
-      });
-
       try {
         if (!client) {
           throw new Error('No XMPP client');
@@ -234,8 +224,18 @@ export const useSendMessage = (_configOverride?: IConfig) => {
             metadata: payload,
           });
         });
-      } catch (error) {
-        console.error('Media upload failed', error);
+      } catch (error: any) {
+        // Surface the real server payload so we can see why the upload
+        // was rejected (axios collapses the message to "Request failed
+        // with status code N"; the actual reason lives in
+        // `error.response.data`).
+        console.error('upload failed', {
+          status: error?.response?.status,
+          statusText: error?.response?.statusText,
+          serverBody: error?.response?.data,
+          requestUrl: error?.config?.url,
+          axiosMessage: error?.message,
+        });
         handleMessageFailed({
           message: '',
           roomJID: activeRoomJID,

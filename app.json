@@ -21,6 +21,19 @@
             "deploymentTarget": "15.1"
           }
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "$(PRODUCT_NAME) needs access to your photos so you can attach images to chat messages.",
+          "cameraPermission": "$(PRODUCT_NAME) needs access to your camera so you can take photos and send them in chat."
+        }
+      ],
+      [
+        "expo-document-picker",
+        {
+          "iCloudContainerEnvironment": "Production"
+        }
       ]
     ],
     "experiments": {

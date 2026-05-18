@@ -72,26 +72,20 @@ export function sendMediaMessage(
     xml('data', dataToSend)
   );
 
-  console.log('🟢 [sendMediaMessage] sending stanza', {
-    id,
-    to: roomJID,
-    mime: data?.mimetype,
-    name: data?.fileName,
-  });
   try {
     const sendResult = client.send(message);
     if (sendResult && typeof (sendResult as any).then === 'function') {
       (sendResult as Promise<unknown>)
-        .then(() => console.log('🟢 [sendMediaMessage] client.send resolved', { id }))
+        .then(() => console.log('client.send resolved', { id }))
         .catch((err) =>
-          console.error('🔴 [sendMediaMessage] client.send REJECTED', {
+          console.error('client.send REJECTED', {
             id,
             message: (err as any)?.message,
           })
         );
     }
   } catch (error) {
-    console.error('🔴 [sendMediaMessage] sync error', error);
+    console.error(error);
   }
   return id;
 }

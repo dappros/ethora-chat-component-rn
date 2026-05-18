@@ -260,7 +260,6 @@ export const ModalSelectMedia: FC<ModalSelectMediaProps> = ({
       position="leftBottom"
       options={menuOptions}
       openButton={(onPress) => {
-        console.log('🔵 [ModalSelectMedia] Rendering attach button');
         return (
           <Button
             style={{
@@ -274,7 +273,6 @@ export const ModalSelectMedia: FC<ModalSelectMediaProps> = ({
             }}
             EndIcon={<AttachIcon color={config?.colors?.primary || '#0052CD'} />}
             onPress={() => {
-              console.log('🔵 [ModalSelectMedia] Attach button pressed');
               onPress();
             }}
           />

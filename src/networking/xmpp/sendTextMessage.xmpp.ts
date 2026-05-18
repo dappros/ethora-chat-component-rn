@@ -71,19 +71,12 @@ export const sendTextMessage = (
       }),
       xml('body', {}, userMessage)
     );
-    console.log('🟢 [sendTextMessage] sending stanza', {
-      id,
-      to: roomJID,
-      bodyLen: userMessage?.length,
-      clientJid: client.jid?.toString(),
-      xmlns: toServiceXmlns(devServer, client),
-    });
     const sendResult = client.send(message);
     if (sendResult && typeof (sendResult as any).then === 'function') {
       (sendResult as Promise<unknown>)
-        .then(() => console.log('🟢 [sendTextMessage] client.send resolved', { id }))
+        .then(() => console.log('client.send resolved', { id }))
         .catch((err) =>
-          console.error('🔴 [sendTextMessage] client.send REJECTED', {
+          console.error('client.send REJECTED', {
             id,
             message: (err as any)?.message,
             name: (err as any)?.name,
@@ -94,6 +87,6 @@ export const sendTextMessage = (
       console.log('🟡 [sendTextMessage] client.send returned non-promise', { id, type: typeof sendResult });
     }
   } catch (error) {
-    console.error('🔴 [sendTextMessage] sync error', error);
+    console.error(error);
   }
 };

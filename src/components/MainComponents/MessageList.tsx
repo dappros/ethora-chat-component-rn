@@ -137,25 +137,17 @@ const MessageList = <TMessage extends IMessage>({
   }, [addReplyMessages, isReply, roomJID, activeMessage]);
 
   const handleLoadMore = useCallback(async () => {
-    console.log('🟠 [MessageList] handleLoadMore fired', {
-      loading,
-      isLoadingMore,
-      msgCount: memoizedMessages.length,
-      isScrollBlocked,
-    });
     if (
       loading ||
       isLoadingMore ||
       !memoizedMessages.length ||
       isScrollBlocked
     ) {
-      console.log('🟠 [MessageList] handleLoadMore gated out');
       return;
     }
 
     const oldestMessage = memoizedMessages[0];
     if (!oldestMessage || !oldestMessage.id) {
-      console.log('🟠 [MessageList] no oldest msg');
       return;
     }
 
@@ -163,19 +155,13 @@ const MessageList = <TMessage extends IMessage>({
     setIsScrollBlocked(true);
 
     try {
-      console.log('🟠 [MessageList] calling loadMoreMessages', {
-        room: oldestMessage.roomJid || roomJID,
-        beforeId: Number(oldestMessage.id),
-        oldestId: oldestMessage.id,
-      });
       await loadMoreMessages(
         oldestMessage.roomJid || roomJID,
         15,
         Number(oldestMessage.id)
       );
-      console.log('🟠 [MessageList] loadMoreMessages returned');
     } catch (error) {
-      console.error('🔴 [MessageList] loadMoreMessages threw:', error);
+      console.error(error);
     } finally {
       setTimeout(() => {
         setIsLoadingMore(false);

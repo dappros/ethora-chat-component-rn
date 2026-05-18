@@ -12,9 +12,35 @@ import { SendIcon, AttachIcon } from '../../assets/icons';
 import { KeyboardAvoidingView, Platform, View, TouchableOpacity, Alert, ActionSheetIOS, Linking } from 'react-native';
 import { ModalSelectMedia } from '../Modals/ModalSelectMedia/ModalSelectMedia.tsx';
 import { MediaFilePreview } from './MediaFilePreview';
-import DocumentPicker from 'react-native-document-picker';
-import ImagePicker from 'react-native-image-crop-picker';
-import { check, request, PERMISSIONS, RESULTS, Permission } from 'react-native-permissions';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
+
+// iOS photos default to HEIC; many web backends (incl. ours) 500 on
+// HEIC uploads because they can't decode it. Convert to JPEG before
+// upload — JPEG is universally supported. JPEGs pass through.
+const normalizeImageAsset = async (asset: ImagePicker.ImagePickerAsset) => {
+  const mime = (asset.mimeType || '').toLowerCase();
+  const looksLikeHeic =
+    mime.includes('heic') ||
+    mime.includes('heif') ||
+    asset.uri.toLowerCase().endsWith('.heic') ||
+    asset.uri.toLowerCase().endsWith('.heif');
+  if (!looksLikeHeic) {
+    return {
+      uri: asset.uri,
+      mime: asset.mimeType || 'image/jpeg',
+      name: asset.fileName || asset.uri.split('/').pop() || `image_${Date.now()}.jpg`,
+    };
+  }
+  const result = await ImageManipulator.manipulateAsync(asset.uri, [], {
+    compress: 0.9,
+    format: ImageManipulator.SaveFormat.JPEG,
+  });
+  const baseName = (asset.fileName || asset.uri.split('/').pop() || `image_${Date.now()}`)
+    .replace(/\.(heic|heif)$/i, '.jpg');
+  return { uri: result.uri, mime: 'image/jpeg', name: baseName };
+};
 
 interface SendInputProps {
   sendMessage: (message: string) => void;
@@ -50,110 +76,103 @@ const SendInput: React.FC<SendInputProps> = ({
   const [showMediaMenu, setShowMediaMenu] = useState(false);
 
   const handleFileSelect = (files: MediaFile[]) => {
-    console.log('🔵 [SendInput] Files selected:', files);
     setFilePreviews([...files]);
   };
 
-  const checkPermission = async (permission: Permission) => {
-    const status = await check(permission);
-    if (status === RESULTS.GRANTED) {
-      return status;
-    } else if (status === RESULTS.DENIED) {
-      const requestStatus = await request(permission);
-      return requestStatus;
-    }
-    return status;
+  // Both pickers use expo-image-picker / expo-document-picker. They
+  // own permission prompts internally and surface a `canceled` flag in
+  // the result — no need for a separate permissions library or hand-
+  // rolled check/request flow.
+
+  const promptOpenSettings = (message: string) => {
+    Alert.alert('Permission required', message, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Open Settings', onPress: () => Linking.openSettings() },
+    ]);
   };
 
   const handleCameraSelection = async () => {
-    const permission = Platform.OS === 'ios' ? PERMISSIONS.IOS.CAMERA : PERMISSIONS.ANDROID.CAMERA;
-    const permissionStatus = await checkPermission(permission);
-
-    if (permissionStatus !== RESULTS.GRANTED) {
-      Alert.alert('Permission required', 'Camera permission is needed to take photos.', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Open Settings', onPress: () => Linking.openSettings() },
-      ]);
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (!perm.granted) {
+      promptOpenSettings('Camera permission is needed to take photos.');
       return;
     }
 
     try {
-      const image = await ImagePicker.openCamera({
-        width: 300,
-        height: 400,
-        cropping: true,
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.9,
       });
-      const file = {
-        uri: image.path,
-        type: image.mime,
-        name: image.path.split('/').pop() || `camera_${Date.now()}.jpg`,
-      };
-      handleFileSelect([file]);
-    } catch (error: any) {
-      if (error?.code !== 'E_PICKER_CANCELLED') {
-        console.error('Camera error:', error);
-      }
+      if (result.canceled || !result.assets?.[0]) {return;}
+      const asset = result.assets[0];
+      const normalized = await normalizeImageAsset(asset);
+      handleFileSelect([
+        { uri: normalized.uri, type: normalized.mime, name: normalized.name },
+      ]);
+    } catch (error) {
+      console.error('Camera error:', error);
     }
   };
 
   const handleGallerySelection = async () => {
-    try {
-      let permission: Permission;
-      if (Platform.OS === 'ios') {
-        permission = PERMISSIONS.IOS.PHOTO_LIBRARY;
-      } else if (Number(Platform.Version) >= 33) {
-        permission = PERMISSIONS.ANDROID.READ_MEDIA_IMAGES;
-      } else {
-        permission = PERMISSIONS.ANDROID.READ_EXTERNAL_STORAGE;
-      }
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      promptOpenSettings('Gallery permission is needed to select photos.');
+      return;
+    }
 
-      const permissionStatus = await checkPermission(permission);
-      if (permissionStatus !== RESULTS.GRANTED) {
-        Alert.alert('Permission required', 'Gallery permission is needed to select photos.', [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.All,
+        allowsEditing: false,
+        quality: 0.9,
+      });
+      if (result.canceled || !result.assets?.[0]) {return;}
+      const asset = result.assets[0];
+      // Videos pass through unchanged; only images get the HEIC→JPEG
+      // normalization (manipulator is image-only).
+      if (asset.type === 'video') {
+        handleFileSelect([
+          {
+            uri: asset.uri,
+            type: asset.mimeType || 'video/mp4',
+            name: asset.fileName || asset.uri.split('/').pop() || `gallery_${Date.now()}.mp4`,
+          },
         ]);
         return;
       }
-
-      const image = await ImagePicker.openPicker({
-        multiple: false,
-        mediaType: 'any',
-      });
-      const file = {
-        uri: image.path,
-        type: image.mime,
-        name: image.path.split('/').pop() || `gallery_${Date.now()}.jpg`,
-      };
-      handleFileSelect([file]);
-    } catch (error: any) {
-      if (error?.code !== 'E_PICKER_CANCELLED') {
-        console.error('Gallery error:', error);
-      }
+      const normalized = await normalizeImageAsset(asset);
+      handleFileSelect([
+        { uri: normalized.uri, type: normalized.mime, name: normalized.name },
+      ]);
+    } catch (error) {
+      console.error('Gallery error:', error);
     }
   };
 
   const handleFileSelection = async () => {
     try {
-      const result = await DocumentPicker.pick({
-        type: [DocumentPicker.types.allFiles],
-        allowMultiSelection: false,
+      const result = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
+        multiple: false,
+        copyToCacheDirectory: true,
       });
-      const files = result.map((file) => ({
-        uri: file.uri,
-        type: file.type || 'unknown',
-        name: file.name || `file_${Date.now()}`,
-      }));
-      handleFileSelect(files);
-    } catch (err: any) {
-      if (!DocumentPicker.isCancel(err)) {
-        console.error('DocumentPicker Error:', err);
-      }
+      if (result.canceled || !result.assets?.[0]) {return;}
+      const asset = result.assets[0];
+      handleFileSelect([
+        {
+          uri: asset.uri,
+          type: asset.mimeType || 'application/octet-stream',
+          name: asset.name || `file_${Date.now()}`,
+        },
+      ]);
+    } catch (err) {
+      console.error('DocumentPicker error:', err);
     }
   };
 
   const handleAttachPress = () => {
-    console.log('🔵 [SendInput] Attach button pressed');
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
         {
@@ -180,25 +199,23 @@ const SendInput: React.FC<SendInputProps> = ({
     setFilePreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleSendClick = useCallback(() => {
-    console.log('🔵 [SendInput] handleSendClick', {
-      hasMessage: !!message,
-      msgLen: message?.length || 0,
-      files: filePreviews.length,
-    });
-    // Send media first (so it lands above the caption), then the text
-    // — previously it was either-or, so the user could never attach a
-    // file AND type a caption in the same tap.
-    if (filePreviews.length > 0) {
-      filePreviews.forEach((file) => {
-        sendMedia(file, file.type);
-      });
-    }
-    if (message) {
-      sendMessage(message);
-    }
+  const handleSendClick = useCallback(async () => {
+    const filesToSend = filePreviews;
+    const messageToSend = message;
     setMessage('');
     setFilePreviews([]);
+
+    for (const file of filesToSend) {
+      try {
+        await sendMedia(file, file.type);
+      } catch (err) {
+        console.error(err);
+        return;
+      }
+    }
+    if (messageToSend) {
+      sendMessage(messageToSend);
+    }
   }, [filePreviews, message, sendMessage, sendMedia]);
 
   useEffect(() => {

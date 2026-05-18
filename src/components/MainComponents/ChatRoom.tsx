@@ -112,7 +112,10 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
 
     const sendMedia = useCallback(
       (data: any, type: string) => {
-        sendMessageMedia(data, type, activeRoomJID || '');
+        // Return the promise so callers can sequence the follow-up
+        // text send AFTER the upload finishes (consumer expectation:
+        // media first, text second — never interleaved).
+        return sendMessageMedia(data, type, activeRoomJID || '');
       },
       [activeRoomJID],
     );
