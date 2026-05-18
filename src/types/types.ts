@@ -349,6 +349,8 @@ export interface IConfig {
   roomListStyles?: ViewStyle;
   chatRoomStyles?: ViewStyle;
 
+  keyboardVerticalOffset?: number;
+
   // ----- interactions / messages -----
   disableInteractions?: boolean;
   disableReactions?: boolean;

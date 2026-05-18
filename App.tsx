@@ -13,6 +13,7 @@
  *   <ReduxWrapper config={{userLogin: {enabled: true, user: defaultUser}}} />
  */
 import React from 'react';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import AppLoginChatsRn from './AppLoginChatsRn';
 
 // Hermes/RN error reporter — log full stack so we can find the
@@ -36,7 +37,11 @@ if (ErrorUtils && !(global as any).__claudeErrTrap) {
 }
 
 function App(): React.JSX.Element {
-  return <AppLoginChatsRn />;
+  return (
+    <KeyboardProvider>
+      <AppLoginChatsRn />
+    </KeyboardProvider>
+  );
 }
 
 export default App;

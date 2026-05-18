@@ -621,11 +621,9 @@ const ChatPane: React.FC<{ creds: Creds | null }> = ({ creds }) => {
       colors: { primary: PRIMARY, secondary: SECONDARY },
       refreshTokens: { enabled: true },
       initBeforeLoad: true,
-      // Smoke-test config: turn off both interactive surfaces so we
-      // can verify the gates compose cleanly. Consumers flip these
-      // independently as needed.
-      disableInteractions: true,
-      disableReactions: true,
+      disableInteractions: false,
+      disableReactions: false,
+      keyboardVerticalOffset: Platform.OS === 'ios' ? 130 : 0,
     } as IConfig;
 
     if (creds.mode === 'jwt') {

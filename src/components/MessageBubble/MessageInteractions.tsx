@@ -1,10 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import {
-  ContextMenu,
-  Delimeter,
-  MenuItem,
-  Overlay,
-} from '../ContextMenu/ContextMenuComponents';
+import { Delimeter, MenuItem } from '../ContextMenu/ContextMenuComponents';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '../../roomStore';
 import {
@@ -23,7 +18,7 @@ import {
   View,
   Pressable,
 } from 'react-native';
-import Clipboard from '@react-native-clipboard/clipboard';
+import * as Clipboard from 'expo-clipboard';
 import { useToast } from '../../context/ToastContext';
 import EmojiPicker from 'react-native-emoji-selector';
 
@@ -94,14 +89,24 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
     // }
   };
 
-  const handleCopyMessage = (text: string) => {
-    Clipboard.setString(text);
-    showToast({
-      id: Date.now().toString(),
-      title: 'Success',
-      message: 'Copied to clipboard!',
-      type: 'success',
-    });
+  const handleCopyMessage = async (text: string) => {
+    try {
+      await Clipboard.setStringAsync(text);
+      showToast({
+        id: Date.now().toString(),
+        title: 'Success',
+        message: 'Copied to clipboard!',
+        type: 'success',
+      });
+    } catch (err) {
+      console.log(err);
+      showToast({
+        id: Date.now().toString(),
+        title: 'Copy failed',
+        message: (err as Error)?.message || 'Unknown error',
+        type: 'error',
+      });
+    }
     closeMenu();
   };
 
@@ -135,11 +140,9 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
       onRequestClose={closeMenu}
     >
       {!message.isDeleted && (
-        <Overlay onPress={closeMenu}>
-          <ContextMenu
-            style={[styles.contextMenu, memoPosition]}
-            // style={{ top: contextMenu.y, left: contextMenu.x }}
-          >
+        <View style={styles.overlayFill}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={closeMenu} />
+          <View style={[styles.contextMenu, memoPosition]}>
             {/* <MenuItem onClick={() => console.log(MESSAGE_INTERACTIONS.SEND_COINS)}>
             {MESSAGE_INTERACTIONS.SEND_COINS}
             <MESSAGE_INTERACTIONS_ICONS.SEND_COINS />{' '}
@@ -149,43 +152,41 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
             {MESSAGE_INTERACTIONS.SEND_ITEM}
             <MESSAGE_INTERACTIONS_ICONS.SEND_ITEM />{' '}
           </MenuItem> */}
-            {/* Reaction row — hidden when consumer sets
-               `config.disableReactions: true`. Mirrors the gate web
-               applies inside its MessageInteractions panel. */}
+            {/*
             {!config?.disableReactions && (
-            <View style={{ flexDirection: 'row', paddingBottom: 10 }}>
-            {fixedEmojiIds.map((id) => (
-              <Pressable
-                key={id}
-                onPress={() => handleReactionClick(id)}
-                style={{ marginRight: 6 }}
-              >
-                <Text style={{ fontSize: 26 }}>{convertIdToEmoji(id)}</Text>
-              </Pressable>
-            ))}
-
-            {/* ArrowButton */}
-            <Pressable
-              onPress={() => setPickerVisible(!pickerVisible)}
-              style={{ marginLeft: 10 }}
-            >
-              <Text style={{ fontSize: 24 }}>⌄</Text>
-            </Pressable>
-          </View>
+              <View style={{ flexDirection: 'row', paddingBottom: 10 }}>
+                {fixedEmojiIds.map((id) => (
+                  <Pressable
+                    key={id}
+                    onPress={() => handleReactionClick(id)}
+                    style={{ marginRight: 6 }}
+                  >
+                    <Text style={{ fontSize: 26 }}>{convertIdToEmoji(id)}</Text>
+                  </Pressable>
+                ))}
+                <Pressable
+                  onPress={() => setPickerVisible(!pickerVisible)}
+                  style={{ marginLeft: 10 }}
+                >
+                  <Text style={{ fontSize: 24 }}>⌄</Text>
+                </Pressable>
+              </View>
             )}
 
-          {!config?.disableReactions && pickerVisible && (
-            <View style={{ height: 250 }}>
-              <EmojiPicker
-                onEmojiSelected={(emoji) => {
-                  handleReactionClick(emoji);
-                }}
-                showSearchBar={false}
-                showTabs={false}
-              />
-            </View>
-          )}
+            {!config?.disableReactions && pickerVisible && (
+              <View style={{ height: 250 }}>
+                <EmojiPicker
+                  onEmojiSelected={(emoji) => {
+                    handleReactionClick(emoji);
+                  }}
+                  showSearchBar={false}
+                  showTabs={false}
+                />
+              </View>
+            )}
+            */}
 
+            {/*
             {!isReply && (
               <>
                 <MenuItem onPress={handleReplyMessage}>
@@ -195,31 +196,32 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
                 <Delimeter />
               </>
             )}
+            */}
             <MenuItem onPress={() => handleCopyMessage(message.body!)}>
               <Text>{MESSAGE_INTERACTIONS.COPY}</Text>
               <MESSAGE_INTERACTIONS_ICONS.COPY />
             </MenuItem>
-            <Delimeter />
             {isUser && (
               <>
+                <Delimeter />
                 <MenuItem onPress={handleEditMessage}>
                   <Text>{MESSAGE_INTERACTIONS.EDIT}</Text>
                   <MESSAGE_INTERACTIONS_ICONS.EDIT />
                 </MenuItem>
                 <Delimeter />
+                <MenuItem onPress={handleDeleteMessage}>
+                  <Text>{MESSAGE_INTERACTIONS.DELETE}</Text>
+                  <MESSAGE_INTERACTIONS_ICONS.DELETE />
+                </MenuItem>
               </>
             )}
-            <MenuItem onPress={handleDeleteMessage}>
-              <Text>{MESSAGE_INTERACTIONS.DELETE}</Text>
-              <MESSAGE_INTERACTIONS_ICONS.DELETE />
-            </MenuItem>
             {/* <Delimeter />
           <MenuItem onClick={() => console.log(MESSAGE_INTERACTIONS.REPORT)}>
             {MESSAGE_INTERACTIONS.REPORT}
             <MESSAGE_INTERACTIONS_ICONS.REPORT />{' '}
           </MenuItem> */}
-          </ContextMenu>
-        </Overlay>
+          </View>
+        </View>
       )}
 
     </Modal>
@@ -229,19 +231,21 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
 export default MessageInteractions;
 
 const styles = StyleSheet.create({
-  overlay: {
+  overlayFill: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    backgroundColor: 'transparent',
   },
   contextMenu: {
     position: 'absolute',
     backgroundColor: 'white',
-    padding: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
     borderRadius: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 5,
+    minWidth: 180,
   },
 });

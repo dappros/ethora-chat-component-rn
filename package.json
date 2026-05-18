@@ -13,20 +13,30 @@
     "README.md"
   ],
   "peerDependencies": {
+    "@react-native-async-storage/async-storage": ">=1.21.0",
     "react": ">=18.0.0",
     "react-native": ">=0.73.0",
-    "react-native-svg": ">=14.0.0",
-    "react-native-reanimated": ">=3.0.0",
-    "@react-native-async-storage/async-storage": ">=1.21.0",
+    "react-native-gesture-handler": ">=2.0.0",
     "react-native-get-random-values": ">=1.10.0",
-    "react-native-gesture-handler": ">=2.0.0"
+    "react-native-reanimated": ">=3.0.0",
+    "react-native-svg": ">=14.0.0"
   },
   "peerDependenciesMeta": {
-    "react-native-svg": { "optional": false },
-    "react-native-reanimated": { "optional": false },
-    "@react-native-async-storage/async-storage": { "optional": false },
-    "react-native-get-random-values": { "optional": false },
-    "react-native-gesture-handler": { "optional": true }
+    "react-native-svg": {
+      "optional": false
+    },
+    "react-native-reanimated": {
+      "optional": false
+    },
+    "@react-native-async-storage/async-storage": {
+      "optional": false
+    },
+    "react-native-get-random-values": {
+      "optional": false
+    },
+    "react-native-gesture-handler": {
+      "optional": true
+    }
   },
   "scripts": {
     "start": "expo start",
@@ -41,7 +51,12 @@
     "@reduxjs/toolkit": "^2.5.0",
     "@xmpp/client": "^0.13.1",
     "axios": "^1.7.9",
+    "expo": "~54.0.34",
+    "expo-clipboard": "~8.0.8",
     "js-sha256": "^0.11.0",
+    "react": ">=18.0.0",
+    "react-native": ">=0.73.0",
+    "react-native-keyboard-controller": "^1.18.5",
     "react-redux": "^9.2.0",
     "styled-components": "^6.1.13"
   },

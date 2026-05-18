@@ -274,12 +274,6 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
                 }}>
                 <ChatRoom
                   CustomMessageComponent={CustomMessageComponent || Message}
-                  // Only show the back button when there's a room list to
-                  // return to. In single-room mode (`roomJID` preselected
-                  // by the consumer) or when the consumer disabled the
-                  // list (`disableRooms`), there's nowhere to go back to,
-                  // so we omit the handler and ChatHeader renders without
-                  // the back arrow.
                   handleBackClick={
                     roomJID || config?.disableRooms
                       ? undefined
@@ -290,20 +284,22 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
                 />
               </ChatWrapperBox>
             )}
-            {/*
-              Mount the active-modal renderer so ChatHeader's onPress
-              (dispatch setActiveModal(CHAT_PROFILE)) actually surfaces
-              a modal. Without this, tapping the header was a no-op:
-              redux state flipped but nothing was listening. Web's
-              ChatWrapper mounts the same component (web ChatWrapper
-              lines 331-336).
-            */}
             <Modal
               modal={activeModal}
               setOpenModal={(value?: ModalType) =>
                 dispatch(setActiveModal(value))
               }
             />
+            {deleteModal?.isDeleteModal && (
+              <ModalWrapper
+                title="Delete Message"
+                description="Are you sure you want to delete this message?"
+                buttonText="Delete"
+                backgroundColorButton="#E53935"
+                handleClick={handleDeleteClick}
+                handleCloseModal={handleCloseDeleteModal}
+              />
+            )}
           </ChatWrapperBox>
         ) : (
           <StyledLoaderWrapper>

@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import {
   View,
-  TouchableWithoutFeedback,
+  Pressable,
   StyleSheet,
   findNodeHandle,
   UIManager,
@@ -116,6 +116,10 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   const { idSet } = useMessageHeapState();
 
   const [isPressed, setIsPressed] = useState(false);
+
+  if (__DEV__ && message.id && !(globalThis as any).__loggedMsg?.[message.id]) {
+    ((globalThis as any).__loggedMsg ||= {})[message.id] = true;
+  }
 
   const [contextMenuPosition, setContextMenuPosition] = useState<{
     x: number;
@@ -264,7 +268,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
             )}
           </CustomMessagePhotoContainer>
         )}
-        <TouchableWithoutFeedback
+        <Pressable
           // disableInteractions hides the long-press → context menu
           // (delete / edit / reply / react). Mirrors web's config gate.
           onLongPress={
@@ -354,7 +358,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
             )}
           </MessageFooter>
           </CustomMessageBubble>
-        </TouchableWithoutFeedback>
+        </Pressable>
       </View>
       {!config?.disableInteractions && isPressed && (
         <MessageInteractions

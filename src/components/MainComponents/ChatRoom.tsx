@@ -28,13 +28,13 @@ import CustomTypingIndicator from '../styled/StyledInputComponents/CustomTypingI
 // import {PanGestureHandler} from 'react-native-gesture-handler';
 import { FlatList } from 'react-native';
 import {
-  KeyboardAvoidingView,
   Platform,
   TouchableWithoutFeedback,
   Keyboard,
   View,
   KeyboardEvent,
 } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import useComposing from '../../hooks/useComposing';
 
 interface ChatRoomProps {
@@ -208,7 +208,11 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
     }
 
     return (
-      <View style={{ flex: 1 }}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={configWithEventHandlers?.keyboardVerticalOffset ?? 0}
+      >
         <ChatContainer
           style={
             configWithEventHandlers?.chatRoomStyles
@@ -384,7 +388,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
               />
             )}
         </ChatContainer>
-      </View>
+      </KeyboardAvoidingView>
     );
   },
 );
