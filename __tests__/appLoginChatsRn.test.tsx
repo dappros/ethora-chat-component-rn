@@ -13,6 +13,13 @@
 
 // AsyncStorage mock is provided by jest.setup.js.
 
+// `installConsoleCapture()` is now a no-op when NODE_ENV==='test'
+// (devLogger.ts), so the previous `console.* → pushLog → microtask
+// notify → useSyncExternalStore re-render` feedback loop that hung
+// this suite is broken at the source. No devLogger mock needed here.
+// If a test ever needs to assert on captured logs, mock it locally
+// inside that test with a fresh accumulator.
+
 jest.mock('axios', () => {
   const fn = jest.fn();
   // axios is used as both a function and as `axios.post/get`.
@@ -108,15 +115,17 @@ test('Setup → Test → Save → Chat tab mounts ReduxWrapper with the entered 
   });
 
   // Setup tab is active by default (no persisted creds).
-  const tabPressables = tree.root
-    .findAllByType(require('react-native').Pressable)
-    .filter((p: any) => {
-      const c = p.props.children;
-      // Tab button children = <Text>Setup</Text> / etc.
-      const text = c?.props?.children;
-      return typeof text === 'string' && ['Setup', 'Chat', 'Logs'].includes(text);
-    });
-  expect(tabPressables.length).toBe(3);
+  // Locate tab buttons by matching their visible Text label.
+  // (Earlier shape was <Pressable><Text>{label}</Text></Pressable>;
+  // the current shape adds a wrapper <View><Text/>{badge?}</View>
+  // inside each Pressable for the unread-count badge, so a single-
+  // hop children lookup no longer works.)
+  const Text = require('react-native').Text;
+  const tabLabels = tree.root.findAllByType(Text).filter((t: any) => {
+    const c = t.props.children;
+    return typeof c === 'string' && ['Setup', 'Chat', 'Logs'].includes(c);
+  });
+  expect(tabLabels.length).toBe(3);
 
   // Locate inputs: JWT is the first multiline; baseUrl is the 2nd.
   const inputs = tree.root.findAllByType(require('react-native').TextInput);

@@ -112,21 +112,199 @@ Sign up at [app.chat.ethora.com/register](https://app.chat.ethora.com/register) 
 />
 ```
 
+## Quality & test coverage
+
+### Jest (unit + integration)
+
+```bash
+npm test          # ~2s, full suite
+```
+
+45 files, 486 tests cover the SDK's substantive surface:
+
+| Layer                          | Coverage |
+|--------------------------------|----------|
+| Redux slices (rooms, chatSettings, roomHeap) | reducers + slice contracts |
+| Middleware (unread, new-message, reactions, logout) | dispatch wiring + edge cases |
+| XMPP client                    | constructor, state machine, reconnect backoff, disconnect, QoS / coalesced MAM, delegating helpers |
+| XMPP stanza builders (~25 files) | exact wire shape via real `@xmpp/client` `xml()` |
+| REST API wrappers              | URL + body + headers + redux side effects, 60s cache, 401 refresh interceptor with queue-during-refresh |
+| Persistence                    | AsyncStorage rehydrate, debounced writes, key filtering, room cap |
+| Helpers                        | parseMessageBody (markdown render), markdownParser, insertMessageWithDelimiter, createMessageFromXml, ensureScopedChatCache, scheduler, etc. |
+| L2 components                  | ChatRoomItem (unread badge), TextInput, DeletedMessage, MessageReply, MessageReaction |
+| L3 / e2e (jest)                | `appLoginChatsRn` 3-tab testbed, JWT-login + room mount |
+
+### Maestro (live backend)
+
+```bash
+npm run e2e:ios            # boots iPhone 16 sim, runs auth-and-send flow
+npm run e2e:android        # ditto Pixel_6
+```
+
+Uses any profile in `~/.ethora/profiles.json` (the same file the
+`@ethora/setup` CLI writes to). The runner logs the test user via
+REST, seeds the testbed's AsyncStorage with the resolved Creds, and
+exercises the full pipeline against a real tenant:
+
+> REST login → AsyncStorage persisted Creds → app boot →
+> `/chats/my` → XMPP WebSocket → MUC presence join → MAM history →
+> chat thread rendered with input + send button visible.
+
+If any link in that chain breaks, Maestro fails — making this a
+single high-signal smoke for the most-likely class of regressions
+(auth flow, XMPP transport, room hydration).
+
+### Live deep test
+A documented session log + screenshots from a side-by-side
+alice/iOS ↔ bob/Android run against chat-qa.ethora.com lives at
+`docs/260517_deep-test-chat-qa.md`. Useful as a reproducer recipe.
+
+### Bugs surfaced + fixed (full history on PR #4)
+The test pass surfaced a handful of latent bugs that had been
+silently shipping. All fixed in the same branch:
+- **`apiClient` interceptor**: five separate bugs that combined to
+  swallow auth errors and hang the refresh-on-401 path.
+- **`unreadMiddleware`**: didn't filter own messages → MAM-replayed
+  own messages bumped the unread badge on re-login.
+- **`logoutMiddleware`**: filtered on the redux store key instead
+  of the slice's action prefix → the XMPP disconnect event never
+  fired on logout.
+- **`updateMessagesTillLast`**: imported two reducer exports that
+  don't exist → any call site crashed at runtime.
+- **`historyPreloadScheduler`**: the "skip if already preloaded"
+  check was dead — the batch-loading dispatch overwrote the state
+  the check read.
+- **`TextInput`**: `editable={isLoading}` was inverted vs convention.
+- **`MODAL_TYPES`** require cycle (logged on every app boot).
+
 ## Local development
 
-This repo is bootstrapped with `@react-native-community/cli`. To run it as its own RN sample app rather than as a library:
+This repo doubles as an Expo testbed app: `App.tsx` mounts
+`AppLoginChatsRn`, a 3-tab (Setup / Chat / Logs) shell that drives the
+SDK end-to-end via either paste-a-JWT or email + app-token login. Run
+it against the canonical Ethora Cloud endpoints, your QA tenant, or a
+self-hosted Ethora instance — all configurable from the Setup tab at
+runtime.
+
+### Prerequisites
+
+- Node.js 18+
+- Xcode 15+ (iOS), Android Studio with a working AVD (Android)
+- Java JDK 17+ — Android Studio's bundled JBR works:
+  `export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"`
+- Android SDK with platform-tools on `$PATH`:
+  `export ANDROID_HOME="$HOME/Library/Android/sdk"`
+- **CocoaPods 1.13+** for iOS. macOS system Ruby (2.6) is too old for
+  the bundled Gemfile — install via Homebrew: `brew install cocoapods`
+
+### Build + run
 
 ```bash
 git clone https://github.com/dappros/ethora-chat-component-rn.git
 cd ethora-chat-component-rn
-yarn install
+npm install
+
+# iOS
 cd ios && pod install && cd ..
-yarn start            # Metro
-yarn ios              # in another terminal
-yarn android          # in another terminal
+npx expo run:ios --device "iPhone 16"
+
+# Android — write local.properties if expo prebuild didn't create it
+echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+npx expo run:android
 ```
 
-> Make sure you have completed the [React Native environment setup](https://reactnative.dev/docs/environment-setup) before proceeding.
+The first `expo run:*` will `expo prebuild` to generate `ios/` and
+`android/` from `app.json`. Both directories are gitignored — the
+source of truth is `app.json` + the config plugins it lists.
+
+### Known first-run gotchas
+
+- **iOS `pod install` fails on system Ruby**: the Gemfile resolves
+  to ffi >= 1.17, which needs Ruby 3.0+. Install CocoaPods via
+  `brew install cocoapods` (uses brew's bundled Ruby) and run
+  `pod install` directly — skip Bundler.
+- **`expo run:android` errors with "SDK location not found"**: write
+  `android/local.properties` with `sdk.dir=$ANDROID_HOME` (the
+  Expo prebuild flow doesn't currently generate this).
+- **`expo run:ios` crashes at the very end on osascript**: the CLI
+  tries to count Simulator processes via AppleScript and fails if
+  Terminal lacks Automation permission. The build succeeds and the
+  app is installed — grant permission via System Settings →
+  Privacy & Security → Automation, or just open the Simulator
+  manually before the build.
+- **First-bundle ANR on Android emulator**: the debug bundle is
+  ~1500 modules and the cold JS eval can briefly trip the watchdog
+  on a fresh AVD. Tap "Wait" — the Setup tab will render. Release
+  builds (Hermes precompiled) don't show this.
+
+### `expo prebuild` and the `dependencies` guard
+
+`npm run prebuild|ios|android` each chain through to `expo prebuild`
+on first run, and `expo prebuild` likes to hoist `expo`, `react`,
+and `react-native` from `devDependencies` into `dependencies`.
+That's wrong for a published library — consumers of
+`@ethora/chat-component-rn` would install a duplicate copy of React
+and crash at runtime with the "two copies of React" reconciler
+error.
+
+To prevent the regression, those three npm scripts each invoke
+`scripts/fix-prebuild-deps.js` right after, which surgically strips
+the offending lines back out of `package.json` (preserving the rest
+of the file byte-for-byte). You can also run it manually:
+
+```bash
+npm run fix-prebuild-deps
+```
+
+It's idempotent — runs are silent when there's nothing to fix.
+
+### Tests
+
+```bash
+npm test                          # jest, ~2s for the full suite
+npm test -- --watch               # watch mode
+npm test -- some.test.ts          # single file
+```
+
+### E2E (Maestro)
+
+`e2e/auth-and-send.yaml` drives the full Setup → Email auth → Chat
+tab → enter room → send message → assert it appears flow against a
+real backend. Credentials come from any profile in
+`~/.ethora/profiles.json` (the file the `@ethora/setup` CLI writes
+to), so you don't have to hardcode anything.
+
+Prerequisites:
+
+```bash
+# Install Maestro
+curl -fsSL https://get.maestro.mobile.dev | bash
+export PATH="$PATH:$HOME/.maestro/bin"
+
+# JDK 17+ — Android Studio's bundled JBR works; the runner script
+# auto-detects it on macOS so you don't have to set JAVA_HOME.
+```
+
+Run against an already-built + installed app + a booted simulator:
+
+```bash
+# Default profile "mychatapp QA", room "Main chat"
+npm run e2e:ios
+npm run e2e:android
+
+# Or pass a different profile / room
+scripts/run-e2e.sh ios "Vitall Dev2" "General"
+```
+
+The flow targets stable `testID`s wired into the SDK
+(`chat-message-input`, `chat-send-button`, plus `room-<jid-local>`
+on each room row) — please keep those identifiers stable for
+downstream e2e drivers (Detox, Appium) that rely on the same
+contracts.
+
+> Already have your RN environment set up? See the
+> [React Native environment setup](https://reactnative.dev/docs/environment-setup)
+> doc if any of the above feels unfamiliar.
 
 ## Related
 

@@ -40,12 +40,16 @@
   },
   "scripts": {
     "start": "expo start",
-    "android": "expo run:android",
-    "ios": "expo run:ios",
+    "android": "expo run:android; node scripts/fix-prebuild-deps.js",
+    "ios": "expo run:ios; node scripts/fix-prebuild-deps.js",
     "web": "expo start --web",
-    "prebuild": "expo prebuild",
+    "prebuild": "expo prebuild; node scripts/fix-prebuild-deps.js",
+    "fix-prebuild-deps": "node scripts/fix-prebuild-deps.js",
     "lint": "eslint .",
-    "test": "jest"
+    "test": "jest",
+    "e2e": "scripts/run-e2e.sh",
+    "e2e:ios": "scripts/run-e2e.sh ios",
+    "e2e:android": "scripts/run-e2e.sh android"
   },
   "dependencies": {
     "@reduxjs/toolkit": "^2.5.0",

@@ -55,13 +55,22 @@ export function refresh(): Promise<{
               refreshToken: response.data.refreshToken,
             })
           );
+          // BUGFIX: previously the `.then` only dispatched and never
+          // resolved, so every `await refresh()` callsite hung forever
+          // on the happy path. Resolve with the axios response shape so
+          // the interceptor can read `tokens.data.token` to retry.
+          resolve(response);
         })
         .catch((error) => {
           reject(error);
         });
     } catch (error) {
+      // BUGFIX: previously the outer-try catch dispatched logout but
+      // never rejected, so a synchronous throw from `http.post` (e.g.
+      // a bad URL) would hang the promise. Reject explicitly.
       console.log('errr');
       store.dispatch(logout());
+      reject(error);
     }
   });
 }
@@ -93,11 +102,30 @@ http.interceptors.response.use(
     // BUGFIX: the original condition was `if (!enabled)` — inverted, so
     // turning `refreshTokens.enabled: true` actually DISABLED the refresh
     // path on 401. Use the correct sense.
-    if (store.getState().chatSettingStore?.config?.refreshTokens?.enabled) {
-      if (
-        store.getState().chatSettingStore?.config?.refreshTokens
-          ?.refreshFunction
-      ) {
+    if (!store.getState().chatSettingStore?.config?.refreshTokens?.enabled) {
+      // BUGFIX: previously this branch fell off the end of the async
+      // function and returned `undefined`, which axios treats as a
+      // resolved-with-undefined response. Callers expecting an error
+      // got `undefined` instead, silently swallowing every failure
+      // when the refresh path isn't configured. Re-reject so the
+      // original error reaches the caller.
+      return Promise.reject(error);
+    }
+
+    const originalRequest = error.config;
+    const status = error.response?.status;
+
+    // Refresh paths only fire on 401. Anything else passes through.
+    if (!error.response || status !== 401) {
+      return Promise.reject(error);
+    }
+
+    if (
+      store.getState().chatSettingStore?.config?.refreshTokens?.refreshFunction
+    ) {
+      // Consumer-supplied refresh function. Call it, dispatch the new
+      // tokens, retry the original request.
+      try {
         const { refreshToken, accessToken } = store
           .getState()
           .chatSettingStore?.config?.refreshTokens?.refreshFunction();
@@ -107,41 +135,49 @@ http.interceptors.response.use(
             refreshToken: refreshToken,
           })
         );
-        return;
-      } else {
-        const originalRequest = error.config;
-
-        if (!error.response || error.response.status !== 401) {
-          throw error;
+        // BUGFIX: previously this branch returned `undefined` after
+        // dispatching, so the original request was never retried and
+        // the caller resolved with undefined. Stamp the new token on
+        // the original config and replay.
+        if (originalRequest?.headers) {
+          originalRequest.headers.Authorization = accessToken;
         }
-        if (
-          originalRequest.url === '/users/login/refresh' ||
-          originalRequest.url === '/users/login'
-        ) {
-          return Promise.reject(error);
-        }
-
-        originalRequest._retry = true;
-
-        if (isRefreshing) {
-          const retryOriginalRequest = addRequestToQueue(originalRequest);
-
-          return retryOriginalRequest;
-        } else {
-          isRefreshing = true;
-          try {
-            const tokens = await refresh();
-            console.log('tokens', tokens);
-            isRefreshing = false;
-            originalRequest.headers.Authorization = tokens.data.token;
-            processQueue(tokens.data.token);
-            return http(originalRequest);
-          } catch (refreshErr) {
-            isRefreshing = false;
-            return refreshErr;
-          }
-        }
+        return http(originalRequest);
+      } catch (refreshErr) {
+        return Promise.reject(refreshErr);
       }
+    }
+
+    // Built-in `/users/login/refresh` path. Skip if the failing request
+    // IS the refresh / login itself — otherwise we'd loop forever.
+    if (
+      originalRequest.url === '/users/login/refresh' ||
+      originalRequest.url === '/users/login'
+    ) {
+      return Promise.reject(error);
+    }
+
+    originalRequest._retry = true;
+
+    if (isRefreshing) {
+      const retryOriginalRequest = addRequestToQueue(originalRequest);
+      return retryOriginalRequest;
+    }
+
+    isRefreshing = true;
+    try {
+      const tokens = await refresh();
+      console.log('tokens', tokens);
+      isRefreshing = false;
+      originalRequest.headers.Authorization = tokens.data.token;
+      processQueue(tokens.data.token);
+      return http(originalRequest);
+    } catch (refreshErr) {
+      isRefreshing = false;
+      // BUGFIX: previously this returned the error (resolving the
+      // promise with the error as value) instead of rejecting, so
+      // axios callers got the error as a "successful" response body.
+      return Promise.reject(refreshErr);
     }
   }
 );

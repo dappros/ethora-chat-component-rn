@@ -233,6 +233,16 @@ const SendInput: React.FC<SendInputProps> = ({
                 </TouchableOpacity>
               )}
               <MessageInput
+                // Stable testIDs so Maestro / Detox / Appium can drive
+                // the chat-send flow reliably. accessibilityLabel
+                // mirrors the testID so iOS accessibility-id lookups
+                // also work. (TextInput in src/components/InputComponents
+                // also carries the same testIDs as a fallback, but
+                // SendInput is the input that actually ships in
+                // <ChatRoom> / <Thread> so this is the one e2e drivers
+                // hit in practice.)
+                testID="chat-message-input"
+                accessibilityLabel="chat-message-input"
                 isFocused={isFocused}
                 color={config?.colors?.primary}
                 placeholder="Type message"
@@ -267,6 +277,8 @@ const SendInput: React.FC<SendInputProps> = ({
           )}
           {/* Always show send button - it's needed for sending messages and media */}
           <Button
+            testID="chat-send-button"
+            accessibilityLabel="chat-send-button"
             onPress={handleSendClick}
             disabled={!message && filePreviews.length === 0}
             EndIcon={

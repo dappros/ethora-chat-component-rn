@@ -120,7 +120,17 @@ export const roomsStore = createSlice({
     ) {
       const { roomJID, message, start } = action.payload;
 
-      if (!state.rooms[roomJID]?.messages) {
+      // Guard against the "stanza arrived before /chats/my completed"
+      // race — without this, the optional-chain `?.messages` falls
+      // back to undefined, and the assignment below tries to set
+      // `.messages` on undefined → TypeError. Caller can safely
+      // ignore the message; the room will get its messages array on
+      // `addRoom` when the API response lands.
+      if (!state.rooms[roomJID]) {
+        return;
+      }
+
+      if (!state.rooms[roomJID].messages) {
         state.rooms[roomJID].messages = [];
       }
 

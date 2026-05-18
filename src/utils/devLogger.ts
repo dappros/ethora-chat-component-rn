@@ -106,6 +106,17 @@ function safeStringify(value: any): string {
 let consolePatched = false;
 
 export function installConsoleCapture() {
+  // Under Jest, patching `console.*` to fan out through `pushLog` causes
+  // a render-time feedback loop: React's dev build emits `console.error`
+  // during act() for various reasons (deprecated APIs, act-warnings),
+  // each call schedules a microtask notify → `useSyncExternalStore`
+  // subscribers re-render → next render may log again → "Maximum
+  // update depth exceeded" → the suite hangs. Skipping the patch in
+  // test environments eliminates the loop without changing dev/prod
+  // behaviour. Mirrors how the web build gates DEV-only diagnostics.
+  if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test') {
+    return;
+  }
   if (consolePatched) {return;}
   consolePatched = true;
   (['log', 'info', 'warn', 'error'] as const).forEach((level) => {
