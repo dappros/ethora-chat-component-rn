@@ -1,14 +1,19 @@
 import { Client, xml } from '@xmpp/client';
 import { createTimeoutPromise } from './createTimeoutPromise.xmpp';
 import { Element } from '@xmpp/xml';
+
+let presenceIdCounter = 0;
+const nextPresenceId = () =>
+  `presenceInRoom-${Date.now().toString(36)}-${(++presenceIdCounter).toString(36)}`;
+
 export const presenceInRoom = async (
   client: Client,
   roomJID: string,
   delay = 2000
 ): Promise<Element> => {
   let stanzaHandler: (stanza: Element) => void;
-
   const unsubscribe = () => client.off('stanza', stanzaHandler);
+  const stanzaId = nextPresenceId();
 
   return new Promise(async (resolve, reject) => {
     let settled = false;
@@ -26,7 +31,7 @@ export const presenceInRoom = async (
     stanzaHandler = (stanza) => {
       if (
         stanza.is('presence') &&
-        stanza.attrs.id === 'presenceInRoom' &&
+        stanza.attrs.id === stanzaId &&
         stanza.attrs.from?.startsWith(roomJID)
       ) {
         finish(resolve, stanza);
@@ -40,7 +45,7 @@ export const presenceInRoom = async (
       {
         from: client.jid?.toString(),
         to: `${roomJID}/${client.jid?.getLocal()}`,
-        id: 'presenceInRoom',
+        id: stanzaId,
       },
       xml('x', { xmlns: 'http://jabber.org/protocol/muc' })
     );

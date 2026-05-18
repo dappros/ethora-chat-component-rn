@@ -28,6 +28,7 @@ import {
 } from '../helpers/resolveInitBeforeLoadUser';
 import { ensureScopedChatCache } from '../helpers/ensureScopedChatCache';
 import { getRooms as prefetchRoomsViaRest } from '../networking/api-requests/rooms.api';
+import { allRoomPresences } from '../networking/xmpp/allRoomPresences.xmpp';
 import { store } from '../roomStore';
 import { logout, setStoreClient } from '../roomStore/chatSettingsSlice';
 import { setLogoutState } from '../roomStore/roomsSlice';
@@ -219,6 +220,14 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
           devPushLog('xmpp', 'initBeforeLoad: privateStore ok');
         } catch (e) {
           devPushLog('warn', 'initBeforeLoad: privateStore failed', e);
+        }
+        try {
+          const roomCount = Object.keys(store.getState().rooms.rooms || {}).length;
+          devPushLog('xmpp', `initBeforeLoad: joining ${roomCount} rooms via presence…`);
+          await allRoomPresences((c as any).client);
+          devPushLog('xmpp', 'initBeforeLoad: allRoomPresences ok');
+        } catch (e) {
+          devPushLog('warn', 'initBeforeLoad: allRoomPresences failed', e);
         }
 
         store.dispatch(setStoreClient(c));

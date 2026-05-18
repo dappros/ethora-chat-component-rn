@@ -266,7 +266,11 @@ const handleComposing = async (stanza: Element, currentUser: string) => {
 };
 
 const onPresenceInRoom = (stanza: Element | any) => {
-  if (stanza.attrs.id === 'presenceInRoom' && !stanza.getChild('error')) {
+  if (
+    typeof stanza.attrs.id === 'string' &&
+    stanza.attrs.id.startsWith('presenceInRoom') &&
+    !stanza.getChild('error')
+  ) {
     const roomJID: string = stanza.attrs.from.split('/')[0];
     const role: string = stanza?.children[1]?.children[0]?.attrs.role;
     store.dispatch(setRoomRole({ chatJID: roomJID, role: role }));
@@ -346,17 +350,20 @@ const onGetChatRooms = (stanza: Element, xmpp: any) => {
     stanza.attrs.id === 'getUserRooms' &&
     Array.isArray(stanza.getChild('query')?.children)
   ) {
-    stanza.getChild('query')?.children.forEach(async (result: any) => {
+    const children = stanza.getChild('query')?.children || [];
+    children.forEach(async (result: any) => {
       const currentChatRooms = store.getState().rooms.rooms;
 
       const isRoomAlreadyAdded = Object.values(currentChatRooms).some(
         (element) => element.jid === result?.attrs?.jid
       );
 
+      const jid = result?.attrs?.jid;
+
       if (!isRoomAlreadyAdded) {
         try {
           const roomData: IRoom = {
-            jid: result?.attrs?.jid || '',
+            jid: jid || '',
             name: result?.attrs?.name || '',
             id: '',
             title: result?.attrs?.name || '',
@@ -380,11 +387,15 @@ const onGetChatRooms = (stanza: Element, xmpp: any) => {
           if (!store.getState().rooms.activeRoomJID) {
             store.dispatch(setCurrentRoom({ roomJID: roomData.jid }));
           }
-
-          if (roomData.jid) {
-            xmpp.presenceInRoomStanza(roomData.jid);
-          }
         } catch (error) {}
+      }
+
+      if (jid) {
+        try {
+          xmpp.presenceInRoomStanza(jid);
+        } catch (e) {
+          console.warn('presenceInRoomStanza failed', jid, e);
+        }
       }
     });
   }
