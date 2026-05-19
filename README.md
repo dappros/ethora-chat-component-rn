@@ -4,7 +4,20 @@ React Native chat UI + chat core for iOS and Android, powered by the Ethora plat
 
 **Part of the [Ethora SDK ecosystem](https://github.com/dappros/ethora#ecosystem)** — see all SDKs, tools, and sample apps. Follow cross-SDK updates in the [Release Notes](https://github.com/dappros/ethora/blob/main/RELEASE-NOTES.md).
 
-> Looking for the React.js (web) version? See [`@ethora/chat-component`](https://github.com/dappros/ethora-chat-component).
+> Looking for the React.js (web) version? See [`@ethora/chat-component`](https://github.com/dappros/ethora-chat-component) (npm: [`@ethora/chat-component`](https://www.npmjs.com/package/@ethora/chat-component)).
+
+## Table of contents
+
+- [What you get](#what-you-get)
+- [Default backend endpoints](#default-backend-endpoints)
+- [Install](#install)
+- [Quick start](#quick-start)
+- [Configuration](#configuration) — full `IConfig` reference in [instructions.md](instructions.md)
+- [Authentication modes](#authentication-modes)
+- [Pinning a single room](#pinning-a-single-room)
+- [Quality & test coverage](#quality--test-coverage)
+- [Local development](#local-development)
+- [Changelog](CHANGELOG.md)
 
 ## What you get
 
@@ -74,6 +87,61 @@ export default function App() {
 ```
 
 Sign up at [app.chat.ethora.com/register](https://app.chat.ethora.com/register) to get an `appId` (and optionally an app token / JWT for backend integrations). For a guided setup that writes config files into your project, run `npx @ethora/setup`.
+
+## Configuration
+
+`<XmppProvider>` and `<Chat>` accept the same `config` object (shape: [`IConfig`](src/types/types.ts)). Real integrations should put the network/auth fields on the provider (single source of truth for the XMPP socket) and the UI/behavior toggles on the chat:
+
+```tsx
+const baseConfig = {
+  customAppToken: token || '',
+  baseUrl: backend.base_url,
+  xmppSettings: {
+    devServer: backend.dev_server,
+    host: backend.host,
+    conference: backend.conference,
+  },
+  jwtLogin: { enabled: true, token: token || '' },
+  refreshTokens: { enabled: true },
+  initBeforeLoad: true,
+};
+
+<XmppProvider config={baseConfig}>
+  <Chat
+    roomJID={room_jid}
+    config={{
+      ...baseConfig,
+      newArch: true,
+      disableInteractions: true,
+      disableChatInfo: {
+        disableHeader: false,
+        disableDescription: true,
+        disableType: true,
+        disableMembers: true,
+        disableChatHeaderMenu: true,
+      },
+      chatHeaderSettings: {
+        hide: false,
+        disableCreate: true,
+        disableMenu: true,
+        hideSearch: singleRoomMode,
+      },
+      clearStoreBeforeInit: true,
+      disableNewChatButton: true,
+      disableRoomConfig: true,
+      disableProfilesInteractions: true,
+      disableRoomMenu: singleRoomMode,
+      disableRooms: singleRoomMode,
+      enableRoomsRetry: {
+        enabled: true,
+        helperText: 'Initializing your messages…',
+      },
+    }}
+  />
+</XmppProvider>
+```
+
+The complete field-by-field reference — every option in `IConfig`, grouped by purpose, plus the single-init contract and a per-room single-chat recipe — lives in **[instructions.md](instructions.md)**. It mirrors the structure of the web package's [`@ethora/chat-component` README](https://www.npmjs.com/package/@ethora/chat-component).
 
 ## Authentication modes
 
