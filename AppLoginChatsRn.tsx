@@ -231,6 +231,39 @@ const SetupTab: React.FC<{
     text: string;
   } | null>(null);
 
+  // Re-sync local form state when the resolved user clears (logout) or
+  // when the parent swaps the creds (e.g. user A → user B). Without this
+  // the "Resolved user: X" line and the password field show stale data
+  // until the next launch.
+  useEffect(() => {
+    setMode(initial.mode);
+    setJwt(initial.jwt);
+    setAppToken(initial.appToken);
+    setEmail(initial.email);
+    setPassword(initial.password);
+    setResolvedUser(initial.resolvedUser);
+    setBaseUrl(initial.baseUrl);
+    setXmppHost(initial.xmppHost);
+    setXmppDevServer(initial.xmppDevServer);
+    setConference(initial.conference || '');
+    setSingleRoom(initial.singleRoom);
+    setSingleRoomJid(initial.singleRoomJid);
+    setTestResult(null);
+  }, [
+    initial.mode,
+    initial.jwt,
+    initial.appToken,
+    initial.email,
+    initial.password,
+    initial.resolvedUser,
+    initial.baseUrl,
+    initial.xmppHost,
+    initial.xmppDevServer,
+    initial.conference,
+    initial.singleRoom,
+    initial.singleRoomJid,
+  ]);
+
   const collect = (overrides: Partial<Creds> = {}): Creds => ({
     mode,
     jwt: jwt.trim(),
@@ -884,6 +917,31 @@ const AppLoginChatsRn: React.FC = () => {
   const [tab, setTab] = useState<Tab>('setup');
   const [creds, setCreds] = useState<Creds | null>(null);
   const [loading, setLoading] = useState(true);
+  const prevTabRef = useRef<Tab>('setup');
+
+  // When the user leaves the Chat tab (Setup / Logs), flush the
+  // in-memory lastViewedTimestamp for the active room into the server's
+  // private store. Mirrors the AppState→background hook in XmppProvider
+  // — same intent ("user just stopped looking"), different trigger.
+  useEffect(() => {
+    const prev = prevTabRef.current;
+    prevTabRef.current = tab;
+    if (prev === 'chat' && tab !== 'chat') {
+      try {
+        const state = chatStore.getState();
+        const client = (state.chatSettingStore as any)?.client;
+        const rooms = state.rooms?.rooms;
+        const activeRoomJID = state.rooms?.activeRoomJID || null;
+        if (client?.flushLastViewedToPrivateStoreStanza) {
+          client
+            .flushLastViewedToPrivateStoreStanza(rooms, { activeRoomJID })
+            .catch(() => {});
+        }
+      } catch {
+        /* non-fatal */
+      }
+    }
+  }, [tab]);
 
   // Restore creds from AsyncStorage on first mount.
   useEffect(() => {

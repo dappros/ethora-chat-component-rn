@@ -56,7 +56,18 @@ export const roomsStore = createSlice({
   reducers: {
     addRoom(state, action: PayloadAction<{ roomData: IRoom }>) {
       const { roomData } = action.payload;
-      state.rooms[roomData.jid] = roomData;
+      const existing = state.rooms[roomData.jid];
+      // Preserve a pre-existing lastViewedTimestamp (the private-store
+      // pull may have landed before /chats/my finished). If neither
+      // source set one, stamp `Date.now()` so initial REST history
+      // counts as "seen" — without this default, every back-history
+      // message read by the unread middleware satisfies `>0` and the
+      // badge shows the entire room population on first paint.
+      const lastViewed =
+        roomData.lastViewedTimestamp ??
+        existing?.lastViewedTimestamp ??
+        Date.now();
+      state.rooms[roomData.jid] = { ...roomData, lastViewedTimestamp: lastViewed };
     },
     deleteRoom(state, action: PayloadAction<{ jid: string }>) {
       const { jid } = action.payload;
@@ -354,12 +365,27 @@ export const roomsStore = createSlice({
 });
 
 // Count messages strictly newer than the given millisecond timestamp.
-// Uses `msg.date` (canonical ISO/Date) so it matches the unread
-// middleware. Excludes the "delimiter-new" sentinel, pending sends,
-// and the current user's own messages (parity with unreadMiddleware's
-// isOwnMessage filter — without this, the reducer and the middleware
-// disagree about the count and we get a flicker as the badge gets
-// written twice with different values on every message).
+// Uses `msg.id` (server-authoritative microsecond timestamp prefixed by
+// 13-digit millis — see helpers/dateComparison `getHighResolutionTimestamp`)
+// because `msg.date` can be derived client-side (createMessageFromXml
+// falls back to `Date.now()` for realtime stanzas without a `date`
+// attr), which makes the comparison drift vs what the server assigned.
+// Excludes the "delimiter-new" sentinel, pending sends, and the current
+// user's own messages (parity with unreadMiddleware's isOwnMessage
+// filter — without this, the reducer and the middleware disagree about
+// the count and we get a flicker as the badge gets written twice with
+// different values on every message).
+export const msgSortableMs = (msg: any): number => {
+  const id = String(msg?.id || '');
+  const m = /^(\d{13})/.exec(id);
+  if (m) {return Number(m[1]);}
+  if (msg?.date) {
+    const t = new Date(msg.date as any).getTime();
+    if (Number.isFinite(t)) {return t;}
+  }
+  return 0;
+};
+
 const norm = (s: any): string => {
   if (s == null) {return '';}
   let v = String(s).toLowerCase();
@@ -401,7 +427,7 @@ const countNewerMessages = (
   for (const message of messages) {
     if (!message || message.id === 'delimiter-new' || message.pending) {continue;}
     if (isOwn(message, selfXmpp, selfWallet)) {continue;}
-    const ms = new Date(message.date as any).getTime();
+    const ms = msgSortableMs(message);
     if (Number.isFinite(ms) && ms > timestamp) {count += 1;}
   }
   return count;

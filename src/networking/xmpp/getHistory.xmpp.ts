@@ -132,7 +132,12 @@ export const getHistory = async (
     ]);
     return res === null ? [] : res;
   } catch (e) {
-    console.log('=-> error in', fixedChatJid, e);
+    // MAM rejects with no value when an iq error returns; the timeout
+    // path resolves with null instead of throwing. Either is expected
+    // for a room with no history yet — only log if `e` is meaningful.
+    if (e !== undefined) {
+      console.log('=-> error in', fixedChatJid, e);
+    }
     return [];
   } finally {
     unsubscribe();

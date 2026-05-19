@@ -74,11 +74,10 @@ const styles = StyleSheet.create({
   headerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    paddingTop: 62, // 60px top padding + 2px for header content
-    maxHeight: 24,
-    minHeight: 24,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
+    minHeight: 56,
     justifyContent: 'space-between',
   },
   menuButton: {
@@ -87,8 +86,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   leftContainer: {
-    flex: 1,
+    width: 40,
     alignItems: 'flex-start',
+    justifyContent: 'center',
   },
   centerContainer: {
     position: 'absolute',
@@ -98,7 +98,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   rightContainer: {
-    flex: 1,
+    width: 40,
     alignItems: 'flex-end',
+    justifyContent: 'center',
   },
 });

@@ -126,11 +126,8 @@ const MessageList = <TMessage extends IMessage>({
     // even mid-stream — so the user sees them appear from oldest to
     // newest with no swap animation.
     const sorted = filtered.slice().sort((a, b) => {
-      // Pull a numeric timestamp out of the id (server stamps a
-      // microsecond timestamp into the stanza-id) — fallback to the
-      // `date` ISO string when id isn't numeric (e.g. delimiter rows).
-      const aNum = Number(a?.id) || new Date(a?.date as any).getTime() || 0;
-      const bNum = Number(b?.id) || new Date(b?.date as any).getTime() || 0;
+      const aNum = new Date(a?.date as any).getTime() || 0;
+      const bNum = new Date(b?.date as any).getTime() || 0;
       return aNum - bNum;
     });
     return sorted;

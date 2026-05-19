@@ -20,9 +20,9 @@ const SearchInputWrapper = styled.View.withConfig({ shouldForwardProp })<{
   align-items: center;
   background-color: #fff;
   border-radius: 16px;
-  height: 48px;
-  padding: 0 16px;
-  margin: 0 6px 16px 6px;
+  height: 44px;
+  padding: 0 12px;
+  margin: 0 0 12px 0;
   flex: 1;
   ${({ animated, expanded }) =>
     animated &&
@@ -36,7 +36,10 @@ const SearchIcon = styled(TouchableOpacity)<{
   animated?: boolean;
   expanded?: boolean;
 }>`
-  padding: 3.5px;
+  padding: 0;
+  margin-right: 8px;
+  align-items: center;
+  justify-content: center;
   color: #999;
 `;
 

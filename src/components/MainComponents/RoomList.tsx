@@ -242,8 +242,8 @@ const styles = StyleSheet.create({
   },
   chatList: {
     flex: 1,
-    paddingTop: 10,
-    paddingHorizontal: 8,
+    paddingTop: 8,
+    paddingHorizontal: 16,
     backgroundColor: '#FAFAFA',
   },
 });

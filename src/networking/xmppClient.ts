@@ -5,6 +5,7 @@ import { xmppSettingsInterface } from '../types/types';
 import { sendMediaMessage } from './xmpp/sendMediaMessage.xmpp';
 import { getChatsPrivateStoreRequest } from './xmpp/getChatsPrivateStoreRequest.xmpp';
 import { actionSetTimestampToPrivateStore } from './xmpp/actionSetTimestampToPrivateStore.xmpp';
+import { flushLastViewedToPrivateStore } from './xmpp/flushLastViewedToPrivateStore';
 import { sendTypingRequest } from './xmpp/sendTypingRequest.xmpp';
 import { getHistory } from './xmpp/getHistory.xmpp';
 import { sendTextMessage } from './xmpp/sendTextMessage.xmpp';
@@ -232,6 +233,17 @@ export class XmppClient {
         username: walletToUsername(this.username),
         password: this.password,
       });
+
+      // Concurrent room preloads each register their own short-lived
+      // 'stanza' handler (getHistory, getRooms, getChatsPrivateStore,
+      // ...). With 5+ rooms preloading in parallel, Node's default
+      // EventEmitter cap of 10 trips the "possible memory leak" warning
+      // even though each handler is correctly unsubscribed in `finally`.
+      // Raising the cap silences the warning without masking real leaks
+      // — true leaks would still grow unboundedly past this number.
+      try {
+        (this.client as any)?.setMaxListeners?.(50);
+      } catch {}
 
       // Wrap `send` so the dev logger sees outgoing stanzas too.
       // Guarded: some @xmpp/client builds define `send` as a getter or
@@ -529,6 +541,21 @@ export class XmppClient {
         chats
       );
     } catch (error) {}
+  }
+
+  // Flush lastViewedTimestamp for every room into the server's private
+  // store. Used by AppState/background and tab-change handlers — see
+  // src/networking/xmpp/flushLastViewedToPrivateStore.ts for details.
+  async flushLastViewedToPrivateStoreStanza(
+    rooms: Record<string, any> | null | undefined,
+    opts: { activeRoomJID?: string | null; onlyIfNoUnread?: boolean } = {}
+  ) {
+    if (this.disableLastRead) {return false;}
+    try {
+      return await flushLastViewedToPrivateStore(this, rooms, opts);
+    } catch {
+      return false;
+    }
   }
 
   sendMediaMessageStanza(roomJID: string, data: any, customId?: string) {

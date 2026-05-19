@@ -1,5 +1,5 @@
 import { Middleware } from '@reduxjs/toolkit';
-import { updateRoom } from '../roomsSlice';
+import { updateRoom, msgSortableMs } from '../roomsSlice';
 import { IMessage } from '../../types/types';
 
 // Per-room cache so we only recompute when something that affects the
@@ -105,9 +105,12 @@ export const unreadMiddleware: Middleware =
         const room = rooms[jid];
         if (!room) {return;}
         // Skip rooms the user is currently viewing — `setLastViewedTimestamp(0)`
-        // clears their unread directly. Skip rooms that were never viewed
-        // (timestamp `0`) because we don't have a reference point yet.
-        if (room.lastViewedTimestamp === 0 || jid === activeChatJID) {return;}
+        // clears their unread directly. Skip rooms with no reference point
+        // (covers undefined / null / 0) — after logout→login, hydrated rooms
+        // come back without lastViewedTimestamp, and treating that as 0
+        // made every history message satisfy `date > 0` and incorrectly
+        // bumped unread for already-seen content.
+        if (!room.lastViewedTimestamp || jid === activeChatJID) {return;}
 
         // Fingerprint = "what would affect the answer". If neither the
         // message count nor the lastViewedTimestamp changed since last
@@ -130,7 +133,7 @@ export const unreadMiddleware: Middleware =
             msg.id !== 'delimiter-new' &&
             !msg.pending &&
             !isOwnMessage(msg, selfXmpp, selfWallet) &&
-            new Date(msg.date).getTime() >
+            msgSortableMs(msg) >
               (room.lastViewedTimestamp || 0)
         ).length;
 

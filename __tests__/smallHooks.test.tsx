@@ -30,7 +30,16 @@ jest.mock('../src/roomStore', () => {
   return {
     __esModule: true,
     __dispatchSpy: dispatch,
-    store: { dispatch: (a: any) => dispatch(a) },
+    store: {
+      dispatch: (a: any) => dispatch(a),
+      // performLogout now reads state before dispatching to figure out
+      // whether to flush lastViewed → return an empty shape so the
+      // mocked logout path doesn't TypeError on `state.rooms.rooms`.
+      getState: () => ({
+        rooms: { rooms: {}, activeRoomJID: null },
+        chatSettingStore: { client: null },
+      }),
+    },
   };
 });
 
@@ -117,19 +126,20 @@ describe('logoutService.performLogout', () => {
     (pushSubscriptionService.reset as jest.Mock).mockReset();
   });
 
-  it('emits chat:clear-notifications, resets push, and dispatches the 3 logout actions', () => {
+  it('emits chat:clear-notifications, resets push, and dispatches the 3 logout actions', async () => {
     const emitSpy = jest.spyOn(DeviceEventEmitter, 'emit');
 
-    logoutService.performLogout();
+    await logoutService.performLogout();
 
     expect(emitSpy).toHaveBeenCalledWith('chat:clear-notifications');
     expect(pushSubscriptionService.reset).toHaveBeenCalledTimes(1);
 
     const types = dispatchSpy.mock.calls.map(([a]) => a.type);
+    // Code order is setLogoutState → clearHeap → chat/logout.
     expect(types).toEqual([
-      'chat/logout',
       'roomMessages/setLogoutState',
       'roomHeapStore/clearHeap',
+      'chat/logout',
     ]);
 
     emitSpy.mockRestore();

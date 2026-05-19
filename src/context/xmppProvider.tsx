@@ -7,7 +7,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { DeviceEventEmitter } from 'react-native';
+import { AppState, DeviceEventEmitter } from 'react-native';
 import XmppClient from '../networking/xmppClient';
 import {
   IConfig,
@@ -195,7 +195,12 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
         devPushLog('rn', `initBeforeLoad: user resolved (${resolved.xmppUsername})`);
         applyResolvedUserToStore(resolved);
 
-        prefetchRoomsViaRest().catch(() => undefined);
+        // Kick off REST /chats/my; allRoomPresences below needs the
+        // room list to be in redux, otherwise it joins 0 MUCs and the
+        // user receives zero realtime messages until they manually tap
+        // into each room. Track the promise so we can await it before
+        // joining presences.
+        const restRoomsPromise = prefetchRoomsViaRest().catch(() => undefined);
 
         const c = await initializeClient(
           resolved.xmppUsername!,
@@ -221,6 +226,12 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
         } catch (e) {
           devPushLog('warn', 'initBeforeLoad: privateStore failed', e);
         }
+        // Wait for REST /chats/my to populate the room list before
+        // joining MUC presences. Race-skipping this step left the user
+        // subscribed to 0 rooms and no realtime delivery.
+        try {
+          await restRoomsPromise;
+        } catch {}
         try {
           const roomCount = Object.keys(store.getState().rooms.rooms || {}).length;
           devPushLog('xmpp', `initBeforeLoad: joining ${roomCount} rooms via presence…`);
@@ -320,6 +331,35 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
       );
     }
   }, [client, client?.status, reconnectAttempts, initializeClient]);
+
+  // -----------------------------------------------------------
+  // AppState → background: flush lastViewedTimestamp into the
+  // server's private store so the next session shows the correct
+  // unread state. Without this, leaving the app open in chat and
+  // killing it (or just switching apps) never persists "I read up to
+  // here" — the next launch reads the stale marker and over-counts
+  // unread.
+  //
+  // Cheap to run on every transition out of `active`: a no-op when
+  // there is no client, when nothing has moved past the existing
+  // entry, or when this build has `disableLastRead`.
+  // -----------------------------------------------------------
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') {return;}
+      const c = client;
+      if (!c) {return;}
+      const state = store.getState();
+      const rooms = state.rooms?.rooms;
+      const activeRoomJID = state.rooms?.activeRoomJID || null;
+      // Fire-and-forget — we're going to the background and don't
+      // care about the resolution path.
+      c.flushLastViewedToPrivateStoreStanza(rooms, { activeRoomJID }).catch(
+        () => {}
+      );
+    });
+    return () => sub.remove();
+  }, [client]);
 
   // -----------------------------------------------------------
   // Logout event listener (RN equivalent of window event)
