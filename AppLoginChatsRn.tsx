@@ -48,6 +48,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ReduxWrapper as Chat } from './src/components/MainComponents/ReduxWrapper';
 import { store as chatStore } from './src/roomStore';
+import { logoutService } from './src/hooks/useLogout';
 import type { IConfig, IRoom } from './src/types/types';
 import {
   clearLogs,
@@ -203,7 +204,8 @@ const TabBar: React.FC<{ active: Tab; onChange: (t: Tab) => void }> = ({
 const SetupTab: React.FC<{
   initial: Creds;
   onSave: (c: Creds) => void;
-}> = ({ initial, onSave }) => {
+  onLogout: () => Promise<void>;
+}> = ({ initial, onSave, onLogout }) => {
   const [mode, setMode] = useState<LoginMode>(initial.mode);
   // JWT fields
   const [jwt, setJwt] = useState(initial.jwt);
@@ -570,11 +572,41 @@ const SetupTab: React.FC<{
         </View>
 
         <Pressable
+          testID="setup-logout"
+          onPress={async () => {
+            setBusy(true);
+            try {
+              await onLogout();
+              pushLog('rn', 'Logout complete: xmpp disconnected, redux + persist + push cleared');
+              setTestResult({
+                ok: true,
+                text:
+                  'Logged out. XMPP disconnected, redux + persisted state + push subscriptions cleared. Testbed creds cleared too.',
+              });
+            } catch (err: any) {
+              setTestResult({
+                ok: false,
+                text: `Logout failed: ${err?.message || err}`,
+              });
+            } finally {
+              setBusy(false);
+            }
+          }}
+          style={({ pressed }) => [
+            styles.secondaryBtn,
+            { marginTop: 16 },
+            (pressed || busy) && styles.btnPressed,
+          ]}
+        >
+          <Text style={styles.secondaryBtnText}>Logout</Text>
+        </Pressable>
+
+        <Pressable
           testID="setup-clear-storage"
           onPress={async () => {
             try {
               await AsyncStorage.clear();
-              pushLog('rn', 'AsyncStorage cleared');
+              pushLog('rn', 'AsyncStorage cleared (sledgehammer)');
               setTestResult({
                 ok: true,
                 text: 'Storage cleared. Reload the app to start fresh.',
@@ -887,6 +919,25 @@ const AppLoginChatsRn: React.FC = () => {
     setTab('chat');
   }, []);
 
+  const handleLogout = useCallback(async () => {
+    // 1. Library teardown — XMPP disconnect, redux wipe, persist
+    //    clear, push subscriptions clear, REST cache clear.
+    await logoutService.performLogout();
+    // 2. Testbed-owned state: clear the cached creds and reset the
+    //    UI to a logged-out shape (back to Setup tab with empty
+    //    fields). Without this, the chat tab would still try to
+    //    re-bootstrap because creds in component state still look
+    //    "ready" — and on next reload, the persisted CREDS_KEY would
+    //    auto-login again.
+    try {
+      await AsyncStorage.removeItem(CREDS_KEY);
+    } catch (err) {
+      pushLog('error', 'Failed to remove testbed creds', err);
+    }
+    setCreds(null);
+    setTab('setup');
+  }, []);
+
   if (loading) {
     return (
       <SafeAreaView style={[styles.root, styles.center]}>
@@ -915,6 +966,7 @@ const AppLoginChatsRn: React.FC = () => {
           <SetupTab
             initial={creds || DEFAULT_CREDS}
             onSave={handleSave}
+            onLogout={handleLogout}
           />
         </View>
         <View

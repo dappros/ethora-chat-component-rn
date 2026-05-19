@@ -60,6 +60,11 @@ export interface IRoom {
   createdAt?: string | number | Date;
   updatedAt?: string | number | Date;
 
+  // REST-side metadata populated by `/chats/my` hydration. Surfaced
+  // in ChatProfileModal under Description / Chat type fields.
+  description?: string;
+  type?: string;
+
   roomMembers?: RoomMember[];
 
   // QoS / preload state
@@ -358,15 +363,9 @@ export interface IConfig {
   disableUserCount?: boolean;
   disableSentLogic?: boolean;
   disableTypingIndicator?: boolean;
-  // Chat-profile modal granular gates (matches web's
-  // `disableChatInfo`).
-  disableChatInfo?: {
-    disableHeader?: boolean;
-    disableDescription?: boolean;
-    disableType?: boolean;
-    hideMembers?: boolean;
-    disableMembers?: boolean;
-  };
+  // disableChatInfo already declared above (line ~338) — granular gates
+  // (disableHeader / disableDescription / disableType / hideMembers /
+  // disableMembers / disableChatHeaderMenu). Don't redeclare here.
   botMessageAutoScroll?: boolean;
   blockMessageSendingWhenProcessing?:
     | boolean
