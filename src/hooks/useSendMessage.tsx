@@ -7,6 +7,16 @@ import { RootState } from '../roomStore';
 import { useEventHandlers } from './useEventHandlers';
 import type { IConfig, IMessage } from '../types/types';
 
+// Monotonic counter for stanza ids. Bumped on each send within a single
+// process. Two rapid sends in the same millisecond used to collide on
+// `send-text-message-${Date.now()}`; that collision made
+// insertMessageWithDelimiter dedup the second optimistic message into
+// the first by id, so 10 spam-taps visually collapsed into 1 bubble
+// whose body was whatever the last dispatch wrote.
+let __sendIdSeq = 0;
+const nextStanzaId = (prefix: string): string =>
+  `${prefix}-${Date.now()}-${(__sendIdSeq = (__sendIdSeq + 1) >>> 0)}`;
+
 export const useSendMessage = (_configOverride?: IConfig) => {
   const { client } = useXmppClient();
   const dispatch = useDispatch();
@@ -71,7 +81,7 @@ export const useSendMessage = (_configOverride?: IConfig) => {
       // dedupes by id and flips `pending: false` → DoubleTick renders.
       // Without this, the user taps send and sees nothing for ~200ms
       // until the echo lands, which feels broken.
-      const optimisticId = `send-text-message-${Date.now()}`;
+      const optimisticId = nextStanzaId('send-text-message');
       const optimisticDate = new Date().toISOString();
       const selfId =
         (user as any)?.xmppUsername || (user as any)?.walletAddress || '';
@@ -157,7 +167,7 @@ export const useSendMessage = (_configOverride?: IConfig) => {
       // a placeholder with `isMediafile: true` so MessageBubble shows
       // a media-shaped pending tile while the upload + send is in
       // flight; replaced in-place by the server echo via xmppId dedupe.
-      const optimisticId = `send-media-message-${Date.now()}`;
+      const optimisticId = nextStanzaId('send-media-message');
       const optimisticDate = new Date().toISOString();
       const selfId =
         (user as any)?.xmppUsername || (user as any)?.walletAddress || '';

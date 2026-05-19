@@ -1,5 +1,9 @@
 import { Client, xml } from '@xmpp/client';
 
+// Monotonic counter — see sendTextMessage for the rationale (avoids
+// Date.now() id collisions on <1ms-apart sends).
+let _sendMediaSeq = 0;
+
 /**
  * Same xmlns derivation as sendTextMessage — the server registers app
  * messages under the WSS service URL (`wss://<host>/ws`), and stanzas
@@ -23,7 +27,7 @@ export function sendMediaMessage(
   devServer?: string
 ) {
   const id =
-    customId || `send-media-message-${Date.now().toString()}`;
+    customId || `send-media-message-${Date.now()}-${(_sendMediaSeq = (_sendMediaSeq + 1) >>> 0)}`;
 
   const dataToSend = {
     xmlns: toServiceXmlns(devServer, client),

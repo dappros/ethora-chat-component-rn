@@ -1,5 +1,8 @@
 import { Client, xml } from '@xmpp/client';
 
+// Local monotonic counter — see comment in id construction below.
+let _sendTextSeq = 0;
+
 /**
  * Normalize devServer to the WSS service URL that the server uses as
  * the data-element xmlns. The user-facing `xmppDevServer` config
@@ -37,11 +40,15 @@ export const sendTextMessage = (
   devServer?: string,
   customId?: string
 ) => {
+  // Same monotonic-counter pattern as useSendMessage.nextStanzaId, to
+  // protect direct callers that don't supply a customId from
+  // Date.now() collisions when sends happen <1ms apart.
+  if (!_sendTextSeq) {/* noop guarded init */}
   const id = customId
     ? customId
     : isReply
-      ? `send-reply-message-${Date.now().toString()}`
-      : `send-text-message-${Date.now().toString()}`;
+      ? `send-reply-message-${Date.now()}-${(_sendTextSeq = (_sendTextSeq + 1) >>> 0)}`
+      : `send-text-message-${Date.now()}-${(_sendTextSeq = (_sendTextSeq + 1) >>> 0)}`;
 
   try {
     const message = xml(

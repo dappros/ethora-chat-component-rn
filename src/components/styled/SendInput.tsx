@@ -1,6 +1,6 @@
 /** @format */
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   MessageInputContainer,
   InputContainer,
@@ -75,7 +75,22 @@ const SendInput: React.FC<SendInputProps> = ({
   const [inputHeight, setInputHeight] = useState(40);
   const [showMediaMenu, setShowMediaMenu] = useState(false);
 
+  // Refs shadow `message` and `filePreviews` so handleSendClick can:
+  //   (a) read the LATEST typed value even when React state hasn't
+  //       flushed yet (rapid tap-burst race),
+  //   (b) clear the ref SYNCHRONOUSLY before any await — so a follow-up
+  //       tap on send that happens before the next render reads `''`
+  //       and bails out (instead of re-sending the same content).
+  // Without these, fast spam-typing+sending used to collapse 10 user
+  // sends into 1 server message with all 10 contents stacked.
+  const messageRef = useRef(message);
+  const filePreviewsRef = useRef<MediaFile[]>(filePreviews);
+  // Guard flag so a 2nd tap during the first send's await is a no-op
+  // (versus duplicating the send with stale closure state).
+  const sendingRef = useRef(false);
+
   const handleFileSelect = (files: MediaFile[]) => {
+    filePreviewsRef.current = files;
     setFilePreviews([...files]);
   };
 
@@ -196,30 +211,62 @@ const SendInput: React.FC<SendInputProps> = ({
   };
 
   const handleRemoveImage = (index: number) => {
-    setFilePreviews((prev) => prev.filter((_, i) => i !== index));
+    const next = filePreviewsRef.current.filter((_, i) => i !== index);
+    filePreviewsRef.current = next;
+    setFilePreviews(next);
   };
 
   const handleSendClick = useCallback(async () => {
-    const filesToSend = filePreviews;
-    const messageToSend = message;
+    // Snapshot LATEST values from refs, not from the React-state
+    // closure. The closure is captured at render-time and may be
+    // stale by the time a fast-fingered user spams the send button.
+    const messageToSend = messageRef.current;
+    const filesToSend = filePreviewsRef.current;
+
+    // Nothing to send → bail. Critical for the spam case: after the
+    // first tap clears refs, subsequent taps queued by RN's native
+    // gesture system see empty refs and exit without re-sending.
+    if (!messageToSend && filesToSend.length === 0) {return;}
+
+    // Re-entrancy guard. If a previous send is still awaiting upload
+    // / xmpp.send, a second tap should NOT slip through with the
+    // same snapshotted content.
+    if (sendingRef.current) {return;}
+    sendingRef.current = true;
+
+    // CLEAR EVERYTHING SYNCHRONOUSLY — refs first (so the early-bail
+    // above catches the next rapid tap immediately), then dispatch
+    // state updates so the UI catches up on the next render.
+    messageRef.current = '';
+    filePreviewsRef.current = [];
     setMessage('');
     setFilePreviews([]);
 
-    for (const file of filesToSend) {
-      try {
-        await sendMedia(file, file.type);
-      } catch (err) {
-        console.error(err);
-        return;
+    try {
+      for (const file of filesToSend) {
+        try {
+          await sendMedia(file, file.type);
+        } catch (err) {
+          console.error(err);
+          return;
+        }
       }
+      if (messageToSend) {
+        sendMessage(messageToSend);
+      }
+    } finally {
+      sendingRef.current = false;
     }
-    if (messageToSend) {
-      sendMessage(messageToSend);
-    }
-  }, [filePreviews, message, sendMessage, sendMedia]);
+    // Deps intentionally exclude `message` / `filePreviews` — we read
+    // from refs, so closure freshness is irrelevant and re-creating
+    // the handler on every keystroke would just thrash GC + risk the
+    // (still-async) `disabled` button race.
+  }, [sendMessage, sendMedia]);
 
   useEffect(() => {
-    setMessage(editMessage || '');
+    const next = editMessage || '';
+    messageRef.current = next;
+    setMessage(next);
   }, [editMessage]);
 
   return (
@@ -265,7 +312,13 @@ const SendInput: React.FC<SendInputProps> = ({
                 placeholder="Type message"
                 placeholderTextColor="#999"
                 value={message}
-                onChangeText={setMessage}
+                onChangeText={(text) => {
+                  // Mirror into the ref synchronously so handleSendClick
+                  // reads the latest value even before the React state
+                  // commit lands (the source of the spam-merge bug).
+                  messageRef.current = text;
+                  setMessage(text);
+                }}
                 onFocus={() => {
                   onFocus?.();
                   setIsFocused(true);
