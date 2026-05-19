@@ -10,7 +10,7 @@ import { IConfig, MediaFile } from '../../types/types';
 import Button from './Button';
 import { SendIcon, AttachIcon } from '../../assets/icons';
 import { KeyboardAvoidingView, Platform, View, TouchableOpacity, Alert, ActionSheetIOS, Linking } from 'react-native';
-import { ModalSelectMedia } from '../Modals/ModalSelectMedia/ModalSelectMedia.tsx';
+import AttachSheet from '../Modals/AttachSheet/AttachSheet';
 import { MediaFilePreview } from './MediaFilePreview';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
@@ -200,12 +200,7 @@ const SendInput: React.FC<SendInputProps> = ({
         }
       );
     } else {
-      Alert.alert('Select Media', 'Choose an option', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Camera', onPress: handleCameraSelection },
-        { text: 'Photo Library', onPress: handleGallerySelection },
-        { text: 'Document', onPress: handleFileSelection },
-      ]);
+      setShowMediaMenu(true);
     }
   };
 
@@ -371,6 +366,14 @@ const SendInput: React.FC<SendInputProps> = ({
             }}
           />
         </MessageInputContainer>
+        <AttachSheet
+          visible={showMediaMenu}
+          onClose={() => setShowMediaMenu(false)}
+          onCamera={handleCameraSelection}
+          onGallery={handleGallerySelection}
+          onDocument={handleFileSelection}
+          primaryColor={config?.colors?.primary}
+        />
       </InputContainer>
   );
 };

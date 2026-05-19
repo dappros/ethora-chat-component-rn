@@ -7,6 +7,13 @@
  */
 
 import 'react-native-gesture-handler';
+// Polyfill `crypto.getRandomValues()` before anything that pulls in
+// uuid — RN's JS runtime doesn't ship one, and uuid throws
+// "crypto.getRandomValues() not supported" on the first send.
+// The library entry (src/main.ts) loads this too, but the testbed
+// here mounts the chat directly without going through that entry, so
+// we need it again at the testbed root.
+import 'react-native-get-random-values';
 import { registerRootComponent } from 'expo';
 import App from './App';
 

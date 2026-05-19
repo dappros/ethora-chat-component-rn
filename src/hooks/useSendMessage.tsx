@@ -1,7 +1,9 @@
 import { useCallback } from 'react';
+import { v4 as uuidv4 } from 'uuid';
 import { useXmppClient } from '../context/xmppProvider';
 import { useDispatch, useSelector } from 'react-redux';
 import { addRoomMessage, setEditAction } from '../roomStore/roomsSlice';
+import { addMessageToHeap } from '../roomStore/roomHeapSlice';
 import { uploadFile } from '../networking/api-requests/auth.api';
 import { RootState } from '../roomStore';
 import { useEventHandlers } from './useEventHandlers';
@@ -154,50 +156,82 @@ export const useSendMessage = (_configOverride?: IConfig) => {
       data: any,
       type: string,
       activeRoomJID: string,
-      isReply?: boolean,
-      isChecked?: boolean,
-      mainMessage?: string
+      isReply: boolean = false,
+      isChecked: boolean = false,
+      mainMessage: string = ''
     ) => {
-      const mediaData = new FormData();
-      mediaData.append('files', data);
-
       client?.onCriticalSend?.(activeRoomJID);
 
-      // Optimistic pending bubble — same pattern as text send. Render
-      // a placeholder with `isMediafile: true` so MessageBubble shows
-      // a media-shaped pending tile while the upload + send is in
-      // flight; replaced in-place by the server echo via xmppId dedupe.
-      const optimisticId = nextStanzaId('send-media-message');
-      const optimisticDate = new Date().toISOString();
+      const id = `send-media-message:${uuidv4()}`;
+      const optimisticTimestamp = Date.now();
+      const optimisticDate = new Date(optimisticTimestamp).toISOString();
       const selfId =
         (user as any)?.xmppUsername || (user as any)?.walletAddress || '';
-      const placeholderMessage: IMessage = {
-        id: optimisticId,
-        xmppId: optimisticId,
-        body: 'media',
-        roomJid: activeRoomJID,
-        date: optimisticDate,
-        pending: true,
-        isDeleted: false,
-        isMediafile: 'true',
-        mimetype: type,
-        originalName: data?.name,
-        user: {
-          ...(user as any),
-          id: selfId,
-          name: `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || selfId,
-        } as any,
-      } as IMessage;
+      const displayName =
+        `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || selfId;
+      const fileSizeStr = data?.size != null ? String(data.size) : '';
+
       if (!config?.disableSentLogic) {
         dispatch(
-          addRoomMessage({ roomJID: activeRoomJID, message: placeholderMessage })
+          addRoomMessage({
+            roomJID: activeRoomJID,
+            message: {
+              id: id,
+              body: 'media',
+              roomJid: activeRoomJID,
+              date: optimisticDate,
+              messageTimestampMs: optimisticTimestamp,
+              user: {
+                ...(user as any),
+                id: selfId,
+                name: displayName,
+              },
+              pending: true,
+              isDeleted: false,
+              xmppId: id,
+              xmppFrom: `${activeRoomJID}/${selfId}`,
+              isSystemMessage: 'false',
+              isMediafile: 'true',
+              fileName: data?.name,
+              location: '',
+              locationPreview: '',
+              mimetype: type,
+              originalName: data?.name,
+              size: fileSizeStr,
+              isReply,
+              showInChannel: `${isChecked}`,
+              mainMessage,
+            } as any as IMessage,
+          })
+        );
+        dispatch(
+          addMessageToHeap({
+            id: id,
+            user: {
+              ...(user as any),
+              id: selfId,
+              name: displayName,
+            },
+            date: optimisticDate,
+            messageTimestampMs: optimisticTimestamp,
+            body: 'media',
+            roomJid: activeRoomJID,
+            xmppFrom: `${activeRoomJID}/${selfId}`,
+            isReply,
+            showInChannel: `${isChecked}` as any,
+            mainMessage,
+          } as any as IMessage)
         );
       }
 
       try {
+        const mediaData = new FormData();
+        mediaData.append('files', data);
+
         const response = await uploadFile(mediaData);
-        response.data.results.forEach(async (item: any) => {
-          const payload = {
+
+        for (const item of response.data.results) {
+          const messagePayload = {
             firstName: user.firstName,
             lastName: user.lastName,
             walletAddress: user.walletAddress,
@@ -217,22 +251,32 @@ export const useSendMessage = (_configOverride?: IConfig) => {
             attachmentId: item?._id,
             wrappable: true,
             roomJid: activeRoomJID,
-            showInChannel: isChecked || false,
-            isReply: isReply || false,
-            mainMessage: mainMessage || '',
+            showInChannel: isChecked,
+            isReply,
+            mainMessage,
             isPrivate: item?.isPrivate,
             __v: item.__v,
           };
-          // Pass optimisticId as the stanza id so the echo's outer
-          // id matches our placeholder's xmppId and dedup'es in place.
-          client?.sendMediaMessageStanza(activeRoomJID, payload, optimisticId);
-          await handleMessageSent({
-            message: item.location || '',
-            roomJID: activeRoomJID,
-            user,
-            messageType: 'media',
-            metadata: payload,
-          });
+          // Stanza id == placeholder id so the MUC echo's outer
+          // <message id="..."> matches xmppId on the placeholder and
+          // insertMessageWithDelimiter merges in place + flips pending.
+          client?.sendMediaMessageStanza(activeRoomJID, messagePayload, id);
+        }
+
+        await handleMessageSent({
+          message: 'media',
+          roomJID: activeRoomJID,
+          user,
+          messageType: 'media',
+          metadata: {
+            isReply,
+            isChecked,
+            mainMessage,
+            fileData: data,
+            fileType: type,
+            messageId: id,
+            uploadResults: response.data.results,
+          },
         });
       } catch (error: any) {
         // Surface the real server payload so we can see why the upload
@@ -247,14 +291,14 @@ export const useSendMessage = (_configOverride?: IConfig) => {
           axiosMessage: error?.message,
         });
         handleMessageFailed({
-          message: '',
+          message: 'media',
           roomJID: activeRoomJID,
           error: error as Error,
           messageType: 'media',
         });
       }
     },
-    [client, user, handleMessageSent, handleMessageFailed]
+    [client, config, user, dispatch, handleMessageSent, handleMessageFailed]
   );
 
   // ChatRoom/ThreadWrapper consume this as the "edit branch" of send.

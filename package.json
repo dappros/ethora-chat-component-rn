@@ -56,7 +56,6 @@
     "@reduxjs/toolkit": "^2.5.0",
     "@xmpp/client": "^0.13.1",
     "axios": "^1.7.9",
-    "expo": "~54.0.34",
     "expo-clipboard": "~8.0.8",
     "expo-document-picker": "~14.0.0",
     "expo-image-manipulator": "~14.0.0",
@@ -65,9 +64,7 @@
     "react-native-keyboard-controller": "^1.18.5",
     "react-native-webview": "^13.16.1",
     "react-redux": "^9.2.0",
-    "styled-components": "^6.1.13",
-    "react": "19.1.0",
-    "react-native": "0.81.5"
+    "styled-components": "^6.1.13"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
