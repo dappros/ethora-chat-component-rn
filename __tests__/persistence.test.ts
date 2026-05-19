@@ -90,10 +90,10 @@ describe('persistence — write', () => {
     expect(persistedRooms.rooms['r@h']).toBeDefined();
   });
 
-  it('drops malformed room keys + caps to 50 messages per room', async () => {
+  it('drops malformed room keys + caps to 100 messages per room', async () => {
     const store = makeStore();
-    // Build a room with 55 messages.
-    const msgs = Array.from({ length: 55 }, (_, i) => ({
+    // Build a room with 110 messages so the cap actually has to fire.
+    const msgs = Array.from({ length: 110 }, (_, i) => ({
       id: String(i + 1),
       user: { id: 'u', name: 'u', token: '', refreshToken: '' } as any,
       date: `2026-05-15T10:00:0${i % 10}Z`,
@@ -111,10 +111,10 @@ describe('persistence — write', () => {
     const persistedRooms = JSON.parse(
       (await AsyncStorage.getItem(PERSIST_KEYS.KEY_ROOMS))!
     );
-    expect(persistedRooms.rooms['r@h'].messages).toHaveLength(50);
-    // Keeps the most recent 50.
-    expect(persistedRooms.rooms['r@h'].messages[0].body).toBe('m5');
-    expect(persistedRooms.rooms['r@h'].messages[49].body).toBe('m54');
+    expect(persistedRooms.rooms['r@h'].messages).toHaveLength(100);
+    // Keeps the most recent 100 — drops m0..m9, keeps m10..m109.
+    expect(persistedRooms.rooms['r@h'].messages[0].body).toBe('m10');
+    expect(persistedRooms.rooms['r@h'].messages[99].body).toBe('m109');
   });
 });
 

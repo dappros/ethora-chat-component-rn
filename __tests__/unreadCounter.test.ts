@@ -174,4 +174,89 @@ describe('unread counter — middleware (incremental)', () => {
     );
     expect(store.getState().rooms.rooms['b@h'].unreadMessages).toBe(2);
   });
+
+  it('recomputes when lastViewedTimestamp changes without a new message', () => {
+    // Catches a regression where the per-room cache only tracked the
+    // message count — a stale count would suppress recomputation when
+    // the user re-opened a room (timestamp changed, count didn't).
+    const store = makeStore();
+    store.dispatch(
+      addRoom({
+        roomData: makeRoom('a@h', {
+          lastViewedTimestamp: Date.parse('2026-05-15T08:00:00Z'),
+        }),
+      })
+    );
+    store.dispatch(setCurrentRoom({ roomJID: 'other@h' }));
+    // Two unread relative to 08:00.
+    store.dispatch(
+      addRoomMessage({
+        roomJID: 'a@h',
+        message: makeMsg('m1', '2026-05-15T10:00:00Z'),
+        start: true,
+      })
+    );
+    store.dispatch(
+      addRoomMessage({
+        roomJID: 'a@h',
+        message: makeMsg('m2', '2026-05-15T11:00:00Z'),
+        start: true,
+      })
+    );
+    expect(store.getState().rooms.rooms['a@h'].unreadMessages).toBe(2);
+
+    // Bump lastViewedTimestamp so only m2 is "newer" — count must
+    // recompute even though messages.length didn't change.
+    store.dispatch(
+      setLastViewedTimestamp({
+        chatJID: 'a@h',
+        timestamp: Date.parse('2026-05-15T10:30:00Z'),
+      })
+    );
+    expect(store.getState().rooms.rooms['a@h'].unreadMessages).toBe(1);
+  });
+
+  it('chat/logout clears the per-room suppression cache', () => {
+    // After logout, a fresh login with the same JID + a single new
+    // message must produce unread=1 — not be suppressed by the
+    // previous session's cached fingerprint.
+    const store = makeStore();
+    store.dispatch(
+      addRoom({
+        roomData: makeRoom('r@h', {
+          lastViewedTimestamp: Date.parse('2026-05-15T10:00:00Z'),
+        }),
+      })
+    );
+    store.dispatch(setCurrentRoom({ roomJID: 'other@h' }));
+    store.dispatch(
+      addRoomMessage({
+        roomJID: 'r@h',
+        message: makeMsg('m1', '2026-05-15T11:00:00Z'),
+        start: true,
+      })
+    );
+    expect(store.getState().rooms.rooms['r@h'].unreadMessages).toBe(1);
+
+    // Simulate logout → re-create the same fingerprint and verify
+    // the middleware doesn't short-circuit.
+    store.dispatch({ type: 'chat/logout' });
+    const store2 = makeStore();
+    store2.dispatch(
+      addRoom({
+        roomData: makeRoom('r@h', {
+          lastViewedTimestamp: Date.parse('2026-05-15T10:00:00Z'),
+        }),
+      })
+    );
+    store2.dispatch(setCurrentRoom({ roomJID: 'other@h' }));
+    store2.dispatch(
+      addRoomMessage({
+        roomJID: 'r@h',
+        message: makeMsg('m1', '2026-05-15T11:00:00Z'),
+        start: true,
+      })
+    );
+    expect(store2.getState().rooms.rooms['r@h'].unreadMessages).toBe(1);
+  });
 });

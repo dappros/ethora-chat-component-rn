@@ -100,12 +100,12 @@ async function flushDebouncedWrite() {
 // ---------- multi-room cap + per-room independence -------------------
 
 describe('persistence — multi-room cap', () => {
-  it('caps each room independently at 50 messages', async () => {
+  it('caps each room independently at 100 messages', async () => {
     const store = makeStore();
-    // Room A: 60 messages → should be capped to last 50
+    // Room A: 120 messages → should be capped to last 100
     store.dispatch(
       addRoom({
-        roomData: { ...makeRoom('a@h'), messages: makeMessages(60, 'a') },
+        roomData: { ...makeRoom('a@h'), messages: makeMessages(120, 'a') },
       })
     );
     // Room B: 30 messages → kept as-is
@@ -120,10 +120,10 @@ describe('persistence — multi-room cap', () => {
     const persisted = JSON.parse(
       (await AsyncStorage.getItem(PERSIST_KEYS.KEY_ROOMS))!
     );
-    expect(persisted.rooms['a@h'].messages).toHaveLength(50);
-    // Most-recent 50 kept: m-11 .. m-60
-    expect(persisted.rooms['a@h'].messages[0].body).toBe('body-a-11');
-    expect(persisted.rooms['a@h'].messages[49].body).toBe('body-a-60');
+    expect(persisted.rooms['a@h'].messages).toHaveLength(100);
+    // Most-recent 100 kept: m-21 .. m-120
+    expect(persisted.rooms['a@h'].messages[0].body).toBe('body-a-21');
+    expect(persisted.rooms['a@h'].messages[99].body).toBe('body-a-120');
     expect(persisted.rooms['b@h'].messages).toHaveLength(30);
   });
 });

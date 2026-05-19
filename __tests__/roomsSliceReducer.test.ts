@@ -384,6 +384,71 @@ describe('roomsSlice — Cluster D (message lifecycle)', () => {
     );
     expect(state.rooms['a@conference.test'].messages).toEqual(before);
   });
+
+  it('addRoomMessage caps the in-memory array at 100 (drops oldest)', () => {
+    // Seed the room with 100 messages. Each one strictly newer than
+    // the last so insertMessageWithDelimiter takes the append path.
+    let state = roomsReducer(
+      initial(),
+      addRoom({
+        roomData: {
+          ...makeRoom('a@conference.test'),
+          messages: Array.from({ length: 100 }, (_, i) =>
+            makeMessage(`m-${i}`, {
+              body: `m-${i}`,
+              date: new Date(2026, 0, 1, 0, 0, i).toISOString(),
+              timestamp: 1000 + i,
+              roomJid: 'a@conference.test',
+            })
+          ),
+        },
+      })
+    );
+
+    // Append 5 more — should evict the 5 oldest to keep total at 100.
+    for (let i = 100; i < 105; i++) {
+      state = roomsReducer(
+        state,
+        addRoomMessage({
+          roomJID: 'a@conference.test',
+          message: makeMessage(`m-${i}`, {
+            body: `m-${i}`,
+            date: new Date(2026, 0, 1, 0, 0, i).toISOString(),
+            timestamp: 1000 + i,
+            roomJid: 'a@conference.test',
+          }),
+        })
+      );
+    }
+
+    const msgs = state.rooms['a@conference.test'].messages;
+    expect(msgs).toHaveLength(100);
+    // Oldest five (m-0..m-4) were dropped; newest five (m-100..m-104)
+    // are now at the tail.
+    expect(msgs[0].body).toBe('m-5');
+    expect(msgs[msgs.length - 1].body).toBe('m-104');
+  });
+
+  it('setRoomMessages clips an oversized payload to 100', () => {
+    const state = roomsReducer(
+      roomsReducer(initial(), addRoom({ roomData: makeRoom('a@conference.test') })),
+      setRoomMessages({
+        roomJID: 'a@conference.test',
+        messages: Array.from({ length: 150 }, (_, i) =>
+          makeMessage(`m-${i}`, {
+            body: `m-${i}`,
+            date: new Date(2026, 0, 1, 0, 0, i).toISOString(),
+            roomJid: 'a@conference.test',
+          })
+        ),
+      })
+    );
+
+    const msgs = state.rooms['a@conference.test'].messages;
+    expect(msgs).toHaveLength(100);
+    expect(msgs[0].body).toBe('m-50');
+    expect(msgs[99].body).toBe('m-149');
+  });
 });
 
 // ---------- Per-room isolation + ancillary actions -------------------

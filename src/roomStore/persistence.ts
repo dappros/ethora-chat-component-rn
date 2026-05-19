@@ -8,7 +8,7 @@ import { IMessage, IRoom, User } from '../types/types';
 //
 //   - persist chatSettingStore.user (sanitized) and rooms state
 //   - blacklist transient fields (modals, activeRoomJID, etc.)
-//   - cap each room's messages to the most recent 50
+//   - cap each room's messages to the most recent MESSAGE_LIMIT (100)
 //   - debounced writes (200ms) on relevant action types
 //
 // Not encrypted. We rely on AsyncStorage's per-app sandbox.
@@ -17,7 +17,10 @@ import { IMessage, IRoom, User } from '../types/types';
 const KEY_CHAT = '@ethora/persist:chatSettingStore';
 const KEY_ROOMS = '@ethora/persist:rooms';
 
-const MESSAGE_LIMIT = 50;
+// Per-room message cap on disk. Mirror this value in `roomsSlice`'s
+// in-memory cap (see `enforceMessageCap`) so the runtime and persisted
+// shapes stay aligned.
+export const MESSAGE_LIMIT = 100;
 
 interface PersistedChatState {
   user: User;

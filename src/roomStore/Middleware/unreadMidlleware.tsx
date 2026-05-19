@@ -2,7 +2,16 @@ import { Middleware } from '@reduxjs/toolkit';
 import { updateRoom } from '../roomsSlice';
 import { IMessage } from '../../types/types';
 
-let previousMessagesCount: { [jid: string]: number } = {};
+// Per-room cache so we only recompute when something that affects the
+// count actually changed. The fingerprint is `<messages.length>|<lastViewed>`
+// — switching just the lastViewedTimestamp (e.g. user re-opens a room)
+// must also retrigger, not just the message count.
+//
+// Kept at module scope so the middleware doesn't re-allocate it on
+// every store; cleared on `chat/logout` (see the action gate below) so
+// a re-login as a different user doesn't inherit the previous user's
+// suppression cache.
+let triggerCache: { [jid: string]: string } = {};
 
 // Normalise an identity candidate (bare JID local, xmpp username, wallet)
 // for case-insensitive comparison. Drops the domain part of any JID and
@@ -45,10 +54,33 @@ const isOwnMessage = (
   return false;
 };
 
+// Action types that can affect any room's unread count. Without this
+// gate the middleware ran on EVERY dispatch — modal toggles, scroll
+// events, typing-indicator setComposing, etc. — and walked every room's
+// messages array looking for a count delta that almost never came. For
+// 50 rooms × 100 messages that's 5000 Date() parses per modal click.
+const TRIGGER_ACTIONS = new Set([
+  'roomMessages/addRoomMessage',
+  'roomMessages/setRoomMessages',
+  'roomMessages/editRoomMessage',
+  'roomMessages/setLastViewedTimestamp',
+  'roomMessages/setCurrentRoom',
+  'roomMessages/addRoom',
+  'roomMessages/updateRoom',
+]);
+
 export const unreadMiddleware: Middleware =
   (storeAPI) => (next) => (action: any) => {
     if (!action || !action.type) {
       console.error('Invalid action in unreadMiddleware:', action);
+      return next(action);
+    }
+
+    // Reset the per-user suppression cache on logout so the next
+    // signed-in user doesn't inherit the previous user's "saw this
+    // count, skip" entries.
+    if (action.type === 'chat/logout') {
+      triggerCache = {};
       return next(action);
     }
 
@@ -57,6 +89,9 @@ export const unreadMiddleware: Middleware =
     }
 
     const result = next(action);
+
+    // Hot-path bail-out: most actions don't touch unread state.
+    if (!TRIGGER_ACTIONS.has(action.type)) {return result;}
 
     const state = storeAPI.getState();
     const rooms = state.rooms.rooms;
@@ -68,36 +103,44 @@ export const unreadMiddleware: Middleware =
     if (rooms && Object.keys(rooms).length > 0) {
       Object.keys(rooms).forEach((jid) => {
         const room = rooms[jid];
-        if (room.lastViewedTimestamp !== 0 && jid !== activeChatJID) {
-          const currentMessagesLength = room.messages?.length || 0;
+        if (!room) {return;}
+        // Skip rooms the user is currently viewing — `setLastViewedTimestamp(0)`
+        // clears their unread directly. Skip rooms that were never viewed
+        // (timestamp `0`) because we don't have a reference point yet.
+        if (room.lastViewedTimestamp === 0 || jid === activeChatJID) {return;}
 
-          if (previousMessagesCount[jid] !== currentMessagesLength) {
-            previousMessagesCount[jid] = currentMessagesLength;
+        // Fingerprint = "what would affect the answer". If neither the
+        // message count nor the lastViewedTimestamp changed since last
+        // time we computed, the answer is stable; skip the walk. (The
+        // previous version tracked only message count, so changing
+        // lastViewedTimestamp without a new message dropped the
+        // recompute silently — the unread badge could go stale.)
+        const currentMessagesLength = room.messages?.length || 0;
+        const fingerprint = `${currentMessagesLength}|${room.lastViewedTimestamp || 0}`;
+        if (triggerCache[jid] === fingerprint) {return;}
+        triggerCache[jid] = fingerprint;
 
-            // Mirror `countNewerMessages` in roomsSlice: ignore the
-            // "delimiter-new" sentinel + locally-pending sends so the
-            // two paths never disagree. Additionally exclude own
-            // messages (parity with Android `isOwnMessage` + web's
-            // `$c(user.id) === $c(currentUserKey)` filter) so the
-            // user's own send never bumps their own badge.
-            const unreadMessagesCount = room.messages?.filter(
-              (msg: IMessage) =>
-                msg.id !== 'delimiter-new' &&
-                !msg.pending &&
-                !isOwnMessage(msg, selfXmpp, selfWallet) &&
-                new Date(msg.date).getTime() >
-                  (room.lastViewedTimestamp || 0)
-            ).length;
+        // Ignore the "delimiter-new" sentinel + locally-pending sends
+        // so the two unread-counting paths (this middleware + the
+        // reducer's countNewerMessages) never disagree. Also exclude
+        // own messages so MAM-replayed sends on re-login don't bump
+        // the user's own badge.
+        const unreadMessagesCount = room.messages?.filter(
+          (msg: IMessage) =>
+            msg.id !== 'delimiter-new' &&
+            !msg.pending &&
+            !isOwnMessage(msg, selfXmpp, selfWallet) &&
+            new Date(msg.date).getTime() >
+              (room.lastViewedTimestamp || 0)
+        ).length;
 
-            if (room.unreadMessages !== unreadMessagesCount) {
-              storeAPI.dispatch(
-                updateRoom({
-                  jid,
-                  updates: { unreadMessages: unreadMessagesCount },
-                })
-              );
-            }
-          }
+        if (room.unreadMessages !== unreadMessagesCount) {
+          storeAPI.dispatch(
+            updateRoom({
+              jid,
+              updates: { unreadMessages: unreadMessagesCount },
+            })
+          );
         }
       });
     }
