@@ -134,7 +134,7 @@ export function uploadFile(formData: FormData) {
     headers: {
       Authorization: token,
       Accept: '*/*',
-      // "Content-Type": "multipart/form-data",
+      'Content-Type': 'multipart/form-data',
     },
   });
 }

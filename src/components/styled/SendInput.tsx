@@ -116,7 +116,6 @@ const SendInput: React.FC<SendInputProps> = ({
     try {
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
         quality: 0.9,
       });
       if (result.canceled || !result.assets?.[0]) {return;}

@@ -56,6 +56,7 @@ export async function updateProfile(fd: FormData): Promise<{ user: User }> {
     const response = await http.put('/users', fd, {
       headers: {
         Authorization: token,
+        'Content-Type': 'multipart/form-data',
       },
     });
     return response.data;
