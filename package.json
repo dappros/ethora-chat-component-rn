@@ -10,7 +10,8 @@
     "src",
     "metro.js",
     "empty-shim.js",
-    "README.md"
+    "README.md",
+    "CHANGELOG.md"
   ],
   "peerDependencies": {
     "@react-native-async-storage/async-storage": ">=1.21.0",
