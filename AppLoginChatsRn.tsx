@@ -114,6 +114,9 @@ interface Creds {
   singleRoomJid: string;
 }
 
+// Empty defaults — fill via the Setup tab at runtime, or have
+// `npx @ethora/setup` pre-fill them when it patches this file from
+// an `~/.ethora/profiles.json` profile.
 const DEFAULT_CREDS: Creds = {
   mode: 'jwt',
   jwt: '',
@@ -121,10 +124,10 @@ const DEFAULT_CREDS: Creds = {
   email: '',
   password: '',
   resolvedUser: null,
-  baseUrl: 'https://api.chat.ethora.com/v1',
-  xmppHost: 'xmpp.chat.ethora.com',
-  xmppDevServer: 'xmpp.chat.ethora.com',
-  conference: 'conference.xmpp.chat.ethora.com',
+  baseUrl: '',
+  xmppHost: '',
+  xmppDevServer: '',
+  conference: '',
   singleRoom: false,
   singleRoomJid: '',
 };

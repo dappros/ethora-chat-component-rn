@@ -131,9 +131,11 @@ test('Setup → Test → Save → Chat tab mounts ReduxWrapper with the entered 
   const inputs = tree.root.findAllByType(require('react-native').TextInput);
   expect(inputs.length).toBeGreaterThanOrEqual(2);
   const jwtInput = inputs[0];
+  const baseUrlInput = inputs[1];
 
   await act(async () => {
     jwtInput.props.onChangeText(JWT);
+    baseUrlInput.props.onChangeText('https://api.chat.ethora.com/v1');
   });
 
   const testBtn = tree.root.findByProps({ testID: 'setup-test' });
