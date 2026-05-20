@@ -24,9 +24,12 @@ const LoginWrapper: React.FC<LoginWrapperProps> = ({...props}) => {
 
   const loginUserFunction = useCallback(async () => {
     try {
+      // Per product-code-policy: no compiled-in dev credentials. If the
+      // consumer didn't pass `user.email` / `user.password`, the call
+      // below fails on empty strings, hits catch, and returns null.
       const authData = await loginEmail(
-        props?.user?.email || 'yukiraze9@gmail.com',
-        props?.user?.password || 'Qwerty123',
+        props?.user?.email || '',
+        props?.user?.password || '',
       );
 
       return {

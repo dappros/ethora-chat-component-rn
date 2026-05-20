@@ -15,13 +15,16 @@ import CustomMessageBubble from './examples/customComponents/CustomMessageBubble
 import { MessageNotificationProvider } from './context/MessageNotificationContext';
 import { ethoraLogger } from './helpers/ethoraLogger';
 
+// Per product-code-policy: no compiled-in Ethora endpoints or app IDs.
+// Fill these in locally to run the web testbed, or wire to env vars in
+// your fork; do not commit real values.
 const APP_CHAT_BASE_CONFIG: IConfig = {
-  appId: '646cc8dc96d4a4dc8f7b2f2d',
-  baseUrl: 'https://api.chat.ethora.com/v1',
+  appId: '',
+  baseUrl: '',
   xmppSettings: {
-    devServer: 'wss://xmpp.chat.ethora.com/ws',
-    host: 'xmpp.chat.ethora.com',
-    conference: 'conference.xmpp.chat.ethora.com',
+    devServer: '',
+    host: '',
+    conference: '',
     xmppPingOnSendEnabled: true,
   },
   userLogin: {
@@ -97,7 +100,7 @@ const Apps = () => {
               CustomScrollableArea={CustomScrollableArea}
               CustomDaySeparator={CustomDaySeparator}
               config={{
-                baseUrl: 'https://api.chat.ethora.com/v1',
+                baseUrl: '',
                 inAppNotifications: {
                   enabled: true,
                   showInContext: true, // Show in chat component context as well
@@ -181,8 +184,7 @@ const ChatComponent = React.memo(() => {
         // CustomInputComponent={CustomChatInput}
         // CustomScrollableArea={CustomScrollableArea}
         // CustomDaySeparator={CustomDaySeparator}
-        // roomJID="646cc8dc96d4a4dc8f7b2f2d_6824685682d635dba7522423@conference.xmpp.chat.ethora.com"
-        // roomJID="6998429ba125477a74a7dcef_69b96235545b8217d39dc1ac@conference.xmpp-dev.preshent.com"
+        // roomJID="<your-room-id>@conference.<your-xmpp-host>"
         config={{
           // ...(demoJwtToken
           //   ? {

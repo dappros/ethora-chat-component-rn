@@ -22,13 +22,16 @@ import { logoutService } from './hooks/useLogout';
 import { useUnreadMessagesCounter } from './hooks/useUnreadMessagesCounter';
 import http, { setBaseURL } from './networking/apiClient';
 
+// Per product-code-policy: no compiled-in Ethora endpoints or app IDs.
+// Fill these in locally to run the web testbed, or wire to env vars in
+// your fork; do not commit real values.
 const BASE_CONFIG: IConfig = {
-  appId: '646cc8dc96d4a4dc8f7b2f2d',
-  baseUrl: 'https://api.chat.ethora.com/v1',
+  appId: '',
+  baseUrl: '',
   xmppSettings: {
-    devServer: 'wss://xmpp.chat.ethora.com/ws',
-    host: 'xmpp.chat.ethora.com',
-    conference: 'conference.xmpp.chat.ethora.com',
+    devServer: '',
+    host: '',
+    conference: '',
     xmppPingOnSendEnabled: true,
   },
   colors: { primary: '#5E3FDE', secondary: '#E1E4FE' },
