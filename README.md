@@ -274,16 +274,24 @@ npm install
 
 # iOS
 cd ios && pod install && cd ..
-npx expo run:ios --device "iPhone 16"
+npx expo run:ios --no-install --device "iPhone 16"
 
 # Android — write local.properties if expo prebuild didn't create it
 echo "sdk.dir=$ANDROID_HOME" > android/local.properties
-npx expo run:android
+npx expo run:android --no-install
 ```
 
 The first `expo run:*` will `expo prebuild` to generate `ios/` and
 `android/` from `app.json`. Both directories are gitignored — the
 source of truth is `app.json` + the config plugins it lists.
+
+`--no-install` skips the post-prebuild yarn / npm reinstall step.
+`npm install` already populated `node_modules/` with everything the
+build needs, and `scripts/fix-prebuild-deps.js` reverts the
+`package.json` hoist that `expo prebuild` introduces (see below) —
+so the reinstall is wasted work even when it does succeed. The
+bundled `npm run ios` / `npm run android` scripts pass this flag
+for you.
 
 ### Known first-run gotchas
 
