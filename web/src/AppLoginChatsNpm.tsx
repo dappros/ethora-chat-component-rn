@@ -14,16 +14,20 @@ import { logoutService } from './hooks/useLogout';
 
 // JWT-based bootstrap — no email/password login screen, no customAppToken.
 // XmppProvider receives `jwtLogin.token`, exchanges it via POST /users/client
-// for an Ethora user-auth token + xmpp creds, then connects. Mirrors the
-// production patient flow (see Slack thread).
-const BASE_URL = 'https://api.messenger-dev2.vitall.com/v1';
-const CONFERENCE = 'conference.xmpp.messenger-dev2.vitall.com';
+// for an Ethora user-auth token + xmpp creds, then connects. Mirrors a
+// typical host-integrator flow where an external auth system mints the
+// Ethora user JWT and the chat UI is dropped in beneath it.
+//
+// Per product-code-policy: fill in your own endpoints locally. Do not
+// commit real customer hosts here.
+const BASE_URL = '';
+const CONFERENCE = '';
 
 const BASE_CONFIG = {
   baseUrl: BASE_URL,
   xmppSettings: {
-    devServer: 'wss://xmpp.messenger-dev2.vitall.com/ws',
-    host: 'xmpp.messenger-dev2.vitall.com',
+    devServer: '',
+    host: '',
     conference: CONFERENCE,
     xmppPingOnSendEnabled: true,
   },
