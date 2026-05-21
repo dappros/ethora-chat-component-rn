@@ -42,7 +42,7 @@
   "scripts": {
     "postinstall": "patch-package",
     "start": "expo start",
-    "android": "expo run:android; node scripts/fix-prebuild-deps.js",
+    "android": "node scripts/ensure-emulator.js && (expo run:android; node scripts/fix-prebuild-deps.js)",
     "ios": "expo run:ios; node scripts/fix-prebuild-deps.js",
     "web": "expo start --web",
     "prebuild": "expo prebuild; node scripts/fix-prebuild-deps.js",
