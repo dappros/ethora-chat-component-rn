@@ -74,6 +74,11 @@ export interface IRoom {
 
   // Last-message tracking (driven by newMessageMidlleware).
   lastMessageTimestamp?: number;
+  unreadBaselineTimestamp?: number;
+  messageStats?: {
+    lastMessageTimestamp?: number;
+    firstMessageTimestamp?: number;
+  };
 }
 
 export interface RoomMember {

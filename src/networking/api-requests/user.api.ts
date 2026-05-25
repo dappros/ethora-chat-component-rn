@@ -41,6 +41,15 @@ export function getExportMyData() {
   });
 }
 
+export function deleteDocument(fileId: string) {
+  const token = store.getState().chatSettingStore.user.token || '';
+  return http.delete(`/files/${fileId}`, {
+    headers: {
+      Authorization: token,
+    },
+  });
+}
+
 export function deleteMe() {
   return http.delete('/users');
 }

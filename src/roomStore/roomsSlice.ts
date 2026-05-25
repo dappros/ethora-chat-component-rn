@@ -1,6 +1,7 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { EditAction, HistoryPreloadState, IMessage, IRoom } from '../types/types';
 import { insertMessageWithDelimiter } from '../helpers/insertMessageWithDelimiter';
+import XmppClient from 'src/networking/xmppClient';
 
 // Per-room runtime message cap. Mirrors the persistence layer's
 // MESSAGE_LIMIT so what's in memory matches what's on disk; otherwise
@@ -49,6 +50,23 @@ const initialState: RoomMessagesState = {
   },
   pendingNotificationJid: null,
 };
+
+const isValidRoomJid = (jid: unknown): jid is string => {
+  if (typeof jid !== 'string' || !jid) return false;
+  if (!jid.includes('@')) return false;
+  return true;
+};
+
+export const addRoomViaApi = createAsyncThunk(
+  'roomMessages/addRoomViaApi',
+  async (
+    { room, xmpp: _xmpp }: { room: IRoom; xmpp: XmppClient },
+    { dispatch }
+  ) => {
+    if (!room || !room.jid) return;
+    dispatch(roomsStore.actions.addRoomFromApi({ room }));
+  }
+);
 
 export const roomsStore = createSlice({
   name: 'roomMessages',
@@ -337,6 +355,53 @@ export const roomsStore = createSlice({
      * applied to its room: messages REPLACE (when provided), state fields
      * MERGE. Rooms that don't exist yet are ignored.
      */
+    addRoomFromApi: (state, action: PayloadAction<{ room: IRoom }>) => {
+      const { room } = action.payload;
+      if (!isValidRoomJid(room?.jid)) return;
+      const existing = state.rooms[room.jid];
+      const incomingMessages = Array.isArray(room.messages)
+        ? room.messages
+        : [];
+      const existingMessages = Array.isArray(existing?.messages)
+        ? existing!.messages
+        : [];
+      state.rooms[room.jid] = {
+        ...existing,
+        ...room,
+        title: room.title || existing?.title || room.title,
+        usersCnt: (() => {
+          const incoming =
+            typeof room.usersCnt === 'number' && room.usersCnt > 0
+              ? room.usersCnt
+              : 0;
+          const previous =
+            typeof existing?.usersCnt === 'number' && existing.usersCnt > 0
+              ? existing.usersCnt
+              : 0;
+          if (incoming === 0 && previous === 0) return room.usersCnt;
+          return Math.max(incoming, previous);
+        })(),
+        icon: room.icon ?? existing?.icon,
+        messages:
+          existingMessages.length > 0 ? existingMessages : incomingMessages,
+        unreadMessages: existing?.unreadMessages ?? room.unreadMessages ?? 0,
+        lastViewedTimestamp:
+          existing?.lastViewedTimestamp ?? room.lastViewedTimestamp ?? 0,
+        unreadBaselineTimestamp:
+          existing?.unreadBaselineTimestamp ??
+          existing?.lastViewedTimestamp ??
+          room.unreadBaselineTimestamp ??
+          room.lastViewedTimestamp ??
+          0,
+        composingList: existing?.composingList ?? room.composingList,
+        composing: existing?.composing ?? room.composing,
+        unreadCapped: existing?.unreadCapped ?? room.unreadCapped ?? false,
+        historyPreloadState:
+          existing?.historyPreloadState ?? room.historyPreloadState ?? 'idle',
+        messageStats: existing?.messageStats ?? room.messageStats,
+        historyComplete: existing?.historyComplete ?? room.historyComplete,
+      };
+    },
     applyRoomsPreloadBatch: (
       state,
       action: PayloadAction<{ rooms: RoomPreloadPatch[] }>
