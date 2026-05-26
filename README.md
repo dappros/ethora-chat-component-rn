@@ -307,6 +307,10 @@ contracts.
 > [React Native environment setup](https://reactnative.dev/docs/environment-setup)
 > doc if any of the above feels unfamiliar.
 
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for the list of changes per release.
+
 ## Related
 
 - [`@ethora/chat-component`](https://github.com/dappros/ethora-chat-component) — React.js (web) chat SDK
