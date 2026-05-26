@@ -3,6 +3,12 @@
 All notable changes to `@ethora/chat-component-rn` are listed here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project doesn't follow strict semver yet — version corresponds to the `package.json` field.
 
+## [26.5.4]
+
+### Changed
+
+- **Error overlay rewritten** — previously showed a stray "There was an error. Please, refresh the page" message (web-port artefact, no action for the user). Now renders a native RN modal with: a clear "Connection error" title, a description of where the error came from (bootstrap auth failure / no user / init exception), the actual error message extracted from the axios response when available, and a **Retry** button. Retry dispatches a `ethora:retryBootstrap` event the XmppProvider listens to — clears the bootstrap key cache and flips the status back to `idle` so the next effect run re-resolves the user from scratch, without unmounting the chat.
+
 ## [26.5.3]
 
 ### Changed (breaking on paper, transparent in practice for Expo apps)

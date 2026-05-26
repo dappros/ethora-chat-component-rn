@@ -362,6 +362,20 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
   }, [client]);
 
   // -----------------------------------------------------------
+  // Retry-bootstrap listener — fired by ChatWrapper's error modal so
+  // a transient failure (bad endpoint, server hiccup, etc.) can be
+  // recovered without forcing the user to unmount the whole chat.
+  // -----------------------------------------------------------
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener('ethora:retryBootstrap', () => {
+      completedBootstrapKeyRef.current = '';
+      inflightBootstrapKeyRef.current = '';
+      setProviderBootstrapStatus('idle');
+    });
+    return () => sub.remove();
+  }, []);
+
+  // -----------------------------------------------------------
   // Logout event listener (RN equivalent of window event)
   // -----------------------------------------------------------
   useEffect(() => {

@@ -28,7 +28,7 @@ import Modal from '../Modals/Modal/Modal';
 import ThreadWrapper from '../Thread/ThreadWrapper';
 import {ModalWrapper} from '../Modals/ModalWrapper/ModalWrapper';
 import {useChatSettingState} from '../../hooks/useChatSettingState';
-import {Text} from 'react-native';
+import {DeviceEventEmitter, Pressable, Text, View} from 'react-native';
 import {pushLog as devPushLog} from '../../utils/devLogger';
 
 interface ChatWrapperProps {
@@ -57,6 +57,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
 
   const [isInited, setInited] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   // const [isModalDeleteOpen, setIsModalDeleteOpen] = useState(false);
 
   const [isChatVisible, setIsChatVisible] = useState(false);
@@ -142,6 +143,10 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
         if (config?.initBeforeLoad && initMode === 'provider') {
           if (providerBootstrapStatus === 'failed') {
             devPushLog('error', 'ChatWrapper: bootstrap failed');
+            setErrorMsg(
+              'Could not authenticate against the server.\n' +
+                'Check baseUrl, XMPP host fields, and the token / credentials you entered.'
+            );
             setShowModal(true);
             setInited(false);
             return;
@@ -167,12 +172,17 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
             return;
           }
           devPushLog('error', 'ChatWrapper: no user (legacy login path)');
+          setErrorMsg(
+            'No authenticated user available.\n' +
+              'For JWT login pass `jwtLogin.token`; for email login pass the `user={{email,password}}` prop and `customAppToken`.'
+          );
           setShowModal(true);
           return;
         }
 
         // We have a user. Modal should be down.
         setShowModal(false);
+        setErrorMsg(null);
 
         if (!client && !storedClient) {
           devPushLog('rn', 'ChatWrapper: initing xmpp client (legacy path)');
@@ -220,6 +230,11 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
         dispatch(setIsLoading({loading: false}));
       } catch (error) {
         devPushLog('error', 'ChatWrapper: init failed', error);
+        const msg =
+          (error as any)?.response?.data?.message ||
+          (error as any)?.message ||
+          String(error);
+        setErrorMsg(`Init failed: ${msg}`);
         setShowModal(true);
         setInited(false);
         dispatch(setIsLoading({loading: false}));
@@ -257,9 +272,46 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
     <>
       {showModal && (
         <Overlay>
-          <StyledModal>
-            <Text>There was an error. Please, refresh the page</Text>
-          </StyledModal>
+          <View
+            style={{
+              padding: 20,
+              backgroundColor: '#fff',
+              borderRadius: 12,
+              maxWidth: 320,
+              alignItems: 'stretch',
+            }}>
+            <Text
+              style={{
+                fontSize: 16,
+                fontWeight: '600',
+                marginBottom: 8,
+                color: '#222',
+              }}>
+              Connection error
+            </Text>
+            <Text style={{fontSize: 13, color: '#444', marginBottom: 16}}>
+              {errorMsg ?? 'Something went wrong while connecting to chat.'}
+            </Text>
+            <Pressable
+              onPress={() => {
+                setShowModal(false);
+                setErrorMsg(null);
+                setInited(false);
+                // Signal a clean re-bootstrap. XmppProvider listens and
+                // resets its state machine so the next effect run resolves
+                // the user from scratch.
+                DeviceEventEmitter.emit('ethora:retryBootstrap');
+              }}
+              style={({pressed}) => ({
+                paddingVertical: 10,
+                paddingHorizontal: 16,
+                borderRadius: 6,
+                backgroundColor: pressed ? '#0040A0' : '#0052CD',
+                alignItems: 'center',
+              })}>
+              <Text style={{color: '#fff', fontWeight: '600'}}>Retry</Text>
+            </Pressable>
+          </View>
         </Overlay>
       )}
       <>
