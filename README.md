@@ -14,6 +14,7 @@ React Native chat UI + chat core for iOS and Android, powered by the Ethora plat
 - Push notifications (FCM / APNs)
 - Pluggable auth (default / JWT / injected user / custom)
 - Custom message bubble, input, scroll, and day-separator overrides
+- Cross-session unread tracking with built-in badges — see [docs/unread-tracking.md](docs/unread-tracking.md)
 
 ## Default backend endpoints
 

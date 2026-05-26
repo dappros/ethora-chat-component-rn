@@ -121,3 +121,32 @@ declare module "react-native-fs" {
   export function mkdir(path: string): Promise<void>;
   export function downloadFile(options: any): { promise: Promise<any> };
 }
+
+// expo-av is deprecated upstream (use expo-audio/expo-video for new code);
+// kept here as an ambient shim so the SDK type-checks cleanly whether the
+// consumer installs expo-av or not. Real types win when the package is
+// actually installed.
+declare module "expo-av" {
+  // Declared as a namespace so `Audio.Sound` resolves as a type.
+  namespace Audio {
+    type Sound = any;
+  }
+  const Audio: any;
+  const Video: any;
+  const ResizeMode: any;
+  type AVPlaybackStatus = any;
+  export { Audio, Video, ResizeMode, AVPlaybackStatus };
+  const content: any;
+  export default content;
+}
+
+declare module "expo-media-library" {
+  const content: any;
+  export default content;
+  export function requestPermissionsAsync(...args: any[]): Promise<any>;
+  export function createAssetAsync(...args: any[]): Promise<any>;
+  export function createAlbumAsync(...args: any[]): Promise<any>;
+  export function getAlbumAsync(...args: any[]): Promise<any>;
+  export function addAssetsToAlbumAsync(...args: any[]): Promise<any>;
+  export function saveToLibraryAsync(...args: any[]): Promise<any>;
+}

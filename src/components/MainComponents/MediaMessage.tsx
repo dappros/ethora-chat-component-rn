@@ -37,17 +37,27 @@ const MediaMessage: React.FC<MediaMessageProps> = ({
             mimetype={mimeType}
           />
         );
-      case mimeType.startsWith('audio/') ||
-        mimeType.includes('application/octet-stream'):
+      case mimeType.startsWith('audio/'): {
         return <AudioMessage src={location || ''} />;
-      default:
+      }
+      default: {
+        // Many backends tag binary payloads (PDFs, DOCX, archives) as
+        // application/octet-stream; sniff the filename extension for the
+        // legitimate audio case before falling through to FileDownload.
+        const fileName = message?.fileName || location?.split('/')?.pop() || 'MediaFile';
+        if (mimeType.includes('application/octet-stream')) {
+          if (/\.(mp3|m4a|wav|aac|ogg|flac)$/i.test(fileName)) {
+            return <AudioMessage src={location || ''} />;
+          }
+        }
         return (
           <FileDownload
             fileURL={location ? location : ''}
-            fileName={location?.split('/')?.pop() || 'MediaFile'}
+            fileName={fileName}
             mimetype={mimeType}
           />
         );
+      }
     }}
   return <Text>Unsupported media type</Text>;
 };

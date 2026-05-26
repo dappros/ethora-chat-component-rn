@@ -43,7 +43,7 @@ const ButtonText = styled.Text<{
   font-weight: bold;
 `;
 
-interface ButtonProps {
+export interface ButtonProps {
   text?: string | ReactElement;
   EndIcon?: ReactNode;
   StartIcon?: ReactNode;

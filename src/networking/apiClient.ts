@@ -2,13 +2,12 @@ import axios from 'axios';
 import { store } from '../roomStore';
 
 import { logout, refreshTokens } from '../roomStore/chatSettingsSlice';
-import { appToken as defaultAppToken } from '../../api.config';
 import { installAxiosCapture } from '../utils/devLogger';
 
 const DEFAULT_BASE_URL = 'https://api.chat.ethora.com/v1';
 
 let currentBaseURL = DEFAULT_BASE_URL;
-let currentAppToken: string = defaultAppToken;
+let currentAppToken: string = '';
 
 const http = axios.create({
   baseURL: currentBaseURL,

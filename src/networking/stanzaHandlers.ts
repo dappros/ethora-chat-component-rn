@@ -10,7 +10,7 @@ import {
   setRoomRole,
   updateRoom,
 } from '../roomStore/roomsSlice';
-import { IRoom } from '../types/types';
+import { IRoom, RoomMember } from '../types/types';
 import { createMessageFromXml } from '../helpers/createMessageFromXml';
 import { getDataFromXml } from '../helpers/getDataFromXml';
 import { setDeleteModal } from '../roomStore/chatSettingsSlice';
@@ -64,14 +64,18 @@ const onRealtimeMessage = async (stanza: Element) => {
     // dedupes by xmppId, which is how the optimistic pending bubble flips
     // to delivered in-place instead of rendering twice.
     const parsed = await getDataFromXml(stanza);
-    const { data: pData, id: pId, body: pBody, ...pRest } = parsed || ({} as any);
+    const { data: pData, id: pId, body: pBody, ...pRest } =
+      parsed ?? ({} as Partial<NonNullable<typeof parsed>>);
+    // Cast at the call site: createMessageFromXml accepts the merged
+    // wrapped/positional shape; IUser type drift between models prevents
+    // a narrower type here without a wider refactor.
     const message = await createMessageFromXml({
       data: pData || data.attrs,
       id: pId || id,
-      body: pBody,
+      body: pBody ?? '',
       ...pRest,
-      isDeleted: !!deleted || !!(pRest as any)?.deleted,
-    });
+      isDeleted: !!deleted || !!pRest?.deleted,
+    } as Parameters<typeof createMessageFromXml>[0]);
 
     const roomJID = stanza.attrs.from.split('/')[0];
     store.dispatch(
@@ -303,12 +307,12 @@ const onGetMembers = (stanza: Element) => {
   if (String(stanza.attrs?.id || '') !== 'roomMemberInfo') {return;}
 
   try {
-    const queries = (stanza as any).getChildren?.('query') || [];
-    const activities: any[] = [];
+    const queries: Element[] = stanza.getChildren('query') ?? [];
+    const activities: Element[] = [];
     let roomJid = '';
     for (const q of queries) {
-      if (!roomJid && q?.attrs?.room) {roomJid = q.attrs.room;}
-      const acts = q?.getChildren?.('activity') || [];
+      if (!roomJid && q.attrs?.room) {roomJid = q.attrs.room;}
+      const acts = q.getChildren('activity') ?? [];
       for (const a of acts) {activities.push(a);}
     }
 
@@ -316,25 +320,35 @@ const onGetMembers = (stanza: Element) => {
     if (!jid || activities.length === 0) {return;}
 
     const existingRoom = store.getState().rooms.rooms[jid];
-    const existingMembers: any[] = existingRoom?.roomMembers || [];
-    const existingByJid = new Map(
-      existingMembers.filter((m: any) => m.jid).map((m: any) => [m.jid, m])
+    const existingMembers: RoomMember[] = existingRoom?.roomMembers ?? [];
+    const existingByJid = new Map<string, RoomMember>(
+      existingMembers
+        .filter((m): m is RoomMember & { jid: string } => !!m.jid)
+        .map((m) => [m.jid, m])
     );
 
-    const roomMembers = activities.map((a: any) => {
-      const memberJid = a?.attrs?.jid;
+    const roomMembers: RoomMember[] = activities.map((a) => {
+      const memberJid: string | undefined = a.attrs?.jid;
       const existing = memberJid ? existingByJid.get(memberJid) : undefined;
+      // The activity stanza carries only the XMPP-side fields
+      // (name/role/ban_status/last_active/jid). REST-loaded existing
+      // members supply firstName/lastName/xmppUsername/_id; when there's
+      // no REST match yet we leave those as empty strings.
       return {
+        firstName: existing?.firstName ?? '',
+        lastName: existing?.lastName ?? '',
+        xmppUsername: existing?.xmppUsername ?? '',
+        _id: existing?._id ?? '',
         ...existing,
-        name: a?.attrs?.name,
-        role: a?.attrs?.role,
-        ban_status: a?.attrs?.ban_status,
-        last_active: Number(a?.attrs?.last_active),
+        name: a.attrs?.name,
+        role: a.attrs?.role,
+        ban_status: a.attrs?.ban_status,
+        last_active: Number(a.attrs?.last_active),
         jid: memberJid,
       };
     });
 
-    store.dispatch(updateRoom({ jid, updates: { roomMembers } as any }));
+    store.dispatch(updateRoom({ jid, updates: { roomMembers } }));
   } catch (err) {
     console.warn('onGetMembers parse failed', err);
   }

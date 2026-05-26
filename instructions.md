@@ -139,7 +139,7 @@ Pick **one** auth mode. Mixing is undefined behavior.
 | `xmppSettings.conference` | `string` | MUC conference subdomain. Default `conference.<host>`. |
 | `xmppSettings.xmppPingOnSendEnabled` | `boolean` | Send a ping immediately before a message to validate the socket. |
 | `xmppSettings.historyQoS` | `HistoryQoSConfig` | Tuning for the MAM-history preload scheduler. |
-| `disableLastRead` | `boolean` | Skip the `chatjson:store` private-store read/write (unread tracking off). |
+| `disableLastRead` | `boolean` | Skip the `chatjson:store` private-store read/write (unread tracking off). See [docs/unread-tracking.md](docs/unread-tracking.md). |
 | `historyQoS` | `HistoryQoSConfig` | Top-level mirror of `xmppSettings.historyQoS`; either works. |
 
 ### Bootstrap
