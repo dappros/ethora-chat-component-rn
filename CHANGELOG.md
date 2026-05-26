@@ -3,7 +3,15 @@
 All notable changes to `@ethora/chat-component-rn` are listed here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project doesn't follow strict semver yet — version corresponds to the `package.json` field.
 
-## [Unreleased]
+## [26.5.3]
+
+### Changed (breaking on paper, transparent in practice for Expo apps)
+
+- **Moved Expo packages from `dependencies` to `peerDependencies`** with `peerDependenciesMeta.<name>.optional: true`. Affected: `expo-av`, `expo-clipboard`, `expo-document-picker`, `expo-image-manipulator`, `expo-image-picker`, `expo-media-library`. Reason: when these sat in `dependencies`, npm sometimes nested them under `node_modules/@ethora/chat-component-rn/node_modules/` (version dedup with the consumer's Expo SDK), and Expo's `app.json` plugin resolver — which only scans the project root's `node_modules/` — failed to find them. Consumers running `npx expo prebuild` got a `PluginError: Failed to resolve plugin for module "expo-image-picker"`. Moving them to peers makes consumers install once at top level (typically `npx expo install expo-image-picker expo-document-picker ...`), which is what every other RN-with-native lib does. Bonus: the SDK tarball drops 6 transitive Expo packages.
+
+  > **Upgrade note**: In your app, run `npx expo install expo-av expo-clipboard expo-document-picker expo-image-manipulator expo-image-picker expo-media-library` once. Or only the ones you actually use — they're all optional, runtime imports fail loudly with the same `Cannot find module 'expo-av'` you'd see today.
+
+## [26.5.2]
 
 Integration-hardening round: closes a batch of runtime issues and a structural "ships raw TS" problem that surfaced during a real-world consumer integration.
 
