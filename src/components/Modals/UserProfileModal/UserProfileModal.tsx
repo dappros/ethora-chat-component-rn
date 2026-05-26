@@ -33,17 +33,16 @@ import EditUserModal from './EditUserModal';
 import { walletToUsername } from '../../../helpers/walletUsername';
 import { useXmppClient } from '../../../context/xmppProvider';
 import Loader from '../../styled/Loader';
-import { ApiRoom, IRoom, Iso639_1Codes } from '../../../types/types';
+import { IRoom, Iso639_1Codes } from '../../../types/types';
 import Select from '../../MainComponents/Select';
 import { useAppDispatch, useAppSelector } from '../../../hooks/hooks';
 import { ScrollView, Text, View } from 'react-native';
-import { postPrivateRoom } from '../../../networking/api-requests/rooms.api';
+import { ApiRoom, postPrivateRoom } from '../../../networking/api-requests/rooms.api';
 import { createRoomFromApi } from '../../../helpers/createRoomFromApi';
 import { useToast } from '../../../context/ToastContext';
 import { LANGUAGE_OPTIONS } from '../../../helpers/constants/LANGUAGE_OPTIONS';
 import { deleteDocument, getDocuments } from '../../../networking/api-requests/user.api';
 import { useChatSettingState } from '../../../hooks/useChatSettingState';
-import { DateTime } from 'luxon';
 
 interface UserProfileModalProps {
   handleCloseModal: any;
@@ -104,7 +103,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
   }, []);
 
   const handleBackClick = useCallback(() => {
-    dispatch(setSelectedUser());
+    dispatch(setSelectedUser(undefined));
     handleCloseModal();
   }, []);
 
@@ -147,9 +146,11 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
         usersArrayLength
       );
 
+      if (!normalizedChat || !client) return;
+
       dispatch(
         addRoomViaApi({
-          room: normalizedChat as IRoom,
+          room: normalizedChat,
           xmpp: client,
         })
       );
@@ -200,19 +201,19 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
         .sort()
         .join(' and ');
 
-      newRoomJid = await client.createPrivateRoomStanza(
+      newRoomJid = (await client?.createPrivateRoomStanza(
         combinedUsersName,
         `Private chat ${combinedUsersName}`,
         roomJid
-      );
+      )) || '';
 
       if (newRoomJid) {
-        await client.inviteRoomRequestStanza(selectedUserUsername, newRoomJid);
-        await client.getRoomsStanza();
+        await client?.inviteRoomRequestStanza(selectedUserUsername, newRoomJid);
+        await client?.getRoomsStanza();
       }
     }
 
-    dispatch(setActiveModal());
+    dispatch(setActiveModal(undefined));
   }, [selectedUser]);
 
   const modalUser: any = selectedUser ?? user;
@@ -333,7 +334,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 <View>
                   <Label style={{ paddingBottom: 4 }}>{doc.documentName}</Label>
                   <LabelData>
-                    {DateTime.fromISO(doc.createdAt).toFormat('dd LLL yyyy t')}
+                    {new Date(doc.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + new Date(doc.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
                   </LabelData>
                 </View>
                 </View>

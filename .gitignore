@@ -81,6 +81,9 @@ expo-env.d.ts
 dist/
 .expo-shared/
 
+# Build output (compiled .d.ts emit for npm publish)
+/lib/
+
 # Expo prebuild now owns ios/ and android/; the source of truth is
 # app.json + config plugins. Don't commit the generated native dirs.
 /ios/

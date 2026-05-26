@@ -10,7 +10,7 @@ interface XmppConfig {
 }
 
 interface SelectRoomArgs {
-  roomJID?: string;
+  roomJID?: string | null;
   wasAutoSelected: boolean;
   config: XmppConfig;
   dispatch: AppDispatch;

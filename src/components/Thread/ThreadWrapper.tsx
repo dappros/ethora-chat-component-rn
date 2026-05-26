@@ -87,9 +87,14 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
   const loadMoreMessages = useCallback(
     async (chatJID: string, max: number, idOfMessageBefore?: number) => {
       if (!isLoadingMore) {
-        client?.getHistoryStanza(chatJID, max, idOfMessageBefore).then(() => {
-          setIsLoadingMore(false);
-        });
+        client?.getHistoryStanza(chatJID, max, idOfMessageBefore)
+          .then(() => {
+            setIsLoadingMore(false);
+          })
+          .catch((err: unknown) => {
+            console.warn('getHistoryStanza failed', err);
+            setIsLoadingMore(false);
+          });
       }
     },
     [client]
@@ -126,7 +131,7 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
     if (config?.disableTypingIndicator) {
       return;
     }
-    client.sendTypingRequestStanza(
+    client?.sendTypingRequestStanza(
       activeMessage.roomJid,
       `${user.firstName} ${user.lastName}`,
       true
@@ -137,7 +142,7 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
     if (config?.disableTypingIndicator) {
       return;
     }
-    client.sendTypingRequestStanza(
+    client?.sendTypingRequestStanza(
       activeMessage.roomJid,
       `${user.firstName} ${user.lastName}`,
       false

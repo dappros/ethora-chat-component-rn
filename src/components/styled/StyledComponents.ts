@@ -148,6 +148,11 @@ export const MessageInput = styled.TextInput`
   color: #141414;
 `;
 
+export const IconButton = styled.TouchableOpacity`
+  justify-content: center;
+  align-items: center;
+`;
+
 export const SendButton = styled.TouchableOpacity`
   padding: 10px 20px;
   border-radius: 8px;

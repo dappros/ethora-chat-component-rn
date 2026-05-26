@@ -41,7 +41,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
       const uri = await audioRecorderPlayer.startRecorder(path);
       setAudioPath(uri);
 
-      audioRecorderPlayer.addRecordBackListener((e) => {
+      audioRecorderPlayer.addRecordBackListener((e: any) => {
         const minutes = Math.floor(e.currentPosition / 60000);
         const seconds = Math.floor((e.currentPosition % 60000) / 1000);
         setTimer(

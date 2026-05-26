@@ -9,7 +9,7 @@
 # Examples:
 #   scripts/run-e2e.sh ios "mychatapp QA"
 #   scripts/run-e2e.sh ios "mychatapp QA" "Main chat"
-#   scripts/run-e2e.sh android "Vitall Dev2"
+#   scripts/run-e2e.sh android "Sample Profile"
 #
 # Defaults: profile name "mychatapp QA", room title "Main chat",
 # user email/password = the first entry in profile.testUsers.

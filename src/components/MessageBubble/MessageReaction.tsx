@@ -74,7 +74,7 @@ export const MessageReaction: FC<MessageReactionProps> = ({
             result[em] = { count: 0, users: [] };
           }
           result[em].count += 1;
-          result[em].users.push(`${data.senderFirstName} ${data.senderLastName}`);
+          result[em].users.push(`${data?.senderFirstName} ${data?.senderLastName}`);
         });}
     });
 

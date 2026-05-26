@@ -1,18 +1,35 @@
 {
   "name": "@ethora/chat-component-rn",
-  "version": "26.05.01",
+  "version": "26.05.02",
   "description": "Drop-in XMPP chat component for React Native / Expo. <Chat config={...}/> and you're done.",
-  "main": "index.js",
+  "main": "lib/commonjs/main.js",
+  "module": "lib/module/main.js",
   "react-native": "src/main.ts",
   "source": "src/main.ts",
-  "types": "src/main.ts",
+  "types": "lib/typescript/main.d.ts",
   "files": [
+    "lib",
     "src",
     "metro.js",
     "empty-shim.js",
     "README.md",
     "CHANGELOG.md"
   ],
+  "react-native-builder-bob": {
+    "source": "src",
+    "output": "lib",
+    "exclude": "**/{__tests__,__fixtures__,__mocks__}/**",
+    "targets": [
+      "commonjs",
+      "module",
+      [
+        "typescript",
+        {
+          "project": "tsconfig.build.json"
+        }
+      ]
+    ]
+  },
   "peerDependencies": {
     "@react-native-async-storage/async-storage": ">=1.21.0",
     "react": ">=18.0.0",
@@ -40,7 +57,7 @@
     }
   },
   "scripts": {
-    "postinstall": "patch-package",
+    "prepare": "patch-package",
     "start": "expo start",
     "android": "node scripts/ensure-emulator.js && (expo run:android; node scripts/fix-prebuild-deps.js)",
     "ios": "expo run:ios; node scripts/fix-prebuild-deps.js",
@@ -49,6 +66,9 @@
     "fix-prebuild-deps": "node scripts/fix-prebuild-deps.js",
     "lint": "eslint .",
     "test": "jest",
+    "build": "bob build",
+    "clean": "rm -rf lib",
+    "prepack": "npm run clean && npm run build",
     "e2e": "scripts/run-e2e.sh",
     "e2e:ios": "scripts/run-e2e.sh ios",
     "e2e:android": "scripts/run-e2e.sh android"
@@ -57,10 +77,12 @@
     "@reduxjs/toolkit": "^2.5.0",
     "@xmpp/client": "^0.13.1",
     "axios": "^1.7.9",
+    "expo-av": "~16.0.8",
     "expo-clipboard": "~8.0.8",
     "expo-document-picker": "~14.0.0",
     "expo-image-manipulator": "~14.0.0",
     "expo-image-picker": "~17.0.0",
+    "expo-media-library": "~18.2.1",
     "js-sha256": "^0.11.0",
     "react-native-keyboard-controller": "^1.18.5",
     "react-native-webview": "^13.16.1",
@@ -82,11 +104,12 @@
     "expo-build-properties": "^55.0.14",
     "expo-status-bar": "~3.0.0",
     "jest": "^29.6.3",
-    "patch-package": "^8.0.1",
     "jest-expo": "~54.0.0",
+    "patch-package": "^8.0.1",
     "prettier": "2.8.8",
     "react": "19.1.0",
     "react-native": "0.81.5",
+    "react-native-builder-bob": "^0.41.0",
     "react-native-gesture-handler": "~2.28.0",
     "react-native-get-random-values": "~1.11.0",
     "react-native-reanimated": "~4.1.0",

@@ -48,7 +48,7 @@ export async function getChatsPrivateStoreRequest(client: Client) {
       )
     );
 
-    client.send(message).catch((err) => {
+    client.send(message).catch((err: any) => {
       clearTimeout(timeout);
       client.off('stanza', stanzaHdlrPointer);
       reject(err);

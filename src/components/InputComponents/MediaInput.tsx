@@ -1,9 +1,9 @@
 import React, { useCallback } from 'react';
 import { View, Image, TouchableOpacity } from 'react-native';
-import Video from 'react-native-video';
+import { Video, ResizeMode } from 'expo-av';
+import * as ImagePicker from 'expo-image-picker';
 import { AttachIcon, RemoveIcon } from '../../assets/icons';
 import Button from '../styled/Button';
-import { launchImageLibrary } from 'react-native-image-picker';
 import { IConfig } from '../../types/types';
 
 interface FilePreview {
@@ -27,25 +27,24 @@ const MediaInput: React.FC<MediaInputProps> = ({
   handleSendClick,
   config,
 }) => {
-  const handleAttachClick = useCallback(() => {
-    launchImageLibrary(
-      {
-        mediaType: 'mixed',
-        selectionLimit: 5,
-      },
-      (response) => {
-        if (response.assets) {
-          const newFiles = response.assets.map((asset) => ({
-            uri: asset.uri!,
-            name: asset.fileName!,
-            type: asset.type!,
-          }));
-          setFilePreviews((prevFiles: FilePreview[]) =>
-            [...prevFiles, ...newFiles].slice(0, 5)
-          );
-        }
-      }
-    );
+  const handleAttachClick = useCallback(async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images', 'videos'],
+      allowsMultipleSelection: true,
+      selectionLimit: 5,
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets) {
+      const newFiles = result.assets.map((asset) => ({
+        uri: asset.uri,
+        name: asset.fileName || asset.uri.split('/').pop() || `file_${Date.now()}`,
+        type: asset.mimeType || 'application/octet-stream',
+      }));
+      setFilePreviews((prevFiles: FilePreview[]) =>
+        [...prevFiles, ...newFiles].slice(0, 5)
+      );
+    }
   }, [setFilePreviews]);
 
   const handleRemoveFile = useCallback(
@@ -67,8 +66,8 @@ const MediaInput: React.FC<MediaInputProps> = ({
         <Video
           source={{ uri: file.uri }}
           style={{ width: 50, height: 50 }}
-          controls
-          resizeMode="cover"
+          useNativeControls
+          resizeMode={ResizeMode.COVER}
         />
       );
     }

@@ -156,7 +156,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
       const location = uploadResult?.data?.results?.[0]?.location;
 
       if (location) {
-        client.setRoomImageStanza(activeRoom?.jid || '', location, 'icon', 'none');
+        client?.setRoomImageStanza(activeRoom?.jid || '', location, 'icon', 'none');
         dispatch(
           updateRoom({ jid: activeRoom?.jid || '', updates: { icon: location } })
         );
@@ -224,7 +224,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
   };
 
   const onRemoveClick = async () => {
-    client.setRoomImageStanza(activeRoom?.jid || '', '', 'icon', 'none');
+    client?.setRoomImageStanza(activeRoom?.jid || '', '', 'icon', 'none');
     dispatch(updateRoom({ jid: activeRoom?.jid || '', updates: { icon: null } }));
   };
 
@@ -237,6 +237,8 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
         lastName: user.lastName,
         name: `${user.firstName} ${user.lastName}`,
         userJID: user?.xmppUsername,
+        token: '',
+        refreshToken: '',
       })
     );
   };
@@ -273,7 +275,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
 
   useEffect(() => {
     if (!activeRoom) {
-      dispatch(setActiveModal());
+      dispatch(setActiveModal(undefined));
     }
   }, [activeRoom, dispatch]);
 

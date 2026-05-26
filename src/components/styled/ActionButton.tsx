@@ -4,9 +4,10 @@ import { DownloadIcon } from '../../assets/icons';
 import { RootState } from '../../roomStore';
 import { useSelector } from 'react-redux';
 
-interface ActionButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+interface ActionButtonProps {
   icon?: React.ReactNode;
+  style?: any;
+  [key: string]: any;
 }
 
 const ActionButton: FC<ActionButtonProps> = ({ icon, ...props }) => {
@@ -23,11 +24,11 @@ const ActionButton: FC<ActionButtonProps> = ({ icon, ...props }) => {
         backgroundColor: '#fff',
         border: `1px solid ${config?.colors?.primary || '#0052CD'}`,
         ...props.style,
-      }}
+      } as any}
       {...props}
     >
       {icon ? (
-        React.cloneElement(icon as React.ReactElement, {
+        React.cloneElement(icon as React.ReactElement<any>, {
           style: { width: 40, height: 40 },
         })
       ) : (

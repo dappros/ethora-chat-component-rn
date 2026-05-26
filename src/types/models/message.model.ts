@@ -1,5 +1,5 @@
 import { IUser } from './user.model';
-import { TranslationObject } from '../types';
+import { TranslationObject } from '../../helpers/transformTranslatations';
 import { Iso639_1Codes } from './language.model';
 
 export interface IMessage {

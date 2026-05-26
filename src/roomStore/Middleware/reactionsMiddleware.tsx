@@ -31,8 +31,8 @@ export const reactionsMiddleware: Middleware =
             updates: {
               lastMessageTimestamp: nanoToMs(
                 rooms[roomJID].messages[rooms[roomJID].messages.length - 1].id
-              ),
-              lastMessage: newLastMessage,
+              ) ?? 0,
+              lastMessage: newLastMessage as any,
             },
           })
         );
@@ -47,14 +47,14 @@ export const reactionsMiddleware: Middleware =
               name: `${data.senderFirstName} ${data.senderLastName}`,
               id: `emoji-${new Date().toString()}`,
             },
-            date: new Date(nanoToMs(latestReactionTimestamp)).toISOString(),
+            date: new Date(nanoToMs(latestReactionTimestamp) ?? 0).toISOString(),
           },
         };
 
         storeAPI.dispatch(
           updateRoom({
             jid: roomJID,
-            updates,
+            updates: updates as any,
           })
         );
       }
@@ -66,7 +66,7 @@ export const reactionsMiddleware: Middleware =
     }
 
     if (
-      rooms[roomJID]?.lastMessageTimestamp <= nanoToMs(latestReactionTimestamp)
+      (rooms[roomJID]?.lastMessageTimestamp ?? 0) <= (nanoToMs(latestReactionTimestamp) ?? 0)
     ) {
       updLastMessage();
     } else if (!rooms[roomJID]?.lastMessageTimestamp) {

@@ -1,82 +1,137 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   TouchableOpacity,
   Text,
   StyleSheet,
-  ScrollView,
+  ActivityIndicator,
 } from 'react-native';
-import RNFetchBlob from 'rn-fetch-blob';
+import { Audio, AVPlaybackStatus } from 'expo-av';
+
+const formatTime = (millis: number) => {
+  const totalSec = Math.floor(millis / 1000);
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  return `${min}:${sec.toString().padStart(2, '0')}`;
+};
 
 const AudioMessage = ({ src }: { src: string }) => {
-  const [amplitudes, setAmplitudes] = useState<number[]>([]);
+  const soundRef = useRef<Audio.Sound | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [position, setPosition] = useState(0);
+  const [duration, setDuration] = useState(0);
 
-  const fetchAndConvertAudio = async (url: string) => {
-    // try {
-    //   const res = await RNFetchBlob.config({ fileCache: true }).fetch(
-    //     "GET",
-    //     url
-    //   );
+  const onPlaybackStatusUpdate = (status: AVPlaybackStatus) => {
+    if (!status.isLoaded) return;
+    setPosition(status.positionMillis);
+    setDuration(status.durationMillis ?? 0);
+    setIsPlaying(status.isPlaying);
+    if (status.didJustFinish) {
+      setIsPlaying(false);
+      soundRef.current?.setPositionAsync(0);
+    }
+  };
 
-    //   console.log("res---!!!", res);
-    //   const audioPath = res.path();
-    //   console.log("Audio file downloaded to:", audioPath);
+  const togglePlayback = async () => {
+    try {
+      if (!soundRef.current) {
+        setIsLoading(true);
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: src },
+          { shouldPlay: true },
+          onPlaybackStatusUpdate
+        );
+        soundRef.current = sound;
+        setIsLoading(false);
+        setIsPlaying(true);
+        return;
+      }
 
-    //   const pcmPath = `${RNFetchBlob.fs.dirs.CacheDir}/audio.pcm`;
-
-    //   await FFmpegKit.executeAsync(
-    //     `-i ${audioPath} -f s16le -ar 44100 -ac 1 ${pcmPath}`,
-    //     async (session) => {
-    //       const returnCode = await session.getReturnCode();
-    //       if (ReturnCode.isSuccess(returnCode)) {
-    //         const pcmData = await RNFetchBlob.fs.readFile(pcmPath, "ascii");
-    //         const amplitudes = pcmData
-    //           .split("")
-    //           .map((char) => char.charCodeAt(0));
-    //         setAmplitudes(amplitudes.slice(0, 100)); // Ограничиваем количество баров
-    //       } else {
-    //         console.error("FFmpeg execution failed.");
-    //       }
-    //     }
-    //   );
-    // } catch (error) {
-    //   console.error("Error processing audio file:", error);
-    // }
+      if (isPlaying) {
+        await soundRef.current.pauseAsync();
+      } else {
+        await soundRef.current.playAsync();
+      }
+    } catch (error) {
+      console.error('Audio playback error:', error);
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
-    fetchAndConvertAudio(src);
-  }, [src]);
+    return () => {
+      soundRef.current?.unloadAsync();
+    };
+  }, []);
+
+  const progress = duration > 0 ? position / duration : 0;
 
   return (
-    <ScrollView horizontal contentContainerStyle={styles.waveformContainer}>
-      {amplitudes.map((amplitude, index) => (
-        <View
-          key={index}
-          style={[
-            styles.waveBar,
-            {
-              height: Math.max(amplitude, 1) * 2,
-            },
-          ]}
-        />
-      ))}
-    </ScrollView>
+    <View style={styles.container}>
+      <TouchableOpacity
+        style={styles.playButton}
+        onPress={togglePlayback}
+        disabled={isLoading}
+      >
+        {isLoading ? (
+          <ActivityIndicator size="small" color="#fff" />
+        ) : (
+          <Text style={styles.playIcon}>{isPlaying ? '⏸' : '▶'}</Text>
+        )}
+      </TouchableOpacity>
+      <View style={styles.progressContainer}>
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+        </View>
+        <Text style={styles.time}>
+          {formatTime(position)} / {formatTime(duration)}
+        </Text>
+      </View>
+    </View>
   );
 };
 
 export default AudioMessage;
 
 const styles = StyleSheet.create({
-  waveformContainer: {
+  container: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    minWidth: 200,
   },
-  waveBar: {
-    width: 4,
+  playButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: '#007AFF',
-    marginHorizontal: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  playIcon: {
+    color: '#fff',
+    fontSize: 14,
+  },
+  progressContainer: {
+    flex: 1,
+  },
+  progressTrack: {
+    height: 4,
+    backgroundColor: '#E0E0E0',
     borderRadius: 2,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#007AFF',
+    borderRadius: 2,
+  },
+  time: {
+    fontSize: 11,
+    color: '#888',
+    marginTop: 4,
   },
 });

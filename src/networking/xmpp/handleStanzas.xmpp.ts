@@ -44,7 +44,7 @@ export function handleStanza(stanza: Element, xmppWs: XmppClient) {
       onPresenceInRoom(stanza);
       onGetMembers(stanza);
       onGetRoomInfo(stanza);
-      onGetLastMessageArchive(stanza);
+      onGetLastMessageArchive(stanza, xmppWs);
       break;
     case 'room-config':
       onNewRoomCreated(stanza, xmppWs);

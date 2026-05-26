@@ -27,6 +27,7 @@ React Native chat UI + chat core for iOS and Android, powered by the Ethora plat
 - Push notifications (FCM / APNs)
 - Pluggable auth (default / JWT / injected user / custom)
 - Custom message bubble, input, scroll, and day-separator overrides
+- Cross-session unread tracking with built-in badges — see [docs/unread-tracking.md](docs/unread-tracking.md)
 
 ## Default backend endpoints
 
@@ -367,7 +368,7 @@ npm run e2e:ios
 npm run e2e:android
 
 # Or pass a different profile / room
-scripts/run-e2e.sh ios "Vitall Dev2" "General"
+scripts/run-e2e.sh ios "Sample Profile" "General"
 ```
 
 The flow targets stable `testID`s wired into the SDK
@@ -379,6 +380,10 @@ contracts.
 > Already have your RN environment set up? See the
 > [React Native environment setup](https://reactnative.dev/docs/environment-setup)
 > doc if any of the above feels unfamiliar.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for the list of changes per release.
 
 ## Related
 

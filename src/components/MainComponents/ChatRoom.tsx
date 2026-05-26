@@ -193,7 +193,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
     useRoomInitialization(
       activeRoomJID || '',
       roomsList,
-      configWithEventHandlers || storeConfig || {},
+      (configWithEventHandlers || storeConfig || {}) as IConfig,
       roomMessages.length,
     );
 
@@ -213,12 +213,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
     return (
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        // react-native-keyboard-controller drives a frame-perfect lift
-        // via Reanimated worklets on BOTH platforms, so `padding`
-        // behavior is correct everywhere — unlike RN's stock KAV
-        // which would double-handle against AndroidManifest's
-        // `adjustResize` and jitter.
-        behavior="padding"
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={configWithEventHandlers?.keyboardVerticalOffset ?? 0}
       >
         <ChatContainer

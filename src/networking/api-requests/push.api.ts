@@ -21,7 +21,7 @@ export interface PushSubscriptionPayload {
 export async function subscribeToPushNotifications(
   fcmToken: string,
   userJid: string,
-  projectName: string = 'Preshent',
+  projectName: string = '',
 ): Promise<void> {
   const deviceType: 'web' | 'android' | 'ios' = Platform.select({
     ios: 'ios',

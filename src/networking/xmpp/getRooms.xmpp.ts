@@ -24,7 +24,7 @@ export const getRooms = async (client: Client): Promise<any> => {
       xml('query', { xmlns: 'ns:getrooms' })
     );
 
-    client.send(message).catch((err) => {
+    client.send(message).catch((err: any) => {
       console.error('Error sending getRooms request:', err);
       unsubscribe();
       reject(err);

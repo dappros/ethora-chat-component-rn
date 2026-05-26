@@ -114,7 +114,7 @@ export const ProfileImagePlaceholder: React.FC<
       >
         {icon ? (
           <AvatarImage
-            source={typeof icon === 'string' ? { uri: icon } : icon}
+            source={typeof icon === 'string' ? { uri: icon } : icon as any}
             size={size}
           />
         ) : placeholderIcon ? (

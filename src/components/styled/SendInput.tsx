@@ -109,17 +109,27 @@ const SendInput: React.FC<SendInputProps> = ({
   const handleCameraSelection = async () => {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) {
-      promptOpenSettings('Camera permission is needed to take photos.');
+      promptOpenSettings('Camera permission is needed to take photos and videos.');
       return;
     }
 
     try {
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images', 'videos'],
         quality: 0.9,
       });
       if (result.canceled || !result.assets?.[0]) {return;}
       const asset = result.assets[0];
+      if (asset.type === 'video') {
+        handleFileSelect([
+          {
+            uri: asset.uri,
+            type: asset.mimeType || 'video/mp4',
+            name: asset.fileName || asset.uri.split('/').pop() || `camera_${Date.now()}.mp4`,
+          },
+        ]);
+        return;
+      }
       const normalized = await normalizeImageAsset(asset);
       handleFileSelect([
         { uri: normalized.uri, type: normalized.mime, name: normalized.name },
@@ -132,13 +142,13 @@ const SendInput: React.FC<SendInputProps> = ({
   const handleGallerySelection = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      promptOpenSettings('Gallery permission is needed to select photos.');
+      promptOpenSettings('Gallery permission is needed to select photos and videos.');
       return;
     }
 
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.All,
+        mediaTypes: ['images', 'videos'],
         allowsEditing: false,
         quality: 0.9,
       });

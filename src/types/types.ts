@@ -1,40 +1,18 @@
 import type { ViewStyle, ImageSourcePropType } from 'react-native';
 import type { Iso639_1Codes } from './models/language.model';
+import type { IMessage, IReply } from './models/message.model';
+import type { RoomMember } from './models/room.model';
 import { MODAL_TYPES } from '../helpers/constants/MODAL_TYPES';
 
 export interface IUser extends Partial<User> {
   id: string;
-  name: string | null;
+  name?: string | null;
   userJID?: string | null;
-  token: string;
-  refreshToken: string;
+  token?: string;
+  refreshToken?: string;
 }
 
-export interface IMessage {
-  id: string; // message ID (aka timestamp in microseconds)
-  user: IUser;
-  date: Date | string; // date converted from id / timestamp (e.g. "2024-02-18T03:24:33.102Z")
-  body: string; // message body
-  roomJid: string; // room id
-  key?: string; // workaround to solve a problem of messages uniqueness - additional, local timestamp to solve when XMPP server sends duplicate timestamps (TO DO: depricate / review)
-  coinsInMessage?: string | number; // store only - message coins counter
-  numberOfReplies?: number[] | number; // store only - array of replies in a thread (if applicable) - includes messages IDs so that client app can display relevant message previews for the thread
-  isSystemMessage?: string;
-  isMediafile?: string;
-  locationPreview?: string;
-  mimetype?: string;
-  location?: string;
-  pending?: boolean;
-  timestamp?: number;
-  showInChannel?: string;
-  activeMessage?: boolean;
-  isReply?: boolean | string;
-  isDeleted?: boolean;
-  mainMessage?: string;
-  reply?: IReply[];
-}
-
-export interface IReply extends IMessage {}
+// IMessage and IReply are re-exported from the canonical model below (see end of file).
 
 export type HistoryPreloadState = 'idle' | 'loading' | 'done' | 'error';
 
@@ -46,11 +24,11 @@ export interface IRoom {
   usersCnt: number;
   messages: IMessage[];
   isLoading: boolean;
-  roomBg: string;
+  roomBg: string | null;
 
   lastMessage?: string;
   lastRoomMessage?: RoomLastMessage;
-  icon?: string;
+  icon?: string | null;
   composing?: boolean;
   composingList?: string[];
   lastViewedTimestamp?: number;
@@ -66,6 +44,7 @@ export interface IRoom {
   type?: string;
 
   roomMembers?: RoomMember[];
+  members?: RoomMember[];
 
   // QoS / preload state
   historyPreloadState?: HistoryPreloadState;
@@ -74,15 +53,14 @@ export interface IRoom {
 
   // Last-message tracking (driven by newMessageMidlleware).
   lastMessageTimestamp?: number;
+  unreadBaselineTimestamp?: number;
+  messageStats?: {
+    lastMessageTimestamp?: number;
+    firstMessageTimestamp?: number;
+  };
 }
 
-export interface RoomMember {
-  ban_status: string;
-  jid: string;
-  last_active: number;
-  name: string;
-  role: string;
-}
+// RoomMember is re-exported from the canonical model below (see end of file).
 
 export interface RoomLastMessage {
   name: string;
@@ -504,3 +482,7 @@ export interface ModalFile {
 // keep working without reaching into `types/models/...`.
 export type { ReactionAction } from './models/action.model';
 export type { Iso639_1Codes } from './models/language.model';
+export type { IMessage, IReply, LastMessage, ReactionMessage } from './models/message.model';
+export type { RoomMember, ApiRoom, ChatAccessOption } from './models/room.model';
+export type { MediaFile } from './models/media.model';
+export type { TranslationObject } from '../helpers/transformTranslatations';

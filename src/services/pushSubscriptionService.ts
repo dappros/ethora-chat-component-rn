@@ -5,10 +5,6 @@ import { subscribeToPushNotifications } from '../networking/api-requests/push.ap
 import { subscribeToRoomMessages } from '../networking/xmpp/subscribeToRoomMessages.xmpp';
 
 const SUBSCRIBED_ROOMS_KEY = 'ethora_subscribed_rooms';
-// Legacy storage key from before the rename. Read on first load and
-// migrated into SUBSCRIBED_ROOMS_KEY so installed apps don't lose
-// their subscriptions. Safe to remove on the next major version.
-const LEGACY_SUBSCRIBED_ROOMS_KEY = 'preshent_subscribed_rooms';
 
 export class PushSubscriptionService {
   private subscribedRooms: Set<string> = new Set();
@@ -20,23 +16,7 @@ export class PushSubscriptionService {
     if (this.isInitialized) {return;}
 
     try {
-      let storedRooms = await AsyncStorage.getItem(SUBSCRIBED_ROOMS_KEY);
-      if (!storedRooms) {
-        // One-time migration from the legacy key.
-        try {
-          const legacy = await AsyncStorage.getItem(LEGACY_SUBSCRIBED_ROOMS_KEY);
-          if (legacy) {
-            await AsyncStorage.setItem(SUBSCRIBED_ROOMS_KEY, legacy);
-            await AsyncStorage.removeItem(LEGACY_SUBSCRIBED_ROOMS_KEY);
-            storedRooms = legacy;
-          }
-        } catch (migrationError) {
-          console.error(
-            '[PushService] Legacy storage-key migration failed (subscriptions on this device may be lost):',
-            migrationError
-          );
-        }
-      }
+      const storedRooms = await AsyncStorage.getItem(SUBSCRIBED_ROOMS_KEY);
       if (storedRooms) {
         const roomsArray = JSON.parse(storedRooms) as string[];
         this.subscribedRooms = new Set(roomsArray);
@@ -146,9 +126,6 @@ export class PushSubscriptionService {
 
     try {
       await AsyncStorage.removeItem(SUBSCRIBED_ROOMS_KEY);
-      // Defensive: also clear the legacy key if it somehow survived
-      // the migration (e.g. migration failed on first load).
-      await AsyncStorage.removeItem(LEGACY_SUBSCRIBED_ROOMS_KEY);
       console.log('[PushService] Subscribed rooms cleared from storage');
     } catch (error) {
       console.error('[PushService] Failed to clear subscribed rooms from storage:', error);

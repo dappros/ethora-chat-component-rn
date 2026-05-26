@@ -14,15 +14,8 @@ import { addRoomViaApi, setCurrentRoom, updateRoom } from '../../../roomStore/ro
 import InputWithLabel from '../../styled/StyledInput';
 import { uploadFile } from '../../../networking/api-requests/auth.api';
 import { ProfileImagePlaceholder } from '../../MainComponents/ProfileImagePlaceholder';
-import { Text, Alert, Linking, Platform } from 'react-native';
-import ImagePicker from 'react-native-image-crop-picker';
-import {
-  check,
-  request,
-  PERMISSIONS,
-  RESULTS,
-  Permission,
-} from 'react-native-permissions';
+import { Text, Alert, Linking } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { ApiRoom, ChatAccessOption, RoomMember } from '../../../types/models/room.model';
 import { createRoomFromApi } from '../../../helpers/createRoomFromApi';
 import { postRoom } from '../../../networking/api-requests/rooms.api';
@@ -113,65 +106,41 @@ const NewChatModal: React.FC<NewChatModalProps> = ({
     setSelectedUsers([]);
   };
 
-  const checkPermission = async (permission: Permission) => {
-    const status = await check(permission);
-    if (status === RESULTS.GRANTED) {
-      return status;
-    } else if (status === RESULTS.DENIED) {
-      const requestStatus = await request(permission);
-      return requestStatus;
-    }
-    return status;
-  };
-
   const onUpload = async () => {
     try {
-      const permission =
-        Platform.OS === 'ios'
-          ? PERMISSIONS.IOS.PHOTO_LIBRARY
-          : PERMISSIONS.ANDROID.READ_EXTERNAL_STORAGE;
-      const permissionStatus = await checkPermission(permission);
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-      if (permissionStatus !== RESULTS.GRANTED) {
+      if (status !== 'granted') {
         Alert.alert(
           'Permission required',
           'Photo library permission is needed to select images.',
           [
-            {
-              text: 'Cancel',
-              onPress: () => console.log('Photo permission cancelled'),
-              style: 'cancel',
-            },
-            {
-              text: 'Open Settings',
-              onPress: () => Linking.openSettings(),
-            },
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => Linking.openSettings() },
           ]
         );
         return;
       }
 
-      const image = await ImagePicker.openPicker({
-        width: 300,
-        height: 300,
-        cropping: true,
-        cropperCircleOverlay: true,
-        compressImageQuality: 0.8,
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
       });
 
-      const originalName = image.path.split('/').pop();
+      if (result.canceled) return;
+
+      const asset = result.assets[0];
+      const originalName = asset.uri.split('/').pop();
       const fileObject = {
-        uri: image.path,
-        type: image.mime || 'image/jpeg',
+        uri: asset.uri,
+        type: asset.mimeType || 'image/jpeg',
         name: originalName || `profile_${Date.now()}.jpg`,
       };
 
       setProfileImage(fileObject);
     } catch (error: any) {
-      if (error?.code === 'E_PICKER_CANCELLED' || error?.code === 'E_NO_CAMERA_PERMISSION') {
-        console.log('User cancelled image selection');
-        return;
-      }
       console.error('Image selection failed:', error);
       Alert.alert('Error', 'Failed to select image');
     }
@@ -191,6 +160,8 @@ const NewChatModal: React.FC<NewChatModalProps> = ({
         config?.xmppSettings?.conference,
         usersArrayLength
       );
+
+      if (!normalizedChat || !client) return;
 
       dispatch(
         addRoomViaApi({
@@ -253,21 +224,22 @@ const NewChatModal: React.FC<NewChatModalProps> = ({
         handleCloseModal();
       } else {
         try {
-          const newChatJid = await client.createRoomStanza(
+          const newChatJid = await client?.createRoomStanza(
             roomName,
             roomDescription && roomDescription !== ''
               ? roomDescription
               : 'No description'
           );
 
-          client.getRoomsStanza();
+          const jidStr = typeof newChatJid === 'string' ? newChatJid : '';
+          client?.getRoomsStanza();
 
-          dispatch(setCurrentRoom({ roomJID: newChatJid }));
+          dispatch(setCurrentRoom({ roomJID: jidStr }));
 
           if (location) {
-            client.setRoomImageStanza(newChatJid, location, 'icon', 'none');
+            client?.setRoomImageStanza(jidStr, location, 'icon', 'none');
             dispatch(
-              updateRoom({ jid: newChatJid, updates: { icon: location } })
+              updateRoom({ jid: jidStr, updates: { icon: location } })
             );
           }
 

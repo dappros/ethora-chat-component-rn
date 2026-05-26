@@ -76,6 +76,9 @@ export interface ApiRoom {
   createdAt?: string;
   updatedAt?: string;
   __v?: string;
+  jid?: string;
+  participants?: number;
+  icon?: string;
 }
 
 export interface PostRoom {

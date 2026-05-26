@@ -1,5 +1,4 @@
-/* eslint-disable react-hooks/rules-of-hooks -- pre-existing port artifacts; hooks called conditionally / inside helpers. TODO: refactor */
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import styled from 'styled-components/native';
 import {
   CenterContainer,
@@ -12,10 +11,10 @@ import Button from '../../styled/Button';
 import { RootState } from '../../../roomStore';
 import { FullScreenImage } from '../../styled/StyledInputComponents/MediaComponents';
 import { setActiveFile } from '../../../roomStore/chatSettingsSlice';
-import { Alert, Text, View, PermissionsAndroid, Platform } from 'react-native';
-import Video from 'react-native-video';
-import RNFS from 'react-native-fs';
-import { CameraRoll } from '@react-native-camera-roll/camera-roll';
+import { Alert, Text, View, Platform } from 'react-native';
+import { Video, ResizeMode } from 'expo-av';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as MediaLibrary from 'expo-media-library';
 import { useToast } from '../../../context/ToastContext';
 import PdfViewer from './PdfView';
 
@@ -43,56 +42,8 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
 
   const requestStoragePermission = async () => {
     try {
-      if (Platform.OS === 'android') {
-        if (Platform.Version >= 33) {
-          const permissions = [
-            PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES,
-            PermissionsAndroid.PERMISSIONS.READ_MEDIA_VIDEO,
-            PermissionsAndroid.PERMISSIONS.READ_MEDIA_AUDIO,
-          ];
-
-          const granted = await PermissionsAndroid.requestMultiple(permissions);
-
-          if (
-            granted['android.permission.READ_MEDIA_IMAGES'] ===
-              PermissionsAndroid.RESULTS.GRANTED &&
-            granted['android.permission.READ_MEDIA_VIDEO'] ===
-              PermissionsAndroid.RESULTS.GRANTED &&
-            granted['android.permission.READ_MEDIA_AUDIO'] ===
-              PermissionsAndroid.RESULTS.GRANTED
-          ) {
-            return true;
-          } else {
-            return false;
-          }
-        } else if (Platform.Version >= 30) {
-          const granted = await PermissionsAndroid.request(
-            PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
-            {
-              title: 'Storage Permission Required',
-              message:
-                'This app needs access to your storage to download and save files.',
-              buttonPositive: 'OK',
-            }
-          );
-
-          if (granted === PermissionsAndroid.RESULTS.GRANTED) {
-            return true;
-          } else {
-            return false;
-          }
-        } else {
-          const result = await CameraRoll.getPhotos({
-            first: 1,
-          })
-            .then(() => true)
-            .catch(() => false);
-
-          return result;
-        }
-      }
-
-      return true;
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      return status === 'granted';
     } catch (error) {
       console.error('Error requesting permission:', error);
       return false;
@@ -110,45 +61,16 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
     }
 
     try {
-      let galleryPath, filePath;
-
-      if (Platform.OS === 'android') {
-        galleryPath = activeFile.mimetype.startsWith('image/')
-          ? `${RNFS.ExternalStorageDirectoryPath}/Pictures`
-          : `${RNFS.ExternalStorageDirectoryPath}/Movies`;
-
-        await RNFS.mkdir(galleryPath);
-
-        let fileName = activeFile.fileName;
-        if (!fileName.includes('.')) {
-          fileName += activeFile.mimetype.startsWith('image/')
-            ? '.jpg'
-            : '.mp4';
-        }
-        filePath = `${galleryPath}/${fileName}`;
-      } else {
-        const documentsPath = RNFS.DocumentDirectoryPath;
-        let fileName = activeFile.fileName;
-        if (!fileName.includes('.')) {
-          fileName += activeFile.mimetype.startsWith('image/')
-            ? '.jpg'
-            : '.mp4';
-        }
-        filePath = `${documentsPath}/${fileName}`;
+      let fileName = activeFile.fileName || `media_${Date.now()}`;
+      if (!fileName.includes('.')) {
+        fileName += activeFile.mimetype.startsWith('image/') ? '.jpg' : '.mp4';
       }
 
-      const res = await RNFS.downloadFile({
-        fromUrl: activeFile.fileURL,
-        toFile: filePath,
-      }).promise;
+      const filePath = FileSystem.cacheDirectory + fileName;
+      const download = await FileSystem.downloadAsync(activeFile.fileURL, filePath);
 
-      if (res.statusCode === 200) {
-        if (Platform.OS === 'ios') {
-          await CameraRoll.save(filePath, {
-            type: activeFile.mimetype.startsWith('image/') ? 'photo' : 'video',
-          });
-        }
-
+      if (download.status === 200) {
+        await MediaLibrary.saveToLibraryAsync(download.uri);
         showToast({
           id: Date.now().toString(),
           title: 'Success',
@@ -164,26 +86,18 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   };
 
   const saveFileToDownloads = async () => {
-    const hasPermission = await requestStoragePermission();
-    if (!hasPermission) {
-      Alert.alert(
-        'Permission Denied',
-        'Storage permission is required to save files.'
-      );
-      return;
-    }
-
     try {
-      const downloadDest = `${RNFS.DownloadDirectoryPath}/${
-        activeFile.fileName || 'MEDIA-ETHORA'
-      }`;
+      const fileName = activeFile.fileName || `file_${Date.now()}`;
+      const filePath = FileSystem.cacheDirectory + fileName;
+      const download = await FileSystem.downloadAsync(activeFile.fileURL, filePath);
 
-      const res = await RNFS.downloadFile({
-        fromUrl: activeFile.fileURL,
-        toFile: downloadDest,
-      }).promise;
-
-      if (res.statusCode === 200) {
+      if (download.status === 200) {
+        if (Platform.OS === 'android') {
+          const hasPermission = await requestStoragePermission();
+          if (hasPermission) {
+            await MediaLibrary.createAssetAsync(download.uri);
+          }
+        }
         showToast({
           id: Date.now().toString(),
           title: 'Success',
@@ -191,11 +105,11 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           type: 'success',
         });
       } else {
-        Alert.alert('Error', 'Failed to save the file one.');
+        Alert.alert('Error', 'Failed to save the file.');
       }
     } catch (err) {
       console.error('Error saving file:', err);
-      Alert.alert('Error', 'Failed to save the file two.');
+      Alert.alert('Error', 'Failed to save the file.');
     }
   };
 
@@ -241,9 +155,9 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
               height: '100%',
             }}
             source={{ uri: activeFile.fileURL }}
-            controls
-            resizeMode="contain"
-            paused={true}
+            useNativeControls
+            resizeMode={ResizeMode.CONTAIN}
+            shouldPlay={false}
           />
         );
       case activeFile.mimetype === 'application/pdf':
@@ -261,7 +175,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
             <Text>
               Unable to open the uploaded document. The file format is not
               supported by the system. Please upload a file in a compatible
-              format. You still can dowload this file.
+              format. You still can download this file.
             </Text>
           </View>
         );
