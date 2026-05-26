@@ -53,11 +53,11 @@ const AddMembersModal: React.FC = () => {
         members: [userName],
       });
       handleCloseModal();
-      await client.inviteRoomRequestStanza(userName, activeRoom.jid);
+      await client?.inviteRoomRequestStanza(userName, activeRoom.jid);
 
       const room = await getRoomByName(activeRoom.jid);
       const createdRoom = createRoomFromApi(room, config?.xmppSettings?.conference);
-      if (createdRoom) {
+      if (createdRoom && client) {
         dispatch(
           addRoomViaApi({
             room: createdRoom,

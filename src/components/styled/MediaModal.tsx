@@ -18,7 +18,7 @@ export const Overlay = ({ children, visible, style }: OverlayProps) => (
       // Implement logic to close the modal if needed
     }}
   >
-    <View style={[styles.modal, style]}>{children}</View>;
+    <View style={[styles.modal, style]}>{children}</View>
   </Modal>
 );
 
@@ -51,4 +51,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-});
+})
+

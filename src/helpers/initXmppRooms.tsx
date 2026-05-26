@@ -43,13 +43,13 @@ const initXmppRooms = async (
           //     });
           return;
         }
-        const res = await xmmpClient.getRoomsStanza();
+        const res = await (xmmpClient as any as XmppClient).getRoomsStanza();
         console.log(res);
       }
 
       //@ts-ignore
       const roomTimestampObject: [jid: string, timestamp: string] =
-        await xmmpClient.getChatsPrivateStoreRequestStanza();
+        await (xmmpClient as any as XmppClient).getChatsPrivateStoreRequestStanza();
       updatedChatLastTimestamps(roomTimestampObject, store.dispatch);
     } else {
       //@ts-ignore
@@ -59,7 +59,7 @@ const initXmppRooms = async (
     }
 
     if (config?.refreshTokens?.enabled) {
-      config?.refreshTokens?.refreshFunction();
+      config?.refreshTokens?.refreshFunction?.();
     }
   } catch (error) {
     console.error(error);

@@ -55,7 +55,7 @@ const ReferralsModal: React.FC<ReferralsModalProps> = ({
             Your invitation code
           </SharedSettingsStyledLabel>
           <StyledInput
-            color={config?.colors?.primary || ''}
+            {...{ color: config?.colors?.primary || '' } as any}
             placeholder="Your invitation code"
             // label={'About'}
             // value={message}
@@ -71,7 +71,7 @@ const ReferralsModal: React.FC<ReferralsModalProps> = ({
             Or enter your referral code to earn coins
           </SharedSettingsStyledLabel>
           <StyledInput
-            color={config?.colors?.primary}
+            {...{ color: config?.colors?.primary || '' } as any}
             placeholder="Your referral code"
             // label={'About'}
             // value={message}

@@ -18,7 +18,7 @@ export const getUnnamedUsers = (messages: IMessage[]): IUser[] => {
   const uniqueUsers = getUniqueUsers(messages);
 
   return [...uniqueUsers].filter((user) =>
-    user?.name.toLowerCase().includes('deleted')
+    user?.name?.toLowerCase().includes('deleted')
   );
 };
 
@@ -35,5 +35,5 @@ export const fixUnnamedArrayFromApi = async (
     })
   );
 
-  return fetchedUsers;
+  return fetchedUsers.filter((u): u is RoomMember => u !== null);
 };

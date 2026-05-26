@@ -118,8 +118,7 @@ const useChatWrapperInit = ({
               const newClient = await initializeClient(
                 user.xmppUsername || user?.defaultWallet?.walletAddress,
                 user?.xmppPassword,
-                config?.xmppSettings,
-                roomsList
+                config?.xmppSettings
               ).then((client) => {
                 console.log(' Client initialized', client?.status);
                 return client;
@@ -161,7 +160,7 @@ const useChatWrapperInit = ({
                 .getChatsPrivateStoreRequestStanza()
                 .then(
                   async (
-                    roomTimestampObject: [jid: string, timestamp: string]
+                    roomTimestampObject: any
                   ) => {
                     console.log(
                       'Got chats private store',
@@ -209,7 +208,7 @@ const useChatWrapperInit = ({
               .getChatsPrivateStoreRequestStanza()
               .then(
                 async (
-                  roomTimestampObject: [jid: string, timestamp: string]
+                  roomTimestampObject: any
                 ) => {
                   console.log(
                     'Got chats private store for existing client',
@@ -257,7 +256,7 @@ const useChatWrapperInit = ({
     isRetrying,
     showModal,
     isConnectionLost,
-    setClient,
+    setClient: setClient as any,
     setInited,
     setShowModal,
   };

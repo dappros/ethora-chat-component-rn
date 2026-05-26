@@ -1,6 +1,8 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { createAsyncThunk, createSlice, PayloadAction, type Slice } from '@reduxjs/toolkit';
+import type { WritableDraft } from 'immer';
 import { EditAction, HistoryPreloadState, IMessage, IRoom } from '../types/types';
 import { insertMessageWithDelimiter } from '../helpers/insertMessageWithDelimiter';
+import type XmppClient from '../networking/xmppClient';
 
 // Per-room runtime message cap. Mirrors the persistence layer's
 // MESSAGE_LIMIT so what's in memory matches what's on disk; otherwise
@@ -29,11 +31,13 @@ export interface RoomPreloadPatch {
   historyComplete?: boolean;
 }
 
-interface RoomMessagesState {
+export interface RoomMessagesState {
   rooms: { [jid: string]: IRoom };
   activeRoomJID: string | null;
   editAction?: EditAction;
   isLoading: boolean;
+  loadingText?: string;
+  usersSet?: Record<string, any>;
   pendingNotificationJid?: string | null;
 }
 
@@ -50,11 +54,29 @@ const initialState: RoomMessagesState = {
   pendingNotificationJid: null,
 };
 
-export const roomsStore = createSlice({
-  name: 'roomMessages',
-  initialState,
-  reducers: {
-    addRoom(state, action: PayloadAction<{ roomData: IRoom }>) {
+const isValidRoomJid = (jid: unknown): jid is string => {
+  if (typeof jid !== 'string' || !jid) return false;
+  if (!jid.includes('@')) return false;
+  return true;
+};
+
+export const addRoomViaApi = createAsyncThunk(
+  'roomMessages/addRoomViaApi',
+  async (
+    { room, xmpp: _xmpp }: { room: IRoom; xmpp: XmppClient },
+    { dispatch }
+  ) => {
+    if (!room || !room.jid) return;
+    dispatch(roomsStore.actions.addRoomFromApi({ room }));
+  }
+);
+
+// Reducers extracted so the slice can carry an explicit
+// Slice<State, typeof reducers, Name> annotation, which prevents tsc
+// from inlining immer's internal WritableNonArrayDraft type into the
+// emitted .d.ts (TS4023). See chatSettingsSlice.ts for the same pattern.
+const reducers = {
+  addRoom(state: WritableDraft<RoomMessagesState>, action: PayloadAction<{ roomData: IRoom }>) {
       const { roomData } = action.payload;
       const existing = state.rooms[roomData.jid];
       // Preserve a pre-existing lastViewedTimestamp (the private-store
@@ -69,14 +91,14 @@ export const roomsStore = createSlice({
         Date.now();
       state.rooms[roomData.jid] = { ...roomData, lastViewedTimestamp: lastViewed };
     },
-    deleteRoom(state, action: PayloadAction<{ jid: string }>) {
+    deleteRoom(state: WritableDraft<RoomMessagesState>, action: PayloadAction<{ jid: string }>) {
       const { jid } = action.payload;
       if (state.rooms[jid]) {
         delete state.rooms[jid];
       }
     },
     updateRoom(
-      state,
+      state: WritableDraft<RoomMessagesState>,
       action: PayloadAction<{ jid: string; updates: Partial<IRoom> }>
     ) {
       const { jid, updates } = action.payload;
@@ -90,7 +112,7 @@ export const roomsStore = createSlice({
       }
     },
     setRoomMessages(
-      state,
+      state: WritableDraft<RoomMessagesState>,
       action: PayloadAction<{ roomJID: string; messages: IMessage[] }>
     ) {
       const { roomJID, messages } = action.payload;
@@ -106,7 +128,7 @@ export const roomsStore = createSlice({
       }
     },
     deleteRoomMessage(
-      state,
+      state: WritableDraft<RoomMessagesState>,
       action: PayloadAction<{ roomJID: string; messageId: string }>
     ) {
       const { roomJID, messageId } = action.payload;
@@ -118,7 +140,7 @@ export const roomsStore = createSlice({
         });
       }
     },
-    setEditAction: (state, action: PayloadAction<EditAction | undefined>) => {
+    setEditAction: (state: WritableDraft<RoomMessagesState>, action: PayloadAction<EditAction | undefined>) => {
       if (action.payload?.isEdit) {
         state.editAction = action.payload;
       } else {
@@ -131,7 +153,7 @@ export const roomsStore = createSlice({
       }
     },
     editRoomMessage(
-      state,
+      state: WritableDraft<RoomMessagesState>,
       action: PayloadAction<{
         roomJID: string;
         messageId: string;
@@ -148,7 +170,7 @@ export const roomsStore = createSlice({
       }
     },
     addRoomMessage(
-      state,
+      state: WritableDraft<RoomMessagesState>,
       action: PayloadAction<{
         roomJID: string;
         message: IMessage;
@@ -192,11 +214,11 @@ export const roomsStore = createSlice({
         enforceMessageCap(roomMessages);
       }
     },
-    deleteAllRooms(state) {
+    deleteAllRooms(state: WritableDraft<RoomMessagesState>) {
       state.rooms = {};
     },
     setComposing(
-      state,
+      state: WritableDraft<RoomMessagesState>,
       action: PayloadAction<{
         chatJID: string;
         composing: boolean;
@@ -208,17 +230,18 @@ export const roomsStore = createSlice({
       state.rooms[chatJID].composingList = composingList;
     },
     setIsLoading: (
-      state,
-      action: PayloadAction<{ chatJID?: string; loading: boolean }>
+      state: WritableDraft<RoomMessagesState>,
+      action: PayloadAction<{ chatJID?: string; loading: boolean; loadingText?: string }>
     ) => {
-      const { chatJID, loading } = action.payload;
+      const { chatJID, loading, loadingText } = action.payload;
       if (chatJID && state.rooms?.[chatJID]) {
         state.rooms[chatJID].isLoading = loading;
       }
       state.isLoading = loading;
+      state.loadingText = loadingText;
     },
     setLastViewedTimestamp: (
-      state,
+      state: WritableDraft<RoomMessagesState>,
       action: PayloadAction<{ chatJID: string; timestamp: number }>
     ) => {
       const { chatJID, timestamp } = action.payload;
@@ -238,7 +261,7 @@ export const roomsStore = createSlice({
       }
     },
     setRoomRole: (
-      state,
+      state: WritableDraft<RoomMessagesState>,
       action: PayloadAction<{ chatJID: string; role: string }>
     ) => {
       const { chatJID, role } = action.payload;
@@ -247,7 +270,7 @@ export const roomsStore = createSlice({
       }
     },
     setRoomNoMessages: (
-      state,
+      state: WritableDraft<RoomMessagesState>,
       action: PayloadAction<{ value: boolean; chatJID?: string }>
     ) => {
       const { value, chatJID } = action.payload;
@@ -256,7 +279,7 @@ export const roomsStore = createSlice({
       }
     },
     setCurrentRoom: (
-      state,
+      state: WritableDraft<RoomMessagesState>,
       action: PayloadAction<{ roomJID: string | null }>
     ) => {
       // Accept null/empty so callers can clear the active room (e.g.
@@ -269,12 +292,12 @@ export const roomsStore = createSlice({
      * the room exists locally and dispatches `setCurrentRoom`.
      */
     setPendingNotificationJid: (
-      state,
+      state: WritableDraft<RoomMessagesState>,
       action: PayloadAction<string | null>
     ) => {
       state.pendingNotificationJid = action.payload;
     },
-    clearPendingNotificationJid: (state) => {
+    clearPendingNotificationJid: (state: WritableDraft<RoomMessagesState>) => {
       state.pendingNotificationJid = null;
     },
     /**
@@ -283,7 +306,7 @@ export const roomsStore = createSlice({
      * keep `IRoom.lastMessage` / `lastMessageTimestamp` in sync.
      */
     setReactions: (
-      state,
+      state: WritableDraft<RoomMessagesState>,
       action: PayloadAction<{
         roomJID: string;
         messageId: string;
@@ -303,13 +326,13 @@ export const roomsStore = createSlice({
         }
       }
     },
-    setLogoutState: (state) => {
+    setLogoutState: (state: WritableDraft<RoomMessagesState>) => {
       state.rooms = {};
       state.activeRoomJID = null;
       state.isLoading = false;
     },
     setActiveMessage: (
-      state,
+      state: WritableDraft<RoomMessagesState>,
       action: PayloadAction<{ id: string; chatJID: string }>
     ) => {
       const { id, chatJID } = action.payload;
@@ -323,7 +346,7 @@ export const roomsStore = createSlice({
       });
     },
     setCloseActiveMessage: (
-      state,
+      state: WritableDraft<RoomMessagesState>,
       action: PayloadAction<{ chatJID: string }>
     ) => {
       const { chatJID } = action.payload;
@@ -337,8 +360,55 @@ export const roomsStore = createSlice({
      * applied to its room: messages REPLACE (when provided), state fields
      * MERGE. Rooms that don't exist yet are ignored.
      */
+    addRoomFromApi: (state: WritableDraft<RoomMessagesState>, action: PayloadAction<{ room: IRoom }>) => {
+      const { room } = action.payload;
+      if (!isValidRoomJid(room?.jid)) return;
+      const existing = state.rooms[room.jid];
+      const incomingMessages = Array.isArray(room.messages)
+        ? room.messages
+        : [];
+      const existingMessages = Array.isArray(existing?.messages)
+        ? existing!.messages
+        : [];
+      state.rooms[room.jid] = {
+        ...existing,
+        ...room,
+        title: room.title || existing?.title || room.title,
+        usersCnt: (() => {
+          const incoming =
+            typeof room.usersCnt === 'number' && room.usersCnt > 0
+              ? room.usersCnt
+              : 0;
+          const previous =
+            typeof existing?.usersCnt === 'number' && existing.usersCnt > 0
+              ? existing.usersCnt
+              : 0;
+          if (incoming === 0 && previous === 0) return room.usersCnt;
+          return Math.max(incoming, previous);
+        })(),
+        icon: room.icon ?? existing?.icon,
+        messages:
+          existingMessages.length > 0 ? existingMessages : incomingMessages,
+        unreadMessages: existing?.unreadMessages ?? room.unreadMessages ?? 0,
+        lastViewedTimestamp:
+          existing?.lastViewedTimestamp ?? room.lastViewedTimestamp ?? 0,
+        unreadBaselineTimestamp:
+          existing?.unreadBaselineTimestamp ??
+          existing?.lastViewedTimestamp ??
+          room.unreadBaselineTimestamp ??
+          room.lastViewedTimestamp ??
+          0,
+        composingList: existing?.composingList ?? room.composingList,
+        composing: existing?.composing ?? room.composing,
+        unreadCapped: existing?.unreadCapped ?? room.unreadCapped ?? false,
+        historyPreloadState:
+          existing?.historyPreloadState ?? room.historyPreloadState ?? 'idle',
+        messageStats: existing?.messageStats ?? room.messageStats,
+        historyComplete: existing?.historyComplete ?? room.historyComplete,
+      };
+    },
     applyRoomsPreloadBatch: (
-      state,
+      state: WritableDraft<RoomMessagesState>,
       action: PayloadAction<{ rooms: RoomPreloadPatch[] }>
     ) => {
       const { rooms } = action.payload;
@@ -361,7 +431,12 @@ export const roomsStore = createSlice({
         }
       }
     },
-  },
+};
+
+export const roomsStore: Slice<RoomMessagesState, typeof reducers, 'roomMessages'> = createSlice({
+  name: 'roomMessages',
+  initialState,
+  reducers,
 });
 
 // Count messages strictly newer than the given millisecond timestamp.

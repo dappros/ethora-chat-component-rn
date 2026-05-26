@@ -199,7 +199,7 @@ export const ModalSelectMedia: FC<ModalSelectMediaProps> = ({
         allowMultiSelection: false,
       });
 
-      const files = result.map((file) => {
+      const files = result.map((file: any) => {
         const originalName = file.name;
         return {
           uri: file.uri,

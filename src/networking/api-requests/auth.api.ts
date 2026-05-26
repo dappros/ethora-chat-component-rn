@@ -8,7 +8,7 @@ import { User } from '../../types/types';
 // } from 'firebase/auth';
 // import { app } from '../../../firebase-config';
 
-import http, { appToken } from '../apiClient';
+import http, { getCurrentAppToken } from '../apiClient';
 import { store } from '../../roomStore';
 
 // login functions
@@ -23,7 +23,7 @@ export async function loginEmail(email: string, password: string) {
       email,
       password,
     },
-    { headers: { Authorization: appToken } }
+    { headers: { Authorization: getCurrentAppToken() } }
   );
 
   console.log('loginEmail res', res.data);
@@ -45,7 +45,7 @@ export function loginSocial(
       loginType,
       authToken,
     },
-    { headers: { Authorization: appToken } }
+    { headers: { Authorization: getCurrentAppToken() } }
   );
 }
 
@@ -65,7 +65,7 @@ export function registerSocial(
       authToken: authToken,
       signupPlan: signUpPlan,
     },
-    { headers: { Authorization: appToken } }
+    { headers: { Authorization: getCurrentAppToken() } }
   );
 }
 
@@ -73,7 +73,7 @@ export function checkEmailExist(email: string) {
   return http.get(
     '/users/checkEmail/' + email,
 
-    { headers: { Authorization: appToken } }
+    { headers: { Authorization: getCurrentAppToken() } }
   );
 }
 

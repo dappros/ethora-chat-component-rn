@@ -10,7 +10,7 @@ import {
   setRoomRole,
   updateRoom,
 } from '../roomStore/roomsSlice';
-import { IRoom } from '../types/types';
+import { IRoom, RoomMember } from '../types/types';
 import { createMessageFromXml } from '../helpers/createMessageFromXml';
 import { getDataFromXml } from '../helpers/getDataFromXml';
 import { setDeleteModal } from '../roomStore/chatSettingsSlice';
@@ -64,14 +64,18 @@ const onRealtimeMessage = async (stanza: Element) => {
     // dedupes by xmppId, which is how the optimistic pending bubble flips
     // to delivered in-place instead of rendering twice.
     const parsed = await getDataFromXml(stanza);
-    const { data: pData, id: pId, body: pBody, ...pRest } = parsed || ({} as any);
+    const { data: pData, id: pId, body: pBody, ...pRest } =
+      parsed ?? ({} as Partial<NonNullable<typeof parsed>>);
+    // Cast at the call site: createMessageFromXml accepts the merged
+    // wrapped/positional shape; IUser type drift between models prevents
+    // a narrower type here without a wider refactor.
     const message = await createMessageFromXml({
       data: pData || data.attrs,
       id: pId || id,
-      body: pBody,
+      body: pBody ?? '',
       ...pRest,
-      isDeleted: !!deleted || !!(pRest as any)?.deleted,
-    });
+      isDeleted: !!deleted || !!pRest?.deleted,
+    } as Parameters<typeof createMessageFromXml>[0]);
 
     const roomJID = stanza.attrs.from.split('/')[0];
     store.dispatch(
@@ -123,7 +127,7 @@ const onDeleteMessage = async (stanza: Element) => {
 
     store.dispatch(
       deleteRoomMessage({
-        roomJID: stanzaId.attrs.by,
+        roomJID: stanzaId?.attrs.by,
         messageId: deleted.attrs.id,
       })
     );
@@ -142,9 +146,9 @@ const onEditMessage = async (stanza: Element) => {
 
     store.dispatch(
       editRoomMessage({
-        roomJID: stanzaId.attrs.by,
-        messageId: replace.attrs.id,
-        text: replace.attrs.text,
+        roomJID: stanzaId?.attrs.by,
+        messageId: replace?.attrs.id,
+        text: replace?.attrs.text,
       })
     );
   }
@@ -246,7 +250,7 @@ const handleComposing = async (stanza: Element, currentUser: string) => {
     if (composingUser && !isSelf) {
       const chatJID = stanza.attrs?.from.split('/')[0];
 
-      let composingList = [];
+      let composingList: string[] = [];
 
       stanza?.getChild('composing')
         ? composingList.push(
@@ -300,31 +304,51 @@ const onChatInvite = async (stanza: Element, client: any) => {
 };
 
 const onGetMembers = (stanza: Element) => {
-  const jid = store.getState().rooms.activeRoomJID;
-  // Defensive: many iq stanzas don't have an id (server pings,
-  // disco#info responses, etc.).
   if (String(stanza.attrs?.id || '') !== 'roomMemberInfo') {return;}
-  // The original implementation used the browser-only DOMParser, which
-  // throws `ReferenceError: Property 'DOMParser' doesn't exist` in
-  // React Native. Walk the ltx element tree directly instead — the
-  // shape is the same: nested <query><activity .../></query> children.
+
   try {
-    const queries = (stanza as any).getChildren?.('query') || [];
-    const activities: any[] = [];
+    const queries: Element[] = stanza.getChildren('query') ?? [];
+    const activities: Element[] = [];
+    let roomJid = '';
     for (const q of queries) {
-      const acts = q?.getChildren?.('activity') || [];
+      if (!roomJid && q.attrs?.room) {roomJid = q.attrs.room;}
+      const acts = q.getChildren('activity') ?? [];
       for (const a of acts) {activities.push(a);}
     }
-    const roomMembers = activities.map((a: any) => ({
-      name: a?.attrs?.name,
-      role: a?.attrs?.role,
-      ban_status: a?.attrs?.ban_status,
-      last_active: Number(a?.attrs?.last_active),
-      jid: a?.attrs?.jid,
-    }));
-    if (jid) {
-      store.dispatch(updateRoom({ jid, updates: { roomMembers } as any }));
-    }
+
+    const jid = roomJid || store.getState().rooms.activeRoomJID;
+    if (!jid || activities.length === 0) {return;}
+
+    const existingRoom = store.getState().rooms.rooms[jid];
+    const existingMembers: RoomMember[] = existingRoom?.roomMembers ?? [];
+    const existingByJid = new Map<string, RoomMember>(
+      existingMembers
+        .filter((m): m is RoomMember & { jid: string } => !!m.jid)
+        .map((m) => [m.jid, m])
+    );
+
+    const roomMembers: RoomMember[] = activities.map((a) => {
+      const memberJid: string | undefined = a.attrs?.jid;
+      const existing = memberJid ? existingByJid.get(memberJid) : undefined;
+      // The activity stanza carries only the XMPP-side fields
+      // (name/role/ban_status/last_active/jid). REST-loaded existing
+      // members supply firstName/lastName/xmppUsername/_id; when there's
+      // no REST match yet we leave those as empty strings.
+      return {
+        firstName: existing?.firstName ?? '',
+        lastName: existing?.lastName ?? '',
+        xmppUsername: existing?.xmppUsername ?? '',
+        _id: existing?._id ?? '',
+        ...existing,
+        name: a.attrs?.name,
+        role: a.attrs?.role,
+        ban_status: a.attrs?.ban_status,
+        last_active: Number(a.attrs?.last_active),
+        jid: memberJid,
+      };
+    });
+
+    store.dispatch(updateRoom({ jid, updates: { roomMembers } }));
   } catch (err) {
     console.warn('onGetMembers parse failed', err);
   }

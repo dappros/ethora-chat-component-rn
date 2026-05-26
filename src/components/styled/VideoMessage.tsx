@@ -1,6 +1,6 @@
-import React, { useRef } from 'react';
-import { View, TouchableOpacity, StyleSheet } from 'react-native';
-import Video, { VideoRef } from 'react-native-video';
+import React from 'react';
+import { TouchableOpacity, StyleSheet } from 'react-native';
+import { Video, ResizeMode } from 'expo-av';
 import { useDispatch } from 'react-redux';
 import {
   setActiveFile,
@@ -20,31 +20,20 @@ const CustomMessageVideo: React.FC<CustomMessageVideoProps> = ({
   mimetype,
 }) => {
   const dispatch = useDispatch();
-  const videoRef = useRef<VideoRef>(null);
 
   const handleOpen = () => {
     dispatch(setActiveFile({ fileName, fileURL, mimetype }));
     dispatch(setActiveModal(MODAL_TYPES.FILE_PREVIEW));
   };
 
-  const handlePlayPause = () => {
-    if (videoRef.current) {
-      videoRef.current.seek(0);
-      // videoRef.current.presentFullscreenPlayer();
-    }
-  };
-
   return (
-    <TouchableOpacity style={styles.container} onPress={handlePlayPause}>
+    <TouchableOpacity style={styles.container} onPress={handleOpen}>
       <Video
-        ref={videoRef}
         source={{ uri: fileURL }}
         style={styles.video}
-        controls
-        resizeMode="contain"
-        paused={true}
-        onBuffer={handleOpen}
-        onError={(error) => console.error('Video error:', error)}
+        useNativeControls
+        resizeMode={ResizeMode.CONTAIN}
+        shouldPlay={false}
       />
     </TouchableOpacity>
   );
@@ -63,6 +52,6 @@ const styles = StyleSheet.create({
     width: 300,
     height: 200,
     borderRadius: 10,
-    backgroundColor: '#000', // Задаем черный фон для видео
+    backgroundColor: '#000',
   },
 });

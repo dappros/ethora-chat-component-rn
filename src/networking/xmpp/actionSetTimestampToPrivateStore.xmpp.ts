@@ -30,7 +30,7 @@ export async function actionSetTimestampToPrivateStore(
   } else {
     await setChatsPrivateStoreRequest(
       client,
-      populateChats(chats, timestamp.toString())
+      populateChats(chats || [], timestamp.toString())
     );
     return true;
   }

@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Lint, type-check, tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'yarn'
+      - run: yarn install --frozen-lockfile
+      - name: Type-check (consumer-visible surface)
+        run: ./node_modules/.bin/tsc --noEmit --moduleResolution bundler --module esnext -p tsconfig.json
+      - name: Tests
+        run: yarn jest --ci
+      - name: Build declarations
+        run: yarn build
+
+  consumer-smoke:
+    name: Consumer smoke (pack → install → tsc)
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'yarn'
+      - run: yarn install --frozen-lockfile
+      # Produce a tarball as if we were about to `npm publish`. `npm pack`
+      # runs the `prepack` script, so it builds the .d.ts emit first.
+      - name: Pack SDK
+        id: pack
+        run: |
+          TARBALL=$(npm pack --silent)
+          echo "tarball=$PWD/$TARBALL" >> "$GITHUB_OUTPUT"
+      # Stand up a tiny consumer project that mirrors what a real RN/Expo
+      # app's tsconfig looks like. Install the packed SDK; run tsc on a
+      # one-liner that imports the public surface. This catches the
+      # "ships raw .ts → 200 errors" class of regression before publish.
+      - name: Set up consumer fixture
+        run: |
+          mkdir -p /tmp/consumer
+          cd /tmp/consumer
+          cat > package.json <<'EOF'
+          {
+            "name": "consumer-smoke",
+            "version": "0.0.0",
+            "private": true,
+            "dependencies": {
+              "react": "19.1.0",
+              "react-native": "0.81.5"
+            },
+            "devDependencies": {
+              "typescript": "~5.9.0"
+            }
+          }
+          EOF
+          cat > tsconfig.json <<'EOF'
+          {
+            "compilerOptions": {
+              "strict": true,
+              "jsx": "react-native",
+              "lib": ["DOM", "ESNext"],
+              "module": "esnext",
+              "moduleResolution": "bundler",
+              "skipLibCheck": true,
+              "esModuleInterop": true,
+              "target": "ESNext",
+              "noEmit": true
+            },
+            "include": ["index.ts"]
+          }
+          EOF
+          cat > index.ts <<'EOF'
+          import { Chat, XmppProvider } from '@ethora/chat-component-rn';
+          // Touch the imports so they aren't elided.
+          export const sdk = { Chat, XmppProvider };
+          EOF
+          npm install --silent --no-audit --no-fund
+          npm install --silent --no-save "${{ steps.pack.outputs.tarball }}"
+      - name: Consumer tsc
+        run: |
+          cd /tmp/consumer
+          npx tsc --noEmit -p tsconfig.json

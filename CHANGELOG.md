@@ -3,6 +3,54 @@
 All notable changes to `@ethora/chat-component-rn` are listed here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project doesn't follow strict semver yet — version corresponds to the `package.json` field.
 
+## [Unreleased] — Customer feedback round (Vitall / Ankush, May 2026)
+
+The customer hit a batch of runtime issues and a structural "ships raw TS" problem during a real integration. This round closes that loop end-to-end.
+
+### Added
+
+- **Build pipeline** — package now ships compiled `.d.ts` declarations under `lib/typescript/`. `package.json` `types` points there; `files` includes `lib/`; a `prepack` script runs `tsc -p tsconfig.build.json` on publish. Consumers' `tsc --noEmit` no longer descends into our source and no longer sees the ~200 "errors from inside the SDK" the customer reported. The `react-native` / `source` fields still resolve to `src/main.ts` so Metro keeps consuming raw TS — only `tsc` reads the emitted `.d.ts`.
+- **CI** — `.github/workflows/ci.yml` with two jobs: `test` (typecheck, jest, build) and `consumer-smoke` (`npm pack` → install the tarball into a temp consumer fixture → run `tsc --noEmit` against `import { Chat, XmppProvider }`). Catches the ship-raw-source class of regression before publish.
+- **[`docs/unread-tracking.md`](docs/unread-tracking.md)** — full reference for the `useUnread` hook: count-computation rules, XMPP private-store persistence, `disableLastRead` opt-out, edge cases the implementation handles, file map.
+- **Ambient declarations** for `expo-av` and `expo-media-library` in `src/types/declarations.d.ts` so consumers who don't install these packages still get a clean type-check.
+
+### Fixed
+
+#### Runtime crashes / red screens
+
+- **`addRoomViaApi` crashed on the new-arch path** — the function was imported in `useGetNewArchRoom`, `AddMembersModal`, `UserProfileModal`, and `NewChatModal` but never existed in `roomsSlice`. Added as a `createAsyncThunk` that dispatches a new `addRoomFromApi` reducer. Consumers can now set `newArch: true` instead of the previous `newArch: false` workaround.
+- **Unhandled promise rejections** from `getRoomsStanza` / `getHistoryStanza` `.then()` chains with no `.catch()` — these surfaced as red-screen errors that the customer was suppressing with `LogBox.ignoreLogs`. Added `.catch` handlers in `ChatWrapper` (three call sites) and `ThreadWrapper`.
+- **`onGetMembers` wiped REST-loaded members** by dispatching an empty `roomMembers: []` whenever a quiet room's IQ stanza arrived without activities. Now early-returns on empty activities and merges with existing per-jid members instead of replacing.
+
+#### Keyboard
+
+- **iOS chat input didn't lift on focus** — `KeyboardAvoidingView` from `react-native-keyboard-controller` was imported in `ChatRoom`, but the required `<KeyboardProvider>` root wrapper was never mounted, so the controller silently fell back to a no-op. Mounted `<KeyboardProvider>` at the chat root in `ReduxWrapper`. Consumers can drop their RN stock `KeyboardAvoidingView` wrapper workaround.
+- **Android keyboard flicker** — `behavior="padding"` on Android collided with the manifest's native `adjustResize`. Switched to platform-aware `behavior={Platform.OS === 'ios' ? 'padding' : 'height'}`.
+
+#### Media (receive)
+
+- **Receiving audio is now playable** — `AudioMessage` previously rendered an empty `ScrollView` because the fetch/decode pipeline was commented out and amplitudes were never populated. Rewritten with `expo-av` `Audio.Sound`, play/pause control, progress bar, and duration display.
+- **Receiving video is now playable** — `VideoMessage` previously bound `onBuffer={handleOpen}` (re-opened the preview modal in a loop) and the play/pause toggle called `seek(0)` instead of toggling `paused`. Rewritten with `expo-av` `Video` + `useNativeControls`.
+- **Receiving documents now renders the download tile** — the `application/octet-stream` mime (the default many backends use for arbitrary binaries: PDF, DOCX, archives) was routed to the broken `AudioMessage` branch in `MediaMessage`. Now falls through to `FileDownload` for non-audio extensions and only routes to audio when the filename carries `.mp3 / .m4a / .wav / .aac / .ogg / .flac`.
+
+#### Media (send)
+
+- **Camera now captures both photos and videos** (was photos-only).
+- **Gallery picker accepts both photos and videos** (verified end-to-end: gallery → file preview → upload via `/files/` multipart → XMPP `sendMediaMessage` stanza with location/mime metadata).
+- Migrated both pickers from the deprecated `ImagePicker.MediaTypeOptions.All` enum to the new `mediaTypes: ['images', 'videos']` array syntax.
+
+#### Layout / cosmetics
+
+- **`MediaModal` stray semicolon** after `</View>` inside `<Modal>` — the `;` parsed as a text child of `Modal`, sibling to the wrapping View, breaking flex layout. Removed. Consumers can drop their local patch.
+
+#### Type safety
+
+- All previously-flagged `tsc --noEmit` errors resolved (`EXIT 0`).
+- Replaced 4 `as any` casts in `stanzaHandlers.ts` with proper `Element` / `RoomMember` / `Partial<DataXml>` typing.
+- Exported previously-internal state types (`ChatState`, `RoomMessagesState`, `roomHeapSliceState`, `ButtonProps`) so declaration emission can name them.
+- RTK slices now carry explicit `Slice<State, typeof reducers, Name>` annotations with `WritableDraft<State>` reducer params to prevent tsc from inlining immer's internal `WritableNonArrayDraft` into the emitted `.d.ts` (TS4023).
+- `roomsSlice.ts` switched its `XmppClient` reference from the baseUrl-rooted `'src/networking/xmppClient'` to a type-only relative `'../networking/xmppClient'`.
+
 ## [26.05.01]
 
 ### Added

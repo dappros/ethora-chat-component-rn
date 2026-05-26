@@ -67,7 +67,7 @@ const NewChatModal: React.FC = () => {
   const handleCreateRoom = async () => {
     if (isValid) {
       let mediaData: FormData | null = new FormData();
-      mediaData.append('files', profileImage);
+      if (profileImage) mediaData.append('files', profileImage as any);
 
       const uploadResult = await uploadFile(mediaData);
       const location = uploadResult?.data?.results?.[0]?.location;
@@ -87,9 +87,10 @@ const NewChatModal: React.FC = () => {
         config?.xmppSettings?.conference,
         namesArray.length
       );
+      if (!normalizedChat) return;
       dispatch(addRoom({ roomData: normalizedChat }));
       dispatch(setCurrentRoom({ roomJID: normalizedChat.jid }));
-      client.presenceInRoomStanza(normalizedChat.jid);
+      client?.presenceInRoomStanza(normalizedChat.jid);
     }
   };
 
@@ -97,14 +98,13 @@ const NewChatModal: React.FC = () => {
     <>
       <Button
         style={{
-          color: 'black',
           padding: 8,
-          borderRadius: '16px',
+          borderRadius: 16,
           backgroundColor: 'transparent',
         }}
         unstyled
         EndIcon={<AddNewIcon color={config?.colors?.primary} />}
-        onPre={handleOpenModal}
+        onPress={handleOpenModal}
       />
       {isModalOpen && (
         <ModalBackground>

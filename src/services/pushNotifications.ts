@@ -88,7 +88,7 @@ export async function getFCMToken(): Promise<string | null> {
 }
 
 export function onForegroundMessage(
-  callback: (message: FirebaseMessagingTypes.RemoteMessage) => void
+  callback: (message: any) => void
 ): () => void {
   const messagingInstance = getMessagingInstance();
   return messagingInstance.onMessage(callback);

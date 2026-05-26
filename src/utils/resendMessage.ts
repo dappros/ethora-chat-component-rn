@@ -31,9 +31,9 @@ export async function resendMessage(
         id,
         user: {
           ...user,
-          id: user.xmppUsername,
+          id: user.xmppUsername || '',
           name: user.firstName + ' ' + user.lastName,
-        },
+        } as any,
         date: new Date().toISOString(),
         body: message.body,
         roomJid: activeRoomJID,
@@ -62,8 +62,7 @@ export async function resendMessage(
       message.isReply || false,
       message.showInChannel === 'true' || false,
       message.mainMessage || '',
-      (state.chatSettingStore.langSource as any) || 'en',
-      id
+      (state.chatSettingStore.langSource as any) || 'en'
     );
   } else {
     client.sendMessage(

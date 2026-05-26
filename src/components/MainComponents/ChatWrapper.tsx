@@ -179,13 +179,15 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
           await initializeClient(
             user.xmppUsername || user.defaultWallet?.walletAddress,
             user.xmppPassword,
-            config?.xmppSettings,
+            config?.xmppSettings
           ).then(c => {
-            c.getRoomsStanza().then(() => {
-              c.getChatsPrivateStoreRequestStanza();
-              dispatch(setStoreClient(c));
-              setClient(c);
-            });
+            c.getRoomsStanza()
+              .then(() => {
+                c.getChatsPrivateStoreRequestStanza();
+                dispatch(setStoreClient(c));
+                setClient(c);
+              })
+              .catch((err: unknown) => console.warn('getRoomsStanza failed', err));
           });
           setInited(true);
           if (config?.refreshTokens?.enabled) {refresh();}
@@ -193,18 +195,22 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
           devPushLog('rn', 'ChatWrapper: reusing storedClient');
           setClient(storedClient);
           if (!activeRoomJID) {
-            storedClient.getRoomsStanza().then(() => {
-              storedClient.getChatsPrivateStoreRequestStanza();
-            });
+            storedClient.getRoomsStanza()
+              .then(() => {
+                storedClient.getChatsPrivateStoreRequestStanza();
+              })
+              .catch((err: unknown) => console.warn('getRoomsStanza failed', err));
           }
           setInited(true);
           if (config?.refreshTokens?.enabled) {refresh();}
         } else if (client) {
           devPushLog('rn', 'ChatWrapper: reusing provider client');
           if (!activeRoomJID) {
-            client.getRoomsStanza().then(() => {
-              client.getChatsPrivateStoreRequestStanza();
-            });
+            client.getRoomsStanza()
+              .then(() => {
+                client.getChatsPrivateStoreRequestStanza();
+              })
+              .catch((err: unknown) => console.warn('getRoomsStanza failed', err));
           }
           client.getChatsPrivateStoreRequestStanza();
           setInited(true);
