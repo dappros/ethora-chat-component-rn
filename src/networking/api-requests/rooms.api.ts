@@ -1,4 +1,4 @@
-import { DeleteRoomMember, PostAddRoomMember, PostReportRoom, PostRoom, RoomMember } from '../../types/models/room.model';
+import { ApiRoom, DeleteRoomMember, PostAddRoomMember, PostReportRoom, PostRoom, RoomMember } from '../../types/models/room.model';
 import { store } from '../../roomStore';
 import { addRoom } from '../../roomStore/roomsSlice';
 import { IRoom } from '../../types/types';
@@ -8,21 +8,6 @@ interface ApiRoomMember {
   _id: string;
   firstName?: string;
   lastName?: string;
-}
-
-interface ApiRoom {
-  _id?: string;
-  name: string;
-  title?: string;
-  jid?: string;
-  description?: string;
-  participants?: number;
-  type?: string;
-  icon?: string;
-  picture?: string;
-  members?: ApiRoomMember[];
-  createdAt?: string;
-  updatedAt?: string;
 }
 
 /**

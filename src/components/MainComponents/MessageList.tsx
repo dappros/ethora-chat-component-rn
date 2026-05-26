@@ -84,7 +84,6 @@ const MessageList = <TMessage extends IMessage>({
           (mess: IMessage) =>
             !!mess.mainMessage &&
             JSON.parse(mess.mainMessage).id === message.id &&
-            !mess.deleted &&
             !mess.isDeleted
         ),
       };
@@ -94,7 +93,7 @@ const MessageList = <TMessage extends IMessage>({
 
   const memoizedMessages = useMemo(() => {
     const nonDeletedMessages = addReplyMessages.filter(
-      (item: IMessage) => !item.deleted && !item.isDeleted
+      (item: IMessage) => !item.isDeleted
     );
 
     let filtered: IMessage[];

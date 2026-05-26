@@ -95,7 +95,7 @@ export function usePushNotifications() {
   useEffect(() => {
     if (fcmToken && user && user.xmppPassword && user.defaultWallet?.walletAddress) {
       pushSubscriptionService
-        .subscribeToPush(fcmToken, user, config?.projectName)
+        .subscribeToPush(fcmToken, user, config?.projectName || '')
         .catch((error) => {
           console.error('Failed to subscribe to push:', error);
         });

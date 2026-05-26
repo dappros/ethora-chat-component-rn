@@ -126,7 +126,7 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
     if (config?.disableTypingIndicator) {
       return;
     }
-    client.sendTypingRequestStanza(
+    client?.sendTypingRequestStanza(
       activeMessage.roomJid,
       `${user.firstName} ${user.lastName}`,
       true
@@ -137,7 +137,7 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
     if (config?.disableTypingIndicator) {
       return;
     }
-    client.sendTypingRequestStanza(
+    client?.sendTypingRequestStanza(
       activeMessage.roomJid,
       `${user.firstName} ${user.lastName}`,
       false

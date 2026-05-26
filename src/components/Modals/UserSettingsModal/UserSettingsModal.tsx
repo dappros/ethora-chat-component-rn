@@ -36,7 +36,7 @@ const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   const dispatch = useDispatch();
 
   const handleClick = useCallback((key: string) => {
-    dispatch(setActiveModal(key));
+    dispatch(setActiveModal(key as any));
   }, []);
 
   return (

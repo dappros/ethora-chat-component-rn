@@ -3,7 +3,7 @@ import { localStorageConstants } from './constants/LOCAL_STORAGE';
 
 export const getLocalStorageUser = () => {
   const user: User = JSON.parse(
-    localStorage.getItem(localStorageConstants.ETHORA_USER)
+    localStorage.getItem(localStorageConstants.ETHORA_USER) || ''
   );
   return user;
 };

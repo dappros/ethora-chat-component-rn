@@ -123,7 +123,7 @@ const onDeleteMessage = async (stanza: Element) => {
 
     store.dispatch(
       deleteRoomMessage({
-        roomJID: stanzaId.attrs.by,
+        roomJID: stanzaId?.attrs.by,
         messageId: deleted.attrs.id,
       })
     );
@@ -142,9 +142,9 @@ const onEditMessage = async (stanza: Element) => {
 
     store.dispatch(
       editRoomMessage({
-        roomJID: stanzaId.attrs.by,
-        messageId: replace.attrs.id,
-        text: replace.attrs.text,
+        roomJID: stanzaId?.attrs.by,
+        messageId: replace?.attrs.id,
+        text: replace?.attrs.text,
       })
     );
   }
@@ -246,7 +246,7 @@ const handleComposing = async (stanza: Element, currentUser: string) => {
     if (composingUser && !isSelf) {
       const chatJID = stanza.attrs?.from.split('/')[0];
 
-      let composingList = [];
+      let composingList: string[] = [];
 
       stanza?.getChild('composing')
         ? composingList.push(

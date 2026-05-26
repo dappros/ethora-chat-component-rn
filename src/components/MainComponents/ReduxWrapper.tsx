@@ -3,10 +3,10 @@ import {Provider} from 'react-redux';
 import {KeyboardProvider} from 'react-native-keyboard-controller';
 import {store} from '../../roomStore';
 import {ConfigUser, IConfig, MessageProps} from '../../types/types';
-import {XmppProvider} from '../../context/xmppProvider.tsx';
-import {MessageNotificationProvider} from '../../context/MessageNotificationContext.tsx';
-import {ToastProvider} from '../../context/ToastContext.tsx';
-import LoginWrapper from './LoginWrapper.tsx';
+import {XmppProvider} from '../../context/xmppProvider';
+import {MessageNotificationProvider} from '../../context/MessageNotificationContext';
+import {ToastProvider} from '../../context/ToastContext';
+import LoginWrapper from './LoginWrapper';
 import '../../helpers/storeConsole';
 
 interface ChatWrapperProps {

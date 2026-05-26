@@ -193,7 +193,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
     useRoomInitialization(
       activeRoomJID || '',
       roomsList,
-      configWithEventHandlers || storeConfig || {},
+      (configWithEventHandlers || storeConfig || {}) as IConfig,
       roomMessages.length,
     );
 

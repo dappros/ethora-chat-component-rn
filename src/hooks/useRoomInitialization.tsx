@@ -138,11 +138,11 @@ export const useRoomInitialization = (
 
     if (client && config?.defaultRooms) {
       const allExist = config?.defaultRooms.every(
-        (room) => roomsList[room.jid] !== undefined
+        (room) => roomsList[typeof room === 'string' ? room : room.jid] !== undefined
       );
       if (roomsList && !allExist) {
         config?.defaultRooms.map(async (room) => {
-          client.presenceInRoomStanza(room.jid);
+          client.presenceInRoomStanza(typeof room === 'string' ? room : room.jid);
         });
         if (config?.newArch) {
           // syncRooms(client, config);

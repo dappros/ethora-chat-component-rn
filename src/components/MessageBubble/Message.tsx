@@ -182,11 +182,11 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
 
   const handleReactionMessage = (emoji: string) => {
     if (!message.reaction) {
-      return client.sendMessageReactionStanza(
+      return client?.sendMessageReactionStanza(
         message.id,
         message.roomJid,
         [emoji],
-        { firstName: user.firstName, lastName: user.lastName }
+        `${user.firstName} ${user.lastName}` as any
       );
     }
     if (
@@ -195,22 +195,22 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
       message.reaction[user.xmppUsername || '']?.emoji.includes(emoji)
     ) {
       const filterEmoji = message.reaction[user.xmppUsername || '']?.emoji.filter(
-        (reaction) => reaction !== emoji
+        (reaction: any) => reaction !== emoji
       );
 
-      return client.sendMessageReactionStanza(
+      return client?.sendMessageReactionStanza(
         message.id,
         message.roomJid,
         filterEmoji,
-        { firstName: user.firstName, lastName: user.lastName }
+        `${user.firstName} ${user.lastName}` as any
       );
     }
 
-    client.sendMessageReactionStanza(
+    client?.sendMessageReactionStanza(
       message.id,
       message.roomJid,
       [...(message.reaction[user.xmppUsername || '']?.emoji || []), emoji],
-      { firstName: user.firstName, lastName: user.lastName }
+      `${user.firstName} ${user.lastName}` as any
     );
   };
 

@@ -16,14 +16,14 @@ const MessageTranslations: FC<MessageTranslationsProps> = ({
 }) => {
   return (
     langSource &&
-    message.langSource && (
+    message.langSource ? (
       <>
         <CustomDivider configColor={config?.colors?.primary} />
-        <CustomMessageText>
+        <CustomMessageText colorUser="">
           {message.translations?.[langSource]?.translatedText}
         </CustomMessageText>
       </>
-    )
+    ) : null
   );
 };
 

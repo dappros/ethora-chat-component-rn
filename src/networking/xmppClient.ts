@@ -57,6 +57,7 @@ export class XmppClient {
   suppressReconnect = false;
 
   // ---- QoS state (mirrors web XmppClient) ----------------------------
+  presencesReady = false;
   disableLastRead = false;
   private activeRoomJID: string | null = null;
   private activeRoomBoostUntil = 0;
@@ -282,7 +283,7 @@ export class XmppClient {
       }
 
       this.attachEventListeners();
-      this.client.start().catch((error) => {
+      this.client.start().catch((error: any) => {
         console.error('Error starting xmpp client:', error);
         this.status = 'error';
       });
@@ -306,6 +307,7 @@ export class XmppClient {
     this.client.on('online', () => {
       console.log('XMPP online.', new Date());
       this.status = 'online';
+      this.presencesReady = true;
       this.reconnectAttempts = 0;
       try {
         devPushLog(
@@ -316,7 +318,7 @@ export class XmppClient {
       } catch {}
     });
 
-    this.client.on('error', (error) => {
+    this.client.on('error', (error: any) => {
       console.error('XMPP client error:', error);
       try {
         devPushLog(
@@ -419,7 +421,7 @@ export class XmppClient {
   //room functions
 
   async createRoomStanza(title: string, description: string, to?: string) {
-    return await createRoom(title, description, this.client, to);
+    return await createRoom(title, description, this.client);
   }
 
   async inviteRoomRequestStanza(to: string, roomJid: string) {

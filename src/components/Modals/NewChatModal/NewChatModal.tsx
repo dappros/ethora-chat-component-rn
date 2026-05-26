@@ -161,6 +161,8 @@ const NewChatModal: React.FC<NewChatModalProps> = ({
         usersArrayLength
       );
 
+      if (!normalizedChat || !client) return;
+
       dispatch(
         addRoomViaApi({
           room: normalizedChat,
@@ -222,21 +224,22 @@ const NewChatModal: React.FC<NewChatModalProps> = ({
         handleCloseModal();
       } else {
         try {
-          const newChatJid = await client.createRoomStanza(
+          const newChatJid = await client?.createRoomStanza(
             roomName,
             roomDescription && roomDescription !== ''
               ? roomDescription
               : 'No description'
           );
 
-          client.getRoomsStanza();
+          const jidStr = typeof newChatJid === 'string' ? newChatJid : '';
+          client?.getRoomsStanza();
 
-          dispatch(setCurrentRoom({ roomJID: newChatJid }));
+          dispatch(setCurrentRoom({ roomJID: jidStr }));
 
           if (location) {
-            client.setRoomImageStanza(newChatJid, location, 'icon', 'none');
+            client?.setRoomImageStanza(jidStr, location, 'icon', 'none');
             dispatch(
-              updateRoom({ jid: newChatJid, updates: { icon: location } })
+              updateRoom({ jid: jidStr, updates: { icon: location } })
             );
           }
 

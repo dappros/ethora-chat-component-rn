@@ -32,7 +32,7 @@ export const getDataFromXml = async (stanza: Element): Promise<DataXml | undefin
 
   const xmppId = fullData?.attrs.id;
   const xmppFrom = fullData?.attrs?.from;
-  const [roomJid, userWallet] = xmppFrom.split('/');
+  const [roomJid, userWallet] = (xmppFrom || '').split('/');
   let id =
     stanza.getChild('result')?.attrs.id ||
     extractTimestamp(stanza?.getChild('stanza-id')?.attrs?.id, stanza);
@@ -60,7 +60,7 @@ export const getDataFromXml = async (stanza: Element): Promise<DataXml | undefin
   const user = {
     id: userWallet,
     photoURL,
-  };
+  } as any;
 
   const dataAttrs = data?.attrs || {};
 

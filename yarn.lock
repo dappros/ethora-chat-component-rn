@@ -4363,7 +4363,7 @@ expo-asset@~12.0.13:
     "@expo/image-utils" "^0.8.8"
     expo-constants "~18.0.13"
 
-expo-av@^16.0.8:
+expo-av@~16.0.8:
   version "16.0.8"
   resolved "https://registry.npmjs.org/expo-av/-/expo-av-16.0.8.tgz"
   integrity sha512-cmVPftGR/ca7XBgs7R6ky36lF3OC0/MM/lpgX/yXqfv0jASTsh7AYX9JxHCwFmF+Z6JEB1vne9FDx4GiLcGreQ==
@@ -4431,10 +4431,10 @@ expo-keep-awake@~15.0.8:
   resolved "https://registry.npmjs.org/expo-keep-awake/-/expo-keep-awake-15.0.8.tgz"
   integrity sha512-YK9M1VrnoH1vLJiQzChZgzDvVimVoriibiDIFLbQMpjYBnvyfUeHJcin/Gx1a+XgupNXy92EQJLgI/9ZuXajYQ==
 
-expo-media-library@^56.0.6:
-  version "56.0.6"
-  resolved "https://registry.npmjs.org/expo-media-library/-/expo-media-library-56.0.6.tgz"
-  integrity sha512-UsyVcxP7Op9ErFFLW1xImjoKFgKi7XSw8hrCfzf2yIG+OgVb9dsQth0mVRPgfRxdELagsUslXc1QXTiW8dpbaQ==
+expo-media-library@~18.2.1:
+  version "18.2.1"
+  resolved "https://registry.npmjs.org/expo-media-library/-/expo-media-library-18.2.1.tgz"
+  integrity sha512-dV1acx6Aseu+I5hmF61wY8UkD4vdt8d7YXHDfgNp6ZSs06qxayUxgrBsiG2eigLe54VLm3ycbFBbWi31lhfsCA==
 
 expo-modules-autolinking@3.0.25:
   version "3.0.25"

@@ -179,7 +179,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
           await initializeClient(
             user.xmppUsername || user.defaultWallet?.walletAddress,
             user.xmppPassword,
-            config?.xmppSettings,
+            config?.xmppSettings
           ).then(c => {
             c.getRoomsStanza().then(() => {
               c.getChatsPrivateStoreRequestStanza();

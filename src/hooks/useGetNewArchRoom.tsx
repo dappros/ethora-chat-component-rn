@@ -6,7 +6,6 @@ import { getRooms } from '../networking/api-requests/rooms.api';
 import {
   addRoomViaApi,
   setIsLoading,
-  updateUsersSet,
 } from '../roomStore/roomsSlice';
 import { ApiRoom } from '../types/types';
 import { pushSubscriptionService } from '../services/pushSubscriptionService';
@@ -35,7 +34,6 @@ const useGetNewArchRoom = () => {
         }
       });
       dispatch(setIsLoading({ loading: false, loadingText: undefined }));
-      dispatch(updateUsersSet({ rooms: rooms.items || [] }));
 
       if (client?.client && roomJIDs.length > 0) {
         const userNick = client.client.jid?.getLocal();

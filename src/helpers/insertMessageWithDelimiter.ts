@@ -40,7 +40,7 @@ export function insertMessageWithDelimiter(
   const lastMessage = roomMessages[roomMessages.length - 1];
   const firstMessage = roomMessages[0];
 
-  if (isDateAfter(newMessageDate.toString(), lastMessage.date.toString())) {
+  if (isDateAfter(newMessageDate.toString(), lastMessage?.date?.toString() ?? '')) {
     const index = roomMessages.findIndex(
       (msg) => msg.id === message.xmppId || msg.id === message.id
     );
@@ -57,7 +57,7 @@ export function insertMessageWithDelimiter(
       isDateAfter(newMessageDate.toString(), lastViewedTimestamp.toString())
     ) {
       const delimiterIndex = roomMessages.findIndex((msg) =>
-        isDateAfter(msg.date.toString(), lastViewedTimestamp.toString())
+        isDateAfter(msg.date?.toString() ?? '', lastViewedTimestamp.toString())
       );
 
       if (delimiterIndex !== -1) {
@@ -65,7 +65,7 @@ export function insertMessageWithDelimiter(
           id: 'delimiter-new',
           user: {
             id: 'system',
-            name: null,
+            name: undefined,
             token: '',
             refreshToken: '',
           },
@@ -80,13 +80,13 @@ export function insertMessageWithDelimiter(
       }
     }
   } else if (
-    isDateBefore(newMessageDate.toString(), firstMessage.date.toString())
+    isDateBefore(newMessageDate.toString(), firstMessage?.date?.toString() ?? '')
   ) {
     roomMessages.unshift(message);
   } else {
     for (let i = 0; i < roomMessages.length; i++) {
       if (
-        isDateBefore(newMessageDate.toString(), roomMessages[i].date.toString())
+        isDateBefore(newMessageDate.toString(), roomMessages[i].date?.toString() ?? '')
       ) {
         roomMessages.splice(i, 0, message);
         break;

@@ -35,6 +35,8 @@ interface RoomMessagesState {
   activeRoomJID: string | null;
   editAction?: EditAction;
   isLoading: boolean;
+  loadingText?: string;
+  usersSet?: Record<string, any>;
   pendingNotificationJid?: string | null;
 }
 
@@ -227,13 +229,14 @@ export const roomsStore = createSlice({
     },
     setIsLoading: (
       state,
-      action: PayloadAction<{ chatJID?: string; loading: boolean }>
+      action: PayloadAction<{ chatJID?: string; loading: boolean; loadingText?: string }>
     ) => {
-      const { chatJID, loading } = action.payload;
+      const { chatJID, loading, loadingText } = action.payload;
       if (chatJID && state.rooms?.[chatJID]) {
         state.rooms[chatJID].isLoading = loading;
       }
       state.isLoading = loading;
+      state.loadingText = loadingText;
     },
     setLastViewedTimestamp: (
       state,

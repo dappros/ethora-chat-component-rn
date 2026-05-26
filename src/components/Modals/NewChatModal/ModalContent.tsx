@@ -21,7 +21,7 @@ type ModalContentProps = {
   chatType: ChatAccessOption;
   profileImage: string | File | null;
   setActiveTab: (tab: '0' | '1' | null) => void;
-  handleRoomNameChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  handleRoomNameChange: (e: string) => void;
   setRoomDescription: (description: string) => void;
   setChatType: (type: ChatAccessOption) => void;
   setProfileImage: (image: string | File | null) => void;
@@ -81,17 +81,17 @@ const ModalContent: React.FC<ModalContentProps> = ({
           >
             <InputWithLabel
               style={{ flex: 1 }}
-              id="roomName"
+              id={"roomName" as any}
               value={roomName}
-              onChange={handleRoomNameChange}
+              onChange={handleRoomNameChange as any}
               placeholder="Enter Room Name"
               helperText={errors.name}
               error={!!errors.name}
             />
             <Select
-              options={options}
-              onSelect={setChatType}
-              selectedValue={chatType}
+              options={options as any}
+              onSelect={setChatType as any}
+              selectedValue={chatType as any}
               placeholder={'Select room type'}
             />
           </GroupContainer>
@@ -127,7 +127,7 @@ const ModalContent: React.FC<ModalContentProps> = ({
           <ModalTitle>Select users to add to Chat</ModalTitle>
           <UsersList
             selectedUsers={selectedUsers}
-            setSelectedUsers={setSelectedUsers}
+            setSelectedUsers={setSelectedUsers as any}
             style={{
               minHeight: '400px',
               minWidth: '100%',

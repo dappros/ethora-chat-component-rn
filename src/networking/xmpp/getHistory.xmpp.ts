@@ -79,9 +79,9 @@ export const getHistory = async (
             const message = await createMessageFromXml({
               data,
               id,
-              body,
+              body: body || '',
               ...rest,
-            });
+            } as any);
 
             mainMessages.push(message);
           }
@@ -119,7 +119,7 @@ export const getHistory = async (
       )
     );
 
-    client?.send(message).catch((err) => console.log('err on load', err));
+    client?.send(message).catch((err: any) => console.log('err on load', err));
   });
 
   const timeoutPromise = createTimeoutPromise(10000);

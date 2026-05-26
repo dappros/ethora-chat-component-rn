@@ -126,13 +126,14 @@ http.interceptors.response.use(
       // Consumer-supplied refresh function. Call it, dispatch the new
       // tokens, retry the original request.
       try {
-        const { refreshToken, accessToken } = store
-          .getState()
-          .chatSettingStore?.config?.refreshTokens?.refreshFunction();
+        const fn = store.getState().chatSettingStore?.config?.refreshTokens?.refreshFunction;
+        if (!fn) return Promise.reject(error);
+        const result = await fn();
+        const { refreshToken: newRefreshToken, accessToken } = result || { refreshToken: '', accessToken: '' };
         store.dispatch(
           refreshTokens({
             token: accessToken,
-            refreshToken: refreshToken,
+            refreshToken: newRefreshToken || '',
           })
         );
         // BUGFIX: previously this branch returned `undefined` after

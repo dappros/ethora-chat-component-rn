@@ -103,7 +103,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
   }, []);
 
   const handleBackClick = useCallback(() => {
-    dispatch(setSelectedUser());
+    dispatch(setSelectedUser(undefined));
     handleCloseModal();
   }, []);
 
@@ -146,9 +146,11 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
         usersArrayLength
       );
 
+      if (!normalizedChat || !client) return;
+
       dispatch(
         addRoomViaApi({
-          room: normalizedChat as IRoom,
+          room: normalizedChat,
           xmpp: client,
         })
       );
@@ -199,19 +201,19 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
         .sort()
         .join(' and ');
 
-      newRoomJid = await client.createPrivateRoomStanza(
+      newRoomJid = (await client?.createPrivateRoomStanza(
         combinedUsersName,
         `Private chat ${combinedUsersName}`,
         roomJid
-      );
+      )) || '';
 
       if (newRoomJid) {
-        await client.inviteRoomRequestStanza(selectedUserUsername, newRoomJid);
-        await client.getRoomsStanza();
+        await client?.inviteRoomRequestStanza(selectedUserUsername, newRoomJid);
+        await client?.getRoomsStanza();
       }
     }
 
-    dispatch(setActiveModal());
+    dispatch(setActiveModal(undefined));
   }, [selectedUser]);
 
   const modalUser: any = selectedUser ?? user;

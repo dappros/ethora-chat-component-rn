@@ -23,7 +23,7 @@ interface ChatState {
   langSource?: Iso639_1Codes;
 }
 
-const unpackAndTransform = (input?: User): User => {
+export const unpackAndTransform = (input?: User): User => {
   return {
     description: '',
     token: input?.token || '',

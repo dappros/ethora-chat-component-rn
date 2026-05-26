@@ -24,7 +24,7 @@ export const newMessageMidlleware: Middleware =
 
     const { roomJID, message } = action.payload;
 
-    if (rooms[roomJID]?.lastMessageTimestamp <= Number(message.id)) {
+    if ((rooms[roomJID]?.lastMessageTimestamp ?? 0) <= Number(message.id)) {
       storeAPI.dispatch(
         updateRoom({
           jid: roomJID,

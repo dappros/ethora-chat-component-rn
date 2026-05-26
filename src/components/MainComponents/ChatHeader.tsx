@@ -51,7 +51,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   };
 
   const handleLeaveClick = useCallback(() => {
-    client.leaveTheRoomStanza(activeRoomJID!);
+    client?.leaveTheRoomStanza(activeRoomJID!);
     dispatch(deleteRoom({ jid: activeRoomJID! }));
 
     const nextRoomJID = Object.keys(roomsList)[0] || null;
