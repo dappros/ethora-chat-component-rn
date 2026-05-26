@@ -300,31 +300,41 @@ const onChatInvite = async (stanza: Element, client: any) => {
 };
 
 const onGetMembers = (stanza: Element) => {
-  const jid = store.getState().rooms.activeRoomJID;
-  // Defensive: many iq stanzas don't have an id (server pings,
-  // disco#info responses, etc.).
   if (String(stanza.attrs?.id || '') !== 'roomMemberInfo') {return;}
-  // The original implementation used the browser-only DOMParser, which
-  // throws `ReferenceError: Property 'DOMParser' doesn't exist` in
-  // React Native. Walk the ltx element tree directly instead — the
-  // shape is the same: nested <query><activity .../></query> children.
+
   try {
     const queries = (stanza as any).getChildren?.('query') || [];
     const activities: any[] = [];
+    let roomJid = '';
     for (const q of queries) {
+      if (!roomJid && q?.attrs?.room) {roomJid = q.attrs.room;}
       const acts = q?.getChildren?.('activity') || [];
       for (const a of acts) {activities.push(a);}
     }
-    const roomMembers = activities.map((a: any) => ({
-      name: a?.attrs?.name,
-      role: a?.attrs?.role,
-      ban_status: a?.attrs?.ban_status,
-      last_active: Number(a?.attrs?.last_active),
-      jid: a?.attrs?.jid,
-    }));
-    if (jid) {
-      store.dispatch(updateRoom({ jid, updates: { roomMembers } as any }));
-    }
+
+    const jid = roomJid || store.getState().rooms.activeRoomJID;
+    if (!jid || activities.length === 0) {return;}
+
+    const existingRoom = store.getState().rooms.rooms[jid];
+    const existingMembers: any[] = existingRoom?.roomMembers || [];
+    const existingByJid = new Map(
+      existingMembers.filter((m: any) => m.jid).map((m: any) => [m.jid, m])
+    );
+
+    const roomMembers = activities.map((a: any) => {
+      const memberJid = a?.attrs?.jid;
+      const existing = memberJid ? existingByJid.get(memberJid) : undefined;
+      return {
+        ...existing,
+        name: a?.attrs?.name,
+        role: a?.attrs?.role,
+        ban_status: a?.attrs?.ban_status,
+        last_active: Number(a?.attrs?.last_active),
+        jid: memberJid,
+      };
+    });
+
+    store.dispatch(updateRoom({ jid, updates: { roomMembers } as any }));
   } catch (err) {
     console.warn('onGetMembers parse failed', err);
   }
