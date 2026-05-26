@@ -9,10 +9,14 @@ The customer hit a batch of runtime issues and a structural "ships raw TS" probl
 
 ### Added
 
-- **Build pipeline** — package now ships compiled `.d.ts` declarations under `lib/typescript/`. `package.json` `types` points there; `files` includes `lib/`; a `prepack` script runs `tsc -p tsconfig.build.json` on publish. Consumers' `tsc --noEmit` no longer descends into our source and no longer sees the ~200 "errors from inside the SDK" the customer reported. The `react-native` / `source` fields still resolve to `src/main.ts` so Metro keeps consuming raw TS — only `tsc` reads the emitted `.d.ts`.
+- **Build pipeline via `react-native-builder-bob`** — package now ships in three flavours: `lib/commonjs/` (CommonJS for Node-resolution consumers), `lib/module/` (ESM for bundlers), and `lib/typescript/` (`.d.ts` declarations). `package.json`: `main → lib/commonjs/main.js`, `module → lib/module/main.js`, `types → lib/typescript/main.d.ts`. `react-native` / `source` still resolve to `src/main.ts` so Metro keeps consuming raw TS directly (preserves source maps / debug experience), but every other resolver — `tsc`, webpack, vite, Node-side tooling — now gets the compiled artefact. Bob's `commonjs` / `module` targets transpile via Babel; the `typescript` target shells out to `tsc -p tsconfig.build.json` for the type emit. `bob build` is wired through `npm run build`; `prepack` runs `clean && build` so `npm pack` / `npm publish` always emit fresh artefacts.
 - **CI** — `.github/workflows/ci.yml` with two jobs: `test` (typecheck, jest, build) and `consumer-smoke` (`npm pack` → install the tarball into a temp consumer fixture → run `tsc --noEmit` against `import { Chat, XmppProvider }`). Catches the ship-raw-source class of regression before publish.
 - **[`docs/unread-tracking.md`](docs/unread-tracking.md)** — full reference for the `useUnread` hook: count-computation rules, XMPP private-store persistence, `disableLastRead` opt-out, edge cases the implementation handles, file map.
-- **Ambient declarations** for `expo-av` and `expo-media-library` in `src/types/declarations.d.ts` so consumers who don't install these packages still get a clean type-check.
+- **Ambient declarations** for `expo-av` and `expo-media-library` in `types/declarations.d.ts` (moved here from `src/` so bob's Babel pass doesn't trip on namespace+const ambient syntax). Kept in `tsconfig.json` include path; not shipped to consumers (skipLibCheck handles missing peer types in their tsc).
+
+### Changed
+
+- **`postinstall` → `prepare`** in `package.json` scripts. The previous `postinstall: patch-package` ran on consumer install too, and broke their installs because `patch-package` wasn't in their `node_modules`. `prepare` only runs in dev contexts (top-level `npm install`, pre-publish, pre-pack) and is the npm-standard hook for "apply local dev fixups".
 
 ### Fixed
 

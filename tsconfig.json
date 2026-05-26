@@ -5,6 +5,6 @@
     "isolatedModules": true,
     "baseUrl": "."
   },
-  "include": ["src", "index.ts"],
+  "include": ["src", "types", "index.ts"],
   "exclude": ["node_modules"]
 }

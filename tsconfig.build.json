@@ -7,10 +7,9 @@
     "emitDeclarationOnly": true,
     "module": "esnext",
     "moduleResolution": "bundler",
-    "outDir": "lib/typescript",
     "rootDir": "src"
   },
-  "include": ["src"],
+  "include": ["src", "types"],
   "exclude": [
     "node_modules",
     "__tests__",
