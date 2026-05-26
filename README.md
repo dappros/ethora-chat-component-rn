@@ -46,18 +46,39 @@ To target QA, point the equivalent props/env vars at `chat-qa.ethora.com`. To se
 
 ## Install
 
+### 1. Add the SDK and required peers
+
 ```bash
-# inside an existing React Native project
 npm install @ethora/chat-component-rn
-# or
-yarn add @ethora/chat-component-rn
+# Required peer dependencies (one shot via expo install picks RN-compatible versions)
+npx expo install \
+  react react-native \
+  @react-native-async-storage/async-storage \
+  react-native-get-random-values \
+  react-native-gesture-handler \
+  react-native-reanimated \
+  react-native-svg
 ```
 
-iOS only:
+### 2. Install the Expo packages used by media features
+
+Image / video / document / audio send & receive, HEIC→JPEG conversion, profile-picture upload, and save-to-camera-roll all use the Expo modules below. They're declared as **optional** peer dependencies — if you don't install them, the corresponding picker / playback surfaces just no-op at runtime — but in practice every consumer wants them.
+
+```bash
+npx expo install \
+  expo-av expo-clipboard expo-document-picker \
+  expo-image-manipulator expo-image-picker expo-media-library
+```
+
+> No `metro.config.js` shim is required. As of `26.5.5` the SDK no longer statically imports any legacy `react-native-*` native modules; the bundled `withEthoraShims` helper is preserved as a no-op for backward compat with older setups.
+
+### 3. iOS pods
 
 ```bash
 cd ios && pod install
 ```
+
+After `npx expo prebuild` (or first `npm run ios` in an Expo project), the pods install runs automatically.
 
 ## Quick start
 

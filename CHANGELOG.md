@@ -3,6 +3,28 @@
 All notable changes to `@ethora/chat-component-rn` are listed here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project doesn't follow strict semver yet — version corresponds to the `package.json` field.
 
+## [26.5.5]
+
+This release is the deep cleanup of the SDK's legacy-RN native-module debt. Before it, even a simple `npx expo prebuild` consumer had to wire up a `withEthoraShims` Metro shim, install `babel-preset-expo`, and accept a `Cannot find module 'emoji-mart'` bundle error before anything ran. After it, **no Metro shim is required** and the consumer install is one SDK + one `npx expo install` of the optional-feature peers.
+
+### Removed
+
+- **`emoji-mart`** (entirely). Web-only library that previously needed a Metro shim. `ContextMenuComponents.tsx` exported a `StyledPicker` wrapping its `<Picker />` — dead code, never imported. `LastMessageEmoji.tsx` used its emoji data map for `:id:` → unicode resolution — replaced with raw render (reaction stanzas already ship the unicode glyph, the id dance was unnecessary).
+- **`react-native-image-crop-picker`**. `ChatProfileModal` now uses `expo-image-picker.launchImageLibraryAsync({ allowsEditing: true, aspect: [1,1] })` — same crop UX, no extra native module. `ModalSelectMedia` deleted entirely (no consumers).
+- **`react-native-document-picker`**. The send-path already used `expo-document-picker`; the only file referencing the legacy package was `ModalSelectMedia` (deleted).
+- **`react-native-audio-recorder-player`**. `AudioRecorder` / `AudioInput` / `RecordingIndicator` were never wired into any visible chat surface — deleted. If/when voice messages get a UI, it should be built on `expo-av`'s `Audio.Recording`.
+- **`react-native-permissions`**. `ChatProfileModal` was the only consumer; replaced with `expo-image-picker.requestMediaLibraryPermissionsAsync()` which owns its own permission prompt.
+- **`@react-native-clipboard/clipboard`**. `OperationalModal` was the only consumer — dead component, no callers. The live copy-message flow in `MessageInteractions` already used `expo-clipboard`.
+- **`react-native-emoji-selector`**. `MessageInteractions` imported it, but the JSX that mounted the picker was commented out (along with the inline reaction strip). Removed the import + the dead `pickerVisible` state + the `fixedEmojiIds` / `convertIdToEmoji` helpers.
+- **`@react-native-community/checkbox`**. `UsersList/StyledComponents` styled it; consumer ([`UsersList.tsx`](src/components/UsersList/UsersList.tsx)) now uses a new minimal RN-native [`Checkbox`](src/components/UsersList/Checkbox.tsx) (one `Pressable` + a check glyph, 60 lines). Same `value` / `onValueChange` props.
+- **8 dead entries from `OPTIONAL_NATIVE_MODULES`** in `metro.js`. After the cleanup, the list is empty entirely — `withEthoraShims` is preserved as a no-op for backward compat with consumers that already call it.
+- **Ambient declarations** for all the removed modules (and `react-native-fs`, which had zero importers) dropped from [`types/declarations.d.ts`](types/declarations.d.ts).
+- **Dead components removed**: `src/components/OperationalModal/`, `src/components/Modals/ModalSelectMedia/`, `src/components/InputComponents/AudioInput.tsx`, `src/components/InputComponents/AudioRecorder.tsx`, `src/components/InputComponents/RecordingIndicator.tsx`, `src/components/InputComponents/MediaInput.tsx`. None of them had a single importer in `src/`.
+
+### Changed
+
+- **README install section rewritten.** Two steps now: (1) `npx expo install` for required peers + (2) `npx expo install` for the optional Expo-media peers. The Metro-shim step is gone — explicitly noted as no longer required.
+
 ## [26.5.4]
 
 ### Changed

@@ -46,14 +46,6 @@ body,
   font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
 }
 
-.emoji-mart {
-  max-width: 320px;
-  max-height: 360px;
-  overflow-y: auto;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
 /* Message highlight animation for notifications */
 .message-highlight {
   animation: messageHighlight 2s ease-out;

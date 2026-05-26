@@ -32,7 +32,6 @@ jest.mock('react-native-image-crop-picker', () => ({}), { virtual: true });
 jest.mock('react-native-permissions', () => ({}), { virtual: true });
 jest.mock('react-native-document-picker', () => ({}), { virtual: true });
 jest.mock('react-native-audio-recorder-player', () => ({}), { virtual: true });
-jest.mock('emoji-mart', () => ({}), { virtual: true });
 jest.mock('react-native-emoji-selector', () => 'EmojiSelector', {
   virtual: true,
 });

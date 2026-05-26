@@ -1,4 +1,3 @@
-import { Picker } from 'emoji-mart';
 import styled from 'styled-components/native';
 
 export const ContainerInteractions = styled.View`
@@ -37,12 +36,6 @@ export const ArrowButton = styled.View<{ isRotated: boolean }>`
 
   transform: ${({ isRotated }) =>
     isRotated ? 'rotate(180deg)' : 'rotate(0deg)'};
-`;
-
-export const StyledPicker = styled(Picker)`
-  .emoji-mart-preview {
-    display: none;
-  }
 `;
 
 export const ContextMenu = styled.View`

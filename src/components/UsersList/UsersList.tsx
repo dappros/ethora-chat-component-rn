@@ -9,9 +9,9 @@ import { ModalTitle, LabelData } from '../Modals/styledModalComponents';
 import {
   ScrollableContainer,
   UserItem,
-  Checkbox,
   Label,
 } from './StyledComponents';
+import Checkbox from './Checkbox';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../roomStore';
 import { RoomMember } from '../../types/types';

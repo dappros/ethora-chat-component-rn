@@ -11,7 +11,7 @@ import {
   Viewider,
   Divider,
 } from '../styledModalComponents';
-import { Pressable, View, Text, ScrollView, Alert, Linking, Platform } from 'react-native';
+import { Pressable, View, Text, ScrollView, Alert, Linking } from 'react-native';
 import ModalHeaderComponent from '../ModalHeaderComponent';
 import { ProfileImagePlaceholder } from '../../MainComponents/ProfileImagePlaceholder';
 import { useDispatch, useSelector } from 'react-redux';
@@ -19,14 +19,7 @@ import { RootState, getActiveRoom } from '../../../roomStore';
 import { uploadFile } from '../../../networking/api-requests/auth.api';
 import { useXmppClient } from '../../../context/xmppProvider';
 import { updateRoom } from '../../../roomStore/roomsSlice';
-import ImagePicker from 'react-native-image-crop-picker';
-import {
-  check,
-  request,
-  PERMISSIONS,
-  RESULTS,
-  Permission,
-} from 'react-native-permissions';
+import * as ImagePicker from 'expo-image-picker';
 import Loader from '../../styled/Loader';
 import Button from '../../styled/Button';
 import { DeleteIcon, MoreIcon, QrIcon } from '../../../assets/icons';
@@ -89,40 +82,24 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
     }
   }, [client, activeRoom?.jid]);
 
-  const checkPermission = async (permission: Permission) => {
-    const status = await check(permission);
-    if (status === RESULTS.GRANTED) {
-      return status;
-    } else if (status === RESULTS.DENIED) {
-      const requestStatus = await request(permission);
-      return requestStatus;
-    }
-    return status;
-  };
-
   const onUpload = async () => {
     let loadingSet = false;
     try {
       setLoading(true);
       loadingSet = true;
 
-      const permission =
-        Platform.OS === 'ios'
-          ? PERMISSIONS.IOS.PHOTO_LIBRARY
-          : PERMISSIONS.ANDROID.READ_EXTERNAL_STORAGE;
-      const permissionStatus = await checkPermission(permission);
-
-      if (permissionStatus !== RESULTS.GRANTED) {
+      // expo-image-picker owns the permission prompt internally and
+      // returns a `granted` flag. No separate react-native-permissions
+      // round-trip needed.
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
         Alert.alert(
           'Permission required',
           'Photo library permission is needed to select images.',
           [
             {
               text: 'Cancel',
-              onPress: () => {
-                setLoading(false);
-                console.log('Photo permission cancelled');
-              },
+              onPress: () => setLoading(false),
               style: 'cancel',
             },
             {
@@ -134,18 +111,20 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
         return;
       }
 
-      const image = await ImagePicker.openPicker({
-        width: 300,
-        height: 300,
-        cropping: true,
-        cropperCircleOverlay: true,
-        compressImageQuality: 0.8,
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
       });
-
-      const originalName = image.path.split('/').pop();
+      if (result.canceled || !result.assets?.[0]) {
+        return;
+      }
+      const asset = result.assets[0];
+      const originalName = asset.fileName || asset.uri.split('/').pop();
       const fileObject = {
-        uri: image.path,
-        type: image.mime || 'image/jpeg',
+        uri: asset.uri,
+        type: asset.mimeType || 'image/jpeg',
         name: originalName || `profile_${Date.now()}.jpg`,
       };
 

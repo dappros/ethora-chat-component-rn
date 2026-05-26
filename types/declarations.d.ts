@@ -39,53 +39,10 @@ declare namespace JSX {
 }
 
 // ====================  Shimmed / optional packages  ========================
-
-declare module "emoji-mart" {
-  export const Picker: any;
-  export default Picker;
-}
-
-declare module "react-native-audio-recorder-player" {
-  const content: any;
-  export default content;
-}
-
-declare module "react-native-image-crop-picker" {
-  const content: any;
-  export default content;
-}
-
-declare module "react-native-permissions" {
-  const content: any;
-  export default content;
-  export const PERMISSIONS: any;
-  export const RESULTS: any;
-  export function check(...args: any[]): any;
-  export function request(...args: any[]): any;
-  export type Permission = any;
-}
-
-declare module "react-native-document-picker" {
-  const content: any;
-  export default content;
-  export function pick(...args: any[]): any;
-  export const types: any;
-}
-
-declare module "react-native-emoji-selector" {
-  const content: any;
-  export default content;
-}
-
-declare module "@react-native-clipboard/clipboard" {
-  const content: any;
-  export default content;
-}
-
-declare module "@react-native-community/checkbox" {
-  const content: any;
-  export default content;
-}
+// As of 26.5.5 the SDK no longer statically imports `react-native-*` legacy
+// pickers / clipboard / checkbox / permissions / audio-recorder, or
+// `emoji-mart`. Their ambient shims are gone — the only entries left below
+// are for packages still touched by the SDK source.
 
 declare module "@react-native-firebase/messaging" {
   const content: any;
@@ -110,16 +67,6 @@ declare module "@xmpp/xml" {
     getText(): string;
     toString(): string;
   }
-}
-
-declare module "react-native-fs" {
-  const content: any;
-  export default content;
-  export const ExternalStorageDirectoryPath: string;
-  export const DocumentDirectoryPath: string;
-  export const DownloadDirectoryPath: string;
-  export function mkdir(path: string): Promise<void>;
-  export function downloadFile(options: any): { promise: Promise<any> };
 }
 
 // expo-av is deprecated upstream (use expo-audio/expo-video for new code);

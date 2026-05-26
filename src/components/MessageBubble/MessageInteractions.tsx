@@ -1,40 +1,21 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { Delimeter, MenuItem } from '../ContextMenu/ContextMenuComponents';
-import { useDispatch, useSelector } from 'react-redux';
+import { useSelector } from 'react-redux';
 import { RootState } from '../../roomStore';
 import {
   MESSAGE_INTERACTIONS,
   MESSAGE_INTERACTIONS_ICONS,
 } from '../../helpers/constants/MESSAGE_INTERACTIONS';
 import { IMessage } from '../../types/types';
-import { useXmppClient } from '../../context/xmppProvider';
-import { setActiveMessage } from '../../roomStore/roomsSlice';
 import {
-  Alert,
   Modal,
   Text,
-  TouchableWithoutFeedback,
   StyleSheet,
   View,
   Pressable,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useToast } from '../../context/ToastContext';
-import EmojiPicker from 'react-native-emoji-selector';
-
-const fixedEmojiIds = ['joy', 'heart', 'fire', '+1', 'smile', 'scream'];
-
-function convertIdToEmoji(id: string) {
-  const mapping = {
-    joy: '😂',
-    heart: '❤️',
-    fire: '🔥',
-    '+1': '👍',
-    smile: '😄',
-    scream: '😱',
-  };
-  return mapping[id as keyof typeof mapping] || '❓';
-}
 
 interface MessageInteractionsProps {
   isReply?: boolean;
@@ -57,37 +38,12 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
   handleReplyMessage: replyMessage,
   handleDeleteMessage,
   handleEditMessage,
-  handleReactionMessage,
 }) => {
-  const { client } = useXmppClient();
-  const dispatch = useDispatch();
   const { showToast } = useToast();
-
-  const [pickerVisible, setPickerVisible] = useState(false);
-
-  const handleReactionClick = (id: string) => {
-    handleReactionMessage(id);
-    closeMenu();
-  };
-
-  const onClose = () => {
-    setPickerVisible(false);
-  };
-
-  // const handleDeleteMessage = (roomJid: string, messageId: string) => {
-  //   // dispatch(deleteRoomMessage({ roomJID: room, messageId: msgId }));
-  //   client.deleteMessageStanza(roomJid, messageId);
-  // };
 
   const config = useSelector(
     (state: RootState) => state.chatSettingStore.config
   );
-
-  const closeContextMenu = () => {
-    // if (!config?.disableInteractions) {
-    //   setContextMenu({ visible: false, x: 0, y: 0 });
-    // }
-  };
 
   const handleCopyMessage = async (text: string) => {
     try {
@@ -143,60 +99,6 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
         <View style={styles.overlayFill}>
           <Pressable style={StyleSheet.absoluteFill} onPress={closeMenu} />
           <View style={[styles.contextMenu, memoPosition]}>
-            {/* <MenuItem onClick={() => console.log(MESSAGE_INTERACTIONS.SEND_COINS)}>
-            {MESSAGE_INTERACTIONS.SEND_COINS}
-            <MESSAGE_INTERACTIONS_ICONS.SEND_COINS />{' '}
-          </MenuItem>
-          <Delimeter />
-          <MenuItem onClick={() => console.log(MESSAGE_INTERACTIONS.SEND_ITEM)}>
-            {MESSAGE_INTERACTIONS.SEND_ITEM}
-            <MESSAGE_INTERACTIONS_ICONS.SEND_ITEM />{' '}
-          </MenuItem> */}
-            {/*
-            {!config?.disableReactions && (
-              <View style={{ flexDirection: 'row', paddingBottom: 10 }}>
-                {fixedEmojiIds.map((id) => (
-                  <Pressable
-                    key={id}
-                    onPress={() => handleReactionClick(id)}
-                    style={{ marginRight: 6 }}
-                  >
-                    <Text style={{ fontSize: 26 }}>{convertIdToEmoji(id)}</Text>
-                  </Pressable>
-                ))}
-                <Pressable
-                  onPress={() => setPickerVisible(!pickerVisible)}
-                  style={{ marginLeft: 10 }}
-                >
-                  <Text style={{ fontSize: 24 }}>⌄</Text>
-                </Pressable>
-              </View>
-            )}
-
-            {!config?.disableReactions && pickerVisible && (
-              <View style={{ height: 250 }}>
-                <EmojiPicker
-                  onEmojiSelected={(emoji) => {
-                    handleReactionClick(emoji);
-                  }}
-                  showSearchBar={false}
-                  showTabs={false}
-                />
-              </View>
-            )}
-            */}
-
-            {/*
-            {!isReply && (
-              <>
-                <MenuItem onPress={handleReplyMessage}>
-                  <Text>{MESSAGE_INTERACTIONS.REPLY}</Text>
-                  <MESSAGE_INTERACTIONS_ICONS.REPLY />
-                </MenuItem>
-                <Delimeter />
-              </>
-            )}
-            */}
             <MenuItem onPress={() => handleCopyMessage(message.body!)}>
               <Text>{MESSAGE_INTERACTIONS.COPY}</Text>
               <MESSAGE_INTERACTIONS_ICONS.COPY />
@@ -215,11 +117,6 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
                 </MenuItem>
               </>
             )}
-            {/* <Delimeter />
-          <MenuItem onClick={() => console.log(MESSAGE_INTERACTIONS.REPORT)}>
-            {MESSAGE_INTERACTIONS.REPORT}
-            <MESSAGE_INTERACTIONS_ICONS.REPORT />{' '}
-          </MenuItem> */}
           </View>
         </View>
       )}
