@@ -1,12 +1,12 @@
 import React, {useMemo} from 'react';
 import {Provider} from 'react-redux';
+import {KeyboardProvider} from 'react-native-keyboard-controller';
 import {store} from '../../roomStore';
 import {ConfigUser, IConfig, MessageProps} from '../../types/types';
 import {XmppProvider} from '../../context/xmppProvider.tsx';
 import {MessageNotificationProvider} from '../../context/MessageNotificationContext.tsx';
 import {ToastProvider} from '../../context/ToastContext.tsx';
 import LoginWrapper from './LoginWrapper.tsx';
-// Side-effect import: attaches globalThis.useStoreConsole when enabled.
 import '../../helpers/storeConsole';
 
 interface ChatWrapperProps {
@@ -27,13 +27,15 @@ export const ReduxWrapper: React.FC<ChatWrapperProps> = React.memo(
 
     return (
       <Provider store={store}>
-        <XmppProvider config={memoizedConfig}>
-          <ToastProvider>
-            <MessageNotificationProvider config={memoizedConfig}>
-              <LoginWrapper config={memoizedConfig} {...props} />
-            </MessageNotificationProvider>
-          </ToastProvider>
-        </XmppProvider>
+        <KeyboardProvider>
+          <XmppProvider config={memoizedConfig}>
+            <ToastProvider>
+              <MessageNotificationProvider config={memoizedConfig}>
+                <LoginWrapper config={memoizedConfig} {...props} />
+              </MessageNotificationProvider>
+            </ToastProvider>
+          </XmppProvider>
+        </KeyboardProvider>
       </Provider>
     );
   },

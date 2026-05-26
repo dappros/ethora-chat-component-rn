@@ -13,7 +13,6 @@
  *   <ReduxWrapper config={{userLogin: {enabled: true, user: defaultUser}}} />
  */
 import React from 'react';
-import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AppLoginChatsRn from './AppLoginChatsRn';
 
@@ -40,9 +39,7 @@ if (ErrorUtils && !(global as any).__claudeErrTrap) {
 function App(): React.JSX.Element {
   return (
     <SafeAreaProvider>
-      <KeyboardProvider>
-        <AppLoginChatsRn />
-      </KeyboardProvider>
+      <AppLoginChatsRn />
     </SafeAreaProvider>
   );
 }
