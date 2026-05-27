@@ -38,8 +38,7 @@ const CustomMessageImage: React.FC<CustomMessageImageProps> = ({
             'https://as2.ftcdn.net/v2/jpg/02/51/95/53/1000_F_251955356_FAQH0U1y1TZw3ZcdPGybwUkH90a3VAhb.jpg'
           }
           style={{
-            borderRadius: 16,
-            width: 150,
+            width: 250,
             height: 200,
           }}
           onError={() => setError(true)}

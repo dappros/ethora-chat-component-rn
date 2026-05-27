@@ -117,6 +117,7 @@ const SendInput: React.FC<SendInputProps> = ({
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ['images', 'videos'],
         quality: 0.9,
+        videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium,
       });
       if (result.canceled || !result.assets?.[0]) {return;}
       const asset = result.assets[0];
@@ -151,6 +152,8 @@ const SendInput: React.FC<SendInputProps> = ({
         mediaTypes: ['images', 'videos'],
         allowsEditing: false,
         quality: 0.9,
+        preferredAssetRepresentationMode:
+          ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
       });
       if (result.canceled || !result.assets?.[0]) {return;}
       const asset = result.assets[0];

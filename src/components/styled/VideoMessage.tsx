@@ -27,7 +27,7 @@ const CustomMessageVideo: React.FC<CustomMessageVideoProps> = ({
   };
 
   return (
-    <TouchableOpacity style={styles.container} onPress={handleOpen}>
+    <TouchableOpacity onPress={handleOpen}>
       <Video
         source={{ uri: fileURL }}
         style={styles.video}
@@ -42,16 +42,9 @@ const CustomMessageVideo: React.FC<CustomMessageVideoProps> = ({
 export default CustomMessageVideo;
 
 const styles = StyleSheet.create({
-  container: {
-    margin: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '100%',
-  },
   video: {
-    width: 300,
-    height: 200,
-    borderRadius: 10,
+    width: '100%',
+    aspectRatio: 16 / 9,
     backgroundColor: '#000',
   },
 });

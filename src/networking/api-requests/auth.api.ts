@@ -130,15 +130,15 @@ export async function loginViaJwt(clientToken: string): Promise<User> {
 
 export function uploadFile(formData: FormData) {
   const token = store.getState().chatSettingStore?.user?.token ?? '';
-  // Do NOT set Content-Type manually. Axios computes
-  // `multipart/form-data; boundary=...` from the FormData body; pre-setting
-  // the header strips the boundary and the server returns 500 for any
-  // non-image upload (video/audio/docs). Images happen to work because of
-  // permissive server-side sniffing — but that path is brittle.
   return http.post('/files/', formData, {
     headers: {
       Authorization: token,
       Accept: '*/*',
+      'Content-Type': null,
+    },
+    transformRequest: (data: any, headers: any) => {
+      if (headers?.delete) {headers.delete('Content-Type');}
+      return data;
     },
   });
 }

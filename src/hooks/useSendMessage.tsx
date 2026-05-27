@@ -178,11 +178,12 @@ export const useSendMessage = (_configOverride?: IConfig) => {
       activeRoomJID: string,
       isReply: boolean = false,
       isChecked: boolean = false,
-      mainMessage: string = ''
+      mainMessage: string = '',
+      existingId?: string
     ) => {
       client?.onCriticalSend?.(activeRoomJID);
 
-      const id = `send-media-message:${uuidv4()}`;
+      const id = existingId || `send-media-message:${uuidv4()}`;
       const optimisticTimestamp = Date.now();
       const optimisticDate = new Date(optimisticTimestamp).toISOString();
       const selfId =
@@ -191,7 +192,7 @@ export const useSendMessage = (_configOverride?: IConfig) => {
         `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || selfId;
       const fileSizeStr = data?.size != null ? String(data.size) : '';
 
-      if (!config?.disableSentLogic) {
+      if (!config?.disableSentLogic && !existingId) {
         dispatch(
           addRoomMessage({
             roomJID: activeRoomJID,
@@ -362,7 +363,8 @@ export const useSendMessage = (_configOverride?: IConfig) => {
           payload.roomJID,
           payload.isReply,
           payload.isChecked,
-          payload.mainMessage
+          payload.mainMessage,
+          failedId
         );
       }
     },

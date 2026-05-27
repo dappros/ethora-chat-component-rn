@@ -128,7 +128,10 @@ const MessageList = <TMessage extends IMessage>({
       const bNum = new Date(b?.date as any).getTime() || 0;
       return aNum - bNum;
     });
-    return sorted;
+    const deduped = Array.from(
+      new Map(sorted.map((m) => [m.id, m])).values()
+    );
+    return deduped;
   }, [addReplyMessages, isReply, roomJID, activeMessage]);
 
   const handleLoadMore = useCallback(async () => {

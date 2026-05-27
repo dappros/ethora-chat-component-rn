@@ -48,14 +48,17 @@ const CustomMessageBubble = styled.View<{
   deleted?: boolean;
   backgroundMessageUser?: string;
   backgroundMessage?: string;
+  isMedia?: boolean;
 }>`
   position: relative;
   max-width: 85%;
   min-width: 30%;
-  padding: 10px;
+  padding: ${({isMedia}) => isMedia ? '0' : '10'}px;
+  padding-bottom: ${({isMedia}) => isMedia ? '6' : '10'}px;
   margin-right: ${({isUser}) => isUser ? '0' : '10px'};
   margin-left: ${({isUser}) => isUser ? '10px' : '0'};
   border-radius: 10px;
+  overflow: hidden;
   border-bottom-left-radius: ${({ isUser }) => (isUser ? '10' : '0')}px;
   border-bottom-right-radius: ${({ isUser }) => (isUser ? '0' : '10')}px;
   background-color: ${({
@@ -314,6 +317,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
           <CustomMessageBubble
             isUser={isUser}
             deleted={message.isDeleted}
+            isMedia={message?.isMediafile === 'true' && !message?.isDeleted}
             backgroundMessageUser={config?.messageColor?.backgroundMessageUser}
             backgroundMessage={config?.messageColor?.backgroundMessage}
           >
