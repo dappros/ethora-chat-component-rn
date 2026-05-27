@@ -213,12 +213,20 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
     return (
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        // Android: rely on the manifest's `adjustResize` (default). KAV
-        // behavior="height" on top of adjustResize double-handles the
-        // resize and causes a visible message-list flicker every time
-        // the keyboard opens (bug #6). `undefined` makes KAV a no-op on
-        // Android — the system resize alone shows the input correctly.
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        // Bug #6 history:
+        //  - Original code: behavior="height" on Android — caused
+        //    flicker because Android's adjustResize already shrinks
+        //    the window; KAV resizing on top of that double-resized
+        //    every keyboard open.
+        //  - 26.5.6 attempt: behavior={undefined} on Android — input
+        //    got completely blocked because some host apps disable
+        //    adjustResize via the activity's softInputMode.
+        //  - 26.5.8 fix: behavior="padding" on BOTH platforms. Padding
+        //    adds bottom-padding equal to the keyboard height without
+        //    changing the layout's height prop — no double-resize on
+        //    Android, no flicker, and the input is always lifted above
+        //    the keyboard regardless of the host's softInputMode.
+        behavior="padding"
         keyboardVerticalOffset={configWithEventHandlers?.keyboardVerticalOffset ?? 0}
       >
         <ChatContainer

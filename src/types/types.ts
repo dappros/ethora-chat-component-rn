@@ -254,6 +254,14 @@ export interface IConfig {
   // visibility only — set this flag when you want neither the icon nor
   // the dropdown to render (e.g. patient-facing apps with a single room).
   disableChatHeaderBurgerMenuIcon?: boolean;
+  // ----- granular gates inside the user-profile modal (chat info →
+  //       tap a member). Use these to keep the profile section visible
+  //       but hide individual actions that aren't appropriate for the
+  //       embedding app (e.g. patient-facing apps that don't allow
+  //       direct messaging between patients).
+  disableMemberProfileActions?: boolean; // hides the whole action block
+  hideMemberSendMessageAction?: boolean; // hides only "Message"
+  hideMemberCopyIdAction?: boolean;      // hides only "Copy User Id"
   chatHeaderAdditional?: { enabled: boolean; element: any };
   headerMenu?: () => void;
   headerChatMenu?: () => void;

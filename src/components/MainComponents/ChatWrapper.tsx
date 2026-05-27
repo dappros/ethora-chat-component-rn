@@ -186,45 +186,79 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
 
         if (!client && !storedClient) {
           devPushLog('rn', 'ChatWrapper: initing xmpp client (legacy path)');
-          await initializeClient(
-            user.xmppUsername || user.defaultWallet?.walletAddress,
-            user.xmppPassword,
-            config?.xmppSettings
-          ).then(c => {
-            c.getRoomsStanza()
-              .then(() => {
-                c.getChatsPrivateStoreRequestStanza();
-                dispatch(setStoreClient(c));
-                setClient(c);
-              })
-              .catch((err: unknown) => console.warn('getRoomsStanza failed', err));
-          });
+          // The outer `.then(c => {...})` used to lack a `.catch()` —
+          // if initializeClient rejected (network / SASL), the outer
+          // try/catch couldn't see it because the rejection happens in
+          // the .then handler, not in the awaited promise itself.
+          // Convert to await + try/catch.
+          try {
+            const c = await initializeClient(
+              user.xmppUsername || user.defaultWallet?.walletAddress,
+              user.xmppPassword,
+              config?.xmppSettings
+            );
+            try {
+              await c.getRoomsStanza();
+              c.getChatsPrivateStoreRequestStanza().catch((err: unknown) =>
+                console.warn('getChatsPrivateStoreRequestStanza failed', err)
+              );
+              dispatch(setStoreClient(c));
+              setClient(c);
+            } catch (err) {
+              console.warn('getRoomsStanza failed', err);
+            }
+          } catch (err) {
+            devPushLog('warn', 'initializeClient failed (legacy path)', err);
+          }
           setInited(true);
-          if (config?.refreshTokens?.enabled) {refresh();}
+          if (config?.refreshTokens?.enabled) {
+            // refresh() is fire-and-forget but rejects on bad
+            // refreshToken / network — surface via .catch instead of
+            // leaving the rejection unhandled (was bug #4, id:2).
+            refresh().catch((err) =>
+              console.warn('refresh failed', err)
+            );
+          }
         } else if (storedClient) {
           devPushLog('rn', 'ChatWrapper: reusing storedClient');
           setClient(storedClient);
           if (!activeRoomJID) {
             storedClient.getRoomsStanza()
               .then(() => {
-                storedClient.getChatsPrivateStoreRequestStanza();
+                storedClient.getChatsPrivateStoreRequestStanza().catch(
+                  (err: unknown) =>
+                    console.warn('getChatsPrivateStoreRequestStanza failed', err)
+                );
               })
               .catch((err: unknown) => console.warn('getRoomsStanza failed', err));
           }
           setInited(true);
-          if (config?.refreshTokens?.enabled) {refresh();}
+          if (config?.refreshTokens?.enabled) {
+            refresh().catch((err) =>
+              console.warn('refresh failed', err)
+            );
+          }
         } else if (client) {
           devPushLog('rn', 'ChatWrapper: reusing provider client');
           if (!activeRoomJID) {
             client.getRoomsStanza()
               .then(() => {
-                client.getChatsPrivateStoreRequestStanza();
+                client.getChatsPrivateStoreRequestStanza().catch(
+                  (err: unknown) =>
+                    console.warn('getChatsPrivateStoreRequestStanza failed', err)
+                );
               })
               .catch((err: unknown) => console.warn('getRoomsStanza failed', err));
           }
-          client.getChatsPrivateStoreRequestStanza();
+          client.getChatsPrivateStoreRequestStanza().catch((err: unknown) =>
+            console.warn('getChatsPrivateStoreRequestStanza failed', err)
+          );
           setInited(true);
-          if (config?.refreshTokens?.enabled) {refresh();}
+          if (config?.refreshTokens?.enabled) {
+            refresh().catch((err) =>
+              console.warn('refresh failed', err)
+            );
+          }
         }
 
         dispatch(setIsLoading({loading: false}));

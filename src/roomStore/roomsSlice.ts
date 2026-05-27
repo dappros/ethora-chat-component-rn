@@ -79,16 +79,35 @@ const reducers = {
   addRoom(state: WritableDraft<RoomMessagesState>, action: PayloadAction<{ roomData: IRoom }>) {
       const { roomData } = action.payload;
       const existing = state.rooms[roomData.jid];
-      // Preserve a pre-existing lastViewedTimestamp (the private-store
-      // pull may have landed before /chats/my finished). If neither
-      // source set one, stamp `Date.now()` so initial REST history
-      // counts as "seen" — without this default, every back-history
-      // message read by the unread middleware satisfies `>0` and the
-      // badge shows the entire room population on first paint.
-      const lastViewed =
-        roomData.lastViewedTimestamp ??
-        existing?.lastViewedTimestamp ??
-        Date.now();
+      // Default-marker resolution (cold-start unread bug):
+      //   1. Explicit value on the payload wins.
+      //   2. Existing redux value wins (preserves persisted/hydrated
+      //      markers when the privateStore pull lands before
+      //      /chats/my).
+      //   3. Otherwise, anchor to the *newest known message* in the
+      //      payload — this marks everything currently in the room
+      //      as "seen" but lets any NEWER incoming message count as
+      //      unread. Previously this fell back to `Date.now()`, which
+      //      stamped a future-leaning marker that hid genuinely-new
+      //      messages received while the app was closed.
+      //   4. If there are no messages at all yet, stamp `0` (=
+      //      "unknown — let the privateStore hydration set the real
+      //      marker before any future message arrives").
+      let lastViewed: number;
+      if (roomData.lastViewedTimestamp != null) {
+        lastViewed = roomData.lastViewedTimestamp;
+      } else if (existing?.lastViewedTimestamp != null) {
+        lastViewed = existing.lastViewedTimestamp;
+      } else {
+        const msgs = roomData.messages || [];
+        let newest = 0;
+        for (const m of msgs) {
+          const t = (m as any)?.messageTimestampMs ||
+            (m?.date ? new Date(m.date).getTime() : 0);
+          if (t > newest) {newest = t;}
+        }
+        lastViewed = newest; // 0 if no messages → cold-start safe
+      }
       state.rooms[roomData.jid] = { ...roomData, lastViewedTimestamp: lastViewed };
     },
     deleteRoom(state: WritableDraft<RoomMessagesState>, action: PayloadAction<{ jid: string }>) {

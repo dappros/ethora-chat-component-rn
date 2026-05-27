@@ -225,12 +225,14 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
       if (nodeHandle) {
         UIManager.measure(nodeHandle, (_x, _y, _width, height, pageX, pageY) => {
           const screenHeight = Dimensions.get('window').height;
-          // MessageInteractions is ~5 rows (delete/edit/reply/react/copy)
-          // at ~48px each + padding, plus emoji bar on top. 280 covers
-          // both even with a couple of long labels. The legacy 150
-          // figure assumed a much shorter menu and stranded the popup
-          // off-screen on the last message of the room.
-          const MENU_HEIGHT = 280;
+          // Actual MessageInteractions is short — Copy (1 row, ~40px)
+          // for non-own messages, Copy+Edit+Delete with dividers
+          // (~140px) for own messages. 160 covers the worst case with
+          // a tiny safety margin. The previous 280 estimate was for a
+          // bigger reactions-strip menu that landed as a separate
+          // component — leaving 280 here over-reserved space and made
+          // the menu render absurdly high above the bubble.
+          const MENU_HEIGHT = 160;
           // Treat the consumer-supplied keyboardVerticalOffset as a
           // proxy for tab bar + bottom safe-area when present; falls
           // back to a reasonable default so the menu doesn't bump into

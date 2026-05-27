@@ -17,7 +17,27 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as MediaLibrary from 'expo-media-library';
 import { useToast } from '../../../context/ToastContext';
 import PdfViewer from './PdfView';
+import DocumentViewer from './DocumentViewer';
+import AudioMessage from '../../styled/AudioMessage';
 import { ensureFilenameHasExtension } from '../../../helpers/mimeToExtension';
+
+// MIME types Google's gview embed renders reliably. Everything else
+// falls through to the info-card so the user can still download.
+const GVIEW_PREVIEWABLE = new Set<string>([
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/plain',
+  'text/csv',
+  'application/rtf',
+]);
+const isGviewPreviewable = (mime: string | undefined | null) => {
+  if (!mime) {return false;}
+  return GVIEW_PREVIEWABLE.has(mime.toLowerCase().split(';')[0]!.trim());
+};
 
 export const FullScreenVideo = styled.View`
   width: 100%;
@@ -157,16 +177,52 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
         );
       case activeFile.mimetype.startsWith('video/'):
         return (
-          <Video
+          <View
             style={{
               width: '100%',
               height: '100%',
+              // Reserve bottom space so `useNativeControls` (which
+              // overlays the bottom edge of the Video element) doesn't
+              // disappear behind the consumer's tab bar / home indicator.
+              // 80px covers a standard React Navigation bottom tab bar
+              // (~50px) plus iOS home indicator (~34px). For consumers
+              // who size differently, the outer ModalContainerFullScreen
+              // can be overridden — but this gets the default usable.
+              paddingBottom: 80,
+              justifyContent: 'center',
             }}
-            source={{ uri: activeFile.fileURL }}
-            useNativeControls
-            resizeMode={ResizeMode.CONTAIN}
-            shouldPlay={false}
-          />
+          >
+            <Video
+              style={{
+                width: '100%',
+                height: '100%',
+              }}
+              source={{ uri: activeFile.fileURL }}
+              useNativeControls
+              resizeMode={ResizeMode.CONTAIN}
+              shouldPlay={false}
+            />
+          </View>
+        );
+      case activeFile.mimetype.startsWith('audio/'):
+        return (
+          <View
+            style={{
+              width: '100%',
+              padding: 20,
+              gap: 12,
+              backgroundColor: '#FFF8ED',
+              borderRadius: 16,
+            }}
+          >
+            <Text style={{ fontSize: 16, fontWeight: '600' }}>
+              {ensureFilenameHasExtension(
+                activeFile.fileName,
+                activeFile.mimetype
+              )}
+            </Text>
+            <AudioMessage src={activeFile.fileURL} />
+          </View>
         );
       case activeFile.mimetype === 'application/pdf':
         return <PdfViewer pdfUrl={activeFile.fileURL} />;
@@ -175,6 +231,20 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           activeFile.fileName,
           activeFile.mimetype
         );
+        // Office docs (.docx / .xlsx / .pptx / .doc / .xls / .ppt /
+        // .txt / .csv / .rtf) → render inline via Google's gview embed
+        // — fixes the "blank preview" complaint for docs (bug #9).
+        if (isGviewPreviewable(activeFile.mimetype)) {
+          return (
+            <DocumentViewer
+              url={activeFile.fileURL}
+              fileName={displayName}
+            />
+          );
+        }
+        // True last-resort fallback for genuinely unrenderable types
+        // (binary blobs, exotic MIMEs). Friendly info card with the
+        // filename so the user can still download.
         return (
           <View
             style={{

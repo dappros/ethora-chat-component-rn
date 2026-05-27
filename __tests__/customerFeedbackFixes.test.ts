@@ -370,13 +370,13 @@ describe('customer feedback round — locked behaviour', () => {
         require.resolve('../src/components/MainComponents/ChatRoom'),
         'utf-8'
       );
-      // 26.5.6 (bug #6): Android KAV behavior is `undefined` so the
-      // manifest's `adjustResize` handles the keyboard instead — KAV
-      // behavior="height" on top of that caused a visible message-list
-      // flicker every time the keyboard opened.
-      expect(src).toMatch(
-        /behavior=\{Platform\.OS === 'ios' \? 'padding' : undefined\}/
-      );
+      // 26.5.8 (bug #6 retest): both platforms use `padding`. `height`
+      // on Android double-resizes with adjustResize (flicker) and
+      // `undefined` got the input blocked on hosts that disable
+      // adjustResize via softInputMode. `padding` doesn't change the
+      // layout height — adds bottom-padding equal to keyboard height
+      // — so it works regardless of host softInputMode.
+      expect(src).toMatch(/behavior="padding"/);
     });
   });
 });

@@ -15,7 +15,12 @@ export const presenceInRoom = async (
   const unsubscribe = () => client.off('stanza', stanzaHandler);
   const stanzaId = nextPresenceId();
 
-  return new Promise(async (resolve, reject) => {
+  // Avoid `new Promise(async (resolve, reject) => …)` — the async
+  // executor's own thrown errors / unhandled rejections inside it can
+  // escape the constructed promise depending on the order of catch
+  // attachment vs rejection. Use a regular Promise + a separate async
+  // wrapper that funnels every failure path through reject().
+  return new Promise<Element>((resolve, reject) => {
     let settled = false;
 
     const finish = (cb: (value?: any) => void, value?: any) => {
@@ -50,13 +55,23 @@ export const presenceInRoom = async (
       xml('x', { xmlns: 'http://jabber.org/protocol/muc' })
     );
 
-    try {
-      await client.send(presence);
-    } catch (err) {
-      unsubscribe();
-      return [];
-    }
-
-    await createTimeoutPromise(2000, unsubscribe).catch(reject);
+    // Side-effects sequence: send the presence (handles its own
+    // failure → reject), then wait the timeout (also handles its own
+    // failure → reject). Each chain attaches its rejection handler
+    // synchronously, so no race with the outer Promise's catch.
+    (async () => {
+      try {
+        await client.send(presence);
+      } catch (err) {
+        unsubscribe();
+        reject(err);
+        return;
+      }
+      try {
+        await createTimeoutPromise(2000, unsubscribe);
+      } catch (err) {
+        reject(err);
+      }
+    })();
   });
 };

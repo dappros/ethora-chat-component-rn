@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { useXmppClient } from '../context/xmppProvider';
-import { useDispatch, useSelector } from 'react-redux';
+import { useDispatch, useSelector, useStore } from 'react-redux';
 import { addRoomMessage, setEditAction } from '../roomStore/roomsSlice';
 import {
   addMessageToHeap,
@@ -12,6 +12,15 @@ import { uploadFile } from '../networking/api-requests/auth.api';
 import { RootState } from '../roomStore';
 import { useEventHandlers } from './useEventHandlers';
 import type { IConfig, IMessage } from '../types/types';
+
+// Watchdog: if a message stays "pending" (no server echo) for this
+// long after the optimistic dispatch, mark it failed so the bubble
+// flips out of the "sending..." state. Covers the silent-failure
+// case (e.g. device offline before the message ever made it to the
+// XMPP socket) — bug #18. Tuned generously so a brief network blip
+// followed by reconnect within 30s still resolves naturally via the
+// server echo.
+const PENDING_WATCHDOG_MS = 30_000;
 
 // Monotonic counter for stanza ids. Bumped on each send within a single
 // process. Two rapid sends in the same millisecond used to collide on
@@ -26,6 +35,10 @@ const nextStanzaId = (prefix: string): string =>
 export const useSendMessage = (_configOverride?: IConfig) => {
   const { client } = useXmppClient();
   const dispatch = useDispatch();
+  // useStore gives us imperative getState() access for the watchdog —
+  // peek at the message's current pending/failed state from inside a
+  // setTimeout callback without re-rendering on every redux change.
+  const reduxStore = useStore<RootState>();
 
   // Split selectors so each returns a primitive/stable reference — the
   // single-object selector above caused a "returned a different result
@@ -120,8 +133,44 @@ export const useSendMessage = (_configOverride?: IConfig) => {
         );
       }
 
+      // Silent-failure watchdog (bug #18). If no echo lands within
+      // PENDING_WATCHDOG_MS, flip the bubble to "failed → tap to
+      // retry". We check at fire-time whether the message is still
+      // pending and not already marked failed by the catch path.
+      const watchdogTimer = setTimeout(() => {
+        const state = reduxStore.getState();
+        const roomMsgs = state.rooms?.rooms?.[activeRoomJID]?.messages || [];
+        const stillPending = roomMsgs.find(
+          (m: any) => m.id === optimisticId && m.pending
+        );
+        const alreadyFailed = state.roomHeapSlice?.failedMessages?.[optimisticId];
+        if (stillPending && !alreadyFailed) {
+          console.warn(
+            `Send watchdog fired — message ${optimisticId} stuck pending > ${PENDING_WATCHDOG_MS}ms; marking failed`
+          );
+          dispatch(
+            markMessageFailed({
+              kind: 'text',
+              id: optimisticId,
+              roomJID: activeRoomJID,
+              body: message,
+              isReply,
+              isChecked,
+              mainMessage,
+            })
+          );
+          handleMessageFailed({
+            message,
+            roomJID: activeRoomJID,
+            error: new Error('Send timed out (no server echo)'),
+            messageType: 'text',
+          });
+        }
+      }, PENDING_WATCHDOG_MS);
+
       try {
         if (!client) {
+          clearTimeout(watchdogTimer);
           throw new Error('No XMPP client');
         }
         // Pass the optimistic id as the stanza id so the server echoes
@@ -149,6 +198,7 @@ export const useSendMessage = (_configOverride?: IConfig) => {
           messageType: 'text',
         });
       } catch (error) {
+        clearTimeout(watchdogTimer);
         dispatch(
           markMessageFailed({
             kind: 'text',
@@ -168,7 +218,7 @@ export const useSendMessage = (_configOverride?: IConfig) => {
         });
       }
     },
-    [editAction, client, user, dispatch, handleMessageSent, handleMessageEdited, handleMessageFailed]
+    [editAction, client, user, dispatch, handleMessageSent, handleMessageEdited, handleMessageFailed, reduxStore]
   );
 
   const sendMedia = useCallback(
@@ -245,11 +295,92 @@ export const useSendMessage = (_configOverride?: IConfig) => {
         );
       }
 
-      try {
-        const mediaData = new FormData();
-        mediaData.append('files', data);
+      // Silent-failure watchdog for media-send (bug #18). Same shape
+      // as the text path: if the optimistic bubble never gets the echo
+      // (e.g. upload completed but XMPP send is buffered offline), flip
+      // to failed → tap to retry.
+      const mediaWatchdog = setTimeout(() => {
+        const state = reduxStore.getState();
+        const roomMsgs = state.rooms?.rooms?.[activeRoomJID]?.messages || [];
+        const stillPending = roomMsgs.find(
+          (m: any) => m.id === id && m.pending
+        );
+        const alreadyFailed = state.roomHeapSlice?.failedMessages?.[id];
+        if (stillPending && !alreadyFailed) {
+          console.warn(
+            `Media-send watchdog fired — ${id} stuck pending > ${PENDING_WATCHDOG_MS}ms; marking failed`
+          );
+          dispatch(
+            markMessageFailed({
+              kind: 'media',
+              id,
+              roomJID: activeRoomJID,
+              data,
+              type,
+              isReply,
+              isChecked,
+              mainMessage,
+            })
+          );
+          handleMessageFailed({
+            message: 'media',
+            roomJID: activeRoomJID,
+            error: new Error('Media send timed out (no server echo)'),
+            messageType: 'media',
+          });
+        }
+      }, PENDING_WATCHDOG_MS);
 
-        const response = await uploadFile(mediaData);
+      // Help RN's FormData polyfill build a proper multipart/file part
+      // (instead of serialising the JS object as JSON). On iOS the
+      // picker can return ph:// or assets-library:// URIs for some
+      // legacy library items — those can't be read as files. Coerce
+      // to a file:// scheme when possible so the body is a real blob.
+      const fileBlob = {
+        uri:
+          typeof data?.uri === 'string'
+            ? data.uri.replace(/^assets-library:\/\//, 'file://')
+            : data?.uri,
+        type:
+          data?.type ||
+          data?.mimeType ||
+          type ||
+          'application/octet-stream',
+        name: data?.name || data?.fileName || `media_${Date.now()}`,
+      };
+
+      // Backend `/files/` accepts both singular and plural field names
+      // across deployments — try the plural form first (current SDK
+      // convention used by images that work), then fall back to
+      // singular on the first 500. This unsticks consumers whose
+      // Ethora deployment ships the singular variant for non-image
+      // media (bug #10).
+      const tryUpload = async () => {
+        const fd = new FormData();
+        fd.append('files', fileBlob as any);
+        try {
+          return await uploadFile(fd);
+        } catch (err: any) {
+          if (err?.response?.status === 500) {
+            console.warn(
+              'upload "files" field returned 500 — retrying with "file" (singular)',
+              { name: fileBlob.name, type: fileBlob.type }
+            );
+            const fd2 = new FormData();
+            fd2.append('file', fileBlob as any);
+            return await uploadFile(fd2);
+          }
+          throw err;
+        }
+      };
+
+      try {
+        const response = await tryUpload();
+        // Upload succeeded — the stanza is now in flight. If the
+        // server echo arrives within the watchdog window the bubble
+        // flips normally; if not, the watchdog still fires and marks
+        // it failed. We don't clear the timer on upload success because
+        // the XMPP send could still fail silently.
 
         for (const item of response.data.results) {
           const messagePayload = {
@@ -300,6 +431,9 @@ export const useSendMessage = (_configOverride?: IConfig) => {
           },
         });
       } catch (error: any) {
+        // Upload (or stanza send) threw an explicit error. Clear the
+        // watchdog so it doesn't double-fire `markMessageFailed`.
+        clearTimeout(mediaWatchdog);
         // Surface the real server payload so we can see why the upload
         // was rejected (axios collapses the message to "Request failed
         // with status code N"; the actual reason lives in
@@ -331,7 +465,7 @@ export const useSendMessage = (_configOverride?: IConfig) => {
         });
       }
     },
-    [client, config, user, dispatch, handleMessageSent, handleMessageFailed]
+    [client, config, user, dispatch, handleMessageSent, handleMessageFailed, reduxStore]
   );
 
   // Retry a previously-failed send by replaying the saved payload from

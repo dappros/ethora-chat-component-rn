@@ -9,6 +9,7 @@ import React, {
 } from 'react';
 import {
   View,
+  Text,
   StyleSheet,
   FlatList,
   Image,
@@ -72,6 +73,13 @@ const MessageList = <TMessage extends IMessage>({
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isScrollBlocked, setIsScrollBlocked] = useState(false);
   const [hasUserScrolled, setHasUserScrolled] = useState(false);
+  // Count of messages that arrived while the user was scrolled up.
+  // Renders as a badge on the scroll-to-bottom arrow so they know how
+  // much they're missing without having to scroll to find out.
+  const [unreadWhileScrolledUp, setUnreadWhileScrolledUp] = useState(0);
+  // Snapshot of message count at the moment the user scrolled away
+  // from the bottom — used to compute the badge delta.
+  const messageCountAtScrollAwayRef = useRef<number | null>(null);
 
   const flatListRef = useRef<FlatList<IMessage>>(null);
 
@@ -256,16 +264,37 @@ const MessageList = <TMessage extends IMessage>({
         setIsContentOffset(true);
         setShowNewMessageIndicator(false);
         setIsUserAtBottom(true);
+        // Back at the bottom — clear the unread-while-scrolled-up
+        // counter so the badge disappears with the arrow.
+        setUnreadWhileScrolledUp(0);
+        messageCountAtScrollAwayRef.current = null;
       } else {
         setIsContentOffset(false);
         if (hasUserScrolled) {
           setShowNewMessageIndicator(true);
         }
+        if (messageCountAtScrollAwayRef.current === null) {
+          // Snapshot count the moment the user first leaves the bottom.
+          messageCountAtScrollAwayRef.current = memoizedMessages.length;
+        }
         setIsUserAtBottom(false);
       }
     },
-    [hasUserScrolled]
+    [hasUserScrolled, memoizedMessages.length]
   );
+
+  // Keep the badge in sync with messages that arrive while the user
+  // is scrolled up. We compute the delta against the snapshot taken
+  // when they first scrolled away — that handles back-pagination
+  // (loadMoreMessages) without inflating the counter, because that
+  // only changes the prefix not the suffix.
+  useEffect(() => {
+    if (isUserAtBottom) {return;}
+    if (messageCountAtScrollAwayRef.current === null) {return;}
+    const delta =
+      memoizedMessages.length - messageCountAtScrollAwayRef.current;
+    if (delta > 0) {setUnreadWhileScrolledUp(delta);}
+  }, [memoizedMessages.length, isUserAtBottom]);
 
   const handleLayout = () => {
     setIsContentOffset(true);
@@ -349,6 +378,18 @@ const MessageList = <TMessage extends IMessage>({
           onPress={handleNewMessageIndicatorPress}
         >
           <ArowDownIcon />
+          {unreadWhileScrolledUp > 0 && (
+            <View
+              style={[
+                styles.newMessageBadge,
+                { backgroundColor: config?.colors?.primary || '#E53935' },
+              ]}
+            >
+              <Text style={styles.newMessageBadgeText}>
+                {unreadWhileScrolledUp > 99 ? '99+' : unreadWhileScrolledUp}
+              </Text>
+            </View>
+          )}
         </TouchableOpacity>
       )}
       {config?.customTypingIndicator?.enabled && composing && (
@@ -410,9 +451,27 @@ const styles = StyleSheet.create({
     backgroundColor: '#007AFF',
     padding: 10,
     borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   newMessageText: {
     color: '#fff',
     fontWeight: 'bold',
+  },
+  newMessageBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 6,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  newMessageBadgeText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 11,
   },
 });

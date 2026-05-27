@@ -8,6 +8,12 @@ import {MessageNotificationProvider} from '../../context/MessageNotificationCont
 import {ToastProvider} from '../../context/ToastContext';
 import LoginWrapper from './LoginWrapper';
 import '../../helpers/storeConsole';
+import {installPromiseRejectionTracker} from '../../utils/installPromiseRejectionTracker';
+
+// Mount-time, dev-only — wire a global unhandled-promise-rejection
+// tracker so any future leak surfaces with a real stack trace in Metro
+// logs (bug #4 follow-up). No-op in production.
+installPromiseRejectionTracker();
 
 interface ChatWrapperProps {
   token?: string;

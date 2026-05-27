@@ -15,6 +15,8 @@ React Native chat UI + chat core for iOS and Android, powered by the Ethora plat
 - [Configuration](#configuration) — full `IConfig` reference in [instructions.md](instructions.md)
 - [Authentication modes](#authentication-modes)
 - [Pinning a single room](#pinning-a-single-room)
+- [Unread tracking in tab-based hosts](#unread-tracking-in-tab-based-hosts)
+- [Customization flags worth knowing](#customization-flags-worth-knowing)
 - [Quality & test coverage](#quality--test-coverage)
 - [Local development](#local-development)
 - [Changelog](CHANGELOG.md)
@@ -201,6 +203,43 @@ The complete field-by-field reference — every option in `IConfig`, grouped by 
   config={{ setRoomJidInPath: false }}
 />
 ```
+
+## Unread tracking in tab-based hosts
+
+`useUnread()` is wired to the `<ChatRoom>` mount/unmount lifecycle by default. In a tab-based navigator where the chat tab stays mounted while another tab is focused, that lifecycle never fires and the unread counter never increments. The `useChatRoomFocus` hook bridges the gap — feed it the focus flag from your navigator and the SDK takes over.
+
+```tsx
+import { useIsFocused } from '@react-navigation/native';
+import { Chat, useUnread, useChatRoomFocus } from '@ethora/chat-component-rn';
+
+function ChatTab() {
+  const isFocused = useIsFocused();
+  // Stamp `lastViewedTimestamp = 0` on focus (clear badge, mark active)
+  // and `Date.now()` on blur (start counting new messages as unread).
+  useChatRoomFocus({
+    roomJID: 'general@conference.xmpp.chat.ethora.com',
+    isFocused,
+  });
+  return <Chat roomJID="general@conference.xmpp.chat.ethora.com" config={{...}} />;
+}
+
+function TabBar() {
+  const { totalCount } = useUnread();
+  return <Badge count={totalCount} />;
+}
+```
+
+Full details (including the cold-start fix and the scroll-to-bottom unread chip) live in [`docs/unread-tracking.md`](docs/unread-tracking.md).
+
+## Customization flags worth knowing
+
+| Flag | What it does |
+| --- | --- |
+| `disableChatHeaderBurgerMenuIcon` | Hides the burger icon in the chat header (the icon that opens the room-list dropdown). `chatHeaderBurgerMenu` controls only the dropdown — set this when you want neither rendered. |
+| `disableMemberProfileActions` | Hides the whole "Message / Copy User Id" action block in the chat-info member modal. Use when no per-user actions are appropriate (e.g. patient-facing apps). |
+| `hideMemberSendMessageAction` | Hides only the "Message" button, keeps everything else. |
+| `hideMemberCopyIdAction` | Hides only the "Copy User Id" button, keeps everything else. |
+| `eventHandlers.onMessageRetry` | `(event) => void` fired when the user taps the "Failed — tap to retry" indicator on a stuck send. Use for telemetry / surfacing a retry banner. |
 
 ## Quality & test coverage
 

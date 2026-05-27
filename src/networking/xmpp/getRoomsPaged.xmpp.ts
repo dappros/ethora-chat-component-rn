@@ -17,7 +17,12 @@ export const getRoomsPaged = async (
     client.off('stanza', stanzaHdlrPointer);
   };
 
-  return new Promise(async (resolve, reject) => {
+  // Avoid `new Promise(async (resolve, reject) => {...})` — an async
+  // executor swallows the promise it returns, so any rejection inside
+  // it that happens BEFORE the catch handler attaches becomes
+  // "Uncaught (in promise)" red-screen. Use an explicit deferred + a
+  // regular async body that handles its own errors.
+  return new Promise<any>((resolve, reject) => {
     stanzaHdlrPointer = (stanza) => {
       if (stanza.is('iq') && stanza.attrs.id === 'getUserRooms') {
         unsubscribe();
@@ -46,14 +51,33 @@ export const getRoomsPaged = async (
       query
     );
 
+    // Capture potential rejections from client.send() — it returns a
+    // Promise on most @xmpp/client builds; the previous bare call left
+    // the rejection unhandled when the socket was closing.
+    let sendPromise: Promise<unknown> | undefined;
     try {
-      client.send(message);
+      sendPromise = client.send(message) as unknown as Promise<unknown>;
     } catch (err) {
       console.error('Error sending getRooms request:', err);
       unsubscribe();
       reject(err);
+      return;
     }
+    Promise.resolve(sendPromise)
+      .catch((err) => {
+        console.error('client.send rejected in getRoomsPaged', err);
+        unsubscribe();
+        reject(err);
+      });
 
-    await createTimeoutPromise(2000, unsubscribe).catch(reject);
+    // The timeout catch was racy — if createTimeoutPromise rejected
+    // before `.catch(reject)` attached, the rejection escaped. Use a
+    // .then/.catch pair attached synchronously to be safe.
+    createTimeoutPromise(2000, unsubscribe).then(
+      () => {
+        /* timeout completed cleanly */
+      },
+      (err) => reject(err)
+    );
   });
 };

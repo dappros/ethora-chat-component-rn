@@ -51,7 +51,13 @@ export function usePushNotifications() {
   };
 
   useEffect(() => {
-    initToken();
+    // initToken is async — `initToken()` without `.catch` leaves any
+    // rejection unhandled (showed as `Uncaught (in promise, id: X)` red
+    // screen in dev). The inner try/catch covers most paths but any
+    // synchronous throw before the try-block ran would still leak.
+    initToken().catch((err) =>
+      console.warn('[usePushNotifications] initToken rejected', err)
+    );
 
     const unsubscribeForeground = onForegroundMessage((message) => {
       setNotification(message);
@@ -78,13 +84,20 @@ export function usePushNotifications() {
       handleNotificationPress(message);
     });
 
-    getInitialNotification().then((message) => {
-      if (message) {
-        console.log('[usePushNotifications] Initial notification:', JSON.stringify(message, null, 2));
-        setNotification(message);
-        handleNotificationPress(message);
-      }
-    });
+    getInitialNotification()
+      .then((message) => {
+        if (message) {
+          console.log('[usePushNotifications] Initial notification:', JSON.stringify(message, null, 2));
+          setNotification(message);
+          handleNotificationPress(message);
+        }
+      })
+      .catch((err) =>
+        console.warn(
+          '[usePushNotifications] getInitialNotification failed',
+          err
+        )
+      );
 
     return () => {
       unsubscribeForeground();

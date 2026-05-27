@@ -388,11 +388,17 @@ describe('roomsSlice — Cluster D (message lifecycle)', () => {
   it('addRoomMessage caps the in-memory array at 100 (drops oldest)', () => {
     // Seed the room with 100 messages. Each one strictly newer than
     // the last so insertMessageWithDelimiter takes the append path.
+    // We pin `lastViewedTimestamp` past the future messages so the
+    // delimiter-new sentinel doesn't get inserted (the addRoom default
+    // would otherwise anchor to the newest seeded message, which makes
+    // the appended m-100..m-104 land as "unread" and insert a divider —
+    // a fine UX behaviour, but not what this test is exercising).
     let state = roomsReducer(
       initial(),
       addRoom({
         roomData: {
           ...makeRoom('a@conference.test'),
+          lastViewedTimestamp: Number.MAX_SAFE_INTEGER,
           messages: Array.from({ length: 100 }, (_, i) =>
             makeMessage(`m-${i}`, {
               body: `m-${i}`,

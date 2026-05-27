@@ -285,22 +285,26 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
             </LabelData>
           </BorderedContainer>
 
-          {selectedUser && !config?.disableProfilesInteractions && (
+          {selectedUser && !config?.disableMemberProfileActions && (
             <>
-              <ActionButton
-                StartIcon={<ChatIcon />}
-                onPress={handlePrivateMessage}
-                variant="filled"
-              >
-                <Text style={{ color: '#ffffff' }}>Message</Text>
-              </ActionButton>
-              <ActionButton
-                onPress={() => {}}
-                // onPress={() => handleCopyClick(selectedUser.id)}
-                variant="filled"
-              >
-                <Text style={{ color: '#ffffff' }}>Copy User Id</Text>
-              </ActionButton>
+              {!config?.hideMemberSendMessageAction && (
+                <ActionButton
+                  StartIcon={<ChatIcon />}
+                  onPress={handlePrivateMessage}
+                  variant="filled"
+                >
+                  <Text style={{ color: '#ffffff' }}>Message</Text>
+                </ActionButton>
+              )}
+              {!config?.hideMemberCopyIdAction && (
+                <ActionButton
+                  onPress={() => {}}
+                  // onPress={() => handleCopyClick(selectedUser.id)}
+                  variant="filled"
+                >
+                  <Text style={{ color: '#ffffff' }}>Copy User Id</Text>
+                </ActionButton>
+              )}
             </>
           )}
 

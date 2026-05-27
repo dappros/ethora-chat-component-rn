@@ -3,6 +3,58 @@
 All notable changes to `@ethora/chat-component-rn` are listed here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project doesn't follow strict semver yet — version corresponds to the `package.json` field.
 
+## [26.5.8]
+
+Follow-up to 26.5.7 covering the customer-retest list — every "Not in 26.5.7 / Worsened" item, plus a usability gap in `useUnread` and a new scroll-to-bottom UX affordance.
+
+### Fixed
+
+#### Media (the long tail of bug #10 and #9)
+
+- **Bug #10 — `/files/` 500 retries with singular field name.** Removing the manual Content-Type header in 26.5.6 wasn't enough — some Ethora deployments expect the field name `file` (singular) instead of `files` (plural). The plural form works for image uploads via permissive server sniffing but rejects video/audio/docs with 500. `useSendMessage.sendMedia` now: (a) coerces iOS `assets-library://` URIs to `file://` so RN's FormData polyfill builds a real multipart blob, then (b) tries `files` (plural — current SDK default), and (c) on 500 retries with `file` (singular). Also surfaces `serverBody` / `fileBlob` shape in the diagnostic log for any remaining 500s.
+- **Bug #9 — video controls hidden behind tab bar; audio preview blank.** `FilePreviewModal`: video player now sits inside a wrapper with `paddingBottom: 80` so the `useNativeControls` overlay clears the host app's tab bar + iOS home indicator. New `audio/*` switch case renders the existing `AudioMessage` (expo-av) component inside an info card with filename — audio messages from other users are now actually playable in the preview.
+
+#### Sending / send-state
+
+- **Bug #18 — silent send failures stuck on "sending..." forever.** Send paths (`sendMessage` + `sendMedia` in `useSendMessage`) now arm a 30-second watchdog after the optimistic bubble lands. If no server echo arrives in that window AND the message wasn't already explicitly marked failed by the catch path, the watchdog flips it to "Failed — tap to retry". Covers the no-internet case where XMPP buffers the send without throwing.
+
+#### UX
+
+- **Bug #6 — Android keyboard blocking the chat input + flicker.** 26.5.7's `behavior={undefined}` on Android broke hosts that disable `adjustResize` via `softInputMode`. Reverted to `behavior="padding"` on both platforms — padding adds bottom-padding equal to the keyboard height without changing layout height, so no double-resize (no flicker) and the input is always lifted regardless of the host's softInputMode.
+- **Bug #13 — context menu overcorrected too high.** The 26.5.7 `MENU_HEIGHT=280` over-estimate (based on a phantom reactions strip) forced the menu above the bubble even when there was room below. Real `MessageInteractions` is 1-3 rows × ~40px (40 for non-own, ~140 for own). Lowered to 160; the prefer-below path now wins for normal cases and only switches to above when the bubble genuinely lacks bottom space.
+- **Bug #14 — delete confirmation still full-screen.** The 26.5.7 `compact` style used `height: 'auto'` which RN doesn't honour — the styled-component's `height: 100%` won. Replaced with `height: undefined` + `minHeight: 0` + `alignSelf: 'center'`. Now a properly small (max 360 wide) centered dialog.
+
+#### Promise hygiene (bug #4 part 2 — exhaustive sweep)
+
+The `(in promise, id: 0)` and `(in promise, id: 2)` red screens were not all in `useChatWrapperInit`. An exhaustive sweep across `src/` found and patched:
+
+- `ChatWrapper.tsx` — the outer `await initializeClient(...).then(c => {...})` callback had no `.catch()`. Converted to `await` + inner try/catch.
+- `ChatWrapper.tsx` — three fire-and-forget `refresh()` calls (legacy / storedClient / provider branches) — wrapped each with `.catch((err) => console.warn('refresh failed', err))`.
+- `usePushNotifications.ts:81` — `getInitialNotification().then(...)` without `.catch()` — added one.
+- `usePushNotifications.ts:54` — `initToken()` was fire-and-forget in the bootstrap `useEffect`; any sync throw before the inner try-block leaked. Added `.catch`.
+- `networking/xmpp/getRoomsPaged.xmpp.ts` — **the most likely id:0/id:2 culprit.** `client.send(message)` was NOT awaited inside an `async` Promise executor, so when the socket was closing during reconnect, the send rejection escaped the try/catch entirely. Rewrote without the async executor, captured the send promise, attached `.catch` synchronously, and rewrote the timeout chain to attach its rejection handler at construction time (no race).
+- `networking/xmpp/presenceInRoom.xmpp.ts` — same `new Promise(async (resolve, reject) => …)` anti-pattern with a racy `.catch(reject)` on the timeout. Rewrote to use a regular promise constructor + an inner async IIFE that explicitly funnels every failure path through `reject()`.
+
+Also installed a **dev-only global unhandled-rejection tracker** (`src/utils/installPromiseRejectionTracker.ts`, mounted from `ReduxWrapper`) that catches any future leaks and prints the actual rejection value + stack to Metro logs (works on Hermes via `HermesInternal.enablePromiseRejectionTracker` and on the standard `unhandledrejection` event). No-op in production builds. If a new red-screen ever appears, the integrator now sees exactly where it originates.
+
+#### Media preview (bug #9 — true inline preview)
+
+`FilePreviewModal` now renders office docs (DOC / DOCX / XLS / XLSX / PPT / PPTX / TXT / CSV / RTF) inline via a new `DocumentViewer` component that embeds Google's free `docs.google.com/gview?url=…&embedded=true` viewer in a `react-native-webview`. The previous default case showed only an info card; for these MIME types the user now sees the actual document content. PDF keeps its existing local-download-then-WebView path (`PdfViewer`). Truly unrenderable binary types still fall through to the info card with filename + download prompt.
+
+### Added
+
+- **`useChatRoomFocus({ roomJID, isFocused })` hook** — public unread-tracking hook for tab-based navigators where `<ChatRoom>` never unmounts. Mirrors the mount/unmount lifecycle internally — focus stamps `lastViewedTimestamp = 0` (clears badge, marks active room), blur stamps `Date.now()` (so future messages count). Eliminates the consumer workaround of importing `store` / `setLastViewedTimestamp` / `setCurrentRoom` from internal `src/` paths.
+- **Unread-count badge on the scroll-to-bottom arrow.** When the user is scrolled up and new messages arrive, the down-arrow now shows a count chip (capped at `99+`). Resets when they scroll back to the bottom.
+- **New granular config flags** for member-list actions (bug #16 done right this time):
+  - `disableMemberProfileActions?: boolean` — hide the whole action block.
+  - `hideMemberSendMessageAction?: boolean` — hide only "Message".
+  - `hideMemberCopyIdAction?: boolean` — hide only "Copy User Id".
+
+### Changed
+
+- **Reverted 26.5.7 widening of `disableProfilesInteractions`.** It now controls message-list avatar taps only (its original scope) — the new granular flags above handle the chat-info member actions per-button instead of all-or-nothing.
+- **`roomsSlice.addRoom` cold-start fix.** The previous `Date.now()` default for `lastViewedTimestamp` (used when the payload didn't carry one and there was no existing room) stamped a "now" marker that made messages sent while the app was killed look already-read on next launch. Now anchors to the newest message in the payload (so already-loaded history is "seen" but anything strictly newer counts as unread), falling back to `0` only when there are no messages yet (lets the private-store hydration set the real marker).
+
 ## [26.5.6]
 
 Closes the open items from the 26.5.5 customer bug tracker plus seven new ones (uploads, media preview, XMPP idle recovery, send failures, UI polish, customization gates). One existing config flag (`disableProfilesInteractions`) gets its semantics widened — everything else is additive.
