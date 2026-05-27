@@ -75,7 +75,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
               onPress={() => handleBackClick(false)}
             />
           </View>
-        ) : (
+        ) : !config?.disableChatHeaderBurgerMenuIcon ? (
           <View style={styles.leftContainer}>
             <Button
               style={styles.menuButton}
@@ -85,6 +85,10 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
               onPress={handleHeaderChatMenu}
             />
           </View>
+        ) : (
+          // Reserve the slot so the title stays centered relative to
+          // the right-hand actions even when the icon is hidden.
+          <View style={styles.leftContainer} />
         )}
         <CenterContainer
           rightSpace={config?.disableRoomConfig}

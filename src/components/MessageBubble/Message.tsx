@@ -31,6 +31,7 @@ import { parseMessageBody } from '../../helpers/parseMessageBody';
 import { useMessageHeapState } from '../../hooks/useMessageHeapState';
 import { DoubleTick } from '../../assets/icons';
 import { useXmppClient } from '../../context/xmppProvider';
+import { useSendMessage } from '../../hooks/useSendMessage';
 import { MessageReaction } from './MessageReaction';
 import { MessageFooter } from '../styled/StyledComponents';
 
@@ -113,7 +114,8 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   const dispatch = useDispatch();
   const { client } = useXmppClient();
   const { config, langSource, user} = useChatSettingState();
-  const { idSet } = useMessageHeapState();
+  const { idSet, failedIdSet } = useMessageHeapState();
+  const { retryMessage } = useSendMessage();
 
   const [isPressed, setIsPressed] = useState(false);
 
@@ -218,14 +220,41 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
     if (messageRef.current) {
       const nodeHandle = findNodeHandle(messageRef.current);
       if (nodeHandle) {
-        UIManager.measure(nodeHandle, (x, y, width, height, pageX, pageY) => {
+        UIManager.measure(nodeHandle, (_x, _y, _width, height, pageX, pageY) => {
           const screenHeight = Dimensions.get('window').height;
+          // MessageInteractions is ~5 rows (delete/edit/reply/react/copy)
+          // at ~48px each + padding, plus emoji bar on top. 280 covers
+          // both even with a couple of long labels. The legacy 150
+          // figure assumed a much shorter menu and stranded the popup
+          // off-screen on the last message of the room.
+          const MENU_HEIGHT = 280;
+          // Treat the consumer-supplied keyboardVerticalOffset as a
+          // proxy for tab bar + bottom safe-area when present; falls
+          // back to a reasonable default so the menu doesn't bump into
+          // the nav bar on phones without one in config.
+          const bottomReserve =
+            (config?.keyboardVerticalOffset ?? 0) + 24;
+          const topReserve = 16;
 
-          const enoughSpaceBelow = screenHeight - pageY - height > 150;
-          setContextMenuPosition({
-            x: pageX,
-            y: enoughSpaceBelow ? pageY + height : pageY - 150,
-          });
+          const spaceBelow = screenHeight - (pageY + height) - bottomReserve;
+          const spaceAbove = pageY - topReserve;
+
+          let menuY: number;
+          if (spaceBelow >= MENU_HEIGHT) {
+            menuY = pageY + height;
+          } else if (spaceAbove >= MENU_HEIGHT) {
+            menuY = pageY - MENU_HEIGHT;
+          } else {
+            // Neither side has room (e.g. very small phone, large
+            // menu) — clamp to the visible region so at least the
+            // top of the menu is reachable.
+            menuY = Math.max(
+              topReserve,
+              screenHeight - MENU_HEIGHT - bottomReserve
+            );
+          }
+
+          setContextMenuPosition({ x: pageX, y: menuY });
         });
       }
     }
@@ -236,7 +265,13 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
     ? parseMessageBody(config?.messageTextFilter.filterFunction(message.body))
     : parseMessageBody(message.body);
 
-  const isPending = idSet.has(message.id) || message?.pending || false;
+  const isFailed = failedIdSet.has(message.id);
+  const isPending =
+    !isFailed && (idSet.has(message.id) || message?.pending || false);
+
+  const onRetryPress = () => {
+    if (isFailed) {retryMessage(message.id);}
+  };
 
   return (
     <View>
@@ -327,11 +362,21 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
             )}
             <CustomMessageTimestamp>
             {!config?.disableSentLogic && isUser && isPending && <Text>sending...</Text>}
+            {!config?.disableSentLogic && isUser && isFailed && (
+              <Text
+                onPress={onRetryPress}
+                style={styles.failedText}
+                accessibilityRole="button"
+                accessibilityLabel="Retry sending message"
+              >
+                ! Failed — tap to retry
+              </Text>
+            )}
             {new Date(message.date).toLocaleTimeString([], {
               hour: '2-digit',
               minute: '2-digit',
             })}
-            {!config?.disableSentLogic && isUser && !isPending && (
+            {!config?.disableSentLogic && isUser && !isPending && !isFailed && (
               <DoubleTick />
             )}
           </CustomMessageTimestamp>
@@ -400,5 +445,10 @@ const styles = StyleSheet.create({
     color: '#999',
     marginTop: 5,
     alignSelf: 'flex-end',
+  },
+  failedText: {
+    color: '#E53935',
+    fontWeight: '600',
+    marginRight: 6,
   },
 });

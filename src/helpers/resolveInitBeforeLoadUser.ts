@@ -237,4 +237,83 @@ export const applyResolvedUserToStore = (user?: User | null) => {
   store.dispatch(setUser(user));
 };
 
+/**
+ * Re-mints a User with a fresh xmppPassword for the XMPP credentials-
+ * provider path (bug #17). Unlike `resolveInitBeforeLoadUser` this
+ * ALWAYS hydrates via the chosen auth path even if the cached user
+ * already had xmppCredentials — that's the whole point, the old ones
+ * are stale.
+ *
+ * Selection order:
+ *   1. `jwtLogin` — re-exchange the JWT via `/users/client`.
+ *   2. Anything else (`userLogin` / `customLogin` / store / persisted)
+ *      — `tryHydrateViaMy` on the current user, which calls
+ *      `/users/my` and, on 401, refreshes the access token via
+ *      `/users/login/refresh` and retries.
+ *
+ * Returns `null` only when nothing usable is available — the caller
+ * (xmppProvider) falls back to the cached creds in that case.
+ */
+export const refreshUserCredentialsForXmpp = async (
+  config?: IConfig,
+  signal?: AbortSignal
+): Promise<User | null> => {
+  if (signal?.aborted) {return null;}
+
+  // Priority 1: jwtLogin — same path as `resolveInitBeforeLoadUser`
+  // priority 3. We always re-exchange because the original JWT may
+  // itself have expired (and the consumer is expected to swap
+  // `config.jwtLogin.token` for a fresh one before then).
+  if (config?.jwtLogin?.enabled && config?.jwtLogin?.token) {
+    try {
+      const fresh = await loginViaJwt(config.jwtLogin.token);
+      const normalized = normalizeUserForXmpp(fresh);
+      if (normalized && hasXmppCredentials(normalized)) {return normalized;}
+    } catch (error) {
+      if (signal?.aborted || isAbortError(error)) {return null;}
+      // fall through to /users/my path
+    }
+  }
+
+  const myEndpoint = config?.initBeforeLoadAuth?.myEndpoint || '/users/my';
+
+  // Priority 2: redux store user (covers userLogin + customLogin +
+  // anything previously persisted into chatSettingStore.user). The
+  // user must have at least a refreshToken for the refresh chain to
+  // produce something useful.
+  const currentUser = store.getState().chatSettingStore.user;
+  if (currentUser?.token || currentUser?.refreshToken) {
+    const hydrated = await tryHydrateViaMy(
+      currentUser as User,
+      myEndpoint,
+      signal
+    ).catch(() => null);
+    if (hydrated && hasXmppCredentials(hydrated)) {return hydrated;}
+  }
+
+  // Priority 3: persisted user in AsyncStorage — defensive; the store
+  // should already mirror this, but if the redux state got cleared
+  // mid-session (logout race) this gives us one last shot.
+  try {
+    const storedUser = await asyncLocalStorage<User>(
+      localStorageConstants.ETHORA_USER
+    ).get();
+    if (
+      storedUser &&
+      (storedUser.token || storedUser.refreshToken || storedUser.xmppPassword)
+    ) {
+      const hydrated = await tryHydrateViaMy(
+        storedUser,
+        myEndpoint,
+        signal
+      ).catch(() => null);
+      if (hydrated && hasXmppCredentials(hydrated)) {return hydrated;}
+    }
+  } catch {
+    // ignore storage errors
+  }
+
+  return null;
+};
+
 export default resolveInitBeforeLoadUser;

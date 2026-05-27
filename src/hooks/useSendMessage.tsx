@@ -3,7 +3,11 @@ import { v4 as uuidv4 } from 'uuid';
 import { useXmppClient } from '../context/xmppProvider';
 import { useDispatch, useSelector } from 'react-redux';
 import { addRoomMessage, setEditAction } from '../roomStore/roomsSlice';
-import { addMessageToHeap } from '../roomStore/roomHeapSlice';
+import {
+  addMessageToHeap,
+  clearMessageFailure,
+  markMessageFailed,
+} from '../roomStore/roomHeapSlice';
 import { uploadFile } from '../networking/api-requests/auth.api';
 import { RootState } from '../roomStore';
 import { useEventHandlers } from './useEventHandlers';
@@ -38,7 +42,12 @@ export const useSendMessage = (_configOverride?: IConfig) => {
     handleMessageSent,
     handleMessageFailed,
     handleMessageEdited,
+    handleMessageRetry,
   } = useEventHandlers(config);
+
+  const failedMessages = useSelector(
+    (state: RootState) => state.roomHeapSlice?.failedMessages || {}
+  );
 
   const sendMessage = useCallback(
     async (
@@ -140,6 +149,17 @@ export const useSendMessage = (_configOverride?: IConfig) => {
           messageType: 'text',
         });
       } catch (error) {
+        dispatch(
+          markMessageFailed({
+            kind: 'text',
+            id: optimisticId,
+            roomJID: activeRoomJID,
+            body: message,
+            isReply,
+            isChecked,
+            mainMessage,
+          })
+        );
         handleMessageFailed({
           message,
           roomJID: activeRoomJID,
@@ -290,6 +310,18 @@ export const useSendMessage = (_configOverride?: IConfig) => {
           requestUrl: error?.config?.url,
           axiosMessage: error?.message,
         });
+        dispatch(
+          markMessageFailed({
+            kind: 'media',
+            id,
+            roomJID: activeRoomJID,
+            data,
+            type,
+            isReply,
+            isChecked,
+            mainMessage,
+          })
+        );
         handleMessageFailed({
           message: 'media',
           roomJID: activeRoomJID,
@@ -299,6 +331,42 @@ export const useSendMessage = (_configOverride?: IConfig) => {
       }
     },
     [client, config, user, dispatch, handleMessageSent, handleMessageFailed]
+  );
+
+  // Retry a previously-failed send by replaying the saved payload from
+  // the heap. Clears the failure flag first so the bubble flips back to
+  // "sending..."; if the retry fails again `markMessageFailed` re-arms
+  // it. No-op when the id isn't in the failed map.
+  const retryMessage = useCallback(
+    async (failedId: string) => {
+      const payload = failedMessages[failedId];
+      if (!payload) {return;}
+      dispatch(clearMessageFailure(failedId));
+      handleMessageRetry({
+        messageId: failedId,
+        roomJID: payload.roomJID,
+        messageType: payload.kind,
+      });
+      if (payload.kind === 'text') {
+        await sendMessage(
+          payload.body,
+          payload.roomJID,
+          payload.isReply,
+          payload.isChecked,
+          payload.mainMessage
+        );
+      } else {
+        await sendMedia(
+          payload.data,
+          payload.type,
+          payload.roomJID,
+          payload.isReply,
+          payload.isChecked,
+          payload.mainMessage
+        );
+      }
+    },
+    [failedMessages, dispatch, handleMessageRetry, sendMessage, sendMedia]
   );
 
   // ChatRoom/ThreadWrapper consume this as the "edit branch" of send.
@@ -355,6 +423,7 @@ export const useSendMessage = (_configOverride?: IConfig) => {
     sendMessage,
     sendMedia,
     sendEditMessage,
+    retryMessage,
     isLastMessageFromUserAndProcessing,
   };
 };

@@ -23,10 +23,17 @@ interface MessageEditedEvent {
   user: any;
 }
 
+interface MessageRetryEvent {
+  messageId: string;
+  roomJID: string;
+  messageType: 'text' | 'media';
+}
+
 export interface EventHandlersHook {
   handleMessageSent: (event: MessageSentEvent) => Promise<void>;
   handleMessageFailed: (event: MessageFailedEvent) => void;
   handleMessageEdited: (event: MessageEditedEvent) => void;
+  handleMessageRetry: (event: MessageRetryEvent) => void;
 }
 
 export const useEventHandlers = (config?: IConfig): EventHandlersHook => {
@@ -77,5 +84,21 @@ export const useEventHandlers = (config?: IConfig): EventHandlersHook => {
     [config]
   );
 
-  return { handleMessageSent, handleMessageFailed, handleMessageEdited };
+  const handleMessageRetry = useCallback(
+    (event: MessageRetryEvent) => {
+      try {
+        config?.eventHandlers?.onMessageRetry?.(event);
+      } catch (error) {
+        console.error('Error in message retry handler:', error);
+      }
+    },
+    [config]
+  );
+
+  return {
+    handleMessageSent,
+    handleMessageFailed,
+    handleMessageEdited,
+    handleMessageRetry,
+  };
 };

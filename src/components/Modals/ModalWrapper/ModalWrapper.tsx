@@ -22,6 +22,12 @@ interface ModalWrapperProps {
   setTextarea?: (value: string) => void;
   handleCloseModal: () => void;
   handleClick: () => void;
+  /**
+   * When true, render a small centered dialog instead of the default
+   * full-screen container. Used for confirm-style modals (Delete, Leave
+   * room) where edge-to-edge feels too heavy.
+   */
+  compact?: boolean;
 }
 
 export const ModalWrapper: FC<ModalWrapperProps> = ({
@@ -35,6 +41,7 @@ export const ModalWrapper: FC<ModalWrapperProps> = ({
   setTextarea,
   handleCloseModal,
   handleClick,
+  compact = false,
 }) => {
   const textareaRef = useRef<TextInput>(null);
 
@@ -54,7 +61,21 @@ export const ModalWrapper: FC<ModalWrapperProps> = ({
       onRequestClose={handleCloseModal}
     >
       <ModalBackground>
-        <ModalContainer style={{ maxWidth: 640 }}>
+        <ModalContainer
+          style={
+            compact
+              ? {
+                  flex: 0,
+                  width: '85%',
+                  maxWidth: 360,
+                  height: 'auto',
+                  padding: 24,
+                  borderRadius: 16,
+                  gap: 16,
+                }
+              : { maxWidth: 640 }
+          }
+        >
           <CloseButton onPress={handleCloseModal}>
             <Text style={{ fontSize: 24 }}>&times;</Text>
           </CloseButton>

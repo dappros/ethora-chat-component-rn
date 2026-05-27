@@ -358,6 +358,79 @@ describe('XmppClient — reconnect', () => {
   });
 });
 
+// ---- credentialsProvider (JWT refresh on not-authorized) ------------
+
+describe('XmppClient — credentialsProvider', () => {
+  it('reconnect() calls credentialsProvider when lastAuthError=not-authorized and swaps creds', async () => {
+    const c = new XmppClient('old-user', 'old-pass', { devServer: 'h' });
+    const provider = jest
+      .fn()
+      .mockResolvedValue({ username: 'new-user', password: 'new-pass' });
+    c.setCredentialsProvider(provider);
+    c.lastAuthError = 'not-authorized';
+
+    await c.reconnect();
+    // Drain the stop().finally microtask before asserting on creds.
+    await new Promise((r) => setTimeout(r, 5));
+
+    expect(provider).toHaveBeenCalledTimes(1);
+    expect(c.username).toBe('new-user');
+    expect(c.password).toBe('new-pass');
+    expect(c.lastAuthError).toBeNull();
+  });
+
+  it('reconnect() does NOT call credentialsProvider when there was no auth error', async () => {
+    const c = new XmppClient('u', 'p', { devServer: 'h' });
+    const provider = jest.fn();
+    c.setCredentialsProvider(provider);
+    // lastAuthError stays null (e.g. a transient network blip).
+
+    await c.reconnect();
+    await new Promise((r) => setTimeout(r, 5));
+    expect(provider).not.toHaveBeenCalled();
+  });
+
+  it('reconnect() swallows credentialsProvider errors and still attempts to reconnect with cached creds', async () => {
+    const c = new XmppClient('u', 'p', { devServer: 'h' });
+    c.setCredentialsProvider(() => Promise.reject(new Error('refresh-fail')));
+    c.lastAuthError = 'not-authorized';
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await c.reconnect();
+    await new Promise((r) => setTimeout(r, 5));
+
+    // Still attempted a fresh client.
+    expect(fakeClientInstances.length).toBeGreaterThan(1);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('credential refresh failed'),
+      expect.any(Error)
+    );
+    warnSpy.mockRestore();
+  });
+
+  it('concurrent reconnect() calls share a single in-flight credentialsProvider call', async () => {
+    const c = new XmppClient('u', 'p', { devServer: 'h' });
+    let resolveFn: ((v: any) => void) | undefined;
+    const provider = jest.fn(
+      () =>
+        new Promise((resolve) => {
+          resolveFn = resolve;
+        })
+    );
+    c.setCredentialsProvider(provider);
+    c.lastAuthError = 'not-authorized';
+
+    const p1 = c.reconnect();
+    const p2 = c.reconnect();
+    expect(provider).toHaveBeenCalledTimes(1);
+    resolveFn!({ username: 'fresh', password: 'fresh-pw' });
+    await Promise.all([p1, p2]);
+    await new Promise((r) => setTimeout(r, 5));
+
+    expect(c.password).toBe('fresh-pw');
+  });
+});
+
 // ---- disconnect / close ---------------------------------------------
 
 describe('XmppClient — disconnect / close', () => {

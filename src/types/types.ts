@@ -249,6 +249,11 @@ export interface IConfig {
   disableHeader?: boolean;
   disableMedia?: boolean;
   chatHeaderBurgerMenu?: boolean;
+  // Hide the burger icon entirely (the icon that opens the chatHeader-
+  // BurgerMenu dropdown). `chatHeaderBurgerMenu` controls dropdown
+  // visibility only — set this flag when you want neither the icon nor
+  // the dropdown to render (e.g. patient-facing apps with a single room).
+  disableChatHeaderBurgerMenuIcon?: boolean;
   chatHeaderAdditional?: { enabled: boolean; element: any };
   headerMenu?: () => void;
   headerChatMenu?: () => void;
@@ -419,6 +424,11 @@ export interface IConfig {
       newMessage: string;
       roomJID: string;
       user: any;
+    }) => void;
+    onMessageRetry?: (event: {
+      messageId: string;
+      roomJID: string;
+      messageType: 'text' | 'media';
     }) => void;
   };
 }

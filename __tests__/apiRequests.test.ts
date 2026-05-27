@@ -190,6 +190,17 @@ describe('auth.api', () => {
       })
     );
   });
+
+  it('uploadFile does NOT pre-set Content-Type so axios computes the multipart boundary', () => {
+    // Pre-setting `Content-Type: multipart/form-data` strips the boundary
+    // and the server returns 500 for non-image uploads. Regression guard
+    // for bug #10 in sdk-bug-tracker.md.
+    store.dispatch(setUser({ token: 'user-tok' } as any));
+    uploadFile({ fake: 'fd' } as any);
+    const headers = mockHttp.post.mock.calls[0]![2]!.headers;
+    expect(headers).not.toHaveProperty('Content-Type');
+    expect(headers).not.toHaveProperty('content-type');
+  });
 });
 
 // ---- rooms.api ------------------------------------------------------

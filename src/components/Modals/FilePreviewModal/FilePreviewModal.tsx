@@ -17,6 +17,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as MediaLibrary from 'expo-media-library';
 import { useToast } from '../../../context/ToastContext';
 import PdfViewer from './PdfView';
+import { ensureFilenameHasExtension } from '../../../helpers/mimeToExtension';
 
 export const FullScreenVideo = styled.View`
   width: 100%;
@@ -61,10 +62,10 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
     }
 
     try {
-      let fileName = activeFile.fileName || `media_${Date.now()}`;
-      if (!fileName.includes('.')) {
-        fileName += activeFile.mimetype.startsWith('image/') ? '.jpg' : '.mp4';
-      }
+      const fileName = ensureFilenameHasExtension(
+        activeFile.fileName,
+        activeFile.mimetype
+      );
 
       const filePath = FileSystem.cacheDirectory + fileName;
       const download = await FileSystem.downloadAsync(activeFile.fileURL, filePath);
@@ -87,7 +88,14 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
 
   const saveFileToDownloads = async () => {
     try {
-      const fileName = activeFile.fileName || `file_${Date.now()}`;
+      // Always include a valid extension on the cache filename. expo-media-
+      // library's createAssetAsync inspects the URI's extension and throws
+      // "Could not get the file's extension" when missing — see bug #9 in
+      // sdk-bug-tracker.md.
+      const fileName = ensureFilenameHasExtension(
+        activeFile.fileName,
+        activeFile.mimetype
+      );
       const filePath = FileSystem.cacheDirectory + fileName;
       const download = await FileSystem.downloadAsync(activeFile.fileURL, filePath);
 
@@ -162,23 +170,33 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
         );
       case activeFile.mimetype === 'application/pdf':
         return <PdfViewer pdfUrl={activeFile.fileURL} />;
-      default:
+      default: {
+        const displayName = ensureFilenameHasExtension(
+          activeFile.fileName,
+          activeFile.mimetype
+        );
         return (
           <View
             style={{
               backgroundColor: '#FFF8ED',
               borderRadius: 16,
-              display: 'flex',
-              padding: 16,
+              padding: 20,
+              gap: 8,
             }}
           >
-            <Text>
-              Unable to open the uploaded document. The file format is not
-              supported by the system. Please upload a file in a compatible
-              format. You still can download this file.
+            <Text style={{ fontSize: 16, fontWeight: '600' }}>
+              {displayName}
+            </Text>
+            <Text style={{ color: '#666' }}>
+              {activeFile.mimetype || 'unknown type'}
+            </Text>
+            <Text style={{ marginTop: 8 }}>
+              This file format can't be previewed inline. Tap the save icon
+              above to download it.
             </Text>
           </View>
         );
+      }
     }
   }, [activeFile]);
 

@@ -285,7 +285,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
             </LabelData>
           </BorderedContainer>
 
-          {selectedUser && (
+          {selectedUser && !config?.disableProfilesInteractions && (
             <>
               <ActionButton
                 StartIcon={<ChatIcon />}

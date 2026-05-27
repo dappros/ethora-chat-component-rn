@@ -53,6 +53,12 @@ jest.mock('../src/networking/xmppClient', () => {
     scheduleReconnect = jest.fn();
     reconnect = jest.fn();
     onCriticalSend = jest.fn();
+    // 26.5.6 (bug #17): XmppClient supports a credentialsProvider for
+    // JWT refresh on `not-authorized`. xmppProvider wires it up after
+    // construction — the mock needs the setter so the bootstrap chain
+    // doesn't trip on a missing method.
+    setCredentialsProvider = jest.fn();
+    updateCredentials = jest.fn();
     constructor(username: string, password: string, settings?: any) {
       this.username = username;
       this.password = password;

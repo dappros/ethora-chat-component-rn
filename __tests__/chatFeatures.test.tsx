@@ -316,7 +316,7 @@ describe('useSendMessage — text', () => {
       false,
       false,
       '',
-      expect.stringMatching(/^send-text-message-\d+$/)
+      expect.stringMatching(/^send-text-message-\d+-\d+$/)
     );
     expect(onMessageSent).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -457,7 +457,11 @@ describe('useSendMessage — media', () => {
         mimetype: 'image/jpeg',
         attachmentId: 'file-1',
       }),
-      expect.stringMatching(/^send-media-message-\d+$/)
+      // Media correlation id format is `send-media-message:<uuid>`
+      // — colon delimiter + RFC4122 uuid (commit 251f605 / 40d91be).
+      expect.stringMatching(
+        /^send-media-message:[0-9a-f-]{36}$/
+      )
     );
     expect(onMessageSent).toHaveBeenCalledWith(
       expect.objectContaining({ messageType: 'media', roomJID: ROOM })

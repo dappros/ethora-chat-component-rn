@@ -15,7 +15,6 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
   TouchableOpacity,
-  Keyboard,
   ImageSourcePropType,
 } from 'react-native';
 import { IMessage, User, IConfig, IRoom } from '../../types/types';
@@ -241,7 +240,10 @@ const MessageList = <TMessage extends IMessage>({
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
       const contentOffset = event.nativeEvent.contentOffset.y;
 
-      Keyboard.dismiss();
+      // Don't force-dismiss the keyboard on every scroll event — any
+      // touch on the message list used to close it, which made replying
+      // to a long thread feel broken. Drag-to-dismiss still works via
+      // FlatList's keyboardDismissMode="interactive" below.
 
       if (contentOffset > 150 && !hasUserScrolled) {
         setHasUserScrolled(true);
@@ -326,6 +328,8 @@ const MessageList = <TMessage extends IMessage>({
         scrollEventThrottle={16}
         onLayout={handleLayout}
         inverted={true}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
         contentContainerStyle={styles.flatListContent}
         ListFooterComponent={
           loading && memoizedMessages.length > 15 ? (

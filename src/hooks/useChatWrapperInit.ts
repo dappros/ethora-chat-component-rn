@@ -119,10 +119,8 @@ const useChatWrapperInit = ({
                 user.xmppUsername || user?.defaultWallet?.walletAddress,
                 user?.xmppPassword,
                 config?.xmppSettings
-              ).then((client) => {
-                console.log(' Client initialized', client?.status);
-                return client;
-              });
+              );
+              console.log(' Client initialized', newClient?.status);
 
               if (roomsList && Object.keys(roomsList).length > 0) {
                 console.log(
@@ -156,27 +154,29 @@ const useChatWrapperInit = ({
                   await newClient.getRoomsStanza();
                 }
               }
-              await newClient
-                .getChatsPrivateStoreRequestStanza()
-                .then(
-                  async (
-                    roomTimestampObject: any
-                  ) => {
-                    console.log(
-                      'Got chats private store',
-                      roomTimestampObject?.length || 0
-                    );
-                    updatedChatLastTimestamps(roomTimestampObject, dispatch);
-                    if (!hasSyncedHistoryRef.current) {
-                      console.log('Updating messages till last');
-                      await updateMessagesTillLast(rooms, newClient);
-                      hasSyncedHistoryRef.current = true;
-                    }
-                    setClient(newClient);
-                    setConnectionLost(false);
-                    console.log('Initialization complete');
-                  }
+              try {
+                const roomTimestampObject: any =
+                  await newClient.getChatsPrivateStoreRequestStanza();
+                console.log(
+                  'Got chats private store',
+                  roomTimestampObject?.length || 0
                 );
+                if (roomTimestampObject) {
+                  updatedChatLastTimestamps(roomTimestampObject, dispatch);
+                }
+                if (!hasSyncedHistoryRef.current) {
+                  console.log('Updating messages till last');
+                  await updateMessagesTillLast(rooms, newClient);
+                  hasSyncedHistoryRef.current = true;
+                }
+                setClient(newClient);
+                setConnectionLost(false);
+                console.log('Initialization complete');
+              } catch (err) {
+                console.warn('privateStore/timestamps failed', err);
+                setClient(newClient);
+                setConnectionLost(false);
+              }
 
               {
                 config?.refreshTokens?.enabled && refresh();
@@ -204,29 +204,34 @@ const useChatWrapperInit = ({
             }
             setInited(true);
             console.log(' Getting chats private store for existing client');
-            await client
-              .getChatsPrivateStoreRequestStanza()
-              .then(
-                async (
-                  roomTimestampObject: any
-                ) => {
-                  console.log(
-                    'Got chats private store for existing client',
-                    roomTimestampObject?.length || 0
-                  );
-                  updatedChatLastTimestamps(roomTimestampObject, dispatch);
-                  if (!hasSyncedHistoryRef.current) {
-                    console.log(
-                      'Updating messages till last for existing client'
-                    );
-                    await updateMessagesTillLast(rooms, client);
-                    hasSyncedHistoryRef.current = true;
-                  }
-                  setClient(client);
-                  setConnectionLost(false);
-                  console.log(' Initialization complete for existing client');
-                }
+            try {
+              const roomTimestampObject: any =
+                await client.getChatsPrivateStoreRequestStanza();
+              console.log(
+                'Got chats private store for existing client',
+                roomTimestampObject?.length || 0
               );
+              if (roomTimestampObject) {
+                updatedChatLastTimestamps(roomTimestampObject, dispatch);
+              }
+              if (!hasSyncedHistoryRef.current) {
+                console.log(
+                  'Updating messages till last for existing client'
+                );
+                await updateMessagesTillLast(rooms, client);
+                hasSyncedHistoryRef.current = true;
+              }
+              setClient(client);
+              setConnectionLost(false);
+              console.log(' Initialization complete for existing client');
+            } catch (err) {
+              console.warn(
+                'privateStore/timestamps failed (existing client)',
+                err
+              );
+              setClient(client);
+              setConnectionLost(false);
+            }
             {
               config?.refreshTokens?.enabled && refresh();
             }

@@ -356,6 +356,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
                 backgroundColorButton="#E53935"
                 handleClick={handleDeleteClick}
                 handleCloseModal={handleCloseDeleteModal}
+                compact
               />
             )}
           </ChatWrapperBox>

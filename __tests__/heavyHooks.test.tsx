@@ -391,7 +391,7 @@ describe('useSendMessage', () => {
     expect(msgs).toHaveLength(1);
     expect((msgs[0] as any).pending).toBe(true);
     expect((msgs[0] as any).body).toBe('hello');
-    expect((msgs[0] as any).id).toMatch(/^send-text-message-\d+$/);
+    expect((msgs[0] as any).id).toMatch(/^send-text-message-\d+-\d+$/);
     expect((msgs[0] as any).user.id).toBe('0xabc');
     expect((msgs[0] as any).user.name).toBe('Alice Anderson');
 

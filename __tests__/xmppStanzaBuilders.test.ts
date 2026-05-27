@@ -63,7 +63,7 @@ describe('sendTextMessage', () => {
     expect(stanza.name).toBe('message');
     expect(stanza.attrs.type).toBe('groupchat');
     expect(stanza.attrs.to).toBe('r@conference.h');
-    expect(stanza.attrs.id).toMatch(/^send-text-message-\d+$/);
+    expect(stanza.attrs.id).toMatch(/^send-text-message-\d+-\d+$/);
 
     const data = stanza.getChild('data');
     expect(data?.attrs?.senderFirstName).toBe('Alice');
@@ -94,7 +94,7 @@ describe('sendTextMessage', () => {
       false,
       ''
     );
-    expect(lastSent(send).attrs.id).toMatch(/^send-reply-message-\d+$/);
+    expect(lastSent(send).attrs.id).toMatch(/^send-reply-message-\d+-\d+$/);
   });
 
   it('honours an explicit customId over any default', () => {

@@ -4,11 +4,15 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
 import { AppState, DeviceEventEmitter } from 'react-native';
-import XmppClient from '../networking/xmppClient';
+import XmppClient, {
+  XmppCredentialsProvider,
+} from '../networking/xmppClient';
+import { refreshTokens } from '../roomStore/chatSettingsSlice';
 import {
   IConfig,
   ProviderBootstrapStatus,
@@ -24,6 +28,7 @@ import {
 } from '../utils/clientRegistry';
 import {
   applyResolvedUserToStore,
+  refreshUserCredentialsForXmpp,
   resolveInitBeforeLoadUser,
 } from '../helpers/resolveInitBeforeLoadUser';
 import { ensureScopedChatCache } from '../helpers/ensureScopedChatCache';
@@ -77,6 +82,79 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
   const completedBootstrapKeyRef = useRef<string>('');
   const inflightBootstrapKeyRef = useRef<string>('');
 
+  // Callback XmppClient uses to fetch fresh credentials after a SASL
+  // `not-authorized` (typically JWT expiry during idle, bug #17).
+  // Always installed — the underlying `refreshUserCredentialsForXmpp`
+  // picks the right path based on config:
+  //   - `jwtLogin` → re-exchange JWT via `/users/client`
+  //   - `userLogin` / `customLogin` / store / persisted → `/users/my`
+  //     with REST refresh chain (handles 401 → refresh → retry)
+  // Returns last-known cached creds if nothing usable is available so
+  // the XmppClient at least doesn't crash on `undefined.password`.
+  const credentialsProvider = useMemo<XmppCredentialsProvider>(() => {
+    return async () => {
+      // 1. Consumer-supplied REST refresh (when wired). This runs
+      //    before the SDK's own refresh chain so non-Ethora backends
+      //    can keep auth state in sync with their own token endpoint.
+      const customRefresh = config?.refreshTokens?.refreshFunction;
+      if (customRefresh) {
+        try {
+          const result = await customRefresh();
+          if (result?.accessToken) {
+            store.dispatch(
+              refreshTokens({
+                token: result.accessToken,
+                refreshToken: result.refreshToken || '',
+              })
+            );
+          }
+        } catch (err) {
+          devPushLog('warn', 'XMPP creds refresh: customRefresh failed', err);
+        }
+      }
+
+      // 2. Re-mint XMPP creds via the right priority chain for the
+      //    current auth mode. This call ALWAYS hydrates (unlike
+      //    `resolveInitBeforeLoadUser` which short-circuits when a
+      //    cached user already has xmppCredentials).
+      const fresh = await refreshUserCredentialsForXmpp(config).catch(
+        (err) => {
+          devPushLog('warn', 'XMPP creds refresh: full chain failed', err);
+          return null;
+        }
+      );
+      if (fresh) {
+        applyResolvedUserToStore(fresh);
+        return {
+          username:
+            fresh.xmppUsername ||
+            fresh.defaultWallet?.walletAddress ||
+            '',
+          password: fresh.xmppPassword || '',
+        };
+      }
+
+      // 3. Last-resort: return the cached creds so reconnect() can
+      //    still attempt a connection. If the original failure was
+      //    a stale JWT this will fail again and the user has to
+      //    re-mount the chat — but at least we don't break the
+      //    transient-network-blip case where the cached creds are
+      //    still valid.
+      const u = store.getState().chatSettingStore.user;
+      return {
+        username: u?.xmppUsername || u?.defaultWallet?.walletAddress || '',
+        password: u?.xmppPassword || '',
+      };
+    };
+  }, [
+    config?.jwtLogin?.enabled,
+    config?.jwtLogin?.token,
+    config?.refreshTokens?.refreshFunction,
+    config?.userLogin?.enabled,
+    config?.customLogin?.enabled,
+    config?.initBeforeLoadAuth?.myEndpoint,
+  ]);
+
   const initializeClient = useCallback(
     async (
       username: string,
@@ -104,6 +182,12 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
       //    concurrent calls for the same key.
       const created = await withXmppClientInitLock(key, async () => {
         const newClient = new XmppClient(username, password, settings);
+        // Wire up the credentialsProvider so SASL `not-authorized`
+        // after idle triggers a refresh chain (jwtLogin →
+        // /users/client; userLogin/customLogin/store → /users/my +
+        // REST refresh) instead of looping forever with stale creds.
+        // Bug #17 — full coverage in 26.5.6.
+        newClient.setCredentialsProvider(credentialsProvider);
         setGlobalXmppClient(newClient, key);
         await newClient.waitForOnline().catch((err) => {
           console.error('Error waiting for xmpp online:', err);
@@ -112,12 +196,16 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
         return newClient;
       });
 
+      // Reused clients (steps 1+2 above) also need the provider — config
+      // may have changed since the singleton was created.
+      created.setCredentialsProvider(credentialsProvider);
+
       setClient(created);
       lastCredsRef.current = { username, password, settings };
       setReconnectAttempts(0);
       return created;
     },
-    [client, config?.xmppSettings]
+    [client, config?.xmppSettings, credentialsProvider]
   );
 
   // -----------------------------------------------------------

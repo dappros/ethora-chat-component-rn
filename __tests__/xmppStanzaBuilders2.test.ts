@@ -304,7 +304,7 @@ describe('sendMediaMessage', () => {
   it('returns the correlation id and emits a <message> with body=media + data + store hint', () => {
     const { client, send } = makeClient();
     const id = sendMediaMessage(client, 'r@h', baseData);
-    expect(id).toMatch(/^send-media-message-\d+$/);
+    expect(id).toMatch(/^send-media-message-\d+-\d+$/);
     const stanza = lastSent(send);
     expect(stanza.attrs.id).toBe(id);
     expect(stanza.attrs.to).toBe('r@h');

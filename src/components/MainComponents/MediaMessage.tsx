@@ -5,6 +5,7 @@ import CustomMessageImage from '../styled/MessageImage';
 import CustomMessageVideo from '../styled/VideoMessage';
 import AudioMessage from '../styled/AudioMessage';
 import { Text } from 'react-native';
+import { deriveDisplayFilename } from '../../helpers/mimeToExtension';
 
 interface MediaMessageProps {
   mimeType?: string;
@@ -19,12 +20,18 @@ const MediaMessage: React.FC<MediaMessageProps> = ({
   messageText,
   message,
 }) => {
-  if (mimeType)
-    {switch (true) {
+  if (mimeType) {
+    const displayName = deriveDisplayFilename({
+      fileName: message?.fileName,
+      originalName: (message as any)?.originalName,
+      url: location || messageText,
+      mime: mimeType,
+    });
+    switch (true) {
       case mimeType.startsWith('image/'):
         return (
           <CustomMessageImage
-            fileName={message?.fileName || '000132001'}
+            fileName={displayName}
             fileURL={messageText || ''}
             mimetype={mimeType}
           />
@@ -32,7 +39,7 @@ const MediaMessage: React.FC<MediaMessageProps> = ({
       case mimeType.startsWith('video/'):
         return (
           <CustomMessageVideo
-            fileName={message?.fileName || '000132001'}
+            fileName={displayName}
             fileURL={location || ''}
             mimetype={mimeType}
           />
@@ -44,21 +51,21 @@ const MediaMessage: React.FC<MediaMessageProps> = ({
         // Many backends tag binary payloads (PDFs, DOCX, archives) as
         // application/octet-stream; sniff the filename extension for the
         // legitimate audio case before falling through to FileDownload.
-        const fileName = message?.fileName || location?.split('/')?.pop() || 'MediaFile';
         if (mimeType.includes('application/octet-stream')) {
-          if (/\.(mp3|m4a|wav|aac|ogg|flac)$/i.test(fileName)) {
+          if (/\.(mp3|m4a|wav|aac|ogg|flac)$/i.test(displayName)) {
             return <AudioMessage src={location || ''} />;
           }
         }
         return (
           <FileDownload
             fileURL={location ? location : ''}
-            fileName={fileName}
+            fileName={displayName}
             mimetype={mimeType}
           />
         );
       }
-    }}
+    }
+  }
   return <Text>Unsupported media type</Text>;
 };
 

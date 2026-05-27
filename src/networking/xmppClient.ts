@@ -26,6 +26,25 @@ import { pushLog as devPushLog } from '../utils/devLogger';
 // Canonical production XMPP WSS endpoint (standard wss/443, no port suffix).
 const DEFAULT_DEV_SERVER = 'xmpp.chat.ethora.com';
 
+// @xmpp/client surfaces SASL/stream errors in a few shapes depending on
+// where it fails — XMPPError on stream:error, SASLError on SASL bind, or
+// a generic Error whose message contains "not-authorized". Match all of
+// them so we trigger the credentials refresh path consistently.
+function isNotAuthorizedError(err: any): boolean {
+  if (!err) {return false;}
+  const condition =
+    err?.condition ||
+    err?.name ||
+    err?.type ||
+    err?.error?.condition ||
+    '';
+  if (typeof condition === 'string' && condition.includes('not-authorized')) {
+    return true;
+  }
+  const message = (err?.message || err?.text || '').toString();
+  return /not-authorized|SASLError/i.test(message);
+}
+
 type HistorySource = 'active' | 'send_ack' | 'background' | 'default';
 
 interface HistoryOptions {
@@ -39,6 +58,11 @@ interface MamInFlightEntry {
   source: HistorySource;
   startedAt: number;
 }
+
+export type XmppCredentialsProvider = () => Promise<{
+  username: string;
+  password: string;
+}>;
 
 export class XmppClient {
   client!: Client;
@@ -56,6 +80,13 @@ export class XmppClient {
   reconnectDelay = 2000;
   suppressReconnect = false;
 
+  // Set when SASL fails with `not-authorized` (typically a stale JWT-
+  // derived XMPP password after idle). Triggers the credentialsProvider
+  // refresh path in reconnect().
+  lastAuthError: 'not-authorized' | null = null;
+  private credentialsProvider: XmppCredentialsProvider | null = null;
+  private credentialsRefreshInFlight: Promise<void> | null = null;
+
   // ---- QoS state (mirrors web XmppClient) ----------------------------
   presencesReady = false;
   disableLastRead = false;
@@ -72,6 +103,23 @@ export class XmppClient {
 
   checkOnline() {
     return this.client && this.client.status === 'online';
+  }
+
+  /**
+   * Inject (or replace) the callback used by reconnect() to fetch fresh
+   * XMPP credentials after a `not-authorized` SASL failure. The provider
+   * is responsible for refreshing whatever upstream token is needed
+   * (REST JWT, /users/client, etc.) and returning the resulting
+   * username + password.
+   */
+  setCredentialsProvider(provider: XmppCredentialsProvider | null) {
+    this.credentialsProvider = provider;
+  }
+
+  /** Swap in fresh credentials before the next reconnect. */
+  updateCredentials(username: string, password: string) {
+    this.username = username;
+    this.password = password;
   }
 
   constructor(
@@ -285,6 +333,9 @@ export class XmppClient {
       this.attachEventListeners();
       this.client.start().catch((error: any) => {
         console.error('Error starting xmpp client:', error);
+        if (isNotAuthorizedError(error)) {
+          this.lastAuthError = 'not-authorized';
+        }
         this.status = 'error';
       });
     } catch (error) {
@@ -320,6 +371,9 @@ export class XmppClient {
 
     this.client.on('error', (error: any) => {
       console.error('XMPP client error:', error);
+      if (isNotAuthorizedError(error)) {
+        this.lastAuthError = 'not-authorized';
+      }
       try {
         devPushLog(
           'xmpp',
@@ -385,9 +439,25 @@ export class XmppClient {
     setTimeout(() => this.reconnect(), delay);
   }
 
-  reconnect() {
+  async reconnect() {
     if (this.suppressReconnect) {return;}
     console.log('Attempting to reconnect xmpp client...');
+
+    // If the last failure was a SASL `not-authorized` (typically a stale
+    // JWT-derived XMPP password after idle), try to fetch fresh creds
+    // before retrying. Without this, reconnect retries with the same
+    // stale password forever and the user has to kill the app.
+    if (this.lastAuthError === 'not-authorized' && this.credentialsProvider) {
+      try {
+        await this.refreshCredentialsOnce();
+      } catch (err) {
+        console.warn(
+          'XMPP credential refresh failed; reconnecting with cached creds',
+          err
+        );
+      }
+    }
+
     if (this.client) {
       this.client.stop().finally(() => {
         this.initializeClient();
@@ -395,6 +465,30 @@ export class XmppClient {
     } else {
       this.initializeClient();
     }
+  }
+
+  /**
+   * Single-flight wrapper around credentialsProvider. Multiple concurrent
+   * reconnect() calls (e.g. from the provider's reconnect effect firing
+   * twice quickly) share one in-flight request and update `this.password`
+   * exactly once.
+   */
+  private refreshCredentialsOnce(): Promise<void> {
+    if (this.credentialsRefreshInFlight) {return this.credentialsRefreshInFlight;}
+    if (!this.credentialsProvider) {return Promise.resolve();}
+    const provider = this.credentialsProvider;
+    this.credentialsRefreshInFlight = (async () => {
+      try {
+        const fresh = await provider();
+        if (fresh?.username && fresh?.password) {
+          this.updateCredentials(fresh.username, fresh.password);
+          this.lastAuthError = null;
+        }
+      } finally {
+        this.credentialsRefreshInFlight = null;
+      }
+    })();
+    return this.credentialsRefreshInFlight;
   }
 
   async disconnect(options?: { suppressReconnect?: boolean }): Promise<void> {

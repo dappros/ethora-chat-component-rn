@@ -1,10 +1,13 @@
 /** resolveInitBeforeLoadUser — priority chain. */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { resolveInitBeforeLoadUser } from '../src/helpers/resolveInitBeforeLoadUser';
+import {
+  refreshUserCredentialsForXmpp,
+  resolveInitBeforeLoadUser,
+} from '../src/helpers/resolveInitBeforeLoadUser';
 import { localStorageConstants } from '../src/helpers/constants/LOCAL_STORAGE';
 import { store } from '../src/roomStore';
-import { logout } from '../src/roomStore/chatSettingsSlice';
+import { logout, setUser } from '../src/roomStore/chatSettingsSlice';
 
 jest.mock('../src/networking/apiClient', () => {
   const post = jest.fn();
@@ -124,5 +127,100 @@ describe('resolveInitBeforeLoadUser', () => {
     );
     const out = await resolveInitBeforeLoadUser({ config: {} });
     expect(out?.walletAddress).toBe('0xabc');
+  });
+});
+
+// ---- refreshUserCredentialsForXmpp (bug #17, all modes) -------------
+
+describe('refreshUserCredentialsForXmpp', () => {
+  it('jwtLogin path: re-exchanges the JWT via /users/client (loginViaJwt)', async () => {
+    loginViaJwt.mockResolvedValue(userWithXmppCreds({ xmppPassword: 'pw2' }));
+    const out = await refreshUserCredentialsForXmpp({
+      jwtLogin: { enabled: true, token: 'jwt-new' } as any,
+    });
+    expect(loginViaJwt).toHaveBeenCalledWith('jwt-new');
+    expect(out?.xmppPassword).toBe('pw2');
+  });
+
+  it('userLogin path: hydrates the redux user via /users/my even when cached creds look valid', async () => {
+    // userLogin mode persists the user into the redux store after
+    // bootstrap; the static config-supplied user is not re-read here.
+    store.dispatch(
+      setUser(
+        userWithXmppCreds({
+          token: 'access-stale',
+          refreshToken: 'refresh-1',
+          xmppPassword: 'pw-stale',
+        }) as any
+      )
+    );
+    getMyUser.mockResolvedValue(
+      userWithXmppCreds({ xmppPassword: 'pw-fresh' })
+    );
+    const out = await refreshUserCredentialsForXmpp({});
+    expect(getMyUser).toHaveBeenCalledWith({
+      token: 'access-stale',
+      endpoint: '/users/my',
+    });
+    expect(out?.xmppPassword).toBe('pw-fresh');
+  });
+
+  it('userLogin path: 401 on /users/my triggers REST refresh + retry', async () => {
+    store.dispatch(
+      setUser(
+        userWithXmppCreds({
+          token: 'access-expired',
+          refreshToken: 'refresh-1',
+          xmppPassword: 'pw-stale',
+        }) as any
+      )
+    );
+    // First /users/my call rejects with 401, second (after REST refresh)
+    // succeeds with fresh xmppPassword.
+    getMyUser
+      .mockRejectedValueOnce({ response: { status: 401 } })
+      .mockResolvedValueOnce(userWithXmppCreds({ xmppPassword: 'pw-fresh' }));
+    http.post.mockResolvedValueOnce({
+      data: { token: 'access-new', refreshToken: 'refresh-2' },
+    });
+
+    const out = await refreshUserCredentialsForXmpp({});
+
+    expect(getMyUser).toHaveBeenCalledTimes(2);
+    // REST refresh fired with the refreshToken before the retry.
+    expect(http.post).toHaveBeenCalledWith(
+      '/users/login/refresh',
+      {},
+      { headers: { Authorization: 'refresh-1' } }
+    );
+    expect(out?.xmppPassword).toBe('pw-fresh');
+  });
+
+  it('returns null when there is no auth material to refresh from', async () => {
+    // Empty store + no jwtLogin + no persisted user.
+    const out = await refreshUserCredentialsForXmpp({});
+    expect(out).toBeNull();
+  });
+
+  it('respects config.initBeforeLoadAuth.myEndpoint when calling /users/my', async () => {
+    store.dispatch(
+      setUser(
+        userWithXmppCreds({
+          token: 'access',
+          refreshToken: 'r',
+          xmppPassword: 'pw',
+        }) as any
+      )
+    );
+    getMyUser.mockResolvedValue(
+      userWithXmppCreds({ xmppPassword: 'pw-fresh' })
+    );
+    await refreshUserCredentialsForXmpp({
+      initBeforeLoadAuth: { myEndpoint: '/users/custom-my' },
+    });
+    expect(getMyUser).toHaveBeenCalledWith({
+      token: 'access',
+      endpoint: '/users/custom-my',
+    });
   });
 });

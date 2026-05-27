@@ -3,6 +3,50 @@
 All notable changes to `@ethora/chat-component-rn` are listed here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project doesn't follow strict semver yet — version corresponds to the `package.json` field.
 
+## [26.5.6]
+
+Closes the open items from the 26.5.5 customer bug tracker plus seven new ones (uploads, media preview, XMPP idle recovery, send failures, UI polish, customization gates). One existing config flag (`disableProfilesInteractions`) gets its semantics widened — everything else is additive.
+
+### Fixed
+
+#### Networking / auth
+
+- **Bug #10 — Video/audio/doc uploads returning 500.** `uploadFile()` pre-set `'Content-Type': 'multipart/form-data'` manually, which stripped the auto-computed multipart boundary axios attaches when the body is `FormData`. Images happened to slip through permissive server sniffing; video/audio/docs were rejected with 500. Removed the header — axios now sets `multipart/form-data; boundary=...` correctly and all media types upload.
+- **Bug #17 — XMPP idle reconnect loop after JWT expiry.** Previously, when the JWT-derived XMPP password went stale during idle, reconnect retried with the cached password forever and the user had to kill the app. `XmppClient` now detects SASL `not-authorized` (via `lastAuthError`) and awaits fresh creds from a `credentialsProvider` before `initializeClient()`. The provider is wired automatically for **every** auth mode:
+  - `jwtLogin` — re-exchanges the JWT via `/users/client`.
+  - `userLogin` / `customLogin` / persisted user — calls `/users/my` against the redux/AsyncStorage user, and on a 401 falls back to `/users/login/refresh` with the cached `refreshToken` and retries.
+  - Optional `refreshTokens.refreshFunction` runs first (when supplied) so non-Ethora deployments can plug in their own token endpoint before the SDK touches its own.
+
+  Concurrent reconnects share a single in-flight refresh via a `credentialsRefreshInFlight` guard. New exported helper `refreshUserCredentialsForXmpp(config)` for consumers who want to mint fresh XMPP creds manually.
+- **Bug #4 — Unhandled promise rejections in `useChatWrapperInit`.** Three `.then()` chains that surfaced as "Uncaught (in promise)" red-screens in dev (initializeClient, two getChatsPrivateStoreRequestStanza paths) are now `await` + local `try/catch` blocks. Init continues even if the private-store fetch rejects.
+
+#### Media (receive + send)
+
+- **Bug #9 — Cannot preview / download docs / video / audio sent by others.** `FilePreviewModal.saveFileToDownloads` passed a no-extension cache filename to `MediaLibrary.createAssetAsync`, which threw "Could not get the file's extension". New `mimeToExtension` util provides a MIME→extension table and three helpers — `getExtensionForMime`, `filenameFromUrl`, `ensureFilenameHasExtension`, `deriveDisplayFilename` — used by both download paths in `FilePreviewModal` and the bubble in `MediaMessage`. The bubble now derives the displayed filename via the chain `fileName → originalName → URL pathname → media_<ts>.<ext>` so received documents never show as `MediaFile` again, and the default-case preview renders a proper file-info card (name + MIME + "tap save to download") instead of an unfriendly beige notice.
+
+#### UX
+
+- **Bug #11 — Keyboard dismissed on every scroll.** `MessageList.handleScroll` no longer calls `Keyboard.dismiss()`. The FlatList now passes `keyboardShouldPersistTaps="handled"` and `keyboardDismissMode="interactive"` so iOS drag-to-dismiss still works, but touching the list with the keyboard open keeps it open.
+- **Bug #18 — Failed messages stuck in "sending..." forever.** `roomHeapSlice` now also tracks `failedMessages: Record<id, FailedMessagePayload>`. `useSendMessage`'s catch blocks dispatch `markMessageFailed` with the original payload (text body, or media `data`/`type`) so a retry can replay without the consumer re-picking a file. `Message.tsx` renders a red `! Failed — tap to retry` next to the bubble; tap fires `retryMessage(id)` which clears the failure and re-sends. New `eventHandlers.onMessageRetry` hook for telemetry.
+- **Bug #14 — Delete confirmation modal full-screen.** `ModalWrapper` gains a `compact?` prop that constrains the container to `maxWidth: 360, padding: 24, borderRadius: 16` and centers it. `ChatWrapper`'s delete confirmation passes `compact` — now a small centered dialog rather than an edge-to-edge overlay.
+- **Bug #13 — Long-press context menu off-screen on last message.** `Message.tsx` replaced the hard-coded 150 px threshold with a dynamic placement: estimate `MENU_HEIGHT = 280`, treat `config.keyboardVerticalOffset` as a tab-bar/safe-area proxy, prefer below → fall back to above → clamp into the visible region. No more menus stranded in the bottom corner.
+- **Bug #6 — Android keyboard flicker + hidden input.** `KeyboardAvoidingView` on Android was set to `behavior="height"`, which double-handled the resize on top of the manifest's `adjustResize`. Switched to `behavior={undefined}` on Android — `adjustResize` alone resizes the window cleanly with no flicker.
+
+### Added
+
+- **`mimeToExtension` helper** (`src/helpers/mimeToExtension.ts`) — single source of truth for MIME→extension mapping covering image / video / audio / document / archive types, with `.bin` last-resort fallback. Public via barrel exports.
+- **`config.disableChatHeaderBurgerMenuIcon?: boolean`** — Bug #15. Hides the burger icon entirely (the icon that opens the chat-header dropdown). The existing `chatHeaderBurgerMenu` flag controls dropdown visibility only — set the new flag when you want neither the icon nor the dropdown to render (patient-facing apps, single-room apps).
+- **`config.eventHandlers.onMessageRetry`** — fires whenever the user taps the new failed-message retry indicator. `{messageId, roomJID, messageType}`.
+- **`XmppClient.setCredentialsProvider(fn)` / `XmppClient.updateCredentials(user, pass)`** — extension points used by the JWT auto-recovery path. Safe to call multiple times.
+
+### Changed
+
+- **`config.disableProfilesInteractions: true` now also hides the "Send message" / "Copy User ID" actions in chat info** (Bug #16). Previously the flag only blocked taps on message-list avatars; chat-info member taps still revealed the actions. The widened semantic matches what the flag name implies. If you relied on the previous narrow scope, file an issue and we'll add a separate sub-flag.
+
+### Known limitations
+
+- **Auto-recovery for `userLogin` needs a `refreshToken` on the user object.** The `/users/my` + `/users/login/refresh` chain requires a refreshable session — if the consumer supplies a fully-static User with no `token`/`refreshToken`, the SDK has no way to mint a fresh xmppPassword and the user has to re-mount the chat. Practical guidance: pass at least `token` + `refreshToken` from your auth backend, OR supply `refreshTokens.refreshFunction` to wire your own refresh endpoint.
+
 ## [26.5.5]
 
 This release is the deep cleanup of the SDK's legacy-RN native-module debt. Before it, even a simple `npx expo prebuild` consumer had to wire up a `withEthoraShims` Metro shim, install `babel-preset-expo`, and accept a `Cannot find module 'emoji-mart'` bundle error before anything ran. After it, **no Metro shim is required** and the consumer install is one SDK + one `npx expo install` of the optional-feature peers.

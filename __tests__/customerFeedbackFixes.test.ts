@@ -211,10 +211,13 @@ describe('customer feedback round — locked behaviour', () => {
       // Source assertion: the audio-extension sniff regex covers the
       // common audio mime extensions before falling through.
       expect(src).toMatch(/\.\(mp3\|m4a\|wav\|aac\|ogg\|flac\)/i);
-      // And the unconditional `application/octet-stream → AudioMessage`
-      // routing (the bug) must be gone.
+      // And the unconditional `case 'application/octet-stream':
+      // return <AudioMessage />` routing (the bug) must be gone — it
+      // must be guarded behind an `if` on the audio-extension regex.
+      // We match on actual code patterns (no comment word matches) by
+      // anchoring on the `case ... :` switch syntax.
       expect(src).not.toMatch(
-        /case[\s\S]{0,80}application\/octet-stream[\s\S]{0,80}\n\s*return <AudioMessage/
+        /case[^:]*application\/octet-stream[^:]*:\s*\n?\s*return\s+<AudioMessage/
       );
     });
 
@@ -367,8 +370,12 @@ describe('customer feedback round — locked behaviour', () => {
         require.resolve('../src/components/MainComponents/ChatRoom'),
         'utf-8'
       );
+      // 26.5.6 (bug #6): Android KAV behavior is `undefined` so the
+      // manifest's `adjustResize` handles the keyboard instead — KAV
+      // behavior="height" on top of that caused a visible message-list
+      // flicker every time the keyboard opened.
       expect(src).toMatch(
-        /behavior=\{Platform\.OS === 'ios' \? 'padding' : 'height'\}/
+        /behavior=\{Platform\.OS === 'ios' \? 'padding' : undefined\}/
       );
     });
   });
