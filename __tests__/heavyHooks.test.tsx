@@ -37,6 +37,7 @@ jest.mock('../src/context/xmppProvider', () => ({
 }));
 jest.mock('../src/networking/api-requests/auth.api', () => ({
   uploadFile: jest.fn(),
+  uploadFileViaFetch: jest.fn().mockResolvedValue({ data: { results: [] } }),
 }));
 
 import { useSendMessage } from '../src/hooks/useSendMessage';

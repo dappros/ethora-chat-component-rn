@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { Platform } from 'react-native';
 import { v4 as uuidv4 } from 'uuid';
 import { useXmppClient } from '../context/xmppProvider';
 import { useDispatch, useSelector, useStore } from 'react-redux';
@@ -8,7 +9,7 @@ import {
   clearMessageFailure,
   markMessageFailed,
 } from '../roomStore/roomHeapSlice';
-import { uploadFile } from '../networking/api-requests/auth.api';
+import { uploadFile, uploadFileViaFetch } from '../networking/api-requests/auth.api';
 import { RootState } from '../roomStore';
 import { useEventHandlers } from './useEventHandlers';
 import type { IConfig, IMessage } from '../types/types';
@@ -359,7 +360,7 @@ export const useSendMessage = (_configOverride?: IConfig) => {
         const fd = new FormData();
         fd.append('files', fileBlob as any);
         try {
-          return await uploadFile(fd);
+          return await uploadFileViaFetch(fd);
         } catch (err: any) {
           if (err?.response?.status === 500) {
             console.warn(
@@ -368,7 +369,13 @@ export const useSendMessage = (_configOverride?: IConfig) => {
             );
             const fd2 = new FormData();
             fd2.append('file', fileBlob as any);
-            return await uploadFile(fd2);
+            return await uploadFileViaFetch(fd2);
+          }
+          if (err?.code === 'ERR_NETWORK') {
+            console.warn('upload via fetch failed with ERR_NETWORK — falling back to axios');
+            const fd3 = new FormData();
+            fd3.append('files', fileBlob as any);
+            return await uploadFile(fd3);
           }
           throw err;
         }
@@ -438,12 +445,23 @@ export const useSendMessage = (_configOverride?: IConfig) => {
         // was rejected (axios collapses the message to "Request failed
         // with status code N"; the actual reason lives in
         // `error.response.data`).
+        const uriStr = typeof data?.uri === 'string' ? data.uri : '';
+        const uriScheme = uriStr.match(/^([a-z]+):/i)?.[1] ?? 'unknown';
         console.error('upload failed', {
           status: error?.response?.status,
           statusText: error?.response?.statusText,
           serverBody: error?.response?.data,
           requestUrl: error?.config?.url,
           axiosMessage: error?.message,
+          axiosCode: error?.code,
+          axiosCauseMessage: error?.cause?.message,
+          uri: uriStr,
+          uriScheme,
+          mime: fileBlob.type,
+          fileSizeBytes: data?.size ?? null,
+          fileName: fileBlob.name,
+          platformOS: Platform.OS,
+          platformVersion: Platform.Version,
         });
         dispatch(
           markMessageFailed({

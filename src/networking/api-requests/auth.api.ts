@@ -8,8 +8,9 @@ import { User } from '../../types/types';
 // } from 'firebase/auth';
 // import { app } from '../../../firebase-config';
 
-import http, { getCurrentAppToken } from '../apiClient';
+import http, { getCurrentAppToken, getCurrentBaseURL } from '../apiClient';
 import { store } from '../../roomStore';
+import { pushLog } from '../../utils/devLogger';
 
 // login functions
 export async function loginEmail(email: string, password: string) {
@@ -141,4 +142,57 @@ export function uploadFile(formData: FormData) {
       return data;
     },
   });
+}
+
+export async function uploadFileViaFetch(formData: FormData): Promise<{ data: any }> {
+  const token = store.getState().chatSettingStore?.user?.token ?? '';
+  const baseUrl = getCurrentBaseURL();
+  const url = `${baseUrl.replace(/\/$/, '')}/files/`;
+
+  pushLog('http', `→ POST ${url} (fetch)`, {
+    headers: { Authorization: token ? token.slice(0, 16) + '…' : '[empty]', Accept: '*/*' },
+  });
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: token,
+        Accept: '*/*',
+      },
+      body: formData as any,
+    });
+  } catch (e: any) {
+    pushLog('http', `← ERR fetch /files/`, {
+      name: e?.name,
+      message: e?.message,
+      stack: e?.stack,
+    });
+    const err: any = new Error(e?.message || 'Network request failed');
+    err.code = 'ERR_NETWORK';
+    err.cause = e;
+    err.config = { url: '/files/' };
+    throw err;
+  }
+
+  if (!res.ok) {
+    let body: any = null;
+    try {
+      body = await res.json();
+    } catch {
+      try { body = await res.text(); } catch { body = null; }
+    }
+    pushLog('http', `← ${res.status} POST /files/ (fetch)`, body);
+    const err: any = new Error(`Upload failed: ${res.status}`);
+    err.response = { status: res.status, statusText: res.statusText, data: body };
+    err.config = { url: '/files/' };
+    throw err;
+  }
+
+  const data = await res.json();
+  pushLog('http', `← ${res.status} POST /files/ (fetch)`, {
+    resultsCount: Array.isArray(data?.results) ? data.results.length : 'n/a',
+  });
+  return { data };
 }

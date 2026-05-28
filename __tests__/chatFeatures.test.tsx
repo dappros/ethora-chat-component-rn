@@ -87,6 +87,7 @@ jest.mock('../src/networking/api-requests/auth.api', () => ({
   loginEmail: jest.fn(),
   loginViaJwt: jest.fn(),
   uploadFile: jest.fn(),
+  uploadFileViaFetch: jest.fn(),
 }));
 
 jest.mock('../src/networking/api-requests/rooms.api', () => ({
@@ -175,8 +176,9 @@ import { useSendMessage } from '../src/hooks/useSendMessage';
 import { useComposing } from '../src/hooks/useComposing';
 import { useUnreadMessagesCounter } from '../src/hooks/useUnreadMessagesCounter';
 
-import { uploadFile } from '../src/networking/api-requests/auth.api';
+import { uploadFile, uploadFileViaFetch } from '../src/networking/api-requests/auth.api';
 const mockUploadFile = uploadFile as unknown as jest.Mock;
+const mockUploadFileViaFetch = uploadFileViaFetch as unknown as jest.Mock;
 
 // ---- live creds (provided by the user) -------------------------------
 // Used to shape the mocked email-login response so xmppUsername/wallet
@@ -387,7 +389,11 @@ describe('useSendMessage — text', () => {
 describe('useSendMessage — media', () => {
   it('uploads via /files/ and sends a media stanza per result item', async () => {
     mockResetSpyClient();
-    mockUploadFile.mockResolvedValue({
+    // useSendMessage now routes through `uploadFileViaFetch` first (RN
+    // fetch path that owns Content-Type), with the axios `uploadFile`
+    // only as ERR_NETWORK fallback. Mock the primary path so the
+    // happy-path assertion lands on the new entrypoint.
+    mockUploadFileViaFetch.mockResolvedValue({
       data: {
         results: [
           {
@@ -441,8 +447,9 @@ describe('useSendMessage — media', () => {
     });
 
     expect(mockSpyClient.onCriticalSend).toHaveBeenCalledWith(ROOM);
-    expect(mockUploadFile).toHaveBeenCalledTimes(1);
-    expect(mockUploadFile.mock.calls[0][0]).toBeDefined();
+    expect(mockUploadFileViaFetch).toHaveBeenCalledTimes(1);
+    expect(mockUploadFileViaFetch.mock.calls[0][0]).toBeDefined();
+    expect(mockUploadFile).not.toHaveBeenCalled();
 
     // Trailing correlation id (`send-media-message-<timestamp>`)
     // added in commit b1204d7 — same shape as the text-send path.
