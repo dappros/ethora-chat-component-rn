@@ -2,11 +2,20 @@
   "name": "@ethora/chat-component-rn",
   "version": "26.5.8",
   "description": "Drop-in XMPP chat component for React Native / Expo. <Chat config={...}/> and you're done.",
-  "main": "lib/commonjs/main.js",
+  "main": "index.js",
   "module": "lib/module/main.js",
   "react-native": "src/main.ts",
   "source": "src/main.ts",
   "types": "lib/typescript/main.d.ts",
+  "exports": {
+    ".": {
+      "react-native": "./src/main.ts",
+      "import": "./lib/module/main.js",
+      "require": "./lib/commonjs/main.js",
+      "types": "./lib/typescript/main.d.ts"
+    },
+    "./metro": "./metro.js"
+  },
   "files": [
     "lib",
     "src",
