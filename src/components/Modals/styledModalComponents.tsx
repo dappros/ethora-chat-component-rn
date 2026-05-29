@@ -21,17 +21,12 @@ export const CloseButton = styled.TouchableOpacity`
   font-size: 20px;
   cursor: pointer;
   color: #888;
-
-  &:hover {
-    color: #555;
-    background-color: #dddddd;
-  }
 `;
 
 export const ModalContainer = styled.View`
-  flex: 1;
-  width: 100%;
-  height: 100%;
+  // flex: 1;
+  // width: 100%;
+  // height: 100%;
   background: white;
   padding: 32px 64px;
   box-shadow: 0px 4px 16px rgba(0, 0, 0, 0.2);
@@ -57,7 +52,7 @@ export const ModalDescription = styled.Text`
 
 export const GroupContainer = styled.View`
   display: flex;
-  gap: 32px;
+  gap: 16px;
   width: 100%;
   padding: 0;
 `;

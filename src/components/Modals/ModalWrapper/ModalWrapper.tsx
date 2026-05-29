@@ -62,27 +62,17 @@ export const ModalWrapper: FC<ModalWrapperProps> = ({
     >
       <ModalBackground>
         <ModalContainer
-          style={
-            compact
-              ? {
-                  // RN doesn't honour `height: 'auto'` — leaving height
-                  // undefined lets the container shrink to its content,
-                  // overriding the styled-component's `height: 100%`.
-                  flex: 0,
-                  width: '85%',
-                  maxWidth: 360,
-                  height: undefined,
-                  minHeight: 0,
-                  padding: 24,
-                  borderRadius: 16,
-                  gap: 16,
-                  // Vertical centering: ModalBackground already centers,
-                  // but the styled-component's `justify-content: center`
-                  // assumed full height. We're shorter now — pin self.
-                  alignSelf: 'center',
-                }
-              : { maxWidth: 640 }
-          }
+          style={{
+            flex: 0,
+            width: '85%',
+            maxWidth: 360,
+            height: undefined,
+            minHeight: 0,
+            padding: 24,
+            borderRadius: 16,
+            gap: 16,
+            alignSelf: 'center',
+          }}
         >
           <CloseButton onPress={handleCloseModal}>
             <Text style={{ fontSize: 24 }}>&times;</Text>

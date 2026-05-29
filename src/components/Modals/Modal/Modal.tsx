@@ -39,7 +39,10 @@ const Modal: React.FC<ModalProps> = ({ children, modal, setOpenModal }) => {
   };
   return (
     modal && (
-      <ModalBackground id="modal-background" style={{ position: 'absolute' }}>
+      <ModalBackground
+        id="modal-background"
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+      >
         {renderModalContent()}
         {children}
       </ModalBackground>

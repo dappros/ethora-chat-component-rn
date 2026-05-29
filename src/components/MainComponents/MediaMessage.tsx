@@ -12,6 +12,7 @@ interface MediaMessageProps {
   message?: IMessage;
   location?: string;
   messageText?: string;
+  isUser: boolean;
 }
 
 const MediaMessage: React.FC<MediaMessageProps> = ({
@@ -19,6 +20,7 @@ const MediaMessage: React.FC<MediaMessageProps> = ({
   location,
   messageText,
   message,
+  isUser,
 }) => {
   if (mimeType) {
     const displayName = deriveDisplayFilename({
@@ -61,6 +63,7 @@ const MediaMessage: React.FC<MediaMessageProps> = ({
             fileURL={location ? location : ''}
             fileName={displayName}
             mimetype={mimeType}
+            isUser={isUser}
           />
         );
       }

@@ -118,6 +118,15 @@ const CustomMessageTimestamp = styled.Text<{
   align-self: flex-end;
 `;
 
+const CustomTimestampRow = styled.View<{media: boolean}>`
+  flex-direction: row;
+  align-items: center;
+  align-self: flex-end;
+  margin-top: 4;
+  gap: 4;
+  padding-right: ${({media}) => media ? '10px': 0};
+`;
+
 const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   const dispatch = useDispatch();
   const { client } = useXmppClient();
@@ -357,6 +366,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
                 messageText={message.locationPreview}
                 location={message?.location}
                 message={message}
+                isUser={isUser}
               />
             ) : (
               <>
@@ -380,30 +390,31 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
                 langSource={langSource}
               />
             )}
-            <View style={styles.timestampRow}>
-            {!config?.disableSentLogic && isUser && isPending && (
-              <Text style={styles.timestampText}>sending...</Text>
-            )}
-            {!config?.disableSentLogic && isUser && isFailed && (
-              <Text
-                onPress={onRetryPress}
-                style={styles.failedText}
-                accessibilityRole="button"
-                accessibilityLabel="Retry sending message"
-              >
-                ! Failed — tap to retry
+            {/* <View style={styles.timestampRow}> */}
+            <CustomTimestampRow media={message?.isMediafile === 'true'}>
+              {!config?.disableSentLogic && isUser && isPending && (
+                <Text style={styles.timestampText}>sending...</Text>
+              )}
+              {!config?.disableSentLogic && isUser && isFailed && (
+                <Text
+                  onPress={onRetryPress}
+                  style={styles.failedText}
+                  accessibilityRole="button"
+                  accessibilityLabel="Retry sending message"
+                >
+                  ! Failed — tap to retry
+                </Text>
+              )}
+              <Text style={styles.timestampText}>
+                {new Date(message.date).toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
               </Text>
-            )}
-            <Text style={styles.timestampText}>
-              {new Date(message.date).toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-            </Text>
-            {!config?.disableSentLogic && isUser && !isPending && !isFailed && (
-              <DoubleTick />
-            )}
-          </View>
+              {!config?.disableSentLogic && isUser && !isPending && !isFailed && (
+                <DoubleTick />
+              )}
+            </CustomTimestampRow>
 
           {message?.reply?.length && message?.reply?.length > 0 ? (
               <BottomReplyContainer

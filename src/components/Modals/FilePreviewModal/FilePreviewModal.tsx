@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components/native';
 import {
   CenterContainer,
@@ -19,7 +19,7 @@ import {
   TouchableOpacity,
   StyleSheet,
 } from 'react-native';
-import { Video, ResizeMode } from 'expo-av';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { PlayIcon } from '../../../assets/icons';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as MediaLibrary from 'expo-media-library';
@@ -47,89 +47,55 @@ const isGviewPreviewable = (mime: string | undefined | null) => {
   return GVIEW_PREVIEWABLE.has(mime.toLowerCase().split(';')[0]!.trim());
 };
 
-export const FullScreenVideo = styled.View`
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-`;
-
+// Full-screen video preview on expo-video (expo-av <Video> is deprecated
+// and rendered blank on Android). `contentFit: contain` fits the clip to
+// the area with the surrounding letterbox painted as the view's own
+// (transparent → theme) background, NOT black. `textureView` so the play
+// overlay composites on top and nothing is clipped on Android.
 const ModalVideo: React.FC<{ uri: string }> = ({ uri }) => {
-  const videoRef = React.useRef<any>(null);
-  const [box, setBox] = useState<{ w: number; h: number } | null>(null);
-  const [nat, setNat] = useState<{ w: number; h: number } | null>(null);
   const [showPlay, setShowPlay] = useState(true);
 
-  let size: { w: number; h: number } | null = null;
-  if (box && nat) {
-    const scale = Math.min(box.w / nat.w, box.h / nat.h);
-    size = { w: Math.round(nat.w * scale), h: Math.round(nat.h * scale) };
-  }
+  const player = useVideoPlayer(uri, (p) => {
+    p.muted = false;
+  });
 
-  const handlePlay = async () => {
+  useEffect(() => {
+    const sub = player.addListener('playingChange', ({ isPlaying }) => {
+      if (isPlaying) {setShowPlay(false);}
+    });
+    return () => sub.remove();
+  }, [player]);
+
+  const handlePlay = () => {
     setShowPlay(false);
-    try {
-      await videoRef.current?.playAsync();
-    } catch {
-      /* ignore */
-    }
+    player.play();
   };
 
   return (
-    <View
-      style={{ flex: 1, width: '100%', justifyContent: 'center', alignItems: 'center' }}
-      onLayout={(e) =>
-        setBox({
-          w: e.nativeEvent.layout.width,
-          h: e.nativeEvent.layout.height,
-        })
-      }
-    >
-      <View
-        style={
-          size
-            ? { width: size.w, height: size.h }
-            : { width: '100%', height: '100%' }
-        }
-      >
-        <Video
-          ref={videoRef}
-          style={{ width: '100%', height: '100%', backgroundColor: 'transparent' }}
-          source={{ uri }}
-          useNativeControls
-          resizeMode={ResizeMode.CONTAIN}
-          shouldPlay={false}
-          onReadyForDisplay={(e: any) => {
-            const ns = e?.naturalSize;
-            if (ns?.width && ns?.height) {
-              let w = ns.width;
-              let h = ns.height;
-              if (ns.orientation === 'portrait' && w > h) {
-                [w, h] = [h, w];
-              }
-              setNat({ w, h });
-            }
-          }}
-          onPlaybackStatusUpdate={(s: any) => {
-            if (s?.isPlaying) {setShowPlay(false);}
-          }}
-        />
-        {/* Play affordance shown immediately on open so it's obvious the
-            preview is a playable video; tapping starts playback and the
-            native controls take over. */}
-        {showPlay && (
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={handlePlay}
-            style={StyleSheet.absoluteFillObject}
-          >
-            <View style={styles.playOverlay}>
-              <View style={styles.playButton}>
-                <PlayIcon width={28} height={28} />
-              </View>
+    <View style={{ flex: 1, width: '100%' }}>
+      <VideoView
+        player={player}
+        style={{ flex: 1, backgroundColor: 'transparent' }}
+        contentFit="contain"
+        nativeControls
+        surfaceType="textureView"
+        allowsFullscreen
+      />
+      {/* Play affordance shown immediately on open; tapping starts
+          playback and the native controls take over. */}
+      {showPlay && (
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={handlePlay}
+          style={StyleSheet.absoluteFillObject}
+        >
+          <View style={styles.playOverlay}>
+            <View style={styles.playButton}>
+              <PlayIcon width={28} height={28} />
             </View>
-          </TouchableOpacity>
-        )}
-      </View>
+          </View>
+        </TouchableOpacity>
+      )}
     </View>
   );
 };
@@ -353,11 +319,13 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           display: 'flex',
           flex: 1,
           justifyContent: 'center',
-          overflow: 'hidden',
+          // NOTE: do NOT set overflow:'hidden' here — on Android it clips
+          // hardware-accelerated children (expo-av Video TextureView and
+          // react-native-webview) to nothing, so video/PDF/doc previews
+          // render blank while plain <Image> survives.
+          overflow: 'visible',
           padding: 16,
           paddingBottom: 48,
-          borderTopWidth: '1px',
-          borderTopColor: '#f0f0f0',
         }}
       >
         {getMediaComponent}

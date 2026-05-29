@@ -23,6 +23,7 @@ interface FileDownloadProps {
   fileURL: string;
   mimetype: string;
   size?: string;
+  isUser: boolean;
 }
 
 const FileDownload: React.FC<FileDownloadProps> = ({
@@ -30,6 +31,7 @@ const FileDownload: React.FC<FileDownloadProps> = ({
   fileURL,
   mimetype,
   size,
+  isUser,
 }) => {
   const dispatch = useDispatch();
   const { config } = useChatSettingState();
@@ -81,7 +83,11 @@ const FileDownload: React.FC<FileDownloadProps> = ({
         <FileIcon />
       </BackgroundFile>
       <FileInformation>
-        <FileName>{formatFileName(fileName, 20)}</FileName>
+        <FileName
+          isUser={isUser}
+          colorIsUser={config?.colors?.primary}
+          colorUsers={config?.colors?.secondary}
+        >{formatFileName(fileName, 20)}</FileName>
         {size && (
           <FileSizeContainer>
             <FileSize>{formatFileSize(size)}</FileSize>

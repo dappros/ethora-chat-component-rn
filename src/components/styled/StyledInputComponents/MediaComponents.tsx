@@ -72,11 +72,15 @@ export const FileInformation = styled.View`
   gap: 8px;
 `;
 
-export const FileName = styled.Text`
+export const FileName = styled.Text<{
+  isUser: boolean;
+  colorIsUser: string| undefined;
+  colorUsers: string | undefined;
+}>`
   font-size: 14px;
   font-weight: 500;
   flex-grow: 1;
-  color: #fff;
+  color: ${({isUser, colorIsUser, colorUsers}) => isUser? colorIsUser : colorUsers};
   overflow: hidden;
 `;
 

@@ -7,12 +7,55 @@ import { FileIcon } from '../../assets/icons';
 import { RemoveButton, RemoveButtonText } from './StyledComponents';
 import { FC, useState } from 'react';
 import { MediaFile } from '../../types/types';
-import { Video, ResizeMode } from 'expo-av';
+import { useVideoPlayer, VideoView } from 'expo-video';
 
 interface MediaFilePreviewProps {
   filePreviews: MediaFile[];
   handleRemoveImage: (index: number) => void;
 }
+
+const VideoThumb: FC<{ uri: string; onPress: () => void }> = ({
+  uri,
+  onPress,
+}) => {
+  const player = useVideoPlayer(uri, (p) => {
+    p.muted = true;
+  });
+  return (
+    <TouchableOpacity
+      activeOpacity={0.8}
+      onPress={onPress}
+      style={styles.videoThumb}
+    >
+      <VideoView
+        player={player}
+        style={StyleSheet.absoluteFill}
+        contentFit="cover"
+        nativeControls={false}
+        surfaceType="textureView"
+        pointerEvents="none"
+      />
+      <View style={styles.playOverlay}>
+        <Text style={styles.playIcon}>▶</Text>
+      </View>
+    </TouchableOpacity>
+  );
+};
+
+const FullscreenPreviewVideo: FC<{ uri: string }> = ({ uri }) => {
+  const player = useVideoPlayer(uri, (p) => {
+    p.play();
+  });
+  return (
+    <VideoView
+      player={player}
+      style={styles.fullVideo}
+      contentFit="contain"
+      nativeControls
+      surfaceType="textureView"
+    />
+  );
+};
 
 export const MediaFilePreview: FC<MediaFilePreviewProps> = ({
   filePreviews,
@@ -30,22 +73,7 @@ export const MediaFilePreview: FC<MediaFilePreviewProps> = ({
             {isImage ? (
               <MediaImage source={{ uri: file.uri }} />
             ) : isVideo ? (
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={() => setPreviewUri(file.uri)}
-                style={styles.videoThumb}
-              >
-                <Video
-                  source={{ uri: file.uri }}
-                  style={StyleSheet.absoluteFill}
-                  resizeMode={ResizeMode.COVER}
-                  shouldPlay={false}
-                  isMuted
-                />
-                <View style={styles.playOverlay}>
-                  <Text style={styles.playIcon}>▶</Text>
-                </View>
-              </TouchableOpacity>
+              <VideoThumb uri={file.uri} onPress={() => setPreviewUri(file.uri)} />
             ) : (
               <View style={{ width: 70, height: 70, borderRadius: 8 }}>
                 <FileIcon width={70} height={70} />
@@ -66,15 +94,7 @@ export const MediaFilePreview: FC<MediaFilePreviewProps> = ({
           >
             <Text style={styles.closeText}>✕</Text>
           </TouchableOpacity>
-          {previewUri && (
-            <Video
-              source={{ uri: previewUri }}
-              style={styles.fullVideo}
-              resizeMode={ResizeMode.CONTAIN}
-              useNativeControls
-              shouldPlay
-            />
-          )}
+          {previewUri && <FullscreenPreviewVideo uri={previewUri} />}
         </SafeAreaView>
       </Modal>
     </MediaContainer>

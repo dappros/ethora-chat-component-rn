@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { TouchableOpacity, StyleSheet, View } from 'react-native';
-import { Video, ResizeMode } from 'expo-av';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { useDispatch } from 'react-redux';
 import {
   setActiveFile,
@@ -26,9 +26,21 @@ const CustomMessageVideo: React.FC<CustomMessageVideoProps> = ({
   mimetype,
 }) => {
   const dispatch = useDispatch();
-  // Neutral box until the first frame is ready; then size to the real
-  // video aspect ratio (portrait stays portrait, landscape landscape).
   const [dims, setDims] = useState<MediaDims>(defaultMediaDims());
+
+  const player = useVideoPlayer(fileURL, (p) => {
+    p.muted = true;
+  });
+
+  useEffect(() => {
+    const sub = player.addListener('statusChange', () => {
+      const size = player.videoTrack?.size;
+      if (size?.width && size?.height) {
+        setDims(fitMediaDimensions(size.width, size.height));
+      }
+    });
+    return () => sub.remove();
+  }, [player]);
 
   const handleOpen = () => {
     dispatch(setActiveFile({ fileName, fileURL, mimetype }));
@@ -41,29 +53,13 @@ const CustomMessageVideo: React.FC<CustomMessageVideoProps> = ({
       activeOpacity={0.9}
       style={[styles.wrapper, { width: dims.width, height: dims.height }]}
     >
-      {/* Inline preview only — the first frame stands in as a poster.
-          Native controls are intentionally OFF here: in the small bubble
-          they swallowed the tap and looked cramped. Tapping opens the
-          full-screen player where the video plays with controls. */}
-      <Video
-        source={{ uri: fileURL }}
+      <VideoView
+        player={player}
         style={styles.video}
-        resizeMode={ResizeMode.COVER}
-        shouldPlay={false}
-        isMuted
-        onReadyForDisplay={(e: any) => {
-          const ns = e?.naturalSize;
-          if (ns?.width && ns?.height) {
-            let w = ns.width;
-            let h = ns.height;
-            // Some platforms report raw pixel dims with a separate
-            // orientation flag; swap so a portrait clip is sized tall.
-            if (ns.orientation === 'portrait' && w > h) {
-              [w, h] = [h, w];
-            }
-            setDims(fitMediaDimensions(w, h));
-          }
-        }}
+        contentFit="cover"
+        nativeControls={false}
+        surfaceType="textureView"
+        pointerEvents="none"
       />
       <View style={styles.overlay} pointerEvents="none">
         <View style={styles.playButton}>
