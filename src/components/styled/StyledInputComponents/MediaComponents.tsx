@@ -3,12 +3,13 @@ import styled from 'styled-components/native';
 export const Container = styled.View`
   margin: 0;
   cursor: pointer;
-  /* Hug the media to the start instead of centering it inside the
-     bubble — centering made media bubbles look adrift vs the
-     left/right-aligned text bubbles. The bubble's own alignSelf (set
-     in Message.tsx) handles sender-side alignment. */
+  /* The media has an explicit (scaled) width set inline. Its horizontal
+     position inside the bubble is driven by the bubble's align-items
+     (set per-sender in Message.tsx): own messages push the media to the
+     right edge, others to the left — so the media stays flush with the
+     text bubbles on the same side instead of leaving a gap. */
   align-items: flex-start;
-  align-self: stretch;
+  align-self: auto;
   overflow: hidden;
   border-radius: 10px;
 `;

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { TouchableOpacity, StyleSheet, View } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
 import { useDispatch } from 'react-redux';
@@ -8,6 +8,11 @@ import {
 } from '../../roomStore/chatSettingsSlice';
 import { MODAL_TYPES } from '../../helpers/constants/MODAL_TYPES';
 import { PlayIcon } from '../../assets/icons';
+import {
+  defaultMediaDims,
+  fitMediaDimensions,
+  MediaDims,
+} from '../../helpers/mediaDimensions';
 
 interface CustomMessageVideoProps {
   fileName: string;
@@ -21,6 +26,9 @@ const CustomMessageVideo: React.FC<CustomMessageVideoProps> = ({
   mimetype,
 }) => {
   const dispatch = useDispatch();
+  // Neutral box until the first frame is ready; then size to the real
+  // video aspect ratio (portrait stays portrait, landscape landscape).
+  const [dims, setDims] = useState<MediaDims>(defaultMediaDims());
 
   const handleOpen = () => {
     dispatch(setActiveFile({ fileName, fileURL, mimetype }));
@@ -31,7 +39,7 @@ const CustomMessageVideo: React.FC<CustomMessageVideoProps> = ({
     <TouchableOpacity
       onPress={handleOpen}
       activeOpacity={0.9}
-      style={styles.wrapper}
+      style={[styles.wrapper, { width: dims.width, height: dims.height }]}
     >
       {/* Inline preview only — the first frame stands in as a poster.
           Native controls are intentionally OFF here: in the small bubble
@@ -43,6 +51,19 @@ const CustomMessageVideo: React.FC<CustomMessageVideoProps> = ({
         resizeMode={ResizeMode.COVER}
         shouldPlay={false}
         isMuted
+        onReadyForDisplay={(e: any) => {
+          const ns = e?.naturalSize;
+          if (ns?.width && ns?.height) {
+            let w = ns.width;
+            let h = ns.height;
+            // Some platforms report raw pixel dims with a separate
+            // orientation flag; swap so a portrait clip is sized tall.
+            if (ns.orientation === 'portrait' && w > h) {
+              [w, h] = [h, w];
+            }
+            setDims(fitMediaDimensions(w, h));
+          }
+        }}
       />
       <View style={styles.overlay} pointerEvents="none">
         <View style={styles.playButton}>
@@ -57,8 +78,6 @@ export default CustomMessageVideo;
 
 const styles = StyleSheet.create({
   wrapper: {
-    width: 250,
-    aspectRatio: 16 / 9,
     borderRadius: 10,
     overflow: 'hidden',
     backgroundColor: '#000',

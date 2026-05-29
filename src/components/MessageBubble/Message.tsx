@@ -52,7 +52,9 @@ const CustomMessageBubble = styled.View<{
 }>`
   position: relative;
   max-width: 85%;
-  min-width: 30%;
+  min-width: ${({ isMedia }) => (isMedia ? '0' : '30%')};
+  align-items: ${({ isMedia, isUser }) =>
+    isMedia ? (isUser ? 'flex-end' : 'flex-start') : 'stretch'};
   padding: ${({isMedia}) => isMedia ? '0' : '10'}px;
   padding-bottom: ${({isMedia}) => isMedia ? '6' : '10'}px;
   margin-right: ${({isUser}) => isUser ? '0' : '10px'};
@@ -309,6 +311,15 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
           </CustomMessagePhotoContainer>
         )}
         <Pressable
+          // The Pressable fills the row's content area, so the bubble
+          // inside must be aligned to the sender's side — otherwise it
+          // hugs the left and own media bubbles sit with a right-side
+          // gap (text bubbles only looked right because they're narrow).
+          // flex-end for own, flex-start for others.
+          style={{
+            flex: 1,
+            alignItems: isUser ? 'flex-end' : 'flex-start',
+          }}
           // disableInteractions hides the long-press → context menu
           // (delete / edit / reply / react). Mirrors web's config gate.
           onLongPress={
