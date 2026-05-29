@@ -16,7 +16,17 @@ jest.mock('../src/networking/apiClient', () => {
     delete: jest.fn(),
     defaults: { baseURL: 'https://api.test/v1' },
   };
-  return { __esModule: true, default: http, appToken: 'test-app-token' };
+  // auth.api reads the app token/base URL via the getter functions
+  // (not the legacy static `appToken`), so the mock must provide them
+  // or loginEmail/checkEmailExist send an `undefined` Authorization.
+  return {
+    __esModule: true,
+    default: http,
+    appToken: 'test-app-token',
+    getCurrentAppToken: () => 'test-app-token',
+    getCurrentBaseURL: () => 'https://api.test/v1',
+    setBaseURL: jest.fn(),
+  };
 });
 
 // ----- mock the shared store (lazy build — jest.mock hoists above

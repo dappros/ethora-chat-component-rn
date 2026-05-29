@@ -237,6 +237,22 @@ describe('XmppClient — event listener wiring', () => {
     expect(c.status).toBe('offline');
   });
 
+  it('presencesReady tracks the online/disconnect cycle (bug #21)', () => {
+    const c = new XmppClient('u', 'p', { devServer: 'h' });
+    // online → ready (so the heap sender may flush)
+    last().triggerEvent('online');
+    expect(c.presencesReady).toBe(true);
+    // disconnect → NOT ready: stops sends into a dead socket and arms the
+    // false→true transition that re-flushes queued messages on reconnect
+    // (only AFTER allRoomPresences re-joins). Without this reset the flag
+    // stayed true across the drop → offline-queued messages never flushed.
+    last().triggerEvent('disconnect');
+    expect(c.presencesReady).toBe(false);
+    // reconnect → ready again
+    last().triggerEvent('online');
+    expect(c.presencesReady).toBe(true);
+  });
+
   it('stanza event invokes handleStanza with the stanza', () => {
     new XmppClient('u', 'p', { devServer: 'h' });
     const stanza = { name: 'message', attrs: { id: 'x' } };
@@ -513,8 +529,10 @@ describe('XmppClient — delegating stanza helpers', () => {
 
   it('createRoomStanza / presenceInRoomStanza / deleteMessageStanza / editMessageStanza delegate', async () => {
     const c = new XmppClient('u', 'p', { devServer: 'h' });
+    // createRoomStanza's 3rd `to?` arg is vestigial (web parity keeps the
+    // param but the createRoom helper only takes title/desc/client).
     await c.createRoomStanza('title', 'desc', 'to@h');
-    expect(createRoom).toHaveBeenCalledWith('title', 'desc', last(), 'to@h');
+    expect(createRoom).toHaveBeenCalledWith('title', 'desc', last());
 
     c.presenceInRoomStanza('r@h');
     expect(presenceInRoom).toHaveBeenCalledWith(last(), 'r@h');

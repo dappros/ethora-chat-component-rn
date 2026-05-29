@@ -235,6 +235,11 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
     );
   };
 
+  // Long-press → capture the bubble's on-screen bounding box. The actual
+  // menu placement (above / below, clamped to the viewport) is done in
+  // MessageInteractions, which measures the rendered menu height via
+  // onLayout — more accurate than estimating it here, and it's what keeps
+  // the menu adjacent to the message instead of floating far above (#13).
   const handleLongPress = () => {
     const target = bubbleRef.current ?? messageRef.current;
     if (target) {

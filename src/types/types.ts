@@ -354,6 +354,13 @@ export interface IConfig {
   disableUserCount?: boolean;
   disableSentLogic?: boolean;
   disableTypingIndicator?: boolean;
+  // Hide the full-screen "Connection error" overlay (the dark modal with
+  // a Retry button shown when bootstrap/connect fails). For patient-facing
+  // / kiosk apps where a full-screen error reads as a crash, set this and
+  // surface connection state your own way (or let it recover silently —
+  // reconnect + re-join now happen automatically). A subtle inline
+  // "Connection lost. Retrying…" banner is shown instead.
+  disableConnectionErrorOverlay?: boolean;
   // disableChatInfo already declared above (line ~338) — granular gates
   // (disableHeader / disableDescription / disableType / hideMembers /
   // disableMembers / disableChatHeaderMenu). Don't redeclare here.

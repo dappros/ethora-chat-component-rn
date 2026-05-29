@@ -68,9 +68,11 @@ Image / video / document / audio send & receive, HEIC→JPEG conversion, profile
 
 ```bash
 npx expo install \
-  expo-av expo-clipboard expo-document-picker \
+  expo-av expo-video expo-clipboard expo-document-picker \
   expo-image-manipulator expo-image-picker expo-media-library
 ```
+
+> Video playback uses **`expo-video`** (`useVideoPlayer` / `VideoView`); `expo-av` is still used for audio. Install both.
 
 > No `metro.config.js` shim is required. As of `26.5.5` the SDK no longer statically imports any legacy `react-native-*` native modules; the bundled `withEthoraShims` helper is preserved as a no-op for backward compat with older setups.
 
@@ -239,6 +241,7 @@ Full details (including the cold-start fix and the scroll-to-bottom unread chip)
 | `disableMemberProfileActions` | Hides the whole "Message / Copy User Id" action block in the chat-info member modal. Use when no per-user actions are appropriate (e.g. patient-facing apps). |
 | `hideMemberSendMessageAction` | Hides only the "Message" button, keeps everything else. |
 | `hideMemberCopyIdAction` | Hides only the "Copy User Id" button, keeps everything else. |
+| `disableConnectionErrorOverlay` | Replaces the full-screen "Connection error" overlay with a small, non-blocking `ConnectionBanner`. Set this when a transient reconnect shouldn't take over the whole screen. |
 | `eventHandlers.onMessageRetry` | `(event) => void` fired when the user taps the "Failed — tap to retry" indicator on a stuck send. Use for telemetry / surfacing a retry banner. |
 
 ## Quality & test coverage
@@ -249,7 +252,7 @@ Full details (including the cold-start fix and the scroll-to-bottom unread chip)
 npm test          # ~2s, full suite
 ```
 
-45 files, 486 tests cover the SDK's substantive surface:
+49 files, 554 tests cover the SDK's substantive surface:
 
 | Layer                          | Coverage |
 |--------------------------------|----------|

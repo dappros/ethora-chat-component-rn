@@ -58,6 +58,14 @@ jest.mock('../src/networking/xmppClient', () => {
     // construction — the mock needs the setter so the bootstrap chain
     // doesn't trip on a missing method.
     setCredentialsProvider = jest.fn();
+    // Provider also installs an on-online re-join callback (bug #21);
+    // mock the setter so the bootstrap chain doesn't trip on a missing
+    // method.
+    setOnOnline = jest.fn();
+    // Provider installs an auth-expired callback (idle stale-JWT loop fix);
+    // mock the setter so the bootstrap chain doesn't trip on a missing
+    // method.
+    setOnAuthExpired = jest.fn();
     updateCredentials = jest.fn();
     constructor(username: string, password: string, settings?: any) {
       this.username = username;

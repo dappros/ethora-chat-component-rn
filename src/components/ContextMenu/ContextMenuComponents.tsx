@@ -71,10 +71,15 @@ export const Overlay = styled.Pressable`
   background: transparent;
 `;
 
+// Horizontal hairline divider. Was `border: 1px solid …` — a border on
+// ALL FOUR sides of an auto-sized View. iOS collapsed it to ~nothing, but
+// Android rendered the side borders too, so the menu showed ugly little
+// boxes / uneven gaps between items. A single full-width 1px line renders
+// identically on both platforms.
 export const Delimeter = styled.View`
-  border: 1px solid #0052cd0d;
+  height: 1px;
+  align-self: stretch;
+  background-color: #0052cd1f;
+  margin-top: 4px;
+  margin-bottom: 4px;
 `;
-
-// export const Delimeter = styled.View`
-//   border: 1px solid var(--colors-background-bg-prymary-5, #0052cd0d);
-// `;

@@ -240,9 +240,20 @@ describe('customer feedback round — locked behaviour', () => {
       expect(pkg.types).toContain('lib/');
     });
 
-    it('main field points at compiled commonjs, not testbed index.js', () => {
+    it('exports map resolves consumers to compiled lib/, not source', () => {
       const pkg = require('../package.json');
-      expect(pkg.main).toContain('lib/commonjs');
+      // NOTE: `main` stays "index.js" on purpose — the repo root doubles
+      // as the Expo testbed, and @expo/config resolves the dev entry from
+      // `main` (it does NOT honour expo.entryPoint in this SDK). `index.js`
+      // isn't in `files`, so it's never published; modern consumers (Node
+      // >=12.16 / Metro w/ exports) resolve through the `exports` map, which
+      // is the real shipping contract and MUST point at compiled output.
+      const entry = pkg.exports?.['.'];
+      expect(entry).toBeDefined();
+      expect(entry.require).toContain('lib/commonjs'); // CJS consumers
+      expect(entry.import).toContain('lib/module'); // ESM consumers
+      expect(entry.types).toMatch(/\.d\.ts$/);
+      expect(entry.types).toContain('lib/');
     });
 
     it('react-native-builder-bob config present', () => {
@@ -277,8 +288,8 @@ describe('customer feedback round — locked behaviour', () => {
     });
   });
 
-  // ── Items 9a / 9b: Audio/VideoMessage actually use expo-av ────────────
-  describe('Audio/VideoMessage rewrites use expo-av', () => {
+  // ── Items 9a / 9b: AudioMessage uses expo-av, VideoMessage uses expo-video ──
+  describe('Audio uses expo-av / Video uses expo-video', () => {
     it('AudioMessage uses Audio.Sound from expo-av', () => {
       const fs = require('fs');
       const src = fs.readFileSync(
@@ -298,10 +309,11 @@ describe('customer feedback round — locked behaviour', () => {
         'utf-8'
       );
       // Inline bubble now renders the first frame as a poster behind a
-      // play affordance; tapping anywhere opens the full-screen player
-      // (which keeps useNativeControls). Inline native controls were
-      // dropped because they swallowed the tap and looked cramped.
-      expect(src).toMatch(/from 'expo-av'/);
+      // play affordance; tapping anywhere opens the full-screen player.
+      // Inline native controls are off (they swallowed the tap and looked
+      // cramped). Migrated expo-av → expo-video (useVideoPlayer/VideoView).
+      expect(src).toMatch(/from 'expo-video'/);
+      expect(src).toMatch(/useVideoPlayer|VideoView/);
       expect(src).toMatch(/onPress=\{handleOpen\}/);
       // The original bug: onBuffer={handleOpen} re-opened the modal in a
       // loop. Guard that it never comes back on any handler.

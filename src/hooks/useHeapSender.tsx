@@ -38,7 +38,8 @@ export const useHeapSender = (client: XmppClient | null) => {
               !!msg.isReply,
               msg.showInChannel === 'true',
               msg.mainMessage || '',
-              msg.langSource
+              msg.langSource,
+              msg.id
             );
           } else {
             await client.sendMessage(

@@ -74,6 +74,9 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
   const [providerBootstrapStatus, setProviderBootstrapStatus] =
     useState<ProviderBootstrapStatus>('idle');
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
+  // True once auth has expired unrecoverably (stale JWT, no refresh
+  // possible). Stops the reconnect loop and lets the host re-auth.
+  const [authExpired, setAuthExpired] = useState(false);
 
   // Track which "init mode" this provider runs in. When config.initBeforeLoad
   // is true, the provider owns bootstrap and ChatWrapper just waits.
@@ -201,6 +204,33 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
       // may have changed since the singleton was created.
       created.setCredentialsProvider(credentialsProvider);
 
+      // Re-join MUC rooms on every 'online'. After a reconnect the new
+      // XMPP stream isn't a member of any room, so a sent message gets a
+      // local double-tick but never reaches the room (bug #21). Re-sending
+      // presence on reconnect fixes delivery. On the very first connect
+      // the room list isn't loaded yet so this joins nothing — the
+      // bootstrap's own allRoomPresences handles that pass.
+      created.setOnOnline(() => {
+        const underlying = (created as any).client;
+        if (!underlying) {return;}
+        allRoomPresences(underlying).catch((e) =>
+          devPushLog('warn', 'reconnect: allRoomPresences re-join failed', e)
+        );
+      });
+
+      // Auth expired unrecoverably (stale JWT, no refresh available):
+      // stop looping and tell the host to re-authenticate. Consumers can
+      // listen for `ethora:authExpired` (e.g. re-mount <Chat> with a fresh
+      // `jwtLogin.token`, or run their re-login flow).
+      created.setOnAuthExpired(() => {
+        devPushLog('error', 'XMPP auth expired — signalling host to re-auth');
+        setAuthExpired(true);
+        setProviderBootstrapStatus('failed');
+        DeviceEventEmitter.emit('ethora:authExpired');
+      });
+
+      // New client wired up — any prior auth-expired state is stale.
+      setAuthExpired(false);
       setClient(created);
       lastCredsRef.current = { username, password, settings };
       setReconnectAttempts(0);
@@ -401,6 +431,10 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
   // -----------------------------------------------------------
   useEffect(() => {
     if (!client) {return;}
+    // Auth expired unrecoverably — do NOT keep reconnecting/reiniting with
+    // stale creds (that's the loop). The host must re-auth (it gets the
+    // `ethora:authExpired` event).
+    if (authExpired || (client as any).authExpired) {return;}
     // Successful (re)connect — clear the backoff counter so the next
     // blip starts a fresh 3-attempt budget instead of jumping straight
     // to a full re-init.
@@ -426,7 +460,7 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
         console.error('Full reinit failed:', err)
       );
     }
-  }, [client, client?.status, reconnectAttempts, initializeClient]);
+  }, [client, client?.status, reconnectAttempts, initializeClient, authExpired]);
 
   // -----------------------------------------------------------
   // AppState → background: flush lastViewedTimestamp into the
@@ -518,6 +552,9 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
     const sub = DeviceEventEmitter.addListener('ethora:retryBootstrap', () => {
       completedBootstrapKeyRef.current = '';
       inflightBootstrapKeyRef.current = '';
+      // Host is explicitly retrying (likely after re-auth) — clear the
+      // auth-expired latch so the reconnect/bootstrap loop runs again.
+      setAuthExpired(false);
       setProviderBootstrapStatus('idle');
     });
     return () => sub.remove();

@@ -104,6 +104,26 @@ What follows from the convention:
 
 You don't need `useUnread` to drive this badge; the room list reads `room.unreadMessages` directly from the store. Use `useUnread` to drive **external** UI (app-icon badge, parent screen tab bar, etc.) that lives outside the chat component.
 
+## Tab-based navigators: `useChatRoomFocus`
+
+If you embed `<Chat>` inside a tab navigator where the chat screen **stays mounted** when you switch tabs (the common React Navigation case), the SDK can't tell "looking at the chat" from "on another tab" on its own — so `useUnread()` would report **0** for that room even while messages arrive in the background. **You should not** reach into internal paths (`src/roomStore`, `setLastViewedTimestamp`, …) to work around this — use the public [`useChatRoomFocus`](../src/hooks/useChatRoomFocus.ts) hook, driven by your navigator's focus signal:
+
+```tsx
+import { useIsFocused } from '@react-navigation/native';
+import { useChatRoomFocus, useUnread } from '@ethora/chat-component-rn';
+
+function ChatTab() {
+  const isFocused = useIsFocused();
+  useChatRoomFocus({ roomJID: 'general@conference.host', isFocused });
+  return <Chat config={/* … */} roomJID="general@conference.host" />;
+}
+
+// elsewhere (e.g. your tab bar):
+const { totalCount } = useUnread(); // now updates correctly on blur/focus
+```
+
+On **focus** it marks the room actively-viewed (clears the badge); on **blur** it stamps "read up to now" **and** releases the active-room marker so subsequent messages count as unread. No internal imports required.
+
 ## Opting out: `disableLastRead`
 
 Set on `xmppSettings` (or top-level on the config):

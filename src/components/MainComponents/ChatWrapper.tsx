@@ -9,6 +9,7 @@ import {
 } from '../../roomStore/chatSettingsSlice';
 import {ChatWrapperBox} from '../styled/ChatWrapperBox';
 import {Overlay, StyledModal} from '../styled/MediaModal';
+import ConnectionBanner from './ConnectionBanner';
 import {Message} from '../MessageBubble/Message';
 import {IConfig, IRoom, MessageProps, ModalType, User} from '../../types/types';
 import {useXmppClient} from '../../context/xmppProvider';
@@ -336,7 +337,13 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
 
   return (
     <>
-      {showModal && (
+      {/* Connection/bootstrap error UI. For patient-facing apps the
+          full-screen dark overlay reads as a crash, so
+          `disableConnectionErrorOverlay` swaps it for a subtle inline
+          "Connection lost. Retrying…" banner (and reconnect + re-join now
+          recover automatically). */}
+      {showModal && config?.disableConnectionErrorOverlay && <ConnectionBanner />}
+      {showModal && !config?.disableConnectionErrorOverlay && (
         <Overlay>
           <View
             style={{

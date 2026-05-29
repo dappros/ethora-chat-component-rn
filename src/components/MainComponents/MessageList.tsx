@@ -19,6 +19,7 @@ import {
   ImageSourcePropType,
 } from 'react-native';
 import { IMessage, User, IConfig, IRoom } from '../../types/types';
+import { msgSortableMs } from '../../roomStore/roomsSlice';
 import Composing from '../styled/StyledInputComponents/Composing';
 import TreadLabel from '../styled/TreadLabel';
 import { MessageContainer } from './MessageContainer';
@@ -77,9 +78,12 @@ const MessageList = <TMessage extends IMessage>({
   // Renders as a badge on the scroll-to-bottom arrow so they know how
   // much they're missing without having to scroll to find out.
   const [unreadWhileScrolledUp, setUnreadWhileScrolledUp] = useState(0);
-  // Snapshot of message count at the moment the user scrolled away
-  // from the bottom — used to compute the badge delta.
-  const messageCountAtScrollAwayRef = useRef<number | null>(null);
+  // Newest message timestamp at the moment the user scrolled away from
+  // the bottom. The badge counts only messages NEWER than this, so
+  // back-pagination (loading OLDER history while scrolled up) never
+  // inflates the count. Was previously a message-COUNT snapshot, which
+  // wrongly counted back-paginated old messages as "new" (Android repro).
+  const newestSeenTsRef = useRef<number | null>(null);
 
   const flatListRef = useRef<FlatList<IMessage>>(null);
 
@@ -267,34 +271,44 @@ const MessageList = <TMessage extends IMessage>({
         // Back at the bottom — clear the unread-while-scrolled-up
         // counter so the badge disappears with the arrow.
         setUnreadWhileScrolledUp(0);
-        messageCountAtScrollAwayRef.current = null;
+        newestSeenTsRef.current = null;
       } else {
         setIsContentOffset(false);
         if (hasUserScrolled) {
           setShowNewMessageIndicator(true);
         }
-        if (messageCountAtScrollAwayRef.current === null) {
-          // Snapshot count the moment the user first leaves the bottom.
-          messageCountAtScrollAwayRef.current = memoizedMessages.length;
+        if (newestSeenTsRef.current === null) {
+          // Snapshot the NEWEST message's timestamp the moment the user
+          // first leaves the bottom. Anything newer than this that
+          // arrives later is genuinely "new"; older history loaded by
+          // back-pagination is < this and never counts.
+          newestSeenTsRef.current = memoizedMessages.reduce(
+            (mx: number, m: IMessage) => {
+              const t = msgSortableMs(m);
+              return t > mx ? t : mx;
+            },
+            0
+          );
         }
         setIsUserAtBottom(false);
       }
     },
-    [hasUserScrolled, memoizedMessages.length]
+    [hasUserScrolled, memoizedMessages]
   );
 
-  // Keep the badge in sync with messages that arrive while the user
-  // is scrolled up. We compute the delta against the snapshot taken
-  // when they first scrolled away — that handles back-pagination
-  // (loadMoreMessages) without inflating the counter, because that
-  // only changes the prefix not the suffix.
+  // Keep the badge in sync with messages that arrive while the user is
+  // scrolled up. Count ONLY messages newer than the newest-seen snapshot
+  // — so loading older history (back-pagination) doesn't inflate it.
   useEffect(() => {
     if (isUserAtBottom) {return;}
-    if (messageCountAtScrollAwayRef.current === null) {return;}
-    const delta =
-      memoizedMessages.length - messageCountAtScrollAwayRef.current;
-    if (delta > 0) {setUnreadWhileScrolledUp(delta);}
-  }, [memoizedMessages.length, isUserAtBottom]);
+    if (newestSeenTsRef.current === null) {return;}
+    const since = newestSeenTsRef.current;
+    const count = memoizedMessages.reduce(
+      (n: number, m: IMessage) => (msgSortableMs(m) > since ? n + 1 : n),
+      0
+    );
+    setUnreadWhileScrolledUp(count);
+  }, [memoizedMessages, isUserAtBottom]);
 
   const handleLayout = () => {
     setIsContentOffset(true);

@@ -147,24 +147,27 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
             onLayout={handleMenuLayout}
           >
             <MenuItem onPress={() => handleCopyMessage(message.body!)}>
-              <Text>{MESSAGE_INTERACTIONS.COPY}</Text>
+              <Text style={styles.menuText}>{MESSAGE_INTERACTIONS.COPY}</Text>
               <MESSAGE_INTERACTIONS_ICONS.COPY />
             </MenuItem>
             {isUser && (
               <>
+                {/* Edit only for non-media messages (upstream guard) +
+                    consistent label styling (menuText). */}
                 {message?.isMediafile !== 'true' && (
                   <>
                     <Delimeter />
                     <MenuItem onPress={handleEditMessage}>
-                      <Text>{MESSAGE_INTERACTIONS.EDIT}</Text>
+                      <Text style={styles.menuText}>
+                        {MESSAGE_INTERACTIONS.EDIT}
+                      </Text>
                       <MESSAGE_INTERACTIONS_ICONS.EDIT />
                     </MenuItem>
-                  </>  
-                )
-                }
+                  </>
+                )}
                 <Delimeter />
                 <MenuItem onPress={handleDeleteMessage}>
-                  <Text>{MESSAGE_INTERACTIONS.DELETE}</Text>
+                  <Text style={styles.menuText}>{MESSAGE_INTERACTIONS.DELETE}</Text>
                   <MESSAGE_INTERACTIONS_ICONS.DELETE />
                 </MenuItem>
               </>
@@ -187,14 +190,28 @@ const styles = StyleSheet.create({
   contextMenu: {
     position: 'absolute',
     backgroundColor: 'white',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 6,
     minWidth: 180,
+    // Clip the children to the rounded corners (the hairline dividers
+    // run full width; without this they'd poke past the rounding on
+    // Android).
+    overflow: 'hidden',
+  },
+  // Explicit label styling so rows are the same height on both platforms
+  // — Android's default includeFontPadding made the menu rows taller and
+  // misaligned vs iOS. marginRight keeps the label off the trailing icon.
+  menuText: {
+    fontSize: 16,
+    color: '#141414',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+    marginRight: 16,
   },
 });

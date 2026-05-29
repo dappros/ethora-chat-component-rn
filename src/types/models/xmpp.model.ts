@@ -150,6 +150,7 @@ export interface XmppClientInterface {
     isReply?: boolean,
     showInChannel?: boolean,
     mainMessage?: string,
-    langSource?: Iso639_1Codes
+    langSource?: Iso639_1Codes,
+    customId?: string
   ): void;
 }

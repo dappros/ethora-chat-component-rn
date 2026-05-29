@@ -62,7 +62,8 @@ export async function resendMessage(
       message.isReply || false,
       message.showInChannel === 'true' || false,
       message.mainMessage || '',
-      (state.chatSettingStore.langSource as any) || 'en'
+      (state.chatSettingStore.langSource as any) || 'en',
+      id
     );
   } else {
     client.sendMessage(

@@ -94,7 +94,14 @@ const reducers = {
       //      "unknown — let the privateStore hydration set the real
       //      marker before any future message arrives").
       let lastViewed: number;
-      if (roomData.lastViewedTimestamp != null) {
+      // Treat an incoming `0` as "unset". stanzaHandlers' addRoom passes
+      // `lastViewedTimestamp: 0` as a placeholder; the old `!= null` check
+      // let that 0 win and OVERWROTE the persisted/hydrated marker from
+      // the previous session, so cold-start showed no unread badge for
+      // messages received while the app was closed (bug #19/#20). A real
+      // (non-zero) explicit value still wins; otherwise keep the existing
+      // value; otherwise anchor to the newest message in the payload.
+      if (roomData.lastViewedTimestamp != null && roomData.lastViewedTimestamp !== 0) {
         lastViewed = roomData.lastViewedTimestamp;
       } else if (existing?.lastViewedTimestamp != null) {
         lastViewed = existing.lastViewedTimestamp;

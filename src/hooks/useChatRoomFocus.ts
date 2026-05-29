@@ -60,10 +60,15 @@ export const useChatRoomFocus = ({
       dispatch(setCurrentRoom({ roomJID }));
       dispatch(setLastViewedTimestamp({ chatJID: roomJID, timestamp: 0 }));
     } else {
-      // Tab lost focus — stamp the moment so future messages count.
+      // Tab lost focus. Stamp "read up to now" AND clear the active-room
+      // marker. The unread middleware skips the room while
+      // `jid === activeChatJID`, so without clearing it the count stayed
+      // pinned at 0 for tab-based consumers whose <ChatRoom> never
+      // unmounts (bug #19). On re-focus the branch above restores it.
       dispatch(
         setLastViewedTimestamp({ chatJID: roomJID, timestamp: Date.now() })
       );
+      dispatch(setCurrentRoom({ roomJID: null as any }));
     }
   }, [roomJID, isFocused, dispatch]);
 };

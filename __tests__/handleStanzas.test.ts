@@ -100,7 +100,9 @@ describe('handleStanza — dispatch table', () => {
     expect(handlers.onPresenceInRoom).toHaveBeenCalledWith(s);
     expect(handlers.onGetMembers).toHaveBeenCalledWith(s);
     expect(handlers.onGetRoomInfo).toHaveBeenCalledWith(s);
-    expect(handlers.onGetLastMessageArchive).toHaveBeenCalledWith(s);
+    // onGetLastMessageArchive receives the xmppWs ref too (same as
+    // onGetChatRooms / onNewRoomCreated) so it can drive follow-up sends.
+    expect(handlers.onGetLastMessageArchive).toHaveBeenCalledWith(s, fakeXmpp);
     expect(handlers.onDeleteMessage).not.toHaveBeenCalled();
     expect(handlers.onChatInvite).not.toHaveBeenCalled();
   });

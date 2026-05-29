@@ -3,6 +3,45 @@
 All notable changes to `@ethora/chat-component-rn` are listed here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project doesn't follow strict semver yet — version corresponds to the `package.json` field.
 
+## [26.5.9]
+
+Hardening round on top of 26.5.8: the critical reconnect/MUC delivery bug, unread-tracking gaps in tab navigators, a stale-JWT idle loop, translated-message reconciliation, and the `expo-av → expo-video` migration for video playback. Full regression sweep — typecheck clean, 554 jest tests green.
+
+### Fixed
+
+#### Connectivity (the critical one)
+
+- **Bug #21 — reconnect didn't re-join MUC rooms (local double-tick, never delivered).** On a new stream after an extended drop the client was no longer joined to any room, so sends got a local double-tick but never reached the other end. `XmppClient` now fires an `onOnline` callback that the provider wires to `allRoomPresences(...)` — every room's presence is re-sent on reconnect. Reconnect is also single-flight guarded (no leaked concurrent clients), detaches the old client's listeners before re-init, and tracks the reconnect timer so logout can cancel it.
+- **Bug #21 (race) — `presencesReady` never reset on disconnect.** The flag stayed `true` across a drop, so (a) the heap sender could fire into a dead socket and (b) the `false→true` transition that flushes offline-queued messages never re-armed on reconnect. `onDisconnect` now resets `presencesReady = false`; on reconnect `onOnline` flips it back `true` only after `allRoomPresences` has synchronously re-sent presence — queued messages flush after the re-join, not before.
+- **Idle stale-JWT loop (follow-up to #17).** When a JWT expired during idle and the credential refresh produced no new password, the client used to retry forever with stale creds (`not-authorized` loop). It now detects two consecutive no-progress refreshes, latches `authExpired`, suppresses further reconnects, and emits an `ethora:authExpired` DeviceEventEmitter event so the host can re-authenticate (e.g. re-mount `<Chat>` with a fresh `jwtLogin.token`). `ethora:retryBootstrap` clears the latch.
+- **Bug #4 (residual) — fire-and-forget `client.send()` leaks.** A global send wrapper attaches a no-op `.catch` to every underlying send promise (while returning the same promise to awaiting callers), so a send that rejects during socket teardown no longer surfaces as `Uncaught (in promise)`.
+
+#### Unread tracking
+
+- **Bug #19 — `useUnread()` stuck at 0 in tab navigators.** When `<ChatRoom>` stays mounted across tabs, blur never released the active-room marker, so the unread middleware treated the room as "always being viewed". `useChatRoomFocus` now releases the active room (`setCurrentRoom({ roomJID: null })`) and stamps `lastViewedTimestamp` on blur — counting resumes the moment the user leaves the tab.
+- **Bug #20 — scroll-to-bottom badge inflated by loading older history.** The badge now snapshots the newest message timestamp when you leave the bottom and counts only messages newer than that snapshot, so back-pagination (load-more) of older messages can never bump the count.
+- **Cold-start badge — incoming `lastViewedTimestamp: 0` clobbered the persisted marker.** `addRoom` now ignores an incoming `0` placeholder (the stanzaHandlers default) and preserves the hydrated/persisted value, so badges are correct on first paint after a cold start.
+
+#### Messaging
+
+- **Translated / resent messages stuck pending + duplicated.** `sendTextMessageWithTranslateTagStanza` didn't forward a client message id, so translated sends (and every resend that took the translate path) went out without an id — the server echo arrived with a different id and never reconciled with the optimistic bubble (stuck "pending" + a duplicate). It now accepts and forwards `customId`; `useHeapSender` and `resendMessage` pass it.
+
+#### UI / customization
+
+- **Bug #14 — delete confirmation is now a small centered dialog with a white action label.** Confirm-style modals render in a dedicated bounded `compactDialog` view (never full-screen), and the filled (e.g. red Delete) button now passes `color="#FFFFFF"` explicitly so the label isn't black-on-red.
+- **Bug #13 — context-menu placement is now measured, not estimated.** `MessageInteractions` measures the rendered menu height via `onLayout` and places the menu just above/below the message's actual bounding box, clamped to the viewport — the menu sits adjacent to the message instead of floating far above it.
+- **New `config.disableConnectionErrorOverlay`.** Swaps the full-screen "Connection error" overlay for a small non-blocking `ConnectionBanner`, so a transient reconnect doesn't take over the whole screen.
+- **Android context menu polish.** Hairline dividers (instead of an all-sides border that rendered badly on Android) and explicit row label styling (`includeFontPadding: false`) so menu rows match iOS.
+
+#### Media
+
+- **`expo-av → expo-video` migration for video.** `VideoMessage`, `FilePreviewModal`, and `MediaFilePreview` now use `expo-video` (`useVideoPlayer` / `VideoView`); the inline bubble shows a tappable poster that opens the full-screen player. **`expo-video` is now a peer dependency** — run `npx expo install expo-video`. Audio still uses `expo-av`.
+
+### Tests / internal
+
+- Added regression tests: unread cold-start + tab focus/blur, `useUnread` perturbations, the `presencesReady` online/disconnect cycle, and the JWT-login bootstrap mock now stubs `setOnOnline` / `setOnAuthExpired`.
+- Repaired stale tests that lagged source changes (apiClient token getters, `onGetLastMessageArchive(stanza, xmppWs)`, `createRoom` arity) and re-pointed the package-shape test at the `exports` map (the field consumers actually resolve), since the repo root doubles as the Expo testbed and `main` must stay `index.js`.
+
 ## [26.5.8]
 
 Follow-up to 26.5.7 covering the customer-retest list — every "Not in 26.5.7 / Worsened" item, plus a usability gap in `useUnread` and a new scroll-to-bottom UX affordance.
