@@ -22,6 +22,11 @@ import { inviteRoomRequest } from './xmpp/inviteRoomRequest.xmpp';
 import { getRooms } from './xmpp/getRooms.xmpp';
 import { handleStanza } from './xmpp/handleStanzas.xmpp';
 import { pushLog as devPushLog } from '../utils/devLogger';
+import {
+  clearOutboundSends,
+  enqueueOutboundSend,
+  flushOutboundSends,
+} from './outboundQueue';
 
 // Canonical production XMPP WSS endpoint (standard wss/443, no port suffix).
 const DEFAULT_DEV_SERVER = 'xmpp.chat.ethora.com';
@@ -430,6 +435,17 @@ export class XmppClient {
       } catch (err) {
         console.warn('onOnline callback failed', err);
       }
+      // Drain any sends that were buffered while the stream was down. The
+      // presence stanzas from onOnlineCallback above were written to the
+      // socket synchronously (allRoomPresences → presenceInRoom send the
+      // <presence> before yielding), so flushing here puts the message
+      // stanzas AFTER the joins on the same stream — XMPP's in-order
+      // per-stream processing guarantees the MUC join lands first.
+      try {
+        this.flushPendingSends();
+      } catch (err) {
+        console.warn('flushPendingSends failed', err);
+      }
     };
 
     this.onError = (error: any) => {
@@ -645,6 +661,10 @@ export class XmppClient {
     }
     this.status = 'offline';
     this.presencesReady = false;
+    // Permanent teardown (logout / unmount) — drop buffered sends so they
+    // don't replay into the next session. Reconnect uses old.stop(), NOT
+    // close(), so the queue still survives a transient drop+reconnect.
+    clearOutboundSends();
   }
 
   getRoomsStanza = async () => {
@@ -709,6 +729,21 @@ export class XmppClient {
     getRoomMembers(roomJID, this.client);
   };
 
+  /**
+   * True when the underlying stream is live enough to actually put a
+   * stanza on the wire. Used to gate sends: when false we buffer instead
+   * of firing a fire-and-forget stanza into a dead/half-open socket
+   * (which is silently dropped and only caught by the 30s watchdog).
+   */
+  private isStreamReady(): boolean {
+    return !!this.client && this.status === 'online' && !this.reconnecting;
+  }
+
+  /** Replay buffered sends against this (now-online) client, in order. */
+  flushPendingSends() {
+    flushOutboundSends(this, Date.now());
+  }
+
   //messages
   sendMessage = (
     roomJID: string,
@@ -722,7 +757,32 @@ export class XmppClient {
     showInChannel?: boolean,
     mainMessage?: string,
     customId?: string
-  ) => {
+  ): boolean => {
+    // Stream down (start race / reconnect window): buffer and replay on
+    // the next 'online' instead of losing the stanza. Returns false so
+    // callers know the send was deferred, not delivered.
+    if (!this.isStreamReady()) {
+      enqueueOutboundSend({
+        optimisticId: customId || `send-text-message-${Date.now()}`,
+        roomJID,
+        enqueuedAt: Date.now(),
+        send: (c) =>
+          c.sendMessage(
+            roomJID,
+            firstName,
+            lastName,
+            photo,
+            walletAddress,
+            userMessage,
+            notDisplayedValue,
+            isReply,
+            showInChannel,
+            mainMessage,
+            customId
+          ),
+      });
+      return false;
+    }
     sendTextMessage(
       this.client,
       roomJID,
@@ -738,6 +798,7 @@ export class XmppClient {
       this.devServer || DEFAULT_DEV_SERVER,
       customId
     );
+    return true;
   };
 
   deleteMessageStanza(room: string, msgId: string) {
@@ -794,6 +855,19 @@ export class XmppClient {
   }
 
   sendMediaMessageStanza(roomJID: string, data: any, customId?: string) {
+    // Media: the file is already uploaded by the time we get here; only the
+    // stanza needs the stream. Buffer + replay on reconnect if it's down so
+    // the upload isn't wasted (otherwise the stanza is lost and the media
+    // bubble sits pending until the 30s watchdog fails it).
+    if (!this.isStreamReady()) {
+      enqueueOutboundSend({
+        optimisticId: customId || `send-media-message-${Date.now()}`,
+        roomJID,
+        enqueuedAt: Date.now(),
+        send: (c) => c.sendMediaMessageStanza(roomJID, data, customId),
+      });
+      return undefined;
+    }
     return sendMediaMessage(
       this.client,
       roomJID,

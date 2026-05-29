@@ -136,11 +136,15 @@ import { getChatsPrivateStoreRequest } from '../src/networking/xmpp/getChatsPriv
 import { actionSetTimestampToPrivateStore } from '../src/networking/xmpp/actionSetTimestampToPrivateStore.xmpp';
 import { sendMediaMessage } from '../src/networking/xmpp/sendMediaMessage.xmpp';
 import { handleStanza } from '../src/networking/xmpp/handleStanzas.xmpp';
+import { clearOutboundSends } from '../src/networking/outboundQueue';
 
 beforeEach(() => {
   fakeClientInstances.length = 0;
   jest.clearAllMocks();
   jest.useRealTimers();
+  // The outbound queue is module-global; clear it so a buffered send from
+  // one test can't replay into another's 'online' flush.
+  clearOutboundSends();
 });
 
 // Helper: latest FakeClient instance the SUT created.
@@ -468,6 +472,8 @@ describe('XmppClient — delegating stanza helpers', () => {
 
   it('sendMessage forwards args + appends devServer + customId to sendTextMessage', () => {
     const c = new XmppClient('u', 'p', { devServer: 'h.test' });
+    // Stream must be online or sendMessage buffers instead of forwarding.
+    last().triggerEvent('online');
     c.sendMessage(
       'r@h',
       'Alice',
@@ -500,6 +506,7 @@ describe('XmppClient — delegating stanza helpers', () => {
 
   it('sendMediaMessageStanza returns whatever the helper returns + forwards devServer', () => {
     const c = new XmppClient('u', 'p', { devServer: 'h.test' });
+    last().triggerEvent('online');
     const out = c.sendMediaMessageStanza('r@h', { foo: 'bar' }, 'media-id-1');
     expect(out).toBe('media-id');
     expect(sendMediaMessage).toHaveBeenCalledWith(
@@ -597,6 +604,7 @@ describe('XmppClient — not-implemented stubs', () => {
 
   it('sendTextMessageWithTranslateTagStanza falls back to sendMessage', () => {
     const c = new XmppClient('u', 'p', { devServer: 'h' });
+    last().triggerEvent('online');
     c.sendTextMessageWithTranslateTagStanza(
       'r@h',
       'Alice',
