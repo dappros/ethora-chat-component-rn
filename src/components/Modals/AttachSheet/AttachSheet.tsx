@@ -1,6 +1,6 @@
 /** @format */
 
-import React from 'react';
+import React, { useRef } from 'react';
 import {
   Modal,
   Platform,
@@ -28,9 +28,22 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
   onDocument,
   primaryColor = '#0052CD',
 }) => {
+  const pendingRef = useRef<(() => void) | null>(null);
+
+  const runPending = () => {
+    const fn = pendingRef.current;
+    pendingRef.current = null;
+    fn?.();
+  };
+
   const trigger = (handler: () => void) => () => {
-    onClose();
-    setTimeout(handler, 150);
+    if (Platform.OS === 'ios') {
+      pendingRef.current = handler;
+      onClose();
+    } else {
+      onClose();
+      setTimeout(handler, 150);
+    }
   };
 
   const rows: {
@@ -65,6 +78,7 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
       visible={visible}
       animationType="slide"
       onRequestClose={onClose}
+      onDismiss={runPending}
     >
       <TouchableOpacity
         style={styles.backdrop}

@@ -9,7 +9,7 @@ import {
 import { IConfig, MediaFile } from '../../types/types';
 import Button from './Button';
 import { SendIcon, AttachIcon } from '../../assets/icons';
-import { KeyboardAvoidingView, Platform, View, TouchableOpacity, Alert, ActionSheetIOS, Linking } from 'react-native';
+import { KeyboardAvoidingView, View, TouchableOpacity, Alert, Linking } from 'react-native';
 import AttachSheet from '../Modals/AttachSheet/AttachSheet';
 import { MediaFilePreview } from './MediaFilePreview';
 import * as ImagePicker from 'expo-image-picker';
@@ -242,21 +242,7 @@ const SendInput: React.FC<SendInputProps> = ({
   };
 
   const handleAttachPress = () => {
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options: ['Cancel', 'Camera', 'Photo Library', 'Document'],
-          cancelButtonIndex: 0,
-        },
-        (buttonIndex) => {
-          if (buttonIndex === 1) {handleCameraSelection();}
-          else if (buttonIndex === 2) {handleGallerySelection();}
-          else if (buttonIndex === 3) {handleFileSelection();}
-        }
-      );
-    } else {
-      setShowMediaMenu(true);
-    }
+    setShowMediaMenu(true);
   };
 
   const handleRemoveImage = (index: number) => {
