@@ -366,8 +366,10 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
                 langSource={langSource}
               />
             )}
-            <CustomMessageTimestamp>
-            {!config?.disableSentLogic && isUser && isPending && <Text>sending...</Text>}
+            <View style={styles.timestampRow}>
+            {!config?.disableSentLogic && isUser && isPending && (
+              <Text style={styles.timestampText}>sending...</Text>
+            )}
             {!config?.disableSentLogic && isUser && isFailed && (
               <Text
                 onPress={onRetryPress}
@@ -378,14 +380,16 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
                 ! Failed — tap to retry
               </Text>
             )}
-            {new Date(message.date).toLocaleTimeString([], {
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
+            <Text style={styles.timestampText}>
+              {new Date(message.date).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </Text>
             {!config?.disableSentLogic && isUser && !isPending && !isFailed && (
               <DoubleTick />
             )}
-          </CustomMessageTimestamp>
+          </View>
 
           {message?.reply?.length && message?.reply?.length > 0 ? (
               <BottomReplyContainer
@@ -456,5 +460,19 @@ const styles = StyleSheet.create({
     color: '#E53935',
     fontWeight: '600',
     marginRight: 6,
+  },
+  // Row keeps the time text and the DoubleTick SVG on the same
+  // baseline — previously the SVG lived inside a <Text> and floated
+  // above the time. alignItems center vertically aligns both.
+  timestampRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-end',
+    marginTop: 4,
+    gap: 4,
+  },
+  timestampText: {
+    fontSize: 12,
+    color: '#999',
   },
 });

@@ -635,12 +635,21 @@ export const DocumentIcon = ({ width = 46, height = 46, ...props }) => (
   </Svg>
 );
 
-export const ArowDownIcon = ({ width = 46, height = 46, ...props }) => (
-  <Svg width="70px" height="70px" viewBox="0 0 80 80" fill="none">
+export const ArowDownIcon = ({
+  width = 24,
+  height = 24,
+  color = '#fff',
+  ...props
+}) => (
+  // Was: hardcoded 70x70 svg with a tiny chevron tucked in the corner of
+  // an 80x80 viewBox — invisible inside the 40x40 FAB. Now a clean
+  // down-chevron that fills a 24x24 viewBox and honours width/height +
+  // color so it shows white on the coloured scroll-to-bottom button.
+  <Svg width={width} height={height} viewBox="0 0 24 24" fill="none" {...props}>
     <Path
-      d="M7 10L12 15L17 10"
-      stroke="#000000"
-      strokeWidth="1.5"
+      d="M6 9L12 15L18 9"
+      stroke={color}
+      strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
     />

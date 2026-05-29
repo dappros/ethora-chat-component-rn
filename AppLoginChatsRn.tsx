@@ -114,20 +114,20 @@ interface Creds {
   singleRoomJid: string;
 }
 
-// Empty defaults — fill via the Setup tab at runtime, or have
-// `npx @ethora/setup` pre-fill them when it patches this file from
-// an `~/.ethora/profiles.json` profile.
+// Pre-filled defaults for the messenger-dev2.vitall.com test backend.
+// Editable at runtime via the Setup tab; these just save re-typing on
+// every fresh sim install (sim AsyncStorage is wiped on Erase Content).
 const DEFAULT_CREDS: Creds = {
   mode: 'jwt',
-  jwt: '',
+  jwt: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjp7InBhcmVudEFwcElkIjpudWxsLCJpc0FsbG93ZWROZXdBcHBDcmVhdGUiOnRydWUsImlzQmFzZUFwcCI6dHJ1ZSwiZ29vZ2xlU2VydmljZXNKc29uIjoiIiwiZ29vZ2xlU2VydmljZUluZm9QbGlzdCI6IiIsIlJFQUNUX0FQUF9TVFJJUEVfUFVCTElTSEFCTEVfS0VZIjoiIiwiUkVBQ1RfQVBQX1NUUklQRV9TRUNSRVRfS0VZIjoiIiwic2lnbm9uT3B0aW9ucyI6W10sImFmdGVyTG9naW5QYWdlIjoiY2hhdHMiLCJhdmFpbGFibGVNZW51SXRlbXMiOnsiY2hhdHMiOnRydWUsInByb2ZpbGUiOnRydWUsInNldHRpbmdzIjp0cnVlfSwiYWxsb3dVc2Vyc1RvQ3JlYXRlUm9vbXMiOnRydWUsImFpQm90Ijp7InRyaWdnZXIiOiJhbnlfbWVzc2FnZSIsInByb21wdCI6IllvdSBhcmUgYSBoZWxwZnVsIGFzc2lzdGFudC4iLCJpc1JBRyI6dHJ1ZSwidG90YWxTaXRlU291cmNlU2l6ZSI6MH0sIl9pZCI6IjY5OWM2OTIzNDI5YzI3NTdhYzhhYjZhNCIsImFwcFRva2VucyI6W10sImRlZmF1bHRSb29tcyI6W10sImRpc3BsYXlOYW1lIjoiVml0YWxsIERldiIsImRvbWFpbk5hbWUiOiJhcHAiLCJjcmVhdG9ySWQiOiI2OTljNjkyMzQyOWMyNzU3YWM4YWI2YTUiLCJ1c2Vyc0NhbkZyZWUiOnRydWUsImRlZmF1bHRBY2Nlc3NBc3NldHNPcGVuIjp0cnVlLCJkZWZhdWx0QWNjZXNzUHJvZmlsZU9wZW4iOnRydWUsImJ1bmRsZUlkIjoiY29tLmV0aG9yYSIsInByaW1hcnlDb2xvciI6IiMwMDNFOUMiLCJjb2luU3ltYm9sIjoiRVRPIiwiY29pbk5hbWUiOiJFdGhvcmEgQ29pbiJ9LCJpYXQiOjE3NzE4NTgyMTF9.WGeM2-YpryLsBvNuNJekrfqUf2f6b8lryWZj2ZuEN1w',
   appToken: '',
-  email: '',
-  password: '',
+  email: 'roman.leshchuh@dappros.com',
+  password: '12345678',
   resolvedUser: null,
-  baseUrl: '',
-  xmppHost: '',
-  xmppDevServer: '',
-  conference: '',
+  baseUrl: 'https://api.messenger-dev2.vitall.com/v1',
+  xmppHost: 'xmpp.messenger-dev2.vitall.com',
+  xmppDevServer: 'xmpp.messenger-dev2.vitall.com',
+  conference: 'conference.xmpp.messenger-dev2.vitall.com',
   singleRoom: false,
   singleRoomJid: '',
 };

@@ -19,6 +19,11 @@ import * as ImageManipulator from 'expo-image-manipulator';
 // iOS photos default to HEIC; many web backends (incl. ours) 500 on
 // HEIC uploads because they can't decode it. Convert to JPEG before
 // upload — JPEG is universally supported. JPEGs pass through.
+// Server rejects uploads over its body-size cap with HTTP 413 (Request
+// Entity Too Large). Guard client-side so the user gets a clear message
+// instead of a silent failed bubble. 50 MB matches the backend limit.
+const MAX_MEDIA_BYTES = 50 * 1024 * 1024;
+
 const normalizeImageAsset = async (asset: ImagePicker.ImagePickerAsset) => {
   const mime = (asset.mimeType || '').toLowerCase();
   const looksLikeHeic =
@@ -127,13 +132,19 @@ const SendInput: React.FC<SendInputProps> = ({
             uri: asset.uri,
             type: asset.mimeType || 'video/mp4',
             name: asset.fileName || asset.uri.split('/').pop() || `camera_${Date.now()}.mp4`,
+            size: (asset as any).fileSize,
           },
         ]);
         return;
       }
       const normalized = await normalizeImageAsset(asset);
       handleFileSelect([
-        { uri: normalized.uri, type: normalized.mime, name: normalized.name },
+        {
+          uri: normalized.uri,
+          type: normalized.mime,
+          name: normalized.name,
+          size: (asset as any).fileSize,
+        },
       ]);
     } catch (error) {
       console.error('Camera error:', error);
@@ -165,13 +176,19 @@ const SendInput: React.FC<SendInputProps> = ({
             uri: asset.uri,
             type: asset.mimeType || 'video/mp4',
             name: asset.fileName || asset.uri.split('/').pop() || `gallery_${Date.now()}.mp4`,
+            size: (asset as any).fileSize,
           },
         ]);
         return;
       }
       const normalized = await normalizeImageAsset(asset);
       handleFileSelect([
-        { uri: normalized.uri, type: normalized.mime, name: normalized.name },
+        {
+          uri: normalized.uri,
+          type: normalized.mime,
+          name: normalized.name,
+          size: (asset as any).fileSize,
+        },
       ]);
     } catch (error) {
       console.error('Gallery error:', error);

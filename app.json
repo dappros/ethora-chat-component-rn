@@ -23,6 +23,7 @@
       ]
     },
     "plugins": [
+      "./plugins/withDisableExplicitModules",
       [
         "expo-build-properties",
         {

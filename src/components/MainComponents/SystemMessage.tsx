@@ -13,17 +13,14 @@ export const CustomSystemMessageText = styled.Text<{
 }>`
   margin: 0;
   color: ${(props) => props.primary || '#0052cd'};
-  border-radius: 118px;
-  padding: 5px 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  border-radius: 12px;
+  padding: 6px 12px;
   font-size: 12px;
-  line-height: 14px;
+  line-height: 16px;
   font-weight: 600;
+  text-align: center;
+  max-width: 85%;
   background-color: ${(props) => props.secondary || '#e7edf9'};
-  height: 24px;
-  white-space: nowrap;
 `;
 
 const SystemMessage: React.FC<SystemMessageProps> = ({

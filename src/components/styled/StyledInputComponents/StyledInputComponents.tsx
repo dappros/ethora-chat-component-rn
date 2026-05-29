@@ -46,16 +46,21 @@ export const MessageInput = styled.TextInput<{
   isFocused?: boolean;
   color?: string;
 }>`
-  padding: 10px 14px;
+  padding: 8px 14px;
   border-radius: 20px;
   border-width: 1px;
   border-color: ${(props) =>
     props.isFocused ? props.color || '#0052CD' : 'transparent'};
   color: #141414;
+  font-size: 16px;
   background-color: #f5f7f9;
   flex: 1;
+  /* No explicit line-height: on iOS a line-height larger than the
+     font's natural metrics drops the glyph to the bottom of the line
+     box (looked like the text "sank"). Equal vertical padding + the
+     natural line height centers single-line text in the min-height
+     box. text-align-vertical / include-font-padding stay for Android. */
   text-align-vertical: center;
-  line-height: 20px;
   include-font-padding: false;
 `;
 
