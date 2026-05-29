@@ -9,6 +9,7 @@ import React, {
   useState,
 } from 'react';
 import { AppState, DeviceEventEmitter } from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
 import XmppClient, {
   XmppCredentialsProvider,
 } from '../networking/xmppClient';
@@ -400,6 +401,13 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
   // -----------------------------------------------------------
   useEffect(() => {
     if (!client) {return;}
+    // Successful (re)connect — clear the backoff counter so the next
+    // blip starts a fresh 3-attempt budget instead of jumping straight
+    // to a full re-init.
+    if (client.status === 'online') {
+      if (reconnectAttempts !== 0) {setReconnectAttempts(0);}
+      return;
+    }
     if (client.status !== 'offline') {return;}
 
     if (reconnectAttempts < 3) {
@@ -434,8 +442,29 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
   // -----------------------------------------------------------
   useEffect(() => {
     const sub = AppState.addEventListener('change', (next) => {
-      if (next === 'active') {return;}
       const c = client;
+      if (next === 'active') {
+        // Returned to foreground. If the socket died while backgrounded
+        // (iOS suspends the WebSocket; long background kills it), the
+        // status may still read 'online' until xmpp.js notices the dead
+        // TCP — which can take a full timeout. Force an immediate
+        // reconnect when we're not provably online so cached UI gets
+        // live again fast instead of "100 years".
+        // Only force a reconnect from a genuinely dead state. Don't
+        // interrupt an in-progress 'connecting' (iOS delivers spurious
+        // inactive→active flaps for control-center / notifications /
+        // biometric prompts that would otherwise restart a healthy
+        // connect).
+        if (c && (c.status === 'offline' || c.status === 'error')) {
+          devPushLog('rn', `AppState active: client ${c.status} → forceReconnect`);
+          setReconnectAttempts(0);
+          c.forceReconnect();
+        }
+        return;
+      }
+      // Going to background/inactive (sleep / app switcher / tray):
+      // flush lastViewedTimestamp into the server private store so the
+      // next session shows the correct unread state.
       if (!c) {return;}
       const state = store.getState();
       const rooms = state.rooms?.rooms;
@@ -447,6 +476,37 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
       );
     });
     return () => sub.remove();
+  }, [client]);
+
+  // -----------------------------------------------------------
+  // NetInfo → proactive reconnect on network restore. Without this the
+  // only reconnect trigger is xmpp.js noticing the socket is dead, which
+  // on a Wi-Fi/cellular drop can hang on the TCP timeout for tens of
+  // seconds. NetInfo tells us the instant connectivity returns so we can
+  // force a reconnect immediately (and reset the backoff budget).
+  // -----------------------------------------------------------
+  useEffect(() => {
+    if (!client) {return;}
+    let wasOffline = false;
+    const unsub = NetInfo.addEventListener((state) => {
+      // Guard against undefined/partial state (jest mock, early emit).
+      const reachable =
+        !!state?.isConnected && state?.isInternetReachable !== false;
+      if (!reachable) {
+        wasOffline = true;
+        return;
+      }
+      // Network just came back (was offline → now reachable).
+      if (wasOffline) {
+        wasOffline = false;
+        if (client.status === 'offline' || client.status === 'error') {
+          devPushLog('rn', 'NetInfo: network restored → forceReconnect');
+          setReconnectAttempts(0);
+          client.forceReconnect();
+        }
+      }
+    });
+    return () => unsub();
   }, [client]);
 
   // -----------------------------------------------------------

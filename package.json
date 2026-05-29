@@ -41,6 +41,7 @@
   },
   "peerDependencies": {
     "@react-native-async-storage/async-storage": ">=1.21.0",
+    "@react-native-community/netinfo": ">=11.0.0",
     "expo-av": ">=15.0.0",
     "expo-clipboard": ">=7.0.0",
     "expo-document-picker": ">=13.0.0",
@@ -121,6 +122,7 @@
     "@babel/preset-env": "^7.25.3",
     "@babel/runtime": "^7.25.0",
     "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-community/netinfo": "11.4.1",
     "@types/jest": "^29.5.12",
     "@types/react": "~19.1.0",
     "@types/react-test-renderer": "^19.1.0",

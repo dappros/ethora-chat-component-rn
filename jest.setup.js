@@ -6,6 +6,18 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock')
 );
 
+// NetInfo: addEventListener returns an unsubscribe and never fires in
+// tests (the provider's reconnect-on-restore effect stays inert).
+jest.mock('@react-native-community/netinfo', () => ({
+  __esModule: true,
+  default: {
+    addEventListener: jest.fn(() => jest.fn()),
+    fetch: jest.fn(() =>
+      Promise.resolve({ isConnected: true, isInternetReachable: true })
+    ),
+  },
+}));
+
 // Native deps that this repo references but doesn't install — provide
 // generic mocks so tests touching those imports can still run.
 const passthroughFC = () => null;

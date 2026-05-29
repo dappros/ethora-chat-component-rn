@@ -79,6 +79,16 @@ export class XmppClient {
   maxReconnectAttempts = 5;
   reconnectDelay = 2000;
   suppressReconnect = false;
+  // Tracked so close()/disconnect() can cancel a pending reconnect —
+  // otherwise a scheduleReconnect() timer fires after logout and (until
+  // suppressReconnect short-circuits it) keeps the dead instance alive.
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  // Single-flight guard for reconnect(). Multiple triggers can fire near-
+  // simultaneously (AppState 'active' + NetInfo restore + a scheduled
+  // timer). Without this, two overlapping reconnect()s each spawn a fresh
+  // underlying client and one is leaked with its `stanza` handler still
+  // bound → duplicate stanza dispatch into redux.
+  private reconnecting = false;
 
   // Set when SASL fails with `not-authorized` (typically a stale JWT-
   // derived XMPP password after idle). Triggers the credentialsProvider
@@ -277,6 +287,14 @@ export class XmppClient {
         this.xmppSettings?.conference || `conference.${this.host}`;
       this.status = 'connecting';
 
+      // Defensive: if a previous underlying client is still referenced
+      // (initializeClient reached from a path other than reconnect()),
+      // detach its handlers before we overwrite the ref so the orphaned
+      // client can't keep dispatching stanzas into redux.
+      try {
+        this.detachEventListeners();
+      } catch {}
+
       this.client = xmpp.client({
         service: url,
         username: walletToUsername(this.username),
@@ -344,8 +362,22 @@ export class XmppClient {
     }
   }
 
+  // Stored so detachEventListeners() can remove exactly the handlers we
+  // added (not xmpp.js's internal ones). Without this a re-login left the
+  // previous instance's `stanza` handler bound, double-dispatching every
+  // incoming stanza into the (new session's) redux store.
+  private onDisconnect?: () => void;
+  private onOnline?: () => void;
+  private onError?: (error: any) => void;
+  private onStanza?: (stanza: any) => void;
+
   attachEventListeners() {
-    this.client.on('disconnect', () => {
+    // Idempotent: drop any previously-attached handlers first so a
+    // reconnect that re-runs initializeClient on a fresh underlying
+    // client doesn't stack duplicates.
+    this.detachEventListeners();
+
+    this.onDisconnect = () => {
       console.log('XMPP disconnected.');
       this.status = 'offline';
       try {
@@ -353,9 +385,9 @@ export class XmppClient {
         // that don't reference it; tree-shaken via dead-code elim.
         devPushLog('xmpp', 'disconnect');
       } catch {}
-    });
+    };
 
-    this.client.on('online', () => {
+    this.onOnline = () => {
       console.log('XMPP online.', new Date());
       this.status = 'online';
       this.presencesReady = true;
@@ -367,9 +399,9 @@ export class XmppClient {
           this.username
         );
       } catch {}
-    });
+    };
 
-    this.client.on('error', (error: any) => {
+    this.onError = (error: any) => {
       console.error('XMPP client error:', error);
       if (isNotAuthorizedError(error)) {
         this.lastAuthError = 'not-authorized';
@@ -381,9 +413,9 @@ export class XmppClient {
           (error && error.message) || error
         );
       } catch {}
-    });
+    };
 
-    this.client.on('stanza', (stanza: any) => {
+    this.onStanza = (stanza: any) => {
       try {
         const tag = stanza?.name || 'stanza';
         const id = stanza?.attrs?.id || '';
@@ -396,7 +428,27 @@ export class XmppClient {
         );
       } catch {}
       handleStanza.bind(this, stanza, this)();
-    });
+    };
+
+    this.client.on('disconnect', this.onDisconnect);
+    this.client.on('online', this.onOnline);
+    this.client.on('error', this.onError);
+    this.client.on('stanza', this.onStanza);
+  }
+
+  detachEventListeners() {
+    const c = this.client as any;
+    if (!c?.removeListener) {return;}
+    try {
+      if (this.onDisconnect) {c.removeListener('disconnect', this.onDisconnect);}
+      if (this.onOnline) {c.removeListener('online', this.onOnline);}
+      if (this.onError) {c.removeListener('error', this.onError);}
+      if (this.onStanza) {c.removeListener('stanza', this.onStanza);}
+    } catch {}
+    this.onDisconnect = undefined;
+    this.onOnline = undefined;
+    this.onError = undefined;
+    this.onStanza = undefined;
   }
 
   /**
@@ -436,34 +488,72 @@ export class XmppClient {
     const delay =
       this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
     console.log(`Reconnecting attempt ${this.reconnectAttempts} in ${delay}ms`);
-    setTimeout(() => this.reconnect(), delay);
+    if (this.reconnectTimer) {clearTimeout(this.reconnectTimer);}
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.reconnect();
+    }, delay);
+  }
+
+  /**
+   * Force an immediate reconnect, resetting the backoff counter. Called
+   * by the provider when NetInfo reports the network came back or the app
+   * returned to the foreground — we don't want to wait out the existing
+   * exponential delay (or a maxed-out attempt count) in those cases.
+   */
+  forceReconnect() {
+    if (this.suppressReconnect) {return;}
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.reconnectAttempts = 0;
+    this.reconnect();
   }
 
   async reconnect() {
     if (this.suppressReconnect) {return;}
+    // Single-flight: ignore overlapping triggers (AppState + NetInfo +
+    // scheduled timer) so we never spawn two underlying clients and leak
+    // one with live listeners (duplicate stanza dispatch).
+    if (this.reconnecting) {
+      console.log('reconnect already in progress — skip');
+      return;
+    }
+    this.reconnecting = true;
     console.log('Attempting to reconnect xmpp client...');
 
-    // If the last failure was a SASL `not-authorized` (typically a stale
-    // JWT-derived XMPP password after idle), try to fetch fresh creds
-    // before retrying. Without this, reconnect retries with the same
-    // stale password forever and the user has to kill the app.
-    if (this.lastAuthError === 'not-authorized' && this.credentialsProvider) {
-      try {
-        await this.refreshCredentialsOnce();
-      } catch (err) {
-        console.warn(
-          'XMPP credential refresh failed; reconnecting with cached creds',
-          err
-        );
+    try {
+      // If the last failure was a SASL `not-authorized` (typically a stale
+      // JWT-derived XMPP password after idle), try to fetch fresh creds
+      // before retrying. Without this, reconnect retries with the same
+      // stale password forever and the user has to kill the app.
+      if (this.lastAuthError === 'not-authorized' && this.credentialsProvider) {
+        try {
+          await this.refreshCredentialsOnce();
+        } catch (err) {
+          console.warn(
+            'XMPP credential refresh failed; reconnecting with cached creds',
+            err
+          );
+        }
       }
-    }
 
-    if (this.client) {
-      this.client.stop().finally(() => {
-        this.initializeClient();
-      });
-    } else {
+      // Tear the OLD underlying client down FULLY before spinning up a new
+      // one: detach our handlers (so its `stanza` handler can't keep
+      // dispatching) and stop it. detachEventListeners() must run while
+      // `this.client` still points at the old client — i.e. before
+      // initializeClient() reassigns it.
+      const old = this.client;
+      if (old) {
+        this.detachEventListeners();
+        try {
+          await old.stop();
+        } catch {}
+      }
       this.initializeClient();
+    } finally {
+      this.reconnecting = false;
     }
   }
 
@@ -497,7 +587,17 @@ export class XmppClient {
   }
 
   async close() {
+    // Cancel any pending reconnect so a stale timer can't resurrect this
+    // instance after teardown/logout.
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     if (this.client) {
+      // Detach OUR handlers first so a late stanza during the close
+      // handshake can't re-enter handleStanza and dispatch into a store
+      // that's being wiped (or, on re-login, the new session's store).
+      this.detachEventListeners();
       try {
         await this.client.stop();
         console.log('XMPP client connection closed.');
@@ -506,6 +606,7 @@ export class XmppClient {
       }
     }
     this.status = 'offline';
+    this.presencesReady = false;
   }
 
   getRoomsStanza = async () => {

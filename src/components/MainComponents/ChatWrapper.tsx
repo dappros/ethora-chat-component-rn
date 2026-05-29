@@ -284,6 +284,38 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
     config?.initBeforeLoad,
   ]);
 
+  // Cache-first display (initBeforeLoad). The main effect above only marks
+  // the chat `inited` once the provider bootstrap reaches 'ready' — which
+  // waits on the cold XMPP connect. On re-entry that left the user staring
+  // at a loader while fully-cached rooms/messages sat in redux-persist
+  // ("pulls a new connection for 100 years"). Here we render the cached
+  // content the instant rehydration lands; the live client gets wired by
+  // the main effect when the connect completes (send/loadMore activate
+  // then). Mirrors web showing cached rooms immediately + refreshing in
+  // the background.
+  useEffect(() => {
+    if (!config?.initBeforeLoad || initMode !== 'provider') {return;}
+    if (isInited || showModal) {return;}
+    if (providerBootstrapStatus === 'failed') {return;}
+    const haveCachedRooms = !!rooms && Object.keys(rooms).length > 0;
+    const haveUser =
+      !!user?.xmppUsername || !!user?.defaultWallet?.walletAddress;
+    if (haveCachedRooms && haveUser) {
+      devPushLog('rn', 'ChatWrapper: cache-first — showing persisted rooms while provider connects');
+      setShowModal(false);
+      setInited(true);
+    }
+  }, [
+    config?.initBeforeLoad,
+    initMode,
+    isInited,
+    showModal,
+    providerBootstrapStatus,
+    rooms,
+    user?.xmppUsername,
+    user?.defaultWallet?.walletAddress,
+  ]);
+
   // Skip the legacy email/password LoginForm entirely when XmppProvider
   // is driving auth via initBeforeLoad — the bootstrap effect will
   // populate the user shortly. Showing LoginForm here causes a flicker

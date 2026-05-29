@@ -171,7 +171,8 @@ http.interceptors.response.use(
     isRefreshing = true;
     try {
       const tokens = await refresh();
-      console.log('tokens', tokens);
+      // (was: console.log('tokens', tokens) — dumped the full response
+      // incl. access/refresh/ws tokens on every refresh; removed.)
       isRefreshing = false;
       originalRequest.headers.Authorization = tokens.data.token;
       processQueue(tokens.data.token);
