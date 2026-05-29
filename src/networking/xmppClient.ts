@@ -99,14 +99,6 @@ export class XmppClient {
   // Fired by the provider on every 'online' so it can re-join MUC rooms
   // after a reconnect (bug #21 — reconnected but not in the room).
   private onOnlineCallback: (() => void) | null = null;
-  // Auth-expiry handling (idle not-authorized loop). When a credential
-  // refresh can't produce NEW creds (the upstream JWT is itself expired),
-  // reconnecting with the same stale creds just loops forever. We count
-  // those no-progress refreshes and, past the threshold, give up + signal
-  // the host to re-auth instead of looping.
-  authExpired = false;
-  private authRefreshFailures = 0;
-  private onAuthExpiredCallback: (() => void) | null = null;
 
   // ---- QoS state (mirrors web XmppClient) ----------------------------
   presencesReady = false;
@@ -141,13 +133,6 @@ export class XmppClient {
    * uses it to re-join MUC rooms after a reconnect. */
   setOnOnline(cb: (() => void) | null) {
     this.onOnlineCallback = cb;
-  }
-
-  /** Install a callback invoked when auth has expired unrecoverably (the
-   * upstream JWT can't be refreshed). The provider uses it to stop the
-   * reconnect loop and signal the host to re-authenticate. */
-  setOnAuthExpired(cb: (() => void) | null) {
-    this.onAuthExpiredCallback = cb;
   }
 
   /** Swap in fresh credentials before the next reconnect. */
@@ -415,15 +400,6 @@ export class XmppClient {
     this.onDisconnect = () => {
       console.log('XMPP disconnected.');
       this.status = 'offline';
-      // A dropped stream is no longer joined to any MUC. Mark presences
-      // not-ready so (a) the heap sender stops firing into a dead socket
-      // while offline, and (b) the false→true flip on the next `online`
-      // re-triggers useHeapSender's flush — which only runs queued
-      // messages AFTER onOnline → allRoomPresences has re-sent presence
-      // (bug #21: otherwise the flag stayed true across the drop, the
-      // transition never fired, and offline-queued messages never flushed
-      // on reconnect — local double-tick, never delivered).
-      this.presencesReady = false;
       try {
         // lazy-require to avoid pulling devLogger into prod bundles
         // that don't reference it; tree-shaken via dead-code elim.
@@ -624,34 +600,17 @@ export class XmppClient {
     const provider = this.credentialsProvider;
     this.credentialsRefreshInFlight = (async () => {
       try {
-        const before = this.password;
         const fresh = await provider();
-        if (fresh?.username && fresh?.password && fresh.password !== before) {
-          // Genuinely new creds — recover and reset the failure counter.
+        if (fresh?.username && fresh?.password) {
+          // Apply whatever the provider returns and retry. We do NOT try to
+          // detect "auth expired" by comparing passwords — a stable
+          // xmppPassword (e.g. deterministic from the JWT/wallet) is the
+          // NORMAL case for a transient blip, and treating it as expiry
+          // falsely bricked recoverable sessions (sending stopped). If the
+          // creds really are stale we simply get not-authorized again and
+          // retry, which is the confirmed-good 26.5.7 behaviour.
           this.updateCredentials(fresh.username, fresh.password);
           this.lastAuthError = null;
-          this.authRefreshFailures = 0;
-        } else {
-          // Refresh produced NO new password (the upstream JWT is itself
-          // expired and there's no refreshFunction to mint a new one).
-          // Reconnecting with the same stale creds just loops on
-          // not-authorized forever, so after a couple of no-progress
-          // refreshes we give up and signal the host to re-authenticate
-          // (e.g. re-mount <Chat> with a fresh jwtLogin.token) instead of
-          // spinning. (idle not-authorized loop.)
-          this.authRefreshFailures += 1;
-          if (this.authRefreshFailures >= 2) {
-            this.authExpired = true;
-            this.suppressReconnect = true;
-            this.status = 'error';
-            console.warn(
-              'XMPP auth expired — credential refresh produced no new token; ' +
-                'stopping reconnect loop and signalling re-auth.'
-            );
-            try {
-              this.onAuthExpiredCallback?.();
-            } catch {}
-          }
         }
       } finally {
         this.credentialsRefreshInFlight = null;

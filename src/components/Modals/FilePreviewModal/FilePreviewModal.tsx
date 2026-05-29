@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import styled from 'styled-components/native';
 import {
   CenterContainer,
@@ -114,7 +114,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
     (state: RootState) => state.chatSettingStore
   );
 
-  if (!activeFile) {return;}
+  if (!activeFile) {return null;}
 
   const requestStoragePermission = async () => {
     try {
@@ -218,7 +218,13 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
     handleCloseModal?.();
   };
 
-  const getMediaComponent = useMemo(() => {
+  // NOTE: plain computed value, NOT useMemo. It sits AFTER the
+  // `if (!activeFile) return` guard above, so as a hook it would run
+  // conditionally (skipped when activeFile is null) — changing the hook
+  // count between renders and throwing "rendered more hooks than during
+  // the previous render", which crashed the modal the instant you tapped
+  // a video/image to open it. Recomputing this on each render is cheap.
+  const getMediaComponent: React.ReactNode = (() => {
     switch (true) {
       case activeFile.mimetype.startsWith('image/'):
         return (
@@ -298,7 +304,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
         );
       }
     }
-  }, [activeFile]);
+  })();
 
   return (
     <ModalContainerFullScreen>

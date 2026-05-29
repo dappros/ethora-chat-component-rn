@@ -29,10 +29,21 @@ export function insertMessageWithDelimiter(
   );
 
   if (existingIndex !== -1) {
-    roomMessages[existingIndex] = deepMerge(
-      { ...roomMessages[existingIndex] },
-      { ...message, pending: false }
-    );
+    const existing = roomMessages[existingIndex];
+    // Preserve the sender identity captured on first insert. The MUC echo
+    // parses user.id from the stanza's `from`/senderJID (the room nick or
+    // bare-jid local part), which often differs from the optimistic
+    // sender id (xmppUsername / walletAddress) set when WE sent it.
+    // deepMerge would overwrite it, flipping an own message to the "other"
+    // side (rendered on the left, "as if someone else wrote it"). Keep the
+    // original id so ownership (user.id === self) stays correct.
+    const preservedUserId =
+      (existing as any)?.user?.id || (message as any)?.user?.id;
+    const merged = deepMerge({ ...existing }, { ...message, pending: false });
+    if (merged.user && preservedUserId) {
+      merged.user.id = preservedUserId;
+    }
+    roomMessages[existingIndex] = merged;
     return;
   }
 
