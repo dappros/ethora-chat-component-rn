@@ -24,6 +24,16 @@ import * as ImageManipulator from 'expo-image-manipulator';
 // instead of a silent failed bubble. 50 MB matches the backend limit.
 const MAX_MEDIA_BYTES = 50 * 1024 * 1024;
 
+const formatBytes = (bytes: number): string => {
+  if (bytes >= 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+  if (bytes >= 1024) {
+    return `${(bytes / 1024).toFixed(0)} KB`;
+  }
+  return `${bytes} B`;
+};
+
 const normalizeImageAsset = async (asset: ImagePicker.ImagePickerAsset) => {
   const mime = (asset.mimeType || '').toLowerCase();
   const looksLikeHeic =
@@ -77,7 +87,6 @@ const SendInput: React.FC<SendInputProps> = ({
   const [isRecording, setIsRecording] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const [filePreviews, setFilePreviews] = useState<MediaFile[]>([]);
-  const [inputHeight, setInputHeight] = useState(40);
   const [showMediaMenu, setShowMediaMenu] = useState(false);
 
   // Refs shadow `message` and `filePreviews` so handleSendClick can:
@@ -95,6 +104,21 @@ const SendInput: React.FC<SendInputProps> = ({
   const sendingRef = useRef(false);
 
   const handleFileSelect = (files: MediaFile[]) => {
+    // Enforce the upload size cap before anything reaches the network.
+    // The backend rejects oversized bodies with HTTP 413; catching it
+    // here gives a clear message instead of a silent failed bubble.
+    const oversize = files.find(
+      (f) => typeof f.size === 'number' && f.size > MAX_MEDIA_BYTES
+    );
+    if (oversize) {
+      Alert.alert(
+        'File too large',
+        `"${oversize.name}" is ${formatBytes(oversize.size!)}. The maximum allowed size is ${Math.round(
+          MAX_MEDIA_BYTES / (1024 * 1024)
+        )} MB.`
+      );
+      return;
+    }
     filePreviewsRef.current = files;
     setFilePreviews([...files]);
   };
@@ -209,6 +233,7 @@ const SendInput: React.FC<SendInputProps> = ({
           uri: asset.uri,
           type: asset.mimeType || 'application/octet-stream',
           name: asset.name || `file_${Date.now()}`,
+          size: asset.size ?? undefined,
         },
       ]);
     } catch (err) {
@@ -353,17 +378,15 @@ const SendInput: React.FC<SendInputProps> = ({
                 }}
                 editable={!isLoading || !isMessageProcessing}
                 multiline={true}
-                // maxHeight={72}
-                onContentSizeChange={(event) => {
-                  setInputHeight(
-                    Math.min(
-                      72,
-                      Math.max(40, event.nativeEvent.contentSize.height)
-                    )
-                  );
-                }}
+                // No fixed height: a multiline TextInput auto-grows to fit
+                // its content between min/max. Locking `height` made iOS
+                // top-align the text inside the taller box (it looked like
+                // the text had dropped). minHeight keeps the 40px tap
+                // target; the row's align-items:center vertically centres
+                // the content-sized input.
                 style={{
-                  height: inputHeight,
+                  minHeight: 40,
+                  maxHeight: 120,
                   flex: 1,
                 }}
               />

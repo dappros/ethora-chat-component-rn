@@ -190,6 +190,10 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
               // can be overridden — but this gets the default usable.
               paddingBottom: 80,
               justifyContent: 'center',
+              // Black backdrop so CONTAIN letterboxing reads as a proper
+              // video viewer instead of bars in the modal's base colour.
+              backgroundColor: '#000',
+              borderRadius: 12,
             }}
           >
             <Video

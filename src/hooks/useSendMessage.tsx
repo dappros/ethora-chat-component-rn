@@ -9,7 +9,7 @@ import {
   clearMessageFailure,
   markMessageFailed,
 } from '../roomStore/roomHeapSlice';
-import { uploadFile, uploadFileViaFetch } from '../networking/api-requests/auth.api';
+import { uploadFileViaFetch } from '../networking/api-requests/auth.api';
 import { RootState } from '../roomStore';
 import { useEventHandlers } from './useEventHandlers';
 import type { IConfig, IMessage } from '../types/types';
@@ -32,6 +32,11 @@ const PENDING_WATCHDOG_MS = 30_000;
 let __sendIdSeq = 0;
 const nextStanzaId = (prefix: string): string =>
   `${prefix}-${Date.now()}-${(__sendIdSeq = (__sendIdSeq + 1) >>> 0)}`;
+
+// Hard client-side cap on a single upload. The backend rejects oversized
+// bodies with HTTP 413; SendInput blocks oversized files at pick time,
+// and this mirrors that limit on every send path (including retries).
+const MAX_MEDIA_BYTES = 50 * 1024 * 1024;
 
 export const useSendMessage = (_configOverride?: IConfig) => {
   const { client } = useXmppClient();
@@ -234,6 +239,36 @@ export const useSendMessage = (_configOverride?: IConfig) => {
     ) => {
       client?.onCriticalSend?.(activeRoomJID);
 
+      // Defensive 50 MB guard on every send path (SendInput blocks it at
+      // pick time, but retries replay the saved payload straight here).
+      if (typeof data?.size === 'number' && data.size > MAX_MEDIA_BYTES) {
+        console.warn('media exceeds 50MB cap — not uploading', {
+          name: data?.name,
+          size: data?.size,
+        });
+        if (existingId) {
+          dispatch(
+            markMessageFailed({
+              kind: 'media',
+              id: existingId,
+              roomJID: activeRoomJID,
+              data,
+              type,
+              isReply,
+              isChecked,
+              mainMessage,
+            })
+          );
+        }
+        handleMessageFailed({
+          message: 'media',
+          roomJID: activeRoomJID,
+          error: new Error('File exceeds the 50 MB upload limit'),
+          messageType: 'media',
+        });
+        return;
+      }
+
       const id = existingId || `send-media-message:${uuidv4()}`;
       const optimisticTimestamp = Date.now();
       const optimisticDate = new Date(optimisticTimestamp).toISOString();
@@ -350,12 +385,14 @@ export const useSendMessage = (_configOverride?: IConfig) => {
         name: data?.name || data?.fileName || `media_${Date.now()}`,
       };
 
-      // Backend `/files/` accepts both singular and plural field names
-      // across deployments — try the plural form first (current SDK
-      // convention used by images that work), then fall back to
-      // singular on the first 500. This unsticks consumers whose
-      // Ethora deployment ships the singular variant for non-image
-      // media (bug #10).
+      // Mirror the web client: a single multipart POST to /files/ with
+      // the file under the plural "files" field. We send it via fetch
+      // (not axios) because RN's fetch sets the multipart boundary on the
+      // Content-Type header correctly. The previous axios fallback omitted
+      // a valid boundary, so the server mis-parsed one file as many and
+      // rejected the request with HTTP 413 "TOO_MANY_FILES". The only
+      // retry is the documented singular-"file" fallback for deployments
+      // that 500 on the plural field (bug #10).
       const tryUpload = async () => {
         const fd = new FormData();
         fd.append('files', fileBlob as any);
@@ -370,12 +407,6 @@ export const useSendMessage = (_configOverride?: IConfig) => {
             const fd2 = new FormData();
             fd2.append('file', fileBlob as any);
             return await uploadFileViaFetch(fd2);
-          }
-          if (err?.code === 'ERR_NETWORK') {
-            console.warn('upload via fetch failed with ERR_NETWORK — falling back to axios');
-            const fd3 = new FormData();
-            fd3.append('files', fileBlob as any);
-            return await uploadFile(fd3);
           }
           throw err;
         }

@@ -1,39 +1,54 @@
 import React from 'react';
-import { CustomSystemMessage } from '../styled/StyledComponents';
-import styled from 'styled-components/native';
+import { View, Text, StyleSheet } from 'react-native';
 
 interface SystemMessageProps {
   messageText?: string;
   colors?: { primary?: string; secondary?: string };
 }
 
-export const CustomSystemMessageText = styled.Text<{
-  primary?: string;
-  secondary?: string;
-}>`
-  margin: 0;
-  color: ${(props) => props.primary || '#0052cd'};
-  border-radius: 12px;
-  padding: 6px 12px;
-  font-size: 12px;
-  line-height: 16px;
-  font-weight: 600;
-  text-align: center;
-  max-width: 85%;
-  background-color: ${(props) => props.secondary || '#e7edf9'};
-`;
-
 const SystemMessage: React.FC<SystemMessageProps> = ({
   messageText,
   colors,
 }) => {
   return (
-    <CustomSystemMessage>
-      <CustomSystemMessageText {...colors}>
-        {messageText}
-      </CustomSystemMessageText>
-    </CustomSystemMessage>
+    <View style={styles.container}>
+      {/* maxWidth lives on this View (not the Text) so the Text reliably
+          wraps to multiple lines instead of staying on one line and
+          getting clipped — a styled.Text with a percentage max-width
+          doesn't bound its own line box the way a View does. */}
+      <View
+        style={[
+          styles.bubble,
+          { backgroundColor: colors?.secondary || '#e7edf9' },
+        ]}
+      >
+        <Text style={[styles.text, { color: colors?.primary || '#0052cd' }]}>
+          {messageText}
+        </Text>
+      </View>
+    </View>
   );
 };
 
 export default SystemMessage;
+
+const styles = StyleSheet.create({
+  container: {
+    width: '100%',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  bubble: {
+    maxWidth: '85%',
+    borderRadius: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  text: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+});

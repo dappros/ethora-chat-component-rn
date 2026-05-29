@@ -373,18 +373,16 @@ const MessageList = <TMessage extends IMessage>({
         <TouchableOpacity
           style={[
             styles.newMessageIndicator,
-            { backgroundColor: config?.colors?.secondary },
+            { backgroundColor: config?.colors?.primary || '#0052CD' },
           ]}
           onPress={handleNewMessageIndicatorPress}
         >
-          <ArowDownIcon />
+          {/* White chevron on the saturated FAB. The icon's default
+              color is white, which was invisible against the previous
+              light `secondary` background — hence "no icon". */}
+          <ArowDownIcon color="#FFFFFF" width={22} height={22} />
           {unreadWhileScrolledUp > 0 && (
-            <View
-              style={[
-                styles.newMessageBadge,
-                { backgroundColor: config?.colors?.primary || '#E53935' },
-              ]}
-            >
+            <View style={styles.newMessageBadge}>
               <Text style={styles.newMessageBadgeText}>
                 {unreadWhileScrolledUp > 99 ? '99+' : unreadWhileScrolledUp}
               </Text>
@@ -448,11 +446,16 @@ const styles = StyleSheet.create({
     height: 40,
     bottom: 20,
     right: 20,
-    backgroundColor: '#007AFF',
-    padding: 10,
+    backgroundColor: '#0052CD',
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
+    // Lift the FAB off the chat background so it reads as a button.
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 4,
   },
   newMessageText: {
     color: '#fff',
@@ -468,6 +471,11 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
+    // Fixed red so it stays distinct from the (primary-coloured) FAB,
+    // with a white ring to separate the two.
+    backgroundColor: '#E53935',
+    borderWidth: 2,
+    borderColor: '#fff',
   },
   newMessageBadgeText: {
     color: '#fff',

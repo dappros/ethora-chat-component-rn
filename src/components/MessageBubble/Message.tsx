@@ -461,9 +461,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginRight: 6,
   },
-  // Row keeps the time text and the DoubleTick SVG on the same
-  // baseline — previously the SVG lived inside a <Text> and floated
-  // above the time. alignItems center vertically aligns both.
+  // Row keeps the time text and the DoubleTick SVG on the same line.
+  // The time Text gets an explicit lineHeight equal to the 16px tick so
+  // both occupy the same-height box; with alignItems center they line up
+  // exactly. Without the lineHeight the Text's natural line box was
+  // shorter than the icon, so the centred tick floated above the digits.
   timestampRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -473,6 +475,9 @@ const styles = StyleSheet.create({
   },
   timestampText: {
     fontSize: 12,
+    lineHeight: 16,
     color: '#999',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
 });

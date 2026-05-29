@@ -291,14 +291,20 @@ describe('customer feedback round — locked behaviour', () => {
       expect(src).not.toMatch(/const \[amplitudes/);
     });
 
-    it('VideoMessage uses useNativeControls (no onBuffer={handleOpen} loop)', () => {
+    it('VideoMessage shows a tappable poster that opens the preview (no onBuffer loop)', () => {
       const fs = require('fs');
       const src = fs.readFileSync(
         require.resolve('../src/components/styled/VideoMessage'),
         'utf-8'
       );
-      expect(src).toMatch(/useNativeControls/);
-      // The bug: onBuffer={handleOpen} re-opened the preview modal in a loop.
+      // Inline bubble now renders the first frame as a poster behind a
+      // play affordance; tapping anywhere opens the full-screen player
+      // (which keeps useNativeControls). Inline native controls were
+      // dropped because they swallowed the tap and looked cramped.
+      expect(src).toMatch(/from 'expo-av'/);
+      expect(src).toMatch(/onPress=\{handleOpen\}/);
+      // The original bug: onBuffer={handleOpen} re-opened the modal in a
+      // loop. Guard that it never comes back on any handler.
       expect(src).not.toMatch(/onBuffer=\{handleOpen\}/);
     });
   });
