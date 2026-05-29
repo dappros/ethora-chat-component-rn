@@ -96,9 +96,12 @@ const CustomMessagePhotoContainer = styled.TouchableOpacity`
   margin-right: 10px;
 `;
 
-const CustomUserName = styled.Text<{ color?: string }>`
+const CustomUserName = styled.Text<{ color?: string; media: boolean }>`
   font-size: 14px;
   font-weight: 500;
+  padding-bottom: 8px;
+  padding-left: ${({media}) => media ? '16px': 0};
+  padding-top: ${({media}) => media ? '8px': 0};
   color: ${({ color }) => color || '#333'};
 `;
 
@@ -335,7 +338,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
             backgroundMessage={config?.messageColor?.backgroundMessage}
           >
             {!isUser && (
-              <CustomUserName color={config?.colors?.primary}>
+              <CustomUserName color={config?.colors?.primary} media={message?.isMediafile === 'true'}>
                 {message.user.name}
               </CustomUserName>
             )}

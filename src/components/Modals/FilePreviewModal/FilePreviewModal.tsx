@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import styled from 'styled-components/native';
 import {
   CenterContainer,
@@ -11,8 +11,16 @@ import Button from '../../styled/Button';
 import { RootState } from '../../../roomStore';
 import { FullScreenImage } from '../../styled/StyledInputComponents/MediaComponents';
 import { setActiveFile } from '../../../roomStore/chatSettingsSlice';
-import { Alert, Text, View, Platform } from 'react-native';
+import {
+  Alert,
+  Text,
+  View,
+  Platform,
+  TouchableOpacity,
+  StyleSheet,
+} from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
+import { PlayIcon } from '../../../assets/icons';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as MediaLibrary from 'expo-media-library';
 import { useToast } from '../../../context/ToastContext';
@@ -44,6 +52,87 @@ export const FullScreenVideo = styled.View`
   height: 100%;
   object-fit: contain;
 `;
+
+const ModalVideo: React.FC<{ uri: string }> = ({ uri }) => {
+  const videoRef = React.useRef<any>(null);
+  const [box, setBox] = useState<{ w: number; h: number } | null>(null);
+  const [nat, setNat] = useState<{ w: number; h: number } | null>(null);
+  const [showPlay, setShowPlay] = useState(true);
+
+  let size: { w: number; h: number } | null = null;
+  if (box && nat) {
+    const scale = Math.min(box.w / nat.w, box.h / nat.h);
+    size = { w: Math.round(nat.w * scale), h: Math.round(nat.h * scale) };
+  }
+
+  const handlePlay = async () => {
+    setShowPlay(false);
+    try {
+      await videoRef.current?.playAsync();
+    } catch {
+      /* ignore */
+    }
+  };
+
+  return (
+    <View
+      style={{ flex: 1, width: '100%', justifyContent: 'center', alignItems: 'center' }}
+      onLayout={(e) =>
+        setBox({
+          w: e.nativeEvent.layout.width,
+          h: e.nativeEvent.layout.height,
+        })
+      }
+    >
+      <View
+        style={
+          size
+            ? { width: size.w, height: size.h }
+            : { width: '100%', height: '100%' }
+        }
+      >
+        <Video
+          ref={videoRef}
+          style={{ width: '100%', height: '100%', backgroundColor: 'transparent' }}
+          source={{ uri }}
+          useNativeControls
+          resizeMode={ResizeMode.CONTAIN}
+          shouldPlay={false}
+          onReadyForDisplay={(e: any) => {
+            const ns = e?.naturalSize;
+            if (ns?.width && ns?.height) {
+              let w = ns.width;
+              let h = ns.height;
+              if (ns.orientation === 'portrait' && w > h) {
+                [w, h] = [h, w];
+              }
+              setNat({ w, h });
+            }
+          }}
+          onPlaybackStatusUpdate={(s: any) => {
+            if (s?.isPlaying) {setShowPlay(false);}
+          }}
+        />
+        {/* Play affordance shown immediately on open so it's obvious the
+            preview is a playable video; tapping starts playback and the
+            native controls take over. */}
+        {showPlay && (
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={handlePlay}
+            style={StyleSheet.absoluteFillObject}
+          >
+            <View style={styles.playOverlay}>
+              <View style={styles.playButton}>
+                <PlayIcon width={28} height={28} />
+              </View>
+            </View>
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+};
 
 interface FilePreviewModalProps {
   handleCloseModal: any;
@@ -168,46 +257,17 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
       case activeFile.mimetype.startsWith('image/'):
         return (
           <FullScreenImage
-            src={
-              activeFile.fileURL ||
-              'https://as2.ftcdn.net/v2/jpg/02/51/95/53/1000_F_251955356_FAQH0U1y1TZw3ZcdPGybwUkH90a3VAhb.jpg'
-            }
-            alt={activeFile.fileName}
+            source={{
+              uri:
+                activeFile.fileURL ||
+                'https://as2.ftcdn.net/v2/jpg/02/51/95/53/1000_F_251955356_FAQH0U1y1TZw3ZcdPGybwUkH90a3VAhb.jpg',
+            }}
+            resizeMode="contain"
+            accessibilityLabel={activeFile.fileName}
           />
         );
       case activeFile.mimetype.startsWith('video/'):
-        return (
-          <View
-            style={{
-              width: '100%',
-              height: '100%',
-              // Reserve bottom space so `useNativeControls` (which
-              // overlays the bottom edge of the Video element) doesn't
-              // disappear behind the consumer's tab bar / home indicator.
-              // 80px covers a standard React Navigation bottom tab bar
-              // (~50px) plus iOS home indicator (~34px). For consumers
-              // who size differently, the outer ModalContainerFullScreen
-              // can be overridden — but this gets the default usable.
-              paddingBottom: 80,
-              justifyContent: 'center',
-              // Black backdrop so CONTAIN letterboxing reads as a proper
-              // video viewer instead of bars in the modal's base colour.
-              backgroundColor: '#000',
-              borderRadius: 12,
-            }}
-          >
-            <Video
-              style={{
-                width: '100%',
-                height: '100%',
-              }}
-              source={{ uri: activeFile.fileURL }}
-              useNativeControls
-              resizeMode={ResizeMode.CONTAIN}
-              shouldPlay={false}
-            />
-          </View>
-        );
+        return <ModalVideo uri={activeFile.fileURL} />;
       case activeFile.mimetype.startsWith('audio/'):
         return (
           <View
@@ -291,10 +351,13 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
       <CenterContainer
         style={{
           display: 'flex',
-          height: '100%',
+          flex: 1,
           justifyContent: 'center',
           overflow: 'hidden',
           padding: 16,
+          paddingBottom: 48,
+          borderTopWidth: '1px',
+          borderTopColor: '#f0f0f0',
         }}
       >
         {getMediaComponent}
@@ -303,5 +366,21 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
     </ModalContainerFullScreen>
   );
 };
+
+const styles = StyleSheet.create({
+  playOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  playButton: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});
 
 export default FilePreviewModal;
