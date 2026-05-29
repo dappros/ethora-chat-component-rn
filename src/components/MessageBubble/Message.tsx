@@ -5,7 +5,6 @@ import {
   StyleSheet,
   findNodeHandle,
   UIManager,
-  Dimensions,
   Text,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
@@ -141,12 +140,15 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   }
 
   const [contextMenuPosition, setContextMenuPosition] = useState<{
-    x: number;
-    y: number;
+    left: number;
+    right: number;
+    top: number;
+    bottom: number;
   } | null>(null);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const messageRef = useRef<View>(null);
+  const bubbleRef = useRef<View>(null);
 
   const handleUserAvatarClick = (user: IUser): void => {
     dispatch(setActiveModal(MODAL_TYPES.PROFILE));
@@ -234,46 +236,17 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   };
 
   const handleLongPress = () => {
-    if (messageRef.current) {
-      const nodeHandle = findNodeHandle(messageRef.current);
+    const target = bubbleRef.current ?? messageRef.current;
+    if (target) {
+      const nodeHandle = findNodeHandle(target);
       if (nodeHandle) {
-        UIManager.measure(nodeHandle, (_x, _y, _width, height, pageX, pageY) => {
-          const screenHeight = Dimensions.get('window').height;
-          // Actual MessageInteractions is short — Copy (1 row, ~40px)
-          // for non-own messages, Copy+Edit+Delete with dividers
-          // (~140px) for own messages. 160 covers the worst case with
-          // a tiny safety margin. The previous 280 estimate was for a
-          // bigger reactions-strip menu that landed as a separate
-          // component — leaving 280 here over-reserved space and made
-          // the menu render absurdly high above the bubble.
-          const MENU_HEIGHT = 160;
-          // Treat the consumer-supplied keyboardVerticalOffset as a
-          // proxy for tab bar + bottom safe-area when present; falls
-          // back to a reasonable default so the menu doesn't bump into
-          // the nav bar on phones without one in config.
-          const bottomReserve =
-            (config?.keyboardVerticalOffset ?? 0) + 24;
-          const topReserve = 16;
-
-          const spaceBelow = screenHeight - (pageY + height) - bottomReserve;
-          const spaceAbove = pageY - topReserve;
-
-          let menuY: number;
-          if (spaceBelow >= MENU_HEIGHT) {
-            menuY = pageY + height;
-          } else if (spaceAbove >= MENU_HEIGHT) {
-            menuY = pageY - MENU_HEIGHT;
-          } else {
-            // Neither side has room (e.g. very small phone, large
-            // menu) — clamp to the visible region so at least the
-            // top of the menu is reachable.
-            menuY = Math.max(
-              topReserve,
-              screenHeight - MENU_HEIGHT - bottomReserve
-            );
-          }
-
-          setContextMenuPosition({ x: pageX, y: menuY });
+        UIManager.measure(nodeHandle, (_x, _y, width, height, pageX, pageY) => {
+          setContextMenuPosition({
+            left: pageX,
+            right: pageX + width,
+            top: pageY,
+            bottom: pageY + height,
+          });
         });
       }
     }
@@ -340,6 +313,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
           delayLongPress={500}
         >
           <CustomMessageBubble
+            {...({ ref: bubbleRef, collapsable: false } as any)}
             isUser={isUser}
             deleted={message.isDeleted}
             isMedia={message?.isMediafile === 'true' && !message?.isDeleted}
