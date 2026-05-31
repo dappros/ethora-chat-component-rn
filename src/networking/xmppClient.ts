@@ -410,6 +410,17 @@ export class XmppClient {
         // that don't reference it; tree-shaken via dead-code elim.
         devPushLog('xmpp', 'disconnect');
       } catch {}
+      // Self-heal at the socket level. The provider's reconnect effect
+      // keys on `client.status`, but that's a mutated class field React
+      // does NOT track — so a silent socket drop (e.g. JS paused by the
+      // debugger, iOS WebSocket suspend) never re-runs the effect and the
+      // client sits 'offline' forever (sends then queue and time out).
+      // Driving reconnect here makes recovery independent of React.
+      if (!this.suppressReconnect) {
+        try {
+          this.scheduleReconnect();
+        } catch {}
+      }
     };
 
     this.onOnline = () => {
@@ -538,6 +549,14 @@ export class XmppClient {
     if (this.reconnectTimer) {clearTimeout(this.reconnectTimer);}
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
+      // The connection may have recovered on its own (xmpp.js auto-
+      // reconnect) between scheduling and firing — don't tear down a
+      // healthy stream. forceReconnect() bypasses this by calling
+      // reconnect() directly.
+      if (this.status === 'online') {
+        this.reconnectAttempts = 0;
+        return;
+      }
       this.reconnect();
     }, delay);
   }

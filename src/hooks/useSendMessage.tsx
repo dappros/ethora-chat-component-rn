@@ -11,7 +11,8 @@ import {
 } from '../roomStore/roomHeapSlice';
 import { uploadFileViaFetch } from '../networking/api-requests/auth.api';
 import { enqueueOutboundSend } from '../networking/outboundQueue';
-import { RootState } from '../roomStore';
+import { RootState, store } from '../roomStore';
+import { getGlobalXmppClient } from '../utils/clientRegistry';
 import { useEventHandlers } from './useEventHandlers';
 import type { IConfig, IMessage } from '../types/types';
 
@@ -176,13 +177,22 @@ export const useSendMessage = (_configOverride?: IConfig) => {
       }, PENDING_WATCHDOG_MS);
 
       try {
-        if (!client) {
-          // No client instance yet (start race, or the full-reinit window
-          // after 3 failed reconnects). Don't throw "No XMPP client" and
-          // don't fail the bubble — buffer the send and let it replay on
-          // the next 'online'. The optimistic message stays pending; the
-          // 30s watchdog above still owns the eventual failure if no
-          // client ever comes up. (Keep the watchdog armed — do NOT clear.)
+  
+        const effectiveClient: any =
+          client ||
+          [
+            getGlobalXmppClient(),
+            store.getState()?.chatSettingStore?.client,
+          ].find((c: any) => c && c.status === 'online');
+
+        if (!effectiveClient) {
+          const anyClient: any =
+            client ||
+            getGlobalXmppClient() ||
+            store.getState()?.chatSettingStore?.client;
+          try {
+            anyClient?.forceReconnect?.();
+          } catch {}
           enqueueOutboundSend({
             optimisticId,
             roomJID: activeRoomJID,
@@ -209,7 +219,7 @@ export const useSendMessage = (_configOverride?: IConfig) => {
         // matches and the bubble flips from pending → delivered in-place
         // (instead of rendering two copies, which is what happens when
         // ids don't match).
-        client.sendMessage(
+        effectiveClient.sendMessage(
           activeRoomJID,
           user.firstName,
           user.lastName,
@@ -475,13 +485,26 @@ export const useSendMessage = (_configOverride?: IConfig) => {
           // Stanza id == placeholder id so the MUC echo's outer
           // <message id="..."> matches xmppId on the placeholder and
           // insertMessageWithDelimiter merges in place + flips pending.
-          // When there's no client instance (start / reinit race) buffer
-          // the stanza so the already-uploaded file replays on reconnect
-          // instead of being lost. When the instance exists,
-          // sendMediaMessageStanza self-gates on stream readiness.
-          if (client) {
-            client.sendMediaMessageStanza(activeRoomJID, messagePayload, id);
+          const effectiveMediaClient: any =
+            client ||
+            [
+              getGlobalXmppClient(),
+              store.getState()?.chatSettingStore?.client,
+            ].find((c: any) => c && c.status === 'online');
+          if (effectiveMediaClient) {
+            effectiveMediaClient.sendMediaMessageStanza(
+              activeRoomJID,
+              messagePayload,
+              id
+            );
           } else {
+            const anyMediaClient: any =
+              client ||
+              getGlobalXmppClient() ||
+              store.getState()?.chatSettingStore?.client;
+            try {
+              anyMediaClient?.forceReconnect?.();
+            } catch {}
             enqueueOutboundSend({
               optimisticId: id,
               roomJID: activeRoomJID,

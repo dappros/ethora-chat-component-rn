@@ -22,6 +22,7 @@ import {
 } from '../types/types';
 import {
   buildXmppClientKey,
+  getGlobalXmppClient,
   getReusableXmppClientByKey,
   isXmppClientReusable,
   setGlobalXmppClient,
@@ -581,6 +582,18 @@ export const useXmppClient = () => {
   const context = useContext(XmppContext);
   if (!context) {
     throw new Error('useXmppClient must be used within an XmppProvider');
+  }
+  if (!context.client) {
+    const candidates: Array<XmppClient | null | undefined> = [
+      getGlobalXmppClient(),
+      store.getState()?.chatSettingStore?.client as XmppClient | undefined,
+    ];
+    const live = candidates.find(
+      (c) => c && (c as any).status === 'online'
+    );
+    if (live) {
+      return { ...context, client: live };
+    }
   }
   return context;
 };

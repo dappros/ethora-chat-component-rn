@@ -51,6 +51,7 @@ export const sendTextMessage = (
       : `send-text-message-${Date.now()}-${(_sendTextSeq = (_sendTextSeq + 1) >>> 0)}`;
 
   try {
+    const dataXmlns = toServiceXmlns(devServer, client);
     const message = xml(
       'message',
       {
@@ -59,7 +60,7 @@ export const sendTextMessage = (
         id: id,
       },
       xml('data', {
-        xmlns: toServiceXmlns(devServer, client),
+        xmlns: dataXmlns,
         senderFirstName: firstName,
         senderLastName: lastName,
         fullName: `${firstName} ${lastName}`,
