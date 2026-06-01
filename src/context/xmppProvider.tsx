@@ -74,9 +74,6 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
   const [client, setClient] = useState<XmppClient | null>(null);
   const [providerBootstrapStatus, setProviderBootstrapStatus] =
     useState<ProviderBootstrapStatus>('idle');
-  const [reconnectAttempts, setReconnectAttempts] = useState(0);
-  // True once auth has expired unrecoverably (stale JWT, no refresh
-  // possible). Stops the reconnect loop and lets the host re-auth.
 
   // Track which "init mode" this provider runs in. When config.initBeforeLoad
   // is true, the provider owns bootstrap and ChatWrapper just waits.
@@ -216,11 +213,18 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
         allRoomPresences(underlying).catch((e) =>
           devPushLog('warn', 'reconnect: allRoomPresences re-join failed', e)
         );
+        // Also refresh the private store so unread / lastViewed markers
+        // are accurate after a long reconnect — the MUC re-join above only
+        // restores delivery, not unread state. Idempotent on first connect.
+        created
+          .getChatsPrivateStoreRequestStanza()
+          .catch((e: unknown) =>
+            devPushLog('warn', 'reconnect: privateStore refresh failed', e)
+          );
       });
 
       setClient(created);
       lastCredsRef.current = { username, password, settings };
-      setReconnectAttempts(0);
       return created;
     },
     [client, config?.xmppSettings, credentialsProvider]
@@ -237,6 +241,30 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
 
     const abortController = new AbortController();
     let cancelled = false;
+    // Auto-retry a TRANSIENT bootstrap failure a few times with backoff
+    // before surfacing the error modal — a flaky network at launch should
+    // self-heal, not dead-end the user on a Retry button. (Bad-creds
+    // failures resolve to null below and fail fast — they never reach the
+    // catch, so they aren't retried.)
+    const MAX_BOOTSTRAP_ATTEMPTS = 3;
+    let bootstrapAttempt = 0;
+    // Overall time budget: if we never reach 'ready' (a step hangs), abort
+    // the in-flight work and fail so the loader can't spin forever.
+    const BOOTSTRAP_BUDGET_MS = 45000;
+    let reachedReady = false;
+    let budgetTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+      if (cancelled || reachedReady) {return;}
+      devPushLog('warn', 'initBeforeLoad: time budget exceeded → failed');
+      abortController.abort();
+      inflightBootstrapKeyRef.current = '';
+      setProviderBootstrapStatus('failed');
+    }, BOOTSTRAP_BUDGET_MS);
+    const clearBudget = () => {
+      if (budgetTimer) {
+        clearTimeout(budgetTimer);
+        budgetTimer = null;
+      }
+    };
 
     const run = async () => {
       // Stable bootstrap key — re-run only when these change.
@@ -350,6 +378,8 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
         store.dispatch(setStoreClient(c));
         completedBootstrapKeyRef.current = key;
         inflightBootstrapKeyRef.current = '';
+        reachedReady = true;
+        clearBudget();
         setProviderBootstrapStatus('ready');
         devPushLog('rn', 'initBeforeLoad: READY');
 
@@ -370,13 +400,34 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
           roomLimit: qos?.preloadTopKRooms,
         }).catch((err) => console.warn('History preload scheduler failed', err));
       } catch (error: any) {
-        if (cancelled) {return;}
-        devPushLog('error', 'initBeforeLoad: bootstrap threw', {
+        if (cancelled || abortController.signal.aborted) {return;}
+        bootstrapAttempt += 1;
+        // Throws here are transient (network / XMPP connect). A bad-creds
+        // failure resolves to null above and fails fast without throwing,
+        // so it never reaches this catch. Retry with backoff before the
+        // modal; release the in-flight key so the recursive run() isn't
+        // short-circuited by its own guard.
+        if (bootstrapAttempt < MAX_BOOTSTRAP_ATTEMPTS) {
+          const backoff = Math.min(8000, 1000 * 2 ** (bootstrapAttempt - 1));
+          devPushLog(
+            'rn',
+            `initBeforeLoad: attempt ${bootstrapAttempt} failed (${error?.message}); retrying in ${backoff}ms`
+          );
+          inflightBootstrapKeyRef.current = '';
+          setTimeout(() => {
+            if (!cancelled && !abortController.signal.aborted) {
+              run();
+            }
+          }, backoff);
+          return;
+        }
+        devPushLog('error', 'initBeforeLoad: bootstrap threw (giving up)', {
           message: error?.message,
           status: error?.response?.status,
           data: error?.response?.data,
         });
         inflightBootstrapKeyRef.current = '';
+        clearBudget();
         setProviderBootstrapStatus('failed');
       }
     };
@@ -385,6 +436,7 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
 
     return () => {
       cancelled = true;
+      clearBudget();
       abortController.abort();
       // Re-running this effect (deps changed or unmount) must release the
       // in-flight bootstrap key so the next render isn't permanently
@@ -414,36 +466,30 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
   ]);
 
   // -----------------------------------------------------------
-  // Reconnect / reinit on disconnect
+  // Reconnect watchdog. The client now owns reconnection (onDisconnect →
+  // scheduleReconnect with uncapped, clamped backoff; a connect 'error'
+  // reschedules too). This is the single provider-side safety net for the
+  // states the event-driven triggers miss: a stuck 'connecting', a connect
+  // 'error', or a server-side outage where NetInfo never reported the
+  // device offline. While foregrounded, if we're not provably online and
+  // not suppressed, force a reconnect (debounced inside forceReconnect).
+  //
+  // Replaces the old status-keyed reconnect effect, which keyed on
+  // `client.status` — a mutated class field React does NOT track — so on a
+  // silent socket drop it frequently never re-ran (and its 3-attempts-then-
+  // full-reinit path was effectively dead).
   // -----------------------------------------------------------
   useEffect(() => {
     if (!client) {return;}
-    // Successful (re)connect — clear the backoff counter so the next
-    // blip starts a fresh 3-attempt budget instead of jumping straight
-    // to a full re-init.
-    if (client.status === 'online') {
-      if (reconnectAttempts !== 0) {setReconnectAttempts(0);}
-      return;
-    }
-    if (client.status !== 'offline') {return;}
-
-    if (reconnectAttempts < 3) {
-      console.log(`xmpp reconnect attempt ${reconnectAttempts + 1}`);
-      client.scheduleReconnect();
-      setReconnectAttempts((prev) => prev + 1);
-      return;
-    }
-
-    // After 3 failed reconnects, drop the client and re-init from scratch.
-    if (lastCredsRef.current) {
-      const { username, password, settings } = lastCredsRef.current;
-      setGlobalXmppClient(null);
-      setClient(null);
-      initializeClient(username, password, settings).catch((err) =>
-        console.error('Full reinit failed:', err)
-      );
-    }
-  }, [client, client?.status, reconnectAttempts, initializeClient]);
+    const id = setInterval(() => {
+      if (AppState.currentState !== 'active') {return;}
+      if (client.status !== 'online' && !client.suppressReconnect) {
+        devPushLog('rn', `watchdog: client ${client.status} → forceReconnect`);
+        client.forceReconnect();
+      }
+    }, 30000);
+    return () => clearInterval(id);
+  }, [client]);
 
   // -----------------------------------------------------------
   // AppState → background: flush lastViewedTimestamp into the
@@ -474,7 +520,6 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
         // connect).
         if (c && (c.status === 'offline' || c.status === 'error')) {
           devPushLog('rn', `AppState active: client ${c.status} → forceReconnect`);
-          setReconnectAttempts(0);
           c.forceReconnect();
         }
         return;
@@ -504,23 +549,20 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
   // -----------------------------------------------------------
   useEffect(() => {
     if (!client) {return;}
-    let wasOffline = false;
     const unsub = NetInfo.addEventListener((state) => {
       // Guard against undefined/partial state (jest mock, early emit).
       const reachable =
         !!state?.isConnected && state?.isInternetReachable !== false;
-      if (!reachable) {
-        wasOffline = true;
-        return;
-      }
-      // Network just came back (was offline → now reachable).
-      if (wasOffline) {
-        wasOffline = false;
-        if (client.status === 'offline' || client.status === 'error') {
-          devPushLog('rn', 'NetInfo: network restored → forceReconnect');
-          setReconnectAttempts(0);
-          client.forceReconnect();
-        }
+      if (!reachable) {return;}
+      // Reachable. If we're in a dead state, kick a reconnect — do NOT
+      // require a prior offline→online transition (a missed/coalesced
+      // offline event otherwise left us stuck offline forever). Skip
+      // 'connecting' so we don't interrupt an in-progress connect; the
+      // watchdog covers a stuck 'connecting'. forceReconnect() debounces
+      // bursts and resets the backoff itself.
+      if (client.status === 'offline' || client.status === 'error') {
+        devPushLog('rn', `NetInfo: reachable & client ${client.status} → forceReconnect`);
+        client.forceReconnect();
       }
     });
     return () => unsub();
@@ -556,7 +598,6 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
       setClient(null);
       completedBootstrapKeyRef.current = '';
       inflightBootstrapKeyRef.current = '';
-      setReconnectAttempts(0);
       setProviderBootstrapStatus('idle');
       await clearPersistedState();
     });

@@ -70,10 +70,8 @@ const MessageList = <TMessage extends IMessage>({
     .room! as IRoom;
   const [isUserAtBottom, setIsUserAtBottom] = useState(true);
   const [showNewMessageIndicator, setShowNewMessageIndicator] = useState(false);
-  const [isContentOffset, setIsContentOffset] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isScrollBlocked, setIsScrollBlocked] = useState(false);
-  const [hasUserScrolled, setHasUserScrolled] = useState(false);
   // Count of messages that arrived while the user was scrolled up.
   // Renders as a badge on the scroll-to-bottom arrow so they know how
   // much they're missing without having to scroll to find out.
@@ -84,6 +82,12 @@ const MessageList = <TMessage extends IMessage>({
   // inflates the count. Was previously a message-COUNT snapshot, which
   // wrongly counted back-paginated old messages as "new" (Android repro).
   const newestSeenTsRef = useRef<number | null>(null);
+  // Refs mirror the viewport state synchronously. The auto-follow logic
+  // runs from FlatList callbacks where setState hasn't necessarily
+  // committed yet; relying on stale React state is what caused the chat
+  // to jump back to the bottom when a new message landed mid-scroll.
+  const isUserAtBottomRef = useRef(true);
+  const hasUserScrolledRef = useRef(false);
 
   const flatListRef = useRef<FlatList<IMessage>>(null);
 
@@ -188,16 +192,72 @@ const MessageList = <TMessage extends IMessage>({
   ]);
 
   const dataMessages = useMemo(() => {
-    return memoizedMessages.slice().reverse();
-  }, [memoizedMessages]);
+    const base = memoizedMessages.slice().reverse();
+    const boundaryTs = newestSeenTsRef.current;
+    if (
+      isUserAtBottomRef.current ||
+      boundaryTs === null ||
+      unreadWhileScrolledUp === 0
+    ) {
+      return base;
+    }
+
+    let lastNewIndex = -1;
+    for (let i = 0; i < base.length; i++) {
+      if (msgSortableMs(base[i]) > boundaryTs) {
+        lastNewIndex = i;
+      } else {
+        break;
+      }
+    }
+
+    if (lastNewIndex === -1) {return base;}
+
+    const withDivider = base.slice();
+    withDivider.splice(lastNewIndex + 1, 0, {
+      id: 'delimiter-new-local',
+      user: {
+        id: 'system',
+        name: undefined,
+        token: '',
+        refreshToken: '',
+      } as any,
+      date: new Date(boundaryTs).toISOString(),
+      body: 'New Messages',
+      roomJid: roomJID,
+    } as IMessage);
+    return withDivider;
+  }, [memoizedMessages, isUserAtBottom, roomJID, unreadWhileScrolledUp]);
 
   const renderMessage = useCallback(
     ({ item, index }: { item: IMessage; index: number }) => {
+      if (String(item.id).startsWith('delimiter-new')) {
+        return (
+          <MessageContainer
+            CustomMessage={CustomMessage}
+            CustomDaySeparator={CustomDaySeparator}
+            CustomNewMessageLabel={CustomNewMessageLabel}
+            message={item}
+            activeMessage={activeMessage}
+            config={config}
+            walletAddress={user.xmppUsername || user.walletAddress}
+            isReply={isReply}
+            showDateLabel={false}
+          />
+        );
+      }
+
       const messageDate = new Date(item.date).toDateString();
       let showDateLabel = false;
 
-      const nextMessage =
-        index < dataMessages.length - 1 ? dataMessages[index + 1] : null;
+      let nextMessage = null;
+      for (let i = index + 1; i < dataMessages.length; i++) {
+        const candidate = dataMessages[i];
+        if (!String(candidate.id).startsWith('delimiter-new')) {
+          nextMessage = candidate;
+          break;
+        }
+      }
       const nextMessageDate = nextMessage
         ? new Date(nextMessage.date).toDateString()
         : null;
@@ -223,10 +283,13 @@ const MessageList = <TMessage extends IMessage>({
     [
       activeMessage,
       config,
+      CustomDaySeparator,
+      CustomMessage,
+      CustomNewMessageLabel,
+      dataMessages,
+      isReply,
       user.xmppUsername,
       user.walletAddress,
-      isReply,
-      memoizedMessages.length,
     ]
   );
 
@@ -240,16 +303,12 @@ const MessageList = <TMessage extends IMessage>({
   }, [flatListRef]);
 
   const handleContentSizeChange = useCallback(() => {
-    if (isContentOffset) {
+    if (!isLoadingMore && flatListRef.current && isUserAtBottomRef.current) {
       scrollToBottom();
-      setIsContentOffset(false);
-    }
-    if (!isLoadingMore && flatListRef.current && isUserAtBottom) {
-      scrollToBottom();
-    } else if (!isLoadingMore && hasUserScrolled) {
+    } else if (!isLoadingMore && hasUserScrolledRef.current) {
       setShowNewMessageIndicator(true);
     }
-  }, [isUserAtBottom, scrollToBottom, isLoadingMore, hasUserScrolled]);
+  }, [scrollToBottom, isLoadingMore]);
 
   const handleScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -260,12 +319,12 @@ const MessageList = <TMessage extends IMessage>({
       // to a long thread feel broken. Drag-to-dismiss still works via
       // FlatList's keyboardDismissMode="interactive" below.
 
-      if (contentOffset > 150 && !hasUserScrolled) {
-        setHasUserScrolled(true);
+      if (contentOffset > 150 && !hasUserScrolledRef.current) {
+        hasUserScrolledRef.current = true;
       }
 
       if (contentOffset < 150) {
-        setIsContentOffset(true);
+        isUserAtBottomRef.current = true;
         setShowNewMessageIndicator(false);
         setIsUserAtBottom(true);
         // Back at the bottom — clear the unread-while-scrolled-up
@@ -273,8 +332,8 @@ const MessageList = <TMessage extends IMessage>({
         setUnreadWhileScrolledUp(0);
         newestSeenTsRef.current = null;
       } else {
-        setIsContentOffset(false);
-        if (hasUserScrolled) {
+        isUserAtBottomRef.current = false;
+        if (hasUserScrolledRef.current) {
           setShowNewMessageIndicator(true);
         }
         if (newestSeenTsRef.current === null) {
@@ -293,14 +352,14 @@ const MessageList = <TMessage extends IMessage>({
         setIsUserAtBottom(false);
       }
     },
-    [hasUserScrolled, memoizedMessages]
+    [memoizedMessages]
   );
 
   // Keep the badge in sync with messages that arrive while the user is
   // scrolled up. Count ONLY messages newer than the newest-seen snapshot
   // — so loading older history (back-pagination) doesn't inflate it.
   useEffect(() => {
-    if (isUserAtBottom) {return;}
+    if (isUserAtBottomRef.current) {return;}
     if (newestSeenTsRef.current === null) {return;}
     const since = newestSeenTsRef.current;
     const count = memoizedMessages.reduce(
@@ -311,20 +370,27 @@ const MessageList = <TMessage extends IMessage>({
   }, [memoizedMessages, isUserAtBottom]);
 
   const handleLayout = () => {
-    setIsContentOffset(true);
+    isUserAtBottomRef.current = true;
+    hasUserScrolledRef.current = false;
     setIsUserAtBottom(true);
   };
 
   const handleNewMessageIndicatorPress = () => {
+    isUserAtBottomRef.current = true;
     setShowNewMessageIndicator(false);
     setIsUserAtBottom(true);
+    setUnreadWhileScrolledUp(0);
+    newestSeenTsRef.current = null;
     scrollToBottom();
   };
 
   useEffect(() => {
-    setHasUserScrolled(false);
+    hasUserScrolledRef.current = false;
+    isUserAtBottomRef.current = true;
     setShowNewMessageIndicator(false);
     setIsUserAtBottom(true);
+    setUnreadWhileScrolledUp(0);
+    newestSeenTsRef.current = null;
   }, [roomJID]);
 
   const BackgroundImage = useMemo(() => {
@@ -364,7 +430,7 @@ const MessageList = <TMessage extends IMessage>({
       )}
       <FlatList
         ref={flatListRef}
-        data={memoizedMessages.slice().reverse()}
+        data={dataMessages}
         renderItem={renderMessage}
         keyExtractor={(item) => item.id.toString()}
         onEndReached={handleLoadMore}

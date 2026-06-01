@@ -31,6 +31,7 @@ import {ModalWrapper} from '../Modals/ModalWrapper/ModalWrapper';
 import {useChatSettingState} from '../../hooks/useChatSettingState';
 import {DeviceEventEmitter, Pressable, Text, View} from 'react-native';
 import {pushLog as devPushLog} from '../../utils/devLogger';
+import {normalizeRoomJid} from '../../helpers/normalizeRoomJid';
 
 interface ChatWrapperProps {
   token?: string;
@@ -127,7 +128,11 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
 
   useEffect(() => {
     if (roomJID) {
-      dispatch(setCurrentRoom({roomJID: roomJID}));
+      dispatch(
+        setCurrentRoom({
+          roomJID: normalizeRoomJid(roomJID, config?.xmppSettings?.conference),
+        }),
+      );
     }
 
     const initXmmpClient = async () => {

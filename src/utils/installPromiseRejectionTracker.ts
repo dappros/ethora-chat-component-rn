@@ -69,7 +69,7 @@ export function installPromiseRejectionTracker() {
     // Hermes-only hook — newer RN exposes this.
     if (typeof g.HermesInternal?.enablePromiseRejectionTracker === 'function') {
       g.HermesInternal.enablePromiseRejectionTracker({
-        allRejections: true,
+        allRejections: false,
         onUnhandled: (id: number, error: any) => {
           // warn, not error — see note above. `allRejections: true` fires
           // this for rejections handled a tick later, so a red box here

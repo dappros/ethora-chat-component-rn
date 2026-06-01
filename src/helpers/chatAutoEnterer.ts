@@ -2,6 +2,7 @@
 
 import { AppDispatch } from '../roomStore';
 import { setCurrentRoom } from '../roomStore/roomsSlice';
+import { normalizeRoomJid } from './normalizeRoomJid';
 
 interface XmppConfig {
   xmppSettings?: {
@@ -25,15 +26,8 @@ export const chatAutoEnterer = ({
   console.log('🟡 chatAutoEnterer: Called', { roomJID, wasAutoSelected });
 
   if (roomJID) {
-    // If roomJID is already a full JID, use it directly
-    // Otherwise, construct it from chatId if needed
     const conferenceDomain = config.xmppSettings?.conference ?? '';
-    let finalRoomJID = roomJID;
-
-    if (!roomJID.includes('@') && conferenceDomain) {
-      finalRoomJID = `${roomJID}@${conferenceDomain}`;
-      console.log('🟡 chatAutoEnterer: Constructed roomJID', finalRoomJID);
-    }
+    const finalRoomJID = normalizeRoomJid(roomJID, conferenceDomain);
 
     console.log('🟡 chatAutoEnterer: Setting current room', finalRoomJID);
     dispatch(setCurrentRoom({ roomJID: finalRoomJID }));

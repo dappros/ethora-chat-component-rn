@@ -22,6 +22,7 @@ import { inviteRoomRequest } from './xmpp/inviteRoomRequest.xmpp';
 import { getRooms } from './xmpp/getRooms.xmpp';
 import { handleStanza } from './xmpp/handleStanzas.xmpp';
 import { pushLog as devPushLog } from '../utils/devLogger';
+import { normalizeRoomJid } from '../helpers/normalizeRoomJid';
 import {
   clearOutboundSends,
   enqueueOutboundSend,
@@ -83,6 +84,14 @@ export class XmppClient {
   reconnectAttempts = 0;
   maxReconnectAttempts = 5;
   reconnectDelay = 2000;
+  // Upper bound on the backoff delay. The old hard stop at
+  // maxReconnectAttempts gave up entirely after ~62s; now we keep retrying
+  // at a steady cadence on a long outage and just clamp the delay here.
+  maxReconnectDelay = 30000;
+  // Timestamp of the last forced reconnect so bursty external triggers
+  // (NetInfo + AppState + the provider watchdog firing together) can't
+  // spawn a reconnect storm.
+  private lastReconnectAt = 0;
   suppressReconnect = false;
   // Tracked so close()/disconnect() can cancel a pending reconnect —
   // otherwise a scheduleReconnect() timer fires after logout and (until
@@ -380,6 +389,17 @@ export class XmppClient {
           this.lastAuthError = 'not-authorized';
         }
         this.status = 'error';
+        // A connect-time failure lands in 'error', which — unlike a
+        // 'disconnect' after being online — has no other retry path
+        // (onError doesn't reschedule; the provider only reacts to
+        // 'offline'). Schedule a backoff retry so a failed initial or
+        // reconnect attempt recovers on its own. reconnect() refreshes
+        // creds first when the failure was a SASL not-authorized.
+        if (!this.suppressReconnect) {
+          try {
+            this.scheduleReconnect();
+          } catch {}
+        }
       });
     } catch (error) {
       console.error('Error initializing client:', error);
@@ -538,13 +558,20 @@ export class XmppClient {
 
   scheduleReconnect() {
     if (this.suppressReconnect) {return;}
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('Max reconnect attempts reached.');
-      return;
-    }
+    // Keep retrying indefinitely while mounted — never permanently give up.
+    // The old `>= maxReconnectAttempts` hard stop stranded the client
+    // offline after ~62s with nothing but a NetInfo/foreground event to
+    // revive it. The exponent is capped so the delay clamps to
+    // maxReconnectDelay instead of growing unbounded on a long outage.
     this.reconnectAttempts++;
-    const delay =
-      this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
+    const exp = Math.min(
+      this.reconnectAttempts - 1,
+      Math.max(0, this.maxReconnectAttempts)
+    );
+    const delay = Math.min(
+      this.maxReconnectDelay,
+      this.reconnectDelay * Math.pow(2, exp)
+    );
     console.log(`Reconnecting attempt ${this.reconnectAttempts} in ${delay}ms`);
     if (this.reconnectTimer) {clearTimeout(this.reconnectTimer);}
     this.reconnectTimer = setTimeout(() => {
@@ -569,6 +596,14 @@ export class XmppClient {
    */
   forceReconnect() {
     if (this.suppressReconnect) {return;}
+    // Debounce bursts: NetInfo restore + AppState 'active' + the provider
+    // watchdog can fire within the same instant. reconnect() dedups
+    // CONCURRENT calls, but sequential ones (one finishes, the next
+    // arrives) would still each tear down + re-create the client. Ignore
+    // forces within 2s of the last one.
+    const now = Date.now();
+    if (now - this.lastReconnectAt < 2000) {return;}
+    this.lastReconnectAt = now;
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
@@ -701,11 +736,11 @@ export class XmppClient {
   }
 
   leaveTheRoomStanza = (roomJID: string) => {
-    leaveTheRoom(roomJID, this.client);
+    leaveTheRoom(normalizeRoomJid(roomJID, this.conference), this.client);
   };
 
   presenceInRoomStanza = (roomJID: string) => {
-    presenceInRoom(this.client, roomJID);
+    presenceInRoom(this.client, normalizeRoomJid(roomJID, this.conference));
   };
 
   getHistoryStanza = async (
@@ -728,7 +763,7 @@ export class XmppClient {
   };
 
   getLastMessageArchiveStanza(roomJID: string) {
-    getLastMessage(this.client, roomJID);
+    getLastMessage(this.client, normalizeRoomJid(roomJID, this.conference));
   }
 
   setRoomImageStanza = (
@@ -741,11 +776,11 @@ export class XmppClient {
   };
 
   getRoomInfoStanza = (roomJID: string) => {
-    getRoomInfo(roomJID, this.client);
+    getRoomInfo(normalizeRoomJid(roomJID, this.conference), this.client);
   };
 
   getRoomMembersStanza = (roomJID: string) => {
-    getRoomMembers(roomJID, this.client);
+    getRoomMembers(normalizeRoomJid(roomJID, this.conference), this.client);
   };
 
   /**

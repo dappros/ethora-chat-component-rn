@@ -7,7 +7,6 @@ const mockFlatListScrollToOffset = jest.fn();
 
 jest.mock('react-native', () => {
   const React = require('react');
-  const RN = jest.requireActual('react-native');
 
   const FlatList = React.forwardRef((props: any, ref: any) => {
     React.useImperativeHandle(ref, () => ({
@@ -15,9 +14,10 @@ jest.mock('react-native', () => {
     }));
 
     return React.createElement(
-      RN.View,
+      'View',
       {
         testID: 'mock-flat-list',
+        data: props.data,
         onScroll: props.onScroll,
         onContentSizeChange: props.onContentSizeChange,
         onLayout: props.onLayout,
@@ -38,15 +38,64 @@ jest.mock('react-native', () => {
   });
 
   return {
-    ...RN,
+    View: ({ children, ...props }: any) =>
+      React.createElement('View', props, children),
+    Text: ({ children, ...props }: any) =>
+      React.createElement('Text', props, children),
+    Image: (props: any) => React.createElement('Image', props),
+    TouchableOpacity: ({ children, ...props }: any) =>
+      React.createElement('TouchableOpacity', props, children),
+    StyleSheet: {
+      create: (styles: any) => styles,
+      absoluteFillObject: {},
+    },
+    Dimensions: {
+      get: () => ({ width: 390, height: 844 }),
+    },
     FlatList,
   };
 });
+
+jest.mock('../src/components/MainComponents/MessageContainer', () => {
+  const React = require('react');
+  const { Text } = require('react-native');
+  return {
+    MessageContainer: ({ message }: any) =>
+      React.createElement(
+        Text,
+        {},
+        String(message?.id).startsWith('delimiter-new')
+          ? 'New messages'
+          : message?.body || ''
+      ),
+  };
+});
+
+jest.mock('../src/components/styled/StyledInputComponents/Composing', () => {
+  return () => null;
+});
+
+jest.mock('../src/components/styled/StyledInputComponents/CustomTypingIndicator', () => {
+  return () => null;
+});
+
+jest.mock('../src/components/styled/Loader', () => {
+  return () => null;
+});
+
+jest.mock('../src/components/styled/TreadLabel', () => {
+  return () => null;
+});
+
+jest.mock('../src/assets/icons', () => ({
+  ArowDownIcon: () => null,
+}));
 
 import roomsReducer, {
   addRoom,
   addRoomMessage,
   setCurrentRoom,
+  setLastViewedTimestamp,
 } from '../src/roomStore/roomsSlice';
 import chatSettingsReducer from '../src/roomStore/chatSettingsSlice';
 import MessageList from '../src/components/MainComponents/MessageList';
@@ -76,7 +125,11 @@ const makeMessage = (idMs: number, body: string) =>
     showInChannel: 'true',
   } as any);
 
-const seedRoom = (store: ReturnType<typeof makeStore>, messages: any[]) => {
+const seedRoom = (
+  store: ReturnType<typeof makeStore>,
+  messages: any[],
+  lastViewedTimestamp?: number
+) => {
   store.dispatch(
     addRoom({
       roomData: {
@@ -90,10 +143,19 @@ const seedRoom = (store: ReturnType<typeof makeStore>, messages: any[]) => {
         roomBg: '',
         composing: false,
         composingList: [],
+        lastViewedTimestamp,
       } as any,
     })
   );
   store.dispatch(setCurrentRoom({ roomJID: ROOM }));
+  if (typeof lastViewedTimestamp !== 'undefined') {
+    store.dispatch(
+      setLastViewedTimestamp({
+        chatJID: ROOM,
+        timestamp: lastViewedTimestamp,
+      })
+    );
+  }
 };
 
 const renderMessageList = async (store: ReturnType<typeof makeStore>) => {
@@ -122,10 +184,14 @@ describe('MessageList new-message UX', () => {
 
   it('does not auto-scroll when new content arrives while the user is scrolled up', async () => {
     const store = makeStore();
-    seedRoom(store, [
-      makeMessage(1710000000000, 'old-1'),
-      makeMessage(1710000001000, 'old-2'),
-    ]);
+    seedRoom(
+      store,
+      [
+        makeMessage(1710000000000, 'old-1'),
+        makeMessage(1710000001000, 'old-2'),
+      ],
+      0
+    );
 
     const tree = await renderMessageList(store);
     const flatList = tree.root.findByProps({ testID: 'mock-flat-list' });
@@ -142,18 +208,12 @@ describe('MessageList new-message UX', () => {
           contentOffset: { y: 280 },
         },
       });
-    });
-
-    await act(async () => {
       store.dispatch(
         addRoomMessage({
           roomJID: ROOM,
           message: makeMessage(1710000002000, 'new-message'),
         })
       );
-    });
-
-    await act(async () => {
       flatList.props.onContentSizeChange?.();
     });
 
@@ -162,10 +222,14 @@ describe('MessageList new-message UX', () => {
 
   it('renders a local "New messages" divider when messages arrive above the current viewport', async () => {
     const store = makeStore();
-    seedRoom(store, [
-      makeMessage(1710000000000, 'old-1'),
-      makeMessage(1710000001000, 'old-2'),
-    ]);
+    seedRoom(
+      store,
+      [
+        makeMessage(1710000000000, 'old-1'),
+        makeMessage(1710000001000, 'old-2'),
+      ],
+      0
+    );
 
     const tree = await renderMessageList(store);
     const flatList = tree.root.findByProps({ testID: 'mock-flat-list' });
@@ -186,9 +250,20 @@ describe('MessageList new-message UX', () => {
         })
       );
     });
+    await act(async () => {});
 
-    const labels = tree.root.findAll(
-      (node) => typeof node.props?.children === 'string' && node.props.children === 'New messages'
+    const updatedFlatList = tree.root.findByProps({ testID: 'mock-flat-list' });
+    expect(updatedFlatList.props.data.length).toBeGreaterThanOrEqual(3);
+    expect(
+      updatedFlatList.props.data.some((item: any) =>
+        String(item.id).startsWith('delimiter-new')
+      )
+    ).toBe(true);
+
+    const labels = tree.root.findAll((node) =>
+      Array.isArray(node.children)
+        ? node.children.includes('New messages')
+        : node.children === 'New messages'
     );
 
     expect(labels.length).toBeGreaterThan(0);

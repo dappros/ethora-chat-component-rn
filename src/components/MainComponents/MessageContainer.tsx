@@ -73,7 +73,7 @@ export const MessageContainer: FC<MessageContainerProps> = ({
     );
   }
 
-  if (message?.id === 'delimiter-new') {
+  if (String(message?.id || '').startsWith('delimiter-new')) {
     return CustomNewMessageLabel ? (
       <CustomNewMessageLabel color={config?.colors?.primary} />
     ) : (
@@ -85,7 +85,9 @@ export const MessageContainer: FC<MessageContainerProps> = ({
 
   return (
     <View key={message.id}>
-      {showDateLabel && !activeMessage && message.id !== 'delimiter-new' ? (
+      {showDateLabel &&
+      !activeMessage &&
+      !String(message.id || '').startsWith('delimiter-new') ? (
         CustomDaySeparator ? (
           <CustomDaySeparator
             date={messageDate}

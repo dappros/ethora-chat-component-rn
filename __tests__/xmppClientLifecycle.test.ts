@@ -318,15 +318,25 @@ describe('XmppClient — reconnect', () => {
     expect(reconnectSpy).toHaveBeenCalledTimes(2);
   });
 
-  it('stops scheduling once maxReconnectAttempts is reached', () => {
+  it('keeps retrying past maxReconnectAttempts with the delay clamped (no permanent give-up)', () => {
+    jest.useFakeTimers();
     const c = new XmppClient('u', 'p', { devServer: 'h' });
+    const reconnectSpy = jest.spyOn(c, 'reconnect').mockImplementation(() => {});
+    // At the old hard cap scheduleReconnect used to bail and log "Max
+    // reconnect attempts reached". Now it keeps going so a long outage
+    // still recovers without a NetInfo/foreground kick.
     c.reconnectAttempts = c.maxReconnectAttempts;
     const errSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     c.scheduleReconnect();
-    expect(c.reconnectAttempts).toBe(c.maxReconnectAttempts);
-    expect(errSpy).toHaveBeenCalledWith(
+    expect(c.reconnectAttempts).toBe(c.maxReconnectAttempts + 1);
+    expect(errSpy).not.toHaveBeenCalledWith(
       expect.stringContaining('Max reconnect attempts reached')
     );
+    // Delay is clamped to maxReconnectDelay instead of growing unbounded.
+    jest.advanceTimersByTime(c.maxReconnectDelay - 1);
+    expect(reconnectSpy).not.toHaveBeenCalled();
+    jest.advanceTimersByTime(1);
+    expect(reconnectSpy).toHaveBeenCalledTimes(1);
     errSpy.mockRestore();
   });
 
@@ -338,6 +348,24 @@ describe('XmppClient — reconnect', () => {
     c.scheduleReconnect();
     jest.advanceTimersByTime(60_000);
     expect(c.reconnectAttempts).toBe(0);
+    expect(reconnectSpy).not.toHaveBeenCalled();
+  });
+
+  it('forceReconnect debounces bursty triggers (NetInfo + AppState + watchdog)', () => {
+    jest.useRealTimers();
+    const c = new XmppClient('u', 'p', { devServer: 'h' });
+    const reconnectSpy = jest.spyOn(c, 'reconnect').mockImplementation(() => {});
+    c.forceReconnect();
+    c.forceReconnect(); // within the 2s debounce window → ignored
+    c.forceReconnect();
+    expect(reconnectSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('forceReconnect short-circuits when suppressReconnect=true', () => {
+    const c = new XmppClient('u', 'p', { devServer: 'h' });
+    c.suppressReconnect = true;
+    const reconnectSpy = jest.spyOn(c, 'reconnect').mockImplementation(() => {});
+    c.forceReconnect();
     expect(reconnectSpy).not.toHaveBeenCalled();
   });
 
