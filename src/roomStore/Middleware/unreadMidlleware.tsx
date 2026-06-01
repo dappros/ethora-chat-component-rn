@@ -65,6 +65,8 @@ const TRIGGER_ACTIONS = new Set([
   'roomMessages/editRoomMessage',
   'roomMessages/setLastViewedTimestamp',
   'roomMessages/setCurrentRoom',
+  'roomMessages/setVisibleRoom',
+  'roomMessages/clearVisibleRoom',
   'roomMessages/addRoom',
   'roomMessages/updateRoom',
   // The history preload scheduler merges fetched pages via this action on
@@ -100,7 +102,7 @@ export const unreadMiddleware: Middleware =
 
     const state = storeAPI.getState();
     const rooms = state.rooms.rooms;
-    const activeChatJID = state.rooms.activeRoomJID;
+    const visibleRoomJID = state.rooms.visibleRoomJID;
     const selfUser = state.chatSettingStore?.user;
     const selfXmpp = selfUser?.xmppUsername || '';
     const selfWallet = selfUser?.walletAddress || '';
@@ -109,13 +111,24 @@ export const unreadMiddleware: Middleware =
       Object.keys(rooms).forEach((jid) => {
         const room = rooms[jid];
         if (!room) {return;}
-        // Skip rooms the user is currently viewing — `setLastViewedTimestamp(0)`
-        // clears their unread directly. Skip rooms with no reference point
-        // (covers undefined / null / 0) — after logout→login, hydrated rooms
+        // Skip rooms the user is currently viewing — visibility clears the
+        // badge directly. Skip rooms with no reference point (covers
+        // undefined / null / 0) — after logout→login, hydrated rooms
         // come back without lastViewedTimestamp, and treating that as 0
         // made every history message satisfy `date > 0` and incorrectly
         // bumped unread for already-seen content.
-        if (!room.lastViewedTimestamp || jid === activeChatJID) {return;}
+        if (jid === visibleRoomJID) {
+          if (room.unreadMessages !== 0) {
+            storeAPI.dispatch(
+              updateRoom({
+                jid,
+                updates: { unreadMessages: 0 },
+              })
+            );
+          }
+          return;
+        }
+        if (!(room.lastViewedTimestamp > 0)) {return;}
 
         // Fingerprint = "what would affect the answer". If neither the
         // message count nor the lastViewedTimestamp changed since last

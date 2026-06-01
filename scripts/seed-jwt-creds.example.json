@@ -1,0 +1,9 @@
+{
+  "jwt": "PLACEHOLDER_CLIENT_JWT",
+  "baseUrl": "https://api.chat.ethora.com/v1",
+  "xmppHost": "xmpp.chat.ethora.com",
+  "xmppDevServer": "xmpp.chat.ethora.com",
+  "conference": "conference.xmpp.chat.ethora.com",
+  "email": "",
+  "password": ""
+}

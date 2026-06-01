@@ -49,7 +49,7 @@ const logoutService = {
   performLogout: async (): Promise<void> => {
     // 0. Flush lastViewedTimestamp to the server's private store BEFORE
     //    we close XMPP. Only rooms with no outstanding unread (plus the
-    //    active room) get their entries updated — rooms with unread
+    //    visible room) get their entries updated — rooms with unread
     //    keep their old marker so the next login still surfaces those
     //    messages as unread. Without this, an active-room view at
     //    logout would still appear unread on next login because we
@@ -58,11 +58,11 @@ const logoutService = {
       const state = store.getState();
       const client = (state.chatSettingStore as any)?.client;
       const rooms = state.rooms?.rooms;
-      const activeRoomJID = state.rooms?.activeRoomJID || null;
+      const visibleRoomJID = state.rooms?.visibleRoomJID || null;
       if (client?.flushLastViewedToPrivateStoreStanza) {
         await Promise.race([
           client.flushLastViewedToPrivateStoreStanza(rooms, {
-            activeRoomJID,
+            visibleRoomJID,
             onlyIfNoUnread: true,
           }),
           new Promise((res) => setTimeout(res, 2000)),

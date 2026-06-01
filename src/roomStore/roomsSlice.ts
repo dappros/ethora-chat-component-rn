@@ -92,6 +92,7 @@ export interface RoomPreloadPatch {
 export interface RoomMessagesState {
   rooms: { [jid: string]: IRoom };
   activeRoomJID: string | null;
+  visibleRoomJID: string | null;
   editAction?: EditAction;
   isLoading: boolean;
   loadingText?: string;
@@ -102,6 +103,7 @@ export interface RoomMessagesState {
 const initialState: RoomMessagesState = {
   rooms: {},
   activeRoomJID: null,
+  visibleRoomJID: null,
   isLoading: false,
   editAction: {
     isEdit: false,
@@ -205,6 +207,9 @@ const reducers = {
       const { jid } = action.payload;
       if (state.rooms[jid]) {
         delete state.rooms[jid];
+        if (state.visibleRoomJID === jid) {
+          state.visibleRoomJID = null;
+        }
       }
     },
     updateRoom(
@@ -309,9 +314,13 @@ const reducers = {
       if (roomMessages.length === 0 || start) {
         roomMessages.unshift(message);
       } else {
-        const lastViewedTimestamp = state.rooms[roomJID].lastViewedTimestamp
-          ? new Date(state.rooms[roomJID].lastViewedTimestamp)
-          : null;
+        const lastViewedValue = state.rooms[roomJID].lastViewedTimestamp;
+        const lastViewedTimestamp =
+          state.visibleRoomJID === roomJID
+            ? null
+            : lastViewedValue
+              ? new Date(lastViewedValue)
+              : null;
 
         insertMessageWithDelimiter(roomMessages, message, lastViewedTimestamp);
       }
@@ -326,6 +335,7 @@ const reducers = {
     },
     deleteAllRooms(state: WritableDraft<RoomMessagesState>) {
       state.rooms = {};
+      state.visibleRoomJID = null;
     },
     setComposing(
       state: WritableDraft<RoomMessagesState>,
@@ -357,10 +367,12 @@ const reducers = {
       const { chatJID, timestamp } = action.payload;
       if (state.rooms[chatJID]) {
         state.rooms[chatJID].lastViewedTimestamp = timestamp;
-        // timestamp === 0 means "user is currently viewing this room" —
-        // unread is cleared. Otherwise count messages received strictly
-        // after the last-viewed instant.
-        if (!timestamp) {
+        // A non-positive timestamp means "no persisted marker yet" and
+        // must not inflate unread from history that predates the first
+        // successful private-store hydration. The visible-room state is
+        // tracked separately via `visibleRoomJID`; no read/unread meaning
+        // is encoded in the timestamp itself anymore.
+        if (!(timestamp > 0)) {
           state.rooms[chatJID].unreadMessages = 0;
         } else {
           state.rooms[chatJID].unreadMessages = countNewerMessages(
@@ -395,6 +407,19 @@ const reducers = {
       // Accept null/empty so callers can clear the active room (e.g.
       // back button from chat → return to RoomList). Mirrors web.
       state.activeRoomJID = action.payload.roomJID || '';
+    },
+    setVisibleRoom: (
+      state: WritableDraft<RoomMessagesState>,
+      action: PayloadAction<{ roomJID: string | null }>
+    ) => {
+      state.visibleRoomJID = action.payload.roomJID || null;
+      const jid = state.visibleRoomJID;
+      if (jid && state.rooms[jid]) {
+        state.rooms[jid].unreadMessages = 0;
+      }
+    },
+    clearVisibleRoom: (state: WritableDraft<RoomMessagesState>) => {
+      state.visibleRoomJID = null;
     },
     /**
      * Stash a JID that a push notification asked us to open before
@@ -439,6 +464,7 @@ const reducers = {
     setLogoutState: (state: WritableDraft<RoomMessagesState>) => {
       state.rooms = {};
       state.activeRoomJID = null;
+      state.visibleRoomJID = null;
       state.isLoading = false;
     },
     setActiveMessage: (
@@ -633,6 +659,8 @@ export const {
   setLastViewedTimestamp,
   setRoomNoMessages,
   setCurrentRoom,
+  setVisibleRoom,
+  clearVisibleRoom,
   setRoomRole,
   setLogoutState,
   setActiveMessage,

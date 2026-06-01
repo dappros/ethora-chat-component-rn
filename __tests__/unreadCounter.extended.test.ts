@@ -23,6 +23,7 @@ import roomsReducer, {
   setCurrentRoom,
   setLastViewedTimestamp,
   setRoomMessages,
+  setVisibleRoom,
 } from '../src/roomStore/roomsSlice';
 import chatSettingsReducer, {
   setUser,
@@ -157,8 +158,9 @@ describe('unread counter — middleware cross-room behavior', () => {
       })
     );
     store.dispatch(setCurrentRoom({ roomJID: 'a@h' }));
+    store.dispatch(setVisibleRoom({ roomJID: 'a@h' }));
 
-    // Receiving in A (active) should not touch A's unread (already 0)
+    // Receiving in A (visible) should not touch A's unread (already 0)
     // and must NOT touch B's pre-existing unread = 3.
     store.dispatch(
       addRoomMessage({
@@ -176,10 +178,7 @@ describe('unread counter — middleware cross-room behavior', () => {
     expect(store.getState().rooms.rooms['b@h'].unreadMessages).toBe(0);
   });
 
-  it('switching current room to B clears B unread via setLastViewedTimestamp(0)', () => {
-    // This is the canonical "user enters room → badge clears"
-    // pattern. Driving via setLastViewedTimestamp(0) — the call
-    // the chat UI fires on room-enter.
+  it('marking a room visible clears its unread without zeroing the persisted marker', () => {
     const store = makeStore();
     store.dispatch(
       addRoom({
@@ -189,10 +188,10 @@ describe('unread counter — middleware cross-room behavior', () => {
         }),
       })
     );
-    store.dispatch(setLastViewedTimestamp({ chatJID: 'a@h', timestamp: 0 }));
+    store.dispatch(setVisibleRoom({ roomJID: 'a@h' }));
     const room = store.getState().rooms.rooms['a@h'];
     expect(room.unreadMessages).toBe(0);
-    expect(room.lastViewedTimestamp).toBe(0);
+    expect(room.lastViewedTimestamp).toBe(Date.parse('2026-05-15T10:00:00Z'));
   });
 
   it('editRoomMessage in a non-active room does not bump unread', () => {

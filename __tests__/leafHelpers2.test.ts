@@ -83,7 +83,7 @@ describe('updatedChatLastTimestamps', () => {
     );
   });
 
-  it('coerces an absent timestamp to 0 (current-room sentinel)', () => {
+  it('coerces an absent timestamp to 0 (unknown-marker fallback)', () => {
     const dispatch = jest.fn();
     updatedChatLastTimestamps(
       { 'a@h': '' } as any,

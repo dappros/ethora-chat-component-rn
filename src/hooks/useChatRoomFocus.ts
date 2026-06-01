@@ -1,9 +1,12 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useDispatch } from 'react-redux';
 import {
+  clearVisibleRoom,
   setCurrentRoom,
   setLastViewedTimestamp,
+  setVisibleRoom,
 } from '../roomStore/roomsSlice';
+import { store } from '../roomStore';
 
 interface UseChatRoomFocusOptions {
   /** The room JID that the consumer's tab/screen is currently showing. */
@@ -28,9 +31,8 @@ interface UseChatRoomFocusOptions {
  *
  * Without this hook, `useUnread()` will always return 0 for the chat
  * room because the SDK assumes "mounted == active". With this hook,
- * blur stamps `lastViewedTimestamp = Date.now()` (so future messages
- * count as unread) and focus stamps `0` (clears the badge and tells
- * the middleware the user is actively viewing).
+ * focus marks the room visible (clearing the badge) and blur stamps
+ * `lastViewedTimestamp = Date.now()` so future messages count as unread.
  *
  * Usage with React Navigation:
  *
@@ -51,26 +53,43 @@ export const useChatRoomFocus = ({
   isFocused,
 }: UseChatRoomFocusOptions) => {
   const dispatch = useDispatch();
+  const prevRef = useRef<{ roomJID: string | null; isFocused: boolean }>({
+    roomJID: null,
+    isFocused: false,
+  });
+
+  const leaveRoom = (jid: string) => {
+    const timestamp = Date.now();
+    dispatch(setLastViewedTimestamp({ chatJID: jid, timestamp }));
+    dispatch(clearVisibleRoom());
+    const rooms = store.getState().rooms?.rooms;
+    (store.getState().chatSettingStore as any)?.client
+      ?.flushLastViewedToPrivateStoreStanza(rooms, { visibleRoomJID: jid })
+      .catch(() => {});
+  };
 
   useEffect(() => {
-    if (!roomJID) {return;}
-    if (isFocused) {
-      // Tell middleware "user is actively viewing this room" — skips
-      // unread recomputes for it and clears any existing badge.
-      dispatch(setCurrentRoom({ roomJID }));
-      dispatch(setLastViewedTimestamp({ chatJID: roomJID, timestamp: 0 }));
-    } else {
-      // Tab lost focus. Stamp "read up to now" AND clear the active-room
-      // marker. The unread middleware skips the room while
-      // `jid === activeChatJID`, so without clearing it the count stayed
-      // pinned at 0 for tab-based consumers whose <ChatRoom> never
-      // unmounts (bug #19). On re-focus the branch above restores it.
-      dispatch(
-        setLastViewedTimestamp({ chatJID: roomJID, timestamp: Date.now() })
-      );
-      dispatch(setCurrentRoom({ roomJID: null as any }));
+    const prev = prevRef.current;
+    if (prev.isFocused && prev.roomJID && (prev.roomJID !== roomJID || !isFocused)) {
+      leaveRoom(prev.roomJID);
     }
+
+    if (roomJID && isFocused) {
+      dispatch(setCurrentRoom({ roomJID }));
+      dispatch(setVisibleRoom({ roomJID }));
+    }
+
+    prevRef.current = { roomJID: roomJID || null, isFocused };
   }, [roomJID, isFocused, dispatch]);
+
+  useEffect(() => {
+    return () => {
+      const prev = prevRef.current;
+      if (prev.isFocused && prev.roomJID) {
+        leaveRoom(prev.roomJID);
+      }
+    };
+  }, []);
 };
 
 export default useChatRoomFocus;

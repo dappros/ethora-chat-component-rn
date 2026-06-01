@@ -89,3 +89,7 @@ dist/
 # app.json + config plugins. Don't commit the generated native dirs.
 /ios/
 /android/
+
+# Local credential/config overrides
+api.config.local.ts
+scripts/seed-jwt-creds.local.json

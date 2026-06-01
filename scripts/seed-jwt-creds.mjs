@@ -1,17 +1,18 @@
 #!/usr/bin/env node
 /**
- * Seed an iOS simulator's AppLoginChatsRn AsyncStorage with the
- * built-in JWT test creds (DEFAULT_CREDS from AppLoginChatsRn.tsx),
- * so the testbed boots with the JWT field already filled in.
- *
- * The JWT + endpoints are read live from AppLoginChatsRn.tsx so this
- * never drifts from the source of truth.
+ * Seed an iOS simulator's AppLoginChatsRn AsyncStorage with local JWT
+ * credentials from an ignored JSON payload, so the testbed boots with
+ * the JWT field already filled in without baking secrets into git.
  *
  * Usage:
  *   node scripts/seed-jwt-creds.mjs <IOS_UDID> [JWT]
  *
- * Pass an optional second arg to override DEFAULT_CREDS.jwt with a
- * specific client JWT — lets two sims log in as two distinct users.
+ * Optional local payload path:
+ *   scripts/seed-jwt-creds.local.json
+ *
+ * Copy scripts/seed-jwt-creds.example.json to the local path above and
+ * fill in your own values. Pass an optional second arg to override the
+ * local-file JWT so two sims can log in as distinct users.
  *
  * Mechanism (matches scripts/seed-e2e-creds.mjs): iOS
  * RCTAsyncLocalStorage hashes each key with MD5 and stores long
@@ -27,10 +28,12 @@ import { execSync } from 'node:child_process';
 
 const CREDS_KEY = '@apploginchatsrn/creds';
 const PKG = 'com.ethora.chatcomponentrn';
+const here = path.dirname(fileURLToPath(import.meta.url));
+const localCredsPath = path.join(here, 'seed-jwt-creds.local.json');
 
 const udid = process.argv[2];
 // Optional: a specific client JWT to seed (e.g. a per-user `type:client`
-// token), overriding DEFAULT_CREDS.jwt. Lets two sims log in as two
+// token), overriding the ignored local-file JWT. Lets two sims log in as two
 // distinct users from the same script.
 const jwtOverride = process.argv[3];
 if (!udid) {
@@ -38,33 +41,47 @@ if (!udid) {
   process.exit(2);
 }
 
-// --- Read DEFAULT_CREDS values live from the testbed source. ---------
-const here = path.dirname(fileURLToPath(import.meta.url));
-const src = fs.readFileSync(path.join(here, '..', 'AppLoginChatsRn.tsx'), 'utf8');
+const readLocalCreds = () => {
+  if (!fs.existsSync(localCredsPath)) {
+    return {};
+  }
 
-const pick = (key, fallback) => {
-  const m = src.match(new RegExp(`${key}:\\s*'([^']*)'`));
-  return m ? m[1] : fallback;
+  try {
+    return JSON.parse(fs.readFileSync(localCredsPath, 'utf8'));
+  } catch (error) {
+    console.error(`seed-jwt: failed to parse ${localCredsPath}`);
+    console.error(error);
+    process.exit(3);
+  }
 };
+
+const localCreds = readLocalCreds();
 
 const creds = {
   mode: 'jwt',
-  jwt: jwtOverride || pick('jwt', ''),
+  jwt: jwtOverride || localCreds.jwt || '',
   appToken: '',
-  email: pick('email', ''),
-  password: pick('password', ''),
+  email: localCreds.email || '',
+  password: localCreds.password || '',
   resolvedUser: null,
-  baseUrl: pick('baseUrl', 'https://api.messenger-dev2.vitall.com/v1'),
-  xmppHost: pick('xmppHost', 'xmpp.messenger-dev2.vitall.com'),
-  xmppDevServer: pick('xmppDevServer', 'xmpp.messenger-dev2.vitall.com'),
-  conference: pick('conference', 'conference.xmpp.messenger-dev2.vitall.com'),
+  baseUrl: localCreds.baseUrl || '',
+  xmppHost: localCreds.xmppHost || '',
+  xmppDevServer: localCreds.xmppDevServer || '',
+  conference: localCreds.conference || '',
   singleRoom: false,
   singleRoomJid: '',
 };
 
-if (!creds.jwt) {
-  console.error('seed-jwt: could not extract JWT from AppLoginChatsRn.tsx');
-  process.exit(3);
+const missingFields = ['jwt', 'baseUrl', 'xmppHost', 'xmppDevServer', 'conference']
+  .filter((key) => !creds[key]);
+if (missingFields.length > 0) {
+  console.error(
+    `seed-jwt: missing required fields: ${missingFields.join(', ')}`
+  );
+  console.error(
+    `seed-jwt: create ${localCredsPath} from scripts/seed-jwt-creds.example.json or pass a JWT as argv[3]`
+  );
+  process.exit(4);
 }
 
 const credsJson = JSON.stringify(creds);
@@ -77,7 +94,7 @@ try {
   dataDir = execSync(`xcrun simctl get_app_container ${udid} ${PKG} data`).toString().trim();
 } catch {
   console.error(`seed-jwt: app ${PKG} not installed on ${udid} yet — install/run it once first.`);
-  process.exit(4);
+  process.exit(5);
 }
 
 const dir = path.join(dataDir, 'Library/Application Support', PKG, 'RCTAsyncLocalStorage_V1');

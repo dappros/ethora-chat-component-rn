@@ -12,6 +12,9 @@ export const useRoomState = (roomJID?: string) => {
   const activeRoomJID = useSelector(
     (state: RootState) => state.rooms.activeRoomJID
   );
+  const visibleRoomJID = useSelector(
+    (state: RootState) => state.rooms.visibleRoomJID
+  );
   const editAction = useSelector((state: RootState) => state.rooms.editAction);
   const globalLoading = useSelector(
     (state: RootState) => state.rooms.isLoading
@@ -37,6 +40,7 @@ export const useRoomState = (roomJID?: string) => {
     room,
     roomsList,
     activeRoomJID,
+    visibleRoomJID,
     editAction,
     globalLoading,
     loadingText,

@@ -6,9 +6,11 @@ import { useDispatch } from 'react-redux';
 import MessageList from './MessageList';
 import SendInput from '../styled/SendInput';
 import {
+  clearVisibleRoom,
   deleteRoomMessage,
   setEditAction,
   setLastViewedTimestamp,
+  setVisibleRoom,
 } from '../../roomStore/roomsSlice';
 import Loader from '../styled/Loader';
 import { useXmppClient } from '../../context/xmppProvider';
@@ -36,6 +38,12 @@ import {
 } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import useComposing from '../../hooks/useComposing';
+import { store } from '../../roomStore';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  getInputDockPaddingBottom,
+  getKeyboardVerticalOffset,
+} from '../../helpers/keyboardLayout';
 
 interface ChatRoomProps {
   CustomMessageComponent?: any;
@@ -59,6 +67,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
   }) => {
     const { client } = useXmppClient();
     const dispatch = useDispatch();
+    const insets = useSafeAreaInsets();
 
     const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
 
@@ -99,15 +108,9 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
         if (!activeRoomJID) {
           return;
         }
-        dispatch(
-          setLastViewedTimestamp({
-            chatJID: activeRoomJID,
-            timestamp: 0,
-          }),
-        );
         sendMs(message, activeRoomJID);
       },
-      [activeRoomJID],
+      [activeRoomJID, sendMs]
     );
 
     const sendMedia = useCallback(
@@ -156,36 +159,28 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
         return;
       }
 
-      dispatch(
-        setLastViewedTimestamp({
-          chatJID: activeRoomJID,
-          timestamp: 0,
-        }),
-      );
+      dispatch(setVisibleRoom({ roomJID: activeRoomJID }));
       setIsLoadingMore(false);
       return () => {
-        if (client) {
-          client.actionSetTimestampToPrivateStoreStanza(
-            activeRoomJID,
-            new Date().getTime(),
-            Object.keys(roomsList),
-          );
-        }
+        const timestamp = new Date().getTime();
         dispatch(
           setLastViewedTimestamp({
             chatJID: activeRoomJID,
-            timestamp: new Date().getTime(),
+            timestamp,
           }),
         );
-        dispatch(
-          deleteRoomMessage({
-            roomJID: activeRoomJID,
-            messageId: 'delimiter-new',
-          }),
-        );
+        dispatch(clearVisibleRoom());
+        if (client) {
+          client
+            .flushLastViewedToPrivateStoreStanza(store.getState().rooms?.rooms, {
+              visibleRoomJID: activeRoomJID,
+            })
+            .catch(() => {});
+        }
+        dispatch(deleteRoomMessage({ roomJID: activeRoomJID, messageId: 'delimiter-new' }));
         setIsLoadingMore(false);
       };
-    }, [activeRoomJID]);
+    }, [activeRoomJID, client, dispatch]);
 
     // hooks useEffects
     // useRoomUrl(activeRoomJID || "", roomsList, config);
@@ -210,6 +205,16 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
       return <ChooseChatMessage />;
     }
 
+    const keyboardVerticalOffset = getKeyboardVerticalOffset({
+      platform: Platform.OS,
+      configuredOffset: configWithEventHandlers?.keyboardVerticalOffset ?? 0,
+      bottomInset: insets.bottom,
+    });
+    const inputDockPaddingBottom = getInputDockPaddingBottom({
+      platform: Platform.OS,
+      bottomInset: insets.bottom,
+    });
+
     return (
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -227,7 +232,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
         //    Android, no flicker, and the input is always lifted above
         //    the keyboard regardless of the host's softInputMode.
         behavior="padding"
-        keyboardVerticalOffset={configWithEventHandlers?.keyboardVerticalOffset ?? 0}
+        keyboardVerticalOffset={keyboardVerticalOffset}
       >
         <ChatContainer
           style={
@@ -350,37 +355,39 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
           {editAction && editAction.isEdit && (
             <EditWrapper text={editAction.text || ''} onClose={onCloseEdit} />
           )}
-          {CustomInputComponent ? (
-            <CustomInputComponent
-              sendMessage={
-                editAction && editAction.isEdit ? sendEditMessage : sendMessage
-              }
-              sendMedia={sendMedia}
-              config={configWithEventHandlers}
-              isLoading={loading}
-              onFocus={sendStartComposing}
-              onBlur={sendEndComposing}
-              isMessageProcessing={isLastMessageFromUserAndProcessing(
-                activeRoomJID,
-              )}
-              editMessage={editAction && editAction.text}
-            />
-          ) : (
-            <SendInput
-              editMessage={editAction && editAction.text}
-              sendMessage={
-                editAction && editAction.isEdit ? sendEditMessage : sendMessage
-              }
-              sendMedia={sendMedia}
-              config={configWithEventHandlers}
-              isLoading={loading}
-              onFocus={sendStartComposing}
-              onBlur={sendEndComposing}
-              isMessageProcessing={isLastMessageFromUserAndProcessing(
-                activeRoomJID,
-              )}
-            />
-          )}
+          <View style={{ paddingBottom: inputDockPaddingBottom, backgroundColor: '#fff' }}>
+            {CustomInputComponent ? (
+              <CustomInputComponent
+                sendMessage={
+                  editAction && editAction.isEdit ? sendEditMessage : sendMessage
+                }
+                sendMedia={sendMedia}
+                config={configWithEventHandlers}
+                isLoading={loading}
+                onFocus={sendStartComposing}
+                onBlur={sendEndComposing}
+                isMessageProcessing={isLastMessageFromUserAndProcessing(
+                  activeRoomJID,
+                )}
+                editMessage={editAction && editAction.text}
+              />
+            ) : (
+              <SendInput
+                editMessage={editAction && editAction.text}
+                sendMessage={
+                  editAction && editAction.isEdit ? sendEditMessage : sendMessage
+                }
+                sendMedia={sendMedia}
+                config={configWithEventHandlers}
+                isLoading={loading}
+                onFocus={sendStartComposing}
+                onBlur={sendEndComposing}
+                isMessageProcessing={isLastMessageFromUserAndProcessing(
+                  activeRoomJID,
+                )}
+              />
+            )}
+          </View>
 
           {configWithEventHandlers?.customTypingIndicator?.enabled &&
             (configWithEventHandlers.customTypingIndicator.position ===

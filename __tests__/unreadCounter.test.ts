@@ -5,6 +5,7 @@ import roomsReducer, {
   addRoomMessage,
   setCurrentRoom,
   setLastViewedTimestamp,
+  setVisibleRoom,
 } from '../src/roomStore/roomsSlice';
 import chatSettingsReducer from '../src/roomStore/chatSettingsSlice';
 import { unreadMiddleware } from '../src/roomStore/Middleware/unreadMidlleware';
@@ -118,7 +119,7 @@ describe('unread counter — reducer', () => {
 });
 
 describe('unread counter — middleware (incremental)', () => {
-  it('does not increment for active room', () => {
+  it('does not increment for the visible room', () => {
     const store = makeStore();
     store.dispatch(
       addRoom({
@@ -128,6 +129,7 @@ describe('unread counter — middleware (incremental)', () => {
       })
     );
     store.dispatch(setCurrentRoom({ roomJID: 'r@h' }));
+    store.dispatch(setVisibleRoom({ roomJID: 'r@h' }));
     store.dispatch(
       addRoomMessage({
         roomJID: 'r@h',
@@ -138,7 +140,7 @@ describe('unread counter — middleware (incremental)', () => {
     expect(store.getState().rooms.rooms['r@h'].unreadMessages).toBe(0);
   });
 
-  it('increments unread for non-active room with non-zero lastViewedTimestamp', () => {
+  it('increments unread for a non-visible room with non-zero lastViewedTimestamp', () => {
     const store = makeStore();
     store.dispatch(
       addRoom({
@@ -155,6 +157,7 @@ describe('unread counter — middleware (incremental)', () => {
       })
     );
     store.dispatch(setCurrentRoom({ roomJID: 'a@h' }));
+    store.dispatch(setVisibleRoom({ roomJID: 'a@h' }));
 
     store.dispatch(
       addRoomMessage({

@@ -99,8 +99,10 @@ describe('useUnread hook — live perturbations', () => {
       );
     });
   });
-  afterAll(() => {
-    tree?.unmount();
+  afterAll(async () => {
+    await act(async () => {
+      tree?.unmount();
+    });
   });
 
   const step = async (fn: () => void) => {

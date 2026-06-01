@@ -8,13 +8,12 @@ interface RoomLike {
 }
 
 interface FlushOpts {
-  // When activeRoomJID is set, treat it as "user just viewed everything
+  // When visibleRoomJID is set, treat it as "user just viewed everything
   // up to now" and stamp it with Date.now() — even if its in-memory
-  // lastViewedTimestamp is 0 (which means "actively viewing" in
-  // roomsSlice).
-  activeRoomJID?: string | null;
+  // lastViewedTimestamp has not been updated yet.
+  visibleRoomJID?: string | null;
   // If true, only write entries for rooms where unreadMessages === 0
-  // (or the active room). Used at logout time: rooms with outstanding
+  // (or the visible room). Used at logout time: rooms with outstanding
   // unread keep their old marker so the next login still surfaces them.
   onlyIfNoUnread?: boolean;
 }
@@ -35,7 +34,7 @@ export async function flushLastViewedToPrivateStore(
   opts: FlushOpts = {}
 ): Promise<boolean> {
   if (!client?.client) {return false;}
-  const { activeRoomJID, onlyIfNoUnread } = opts;
+  const { visibleRoomJID, onlyIfNoUnread } = opts;
   const roomList = Object.values(rooms || {});
   if (roomList.length === 0) {return false;}
 
@@ -52,21 +51,20 @@ export async function flushLastViewedToPrivateStore(
 
   for (const room of roomList) {
     if (!room?.jid) {continue;}
-    const isActive = !!activeRoomJID && room.jid === activeRoomJID;
+    const isVisible = !!visibleRoomJID && room.jid === visibleRoomJID;
     const hasUnread = Number(room.unreadMessages || 0) > 0;
 
-    // For the active room, persist "now" — the in-memory value is 0
-    // (sentinel for "user is here") and writing 0 would mark all
-    // history unread on next login.
+    // For the visible room, persist "now" — read state is driven by
+    // room visibility, not by a sentinel timestamp.
     let ts: number | undefined;
-    if (isActive) {
+    if (isVisible) {
       ts = nowMs;
-    } else if (room.lastViewedTimestamp) {
+    } else if (room.lastViewedTimestamp && room.lastViewedTimestamp > 0) {
       ts = room.lastViewedTimestamp;
     }
 
     if (!ts) {continue;}
-    if (onlyIfNoUnread && hasUnread && !isActive) {continue;}
+    if (onlyIfNoUnread && hasUnread && !isVisible) {continue;}
 
     const prev = storeObj[room.jid];
     const prevNum = prev != null ? Number(prev) : 0;

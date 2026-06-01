@@ -1,6 +1,6 @@
 // RN port of the web MessageNotificationProvider. Renders Telegram-style
 // in-app toasts when a new message arrives in a room that is NOT the
-// currently active room. Backed by the global messageNotificationManager,
+// currently visible room. Backed by the global messageNotificationManager,
 // which means non-React code (stanza handlers) can push notifications.
 import React, {
   createContext,
@@ -63,8 +63,8 @@ export const MessageNotificationProvider: React.FC<ProviderProps> = ({
   const contextConfig = useSelector(
     (state: RootState) => state.chatSettingStore?.config
   );
-  const activeRoomJID = useSelector(
-    (state: RootState) => state.rooms.activeRoomJID
+  const visibleRoomJID = useSelector(
+    (state: RootState) => state.rooms.visibleRoomJID
   );
 
   const config = propConfig || contextConfig;
@@ -104,9 +104,9 @@ export const MessageNotificationProvider: React.FC<ProviderProps> = ({
 
   // Clear toasts when their room becomes active.
   useEffect(() => {
-    if (!activeRoomJID) {return;}
-    setToasts((prev) => prev.filter((t) => t.roomJID !== activeRoomJID));
-  }, [activeRoomJID]);
+    if (!visibleRoomJID) {return;}
+    setToasts((prev) => prev.filter((t) => t.roomJID !== visibleRoomJID));
+  }, [visibleRoomJID]);
 
   const dismiss = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -142,7 +142,7 @@ export const MessageNotificationProvider: React.FC<ProviderProps> = ({
     ) => {
       if (!isEnabled) {return;}
       // Don't toast for the currently active room.
-      if (activeRoomJID && activeRoomJID === roomJID) {return;}
+      if (visibleRoomJID && visibleRoomJID === roomJID) {return;}
       const id = `msg-notification-${message.id}-${Date.now()}`;
       const item: ToastItem = {
         id,
@@ -159,7 +159,7 @@ export const MessageNotificationProvider: React.FC<ProviderProps> = ({
           : next;
       });
     },
-    [isEnabled, activeRoomJID, maxNotifications]
+    [isEnabled, visibleRoomJID, maxNotifications]
   );
 
   // Register with the global manager.

@@ -1,6 +1,7 @@
 import React, {useMemo} from 'react';
 import {Provider} from 'react-redux';
 import {KeyboardProvider} from 'react-native-keyboard-controller';
+import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {store} from '../../roomStore';
 import {ConfigUser, IConfig, MessageProps} from '../../types/types';
 import {XmppProvider} from '../../context/xmppProvider';
@@ -33,15 +34,17 @@ export const ReduxWrapper: React.FC<ChatWrapperProps> = React.memo(
 
     return (
       <Provider store={store}>
-        <KeyboardProvider>
-          <XmppProvider config={memoizedConfig}>
-            <ToastProvider>
-              <MessageNotificationProvider config={memoizedConfig}>
-                <LoginWrapper config={memoizedConfig} {...props} />
-              </MessageNotificationProvider>
-            </ToastProvider>
-          </XmppProvider>
-        </KeyboardProvider>
+        <SafeAreaProvider>
+          <KeyboardProvider>
+            <XmppProvider config={memoizedConfig}>
+              <ToastProvider>
+                <MessageNotificationProvider config={memoizedConfig}>
+                  <LoginWrapper config={memoizedConfig} {...props} />
+                </MessageNotificationProvider>
+              </ToastProvider>
+            </XmppProvider>
+          </KeyboardProvider>
+        </SafeAreaProvider>
       </Provider>
     );
   },

@@ -530,10 +530,10 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
       if (!c) {return;}
       const state = store.getState();
       const rooms = state.rooms?.rooms;
-      const activeRoomJID = state.rooms?.activeRoomJID || null;
+      const visibleRoomJID = state.rooms?.visibleRoomJID || null;
       // Fire-and-forget — we're going to the background and don't
       // care about the resolution path.
-      c.flushLastViewedToPrivateStoreStanza(rooms, { activeRoomJID }).catch(
+      c.flushLastViewedToPrivateStoreStanza(rooms, { visibleRoomJID }).catch(
         () => {}
       );
     });

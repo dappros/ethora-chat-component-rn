@@ -14,6 +14,10 @@ import 'react-native-gesture-handler';
 // here mounts the chat directly without going through that entry, so
 // we need it again at the testbed root.
 import 'react-native-get-random-values';
+// Configure LogBox before App (and its expo-av / styled-components
+// imports) evaluate, so import-time dev warnings don't flash the on-screen
+// "view warnings" toast over the chat UI. Testbed-only.
+import './setupLogBox';
 import { registerRootComponent } from 'expo';
 import App from './App';
 

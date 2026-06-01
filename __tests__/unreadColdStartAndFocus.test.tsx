@@ -56,7 +56,7 @@ describe('addRoom cold-start: incoming 0 must not clobber a persisted marker', (
 describe('useChatRoomFocus: blur releases active room so unread counts (tabs)', () => {
   beforeEach(reset);
 
-  it('focus clears the badge; blur lets a later message count', async () => {
+  it('focus marks the room visible without zeroing lastViewed; blur stamps a real timestamp and later messages count', async () => {
     store.dispatch(addRoom({ roomData: mkRoom(R, LV) }));
 
     let snap: any;
@@ -81,27 +81,37 @@ describe('useChatRoomFocus: blur releases active room so unread counts (tabs)', 
         </ReduxProvider>
       );
     });
-    // Focused → active + lastViewed 0 → message does NOT count.
+    expect(store.getState().rooms.visibleRoomJID).toBe(R);
+    expect(store.getState().rooms.rooms[R].lastViewedTimestamp).toBe(LV);
+
+    // Focused -> visible room suppresses unread without mutating the persisted marker.
     await act(async () => {
       store.dispatch(addRoomMessage({ roomJID: R, message: msg('m1', new Date(LV + 3600_000).toISOString(), false) }));
     });
     expect(snap.totalCount).toBe(0);
 
-    // Blur → release active room + stamp now.
+    // Blur -> release visible room + stamp now.
     focused = false;
     await act(async () => { render(); });
+    const blurTs = store.getState().rooms.rooms[R].lastViewedTimestamp;
+    expect(store.getState().rooms.visibleRoomJID).toBeNull();
+    expect(blurTs).toBeGreaterThan(LV);
     // A message that arrives AFTER blur must now count.
     await act(async () => {
-      store.dispatch(addRoomMessage({ roomJID: R, message: msg('m2', new Date(Date.now() + 3600_000).toISOString(), false) }));
+      store.dispatch(addRoomMessage({ roomJID: R, message: msg('m2', new Date(blurTs + 3600_000).toISOString(), false) }));
     });
     expect(snap.unreadByRoom[R]).toBeGreaterThanOrEqual(1);
     expect(snap.totalCount).toBeGreaterThanOrEqual(1);
 
-    // Re-focus → cleared again.
+    // Re-focus -> visible again and unread clears without rewriting the marker to 0.
     focused = true;
     await act(async () => { render(); });
     expect(snap.totalCount).toBe(0);
+    expect(store.getState().rooms.visibleRoomJID).toBe(R);
+    expect(store.getState().rooms.rooms[R].lastViewedTimestamp).toBe(blurTs);
 
-    tree.unmount();
+    await act(async () => {
+      tree.unmount();
+    });
   });
 });

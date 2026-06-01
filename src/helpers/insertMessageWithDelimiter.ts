@@ -71,25 +71,21 @@ export function insertMessageWithDelimiter(
         isDateAfter(msg.date?.toString() ?? '', lastViewedTimestamp.toString())
       );
 
-      if (delimiterIndex !== -1) {
-        roomMessages.splice(delimiterIndex, 0, {
-          id: 'delimiter-new',
-          user: {
+        if (delimiterIndex !== -1) {
+          roomMessages.splice(delimiterIndex, 0, {
+            id: 'delimiter-new',
+            user: {
             id: 'system',
             name: undefined,
             token: '',
             refreshToken: '',
           },
           date: new Date().toString(),
-          body: 'New Messages',
-          roomJid: '',
-        });
-
-        if (lastViewedTimestamp.toString() === '0') {
-          roomMessages.splice(delimiterIndex, 1);
+            body: 'New Messages',
+            roomJid: '',
+          });
         }
       }
-    }
   } else if (
     isDateBefore(newMessageDate.toString(), firstMessage?.date?.toString() ?? '')
   ) {

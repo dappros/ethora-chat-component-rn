@@ -216,8 +216,8 @@ import { Chat, useUnread, useChatRoomFocus } from '@ethora/chat-component-rn';
 
 function ChatTab() {
   const isFocused = useIsFocused();
-  // Stamp `lastViewedTimestamp = 0` on focus (clear badge, mark active)
-  // and `Date.now()` on blur (start counting new messages as unread).
+  // Focus marks the room visible (clears the badge in-memory).
+  // Blur stamps `Date.now()` so future messages count as unread.
   useChatRoomFocus({
     roomJID: 'general@conference.xmpp.chat.ethora.com',
     isFocused,

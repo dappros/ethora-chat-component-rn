@@ -9,8 +9,9 @@
  *     between read and unread on the first newer message.
  *   - Older messages prepend; in-range messages insert at correct
  *     date order.
- *   - `lastViewedTimestamp.toString() === "0"` is a sentinel for "user
- *     is currently viewing the room" — the divider should NOT remain.
+ *   - The helper only receives a real last-viewed timestamp for rooms
+ *     that are not currently visible. Visible rooms pass `null`, so no
+ *     divider is injected while the user is actively looking at them.
  *
  * The helper mutates the array in place — that's part of the contract
  * (the slice reducer relies on immer to wrap the mutation).
@@ -38,8 +39,7 @@ const makeMsg = (
 // Wrap a numeric millisecond timestamp in the loose
 // `{ toString(): string }` shape the helper expects (matches how the
 // reducer passes `Date | null`).
-const ts = (iso: string | 0) =>
-  iso === 0 ? { toString: () => '0' } : new Date(iso);
+const ts = (iso: string) => new Date(iso);
 
 describe('insertMessageWithDelimiter — append path', () => {
   it('appends a strictly-newer message at the end', () => {
@@ -163,13 +163,12 @@ describe('insertMessageWithDelimiter — "New Messages" divider', () => {
     expect(list.some((m) => m.id === 'delimiter-new')).toBe(false);
   });
 
-  it('removes the just-inserted divider when lastViewedTimestamp.toString() === "0"', () => {
-    // Sentinel: "user is currently viewing this room", so no divider.
+  it('does not inject the divider when callers pass null for the visible room', () => {
     const list: IMessage[] = [makeMsg('old', '2026-05-01T10:00:00Z')];
     insertMessageWithDelimiter(
       list,
       makeMsg('new', '2026-05-01T12:00:00Z'),
-      ts(0)
+      null
     );
     expect(list.some((m) => m.id === 'delimiter-new')).toBe(false);
     expect(list.map((m) => m.id)).toEqual(['old', 'new']);
