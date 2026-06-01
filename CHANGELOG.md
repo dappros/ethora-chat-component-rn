@@ -3,6 +3,42 @@
 All notable changes to `@ethora/chat-component-rn` are listed here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project doesn't follow strict semver yet — version corresponds to the `package.json` field.
 
+## [26.5.11]
+
+Single-room and host-app hardening on top of 26.5.10: unread state no longer overloads `lastViewedTimestamp`, room JIDs are normalized before XMPP join paths, iOS keyboard spacing is normalized across devices, tracked default credentials are removed from source, and tenant-specific docs/testbed defaults are scrubbed. Verified with targeted Jest regression suites plus `npm run build`.
+
+### Changed
+
+#### Unread / single-room lifecycle
+
+- **Unread state split into persisted vs ephemeral visibility.** The store now tracks room visibility separately (`visibleRoomJID`) instead of overloading `lastViewedTimestamp = 0` as an "active room" sentinel. This removes the main source of tab-mounted single-room unread regressions and makes cold-start / blur / background semantics consistent.
+- **Canonical private-store flush path.** Blur, unmount, background, and logout paths now converge on the same unread timestamp flush flow instead of mixing local state updates with special-case stanza writes.
+- **Delimiter logic no longer depends on sentinel `0`.** "New messages" UI now derives from real timestamps / visibility instead of a magic unread value, which keeps divider behavior stable in mounted-tab hosts.
+
+#### Single-room roomJID normalization
+
+- **Bare room ids are normalized to full MUC JIDs** before single-room join/info/member/archive calls. This aligns the join path with the existing history path and prevents reconnect/join failures when a host passes only the room local-part.
+
+#### iOS keyboard layout
+
+- **Keyboard spacing normalized across iOS devices.** Chat input safe-area compensation is now centralized so devices with and without a home indicator keep the same visual dock behavior when the keyboard opens.
+- **`SafeAreaProvider` wrapped by the RN testbed shell.** The shared wrapper now guarantees `useSafeAreaInsets()` has a provider in the local app path.
+
+#### Credentials / docs hygiene
+
+- **Tracked default credentials removed.** `AppLoginChatsRn` now ships with blank setup defaults; the JWT seed helper reads from an ignored local JSON file instead of secrets in tracked source.
+- **Tenant-specific docs and QA notes replaced with generic runbooks.** Example profile names, QA hostnames, and customer-specific notes were scrubbed from README / scripts / docs in favor of reusable environment-agnostic instructions.
+
+### Fixed
+
+- **Tab-mounted single-room unread regressions.** Focus/blur/background behavior now works without importing internal store paths from consumer apps.
+- **Cold-start unread marker clobbering.** Persisted last-viewed state is no longer vulnerable to being overwritten by the old active-room sentinel flow.
+- **Single-room reconnect/join mismatch for bare room ids.** XMPP room operations now operate on normalized MUC JIDs consistently.
+
+### Internal
+
+- **Repo-side pre-commit typecheck hook is versioned and wired.** `.githooks/pre-commit` runs `tsc --noEmit --moduleResolution bundler --module esnext -p tsconfig.json`, and `scripts/install-git-hooks.js` sets `git config core.hooksPath .githooks` from the `prepare` script. Use `ETHORA_SKIP_TYPECHECK=1` or `git commit --no-verify` only when intentionally bypassing it.
+
 ## [26.5.10]
 
 Lifecycle hardening on top of 26.5.9, driven by live on-device testing: a full reconnect-after-loss overhaul (a live test surfaced — and this release fixes — a reconnect storm), cache no longer wiped on re-entry, automatic AppState-driven unread visibility plus a new `isVisible` prop for tab hosts, `initBeforeLoad` auto-retry, and the "New messages" divider polish. Full regression sweep — typecheck clean, 584 jest tests green.

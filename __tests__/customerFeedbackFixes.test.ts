@@ -298,6 +298,35 @@ describe('customer feedback round — locked behaviour', () => {
       expect(entry.types).toContain('lib/');
     });
 
+    it('exports map contains no ./src/ paths anywhere', () => {
+      const pkg = require('../package.json');
+      const seen: string[] = [];
+
+      const walk = (value: unknown) => {
+        if (typeof value === 'string') {
+          seen.push(value);
+          return;
+        }
+        if (Array.isArray(value)) {
+          value.forEach(walk);
+          return;
+        }
+        if (value && typeof value === 'object') {
+          Object.values(value).forEach(walk);
+        }
+      };
+
+      walk(pkg.exports);
+
+      expect(seen.length).toBeGreaterThan(0);
+      expect(seen).not.toEqual(
+        expect.arrayContaining([expect.stringMatching(/(^|\/)\.\/src\//)])
+      );
+      expect(seen).not.toEqual(
+        expect.arrayContaining([expect.stringMatching(/(^|\/)src\//)])
+      );
+    });
+
     it('react-native-builder-bob config present', () => {
       const pkg = require('../package.json');
       expect(pkg['react-native-builder-bob']).toBeDefined();
