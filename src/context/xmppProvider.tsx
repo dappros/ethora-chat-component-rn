@@ -182,6 +182,10 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
       // 3. Otherwise create a new client under the init lock to dedup
       //    concurrent calls for the same key.
       const created = await withXmppClientInitLock(key, async () => {
+        const prevGlobal = getGlobalXmppClient();
+        if (prevGlobal) {
+          try { await prevGlobal.close(); } catch {}
+        }
         const newClient = new XmppClient(username, password, settings);
         // Wire up the credentialsProvider so SASL `not-authorized`
         // after idle triggers a refresh chain (jwtLogin →

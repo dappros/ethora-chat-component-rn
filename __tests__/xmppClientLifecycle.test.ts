@@ -351,6 +351,22 @@ describe('XmppClient — reconnect', () => {
     expect(reconnectSpy).not.toHaveBeenCalled();
   });
 
+  it('scheduleReconnect coalesces — extra calls while a retry is pending are no-ops', () => {
+    // Regression for the reconnect storm: a burst of 'disconnect' events
+    // (flapping socket) used to re-arm the timer faster than it fired,
+    // spamming the counter and starving reconnect(). Now a pending timer
+    // makes further calls no-ops.
+    jest.useFakeTimers();
+    const c = new XmppClient('u', 'p', { devServer: 'h' });
+    const reconnectSpy = jest.spyOn(c, 'reconnect').mockImplementation(() => {});
+    c.scheduleReconnect();
+    c.scheduleReconnect();
+    c.scheduleReconnect();
+    expect(c.reconnectAttempts).toBe(1); // only the first call counted
+    jest.advanceTimersByTime(2000);
+    expect(reconnectSpy).toHaveBeenCalledTimes(1); // fires once, not 3×
+  });
+
   it('forceReconnect debounces bursty triggers (NetInfo + AppState + watchdog)', () => {
     jest.useRealTimers();
     const c = new XmppClient('u', 'p', { devServer: 'h' });

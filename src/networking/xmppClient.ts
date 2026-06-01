@@ -324,6 +324,10 @@ export class XmppClient {
         password: this.password,
       });
 
+      try {
+        (this.client as any)?.reconnect?.stop?.();
+      } catch {}
+
       // Concurrent room preloads each register their own short-lived
       // 'stanza' handler (getHistory, getRooms, getChatsPrivateStore,
       // ...). With 5+ rooms preloading in parallel, Node's default
@@ -558,11 +562,7 @@ export class XmppClient {
 
   scheduleReconnect() {
     if (this.suppressReconnect) {return;}
-    // Keep retrying indefinitely while mounted — never permanently give up.
-    // The old `>= maxReconnectAttempts` hard stop stranded the client
-    // offline after ~62s with nothing but a NetInfo/foreground event to
-    // revive it. The exponent is capped so the delay clamps to
-    // maxReconnectDelay instead of growing unbounded on a long outage.
+    if (this.reconnecting || this.reconnectTimer) {return;}
     this.reconnectAttempts++;
     const exp = Math.min(
       this.reconnectAttempts - 1,
@@ -573,7 +573,7 @@ export class XmppClient {
       this.reconnectDelay * Math.pow(2, exp)
     );
     console.log(`Reconnecting attempt ${this.reconnectAttempts} in ${delay}ms`);
-    if (this.reconnectTimer) {clearTimeout(this.reconnectTimer);}
+    // No clearTimeout needed — the guard above guarantees no pending timer.
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       // The connection may have recovered on its own (xmpp.js auto-
