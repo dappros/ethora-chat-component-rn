@@ -698,6 +698,12 @@ const ChatPane: React.FC<{ creds: Creds | null; isVisible: boolean }> = ({ creds
       disableInteractions: false,
       disableReactions: false,
       keyboardVerticalOffset: Platform.OS === 'ios' ? 130 : 100,
+      disableChatHeaderBurgerMenuIcon: true,
+      disableChatInfo: {
+        disableDescription: true,
+        disableType:true
+      },
+      disableMemberProfileActions: true
     } as IConfig;
 
     if (creds.mode === 'jwt') {
