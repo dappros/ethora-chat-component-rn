@@ -6,6 +6,7 @@ import {
   findNodeHandle,
   UIManager,
   Text,
+  Keyboard,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '../../roomStore';
@@ -241,8 +242,25 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   // onLayout — more accurate than estimating it here, and it's what keeps
   // the menu adjacent to the message instead of floating far above (#13).
   const handleLongPress = () => {
-    const target = bubbleRef.current ?? messageRef.current;
-    if (target) {
+    const target = (bubbleRef.current ?? messageRef.current) as any;
+    if (target?.measureInWindow) {
+      // Use measureInWindow — the SAME API the overlay host uses to find
+      // its own window origin. Both are then in identical window
+      // coordinates, so MessageInteractions' host-local conversion
+      // (subtract origin) is exact. Mixing this with UIManager.measure
+      // (pageX/pageY) drifted on Android (status-bar offset) and pushed the
+      // "below" menu too far from the message.
+      target.measureInWindow(
+        (x: number, y: number, width: number, height: number) => {
+          setContextMenuPosition({
+            left: x,
+            right: x + width,
+            top: y,
+            bottom: y + height,
+          });
+        }
+      );
+    } else if (target) {
       const nodeHandle = findNodeHandle(target);
       if (nodeHandle) {
         UIManager.measure(nodeHandle, (_x, _y, width, height, pageX, pageY) => {
@@ -310,6 +328,17 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
             flex: 1,
             alignItems: isUser ? 'flex-end' : 'flex-start',
           }}
+          // A plain tap anywhere on a message bubble dismisses the
+          // keyboard. The FlatList's keyboardShouldPersistTaps="handled"
+          // already dismisses taps on the empty GAPS between bubbles, but
+          // the bubble Pressable itself is a touch responder, so taps that
+          // landed on a message were "handled" and the keyboard stayed —
+          // which is exactly the "closes only every other time" symptom
+          // (hit a gap → close, hit a bubble → stay). Explicitly dismissing
+          // here makes it reliable across the whole list. onPress does NOT
+          // fire when onLongPress fires, so opening MessageInteractions via
+          // long-press never triggers this dismiss.
+          onPress={() => Keyboard.dismiss()}
           // disableInteractions hides the long-press → context menu
           // (delete / edit / reply / react). Mirrors web's config gate.
           onLongPress={
