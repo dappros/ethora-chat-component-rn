@@ -40,6 +40,12 @@ import {
 // LogBox dev-warning filtering lives in ./setupLogBox (imported first from
 // index.js, before expo-av/styled-components warn at import time).
 import AsyncStorage from '@react-native-async-storage/async-storage';
+// Demo/QA harness hook: an external driver (ethora-demo-qa) writes a full
+// creds object with `autoConnect: true` into demo.creds.json; on mount we seed
+// those creds and jump straight to the Chat tab. The committed default is
+// `{ "autoConnect": false }` (no-op). Mirrors the web sandbox's
+// window.__ETHORA_DEMO_CONFIG__ hook.
+import demoCreds from './demo.creds.json';
 import axios from 'axios';
 // `SafeAreaView` from `react-native` is deprecated and crucially does
 // not subtract the Android nav-bar / gesture-bar inset, so the chat
@@ -946,6 +952,16 @@ const AppLoginChatsRn: React.FC = () => {
   useEffect(() => {
     (async () => {
       try {
+        // Harness override takes precedence over persisted creds.
+        if ((demoCreds as any)?.autoConnect) {
+          const injected = { ...DEFAULT_CREDS, ...(demoCreds as any) } as Creds;
+          setCreds(injected);
+          await AsyncStorage.setItem(CREDS_KEY, JSON.stringify(injected)).catch(() => {});
+          pushLog('rn', 'Loaded creds from demo.creds.json (harness)');
+          setTab('chat');
+          setLoading(false);
+          return;
+        }
         const raw = await AsyncStorage.getItem(CREDS_KEY);
         if (raw) {
           const parsed = { ...DEFAULT_CREDS, ...JSON.parse(raw) };
