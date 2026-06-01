@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { TouchableOpacity, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useDispatch } from 'react-redux';
 import {
@@ -48,9 +48,16 @@ const CustomMessageVideo: React.FC<CustomMessageVideoProps> = ({
   };
 
   return (
-    <TouchableOpacity
-      onPress={handleOpen}
-      activeOpacity={0.9}
+    // Capture-overlay pattern: VideoView sits underneath without ANY
+    // touch participation; a transparent absolute-fill <Pressable> on
+    // top owns the tap. Previously we wrapped VideoView in a
+    // TouchableOpacity and set `pointerEvents="none"` on the inner
+    // VideoView — but on some expo-video versions / iOS the native
+    // VideoView still intercepted gestures despite that hint, so
+    // tapping the poster did nothing. Customer-reported #9 (video
+    // preview unresponsive). The Pressable now guarantees the tap
+    // reaches `handleOpen`.
+    <View
       style={[styles.wrapper, { width: dims.width, height: dims.height }]}
     >
       <VideoView
@@ -66,7 +73,16 @@ const CustomMessageVideo: React.FC<CustomMessageVideoProps> = ({
           <PlayIcon width={28} height={28} />
         </View>
       </View>
-    </TouchableOpacity>
+      <Pressable
+        onPress={handleOpen}
+        // Sits ON TOP of VideoView + the play-button overlay; transparent
+        // so the poster + play icon show through. Captures the tap and
+        // routes to handleOpen → setActiveModal(FILE_PREVIEW).
+        style={StyleSheet.absoluteFill}
+        accessibilityRole="button"
+        accessibilityLabel="Play video"
+      />
+    </View>
   );
 };
 

@@ -21,21 +21,45 @@ interface ApiRoomMember {
  *   1. explicit `room.jid` from the server (if present)
  *   2. `<name>@conference.<xmppHost>` where xmppHost comes from the
  *      provider's `xmppSettings.host` saved to `chatSettingStore.config`
- *   3. fallback: `<name>@conference.xmpp.chat.ethora.com`
+ *   3. derive host from `config.baseUrl` (api.<host> → xmpp.<host>)
+ *      as a last-resort heuristic for misconfigured deployments
+ *   4. otherwise: skip the room with a warn log (NEVER fall back to a
+ *      hardcoded vendor host — previously `xmpp.chat.ethora.com`, which
+ *      manifested as a phantom "ethora" room stub on third-party servers,
+ *      customer-reported #23)
  */
 function dispatchRoomsFromRestItems(items: ApiRoom[]): void {
   if (!items?.length) return;
   const config = store.getState().chatSettingStore?.config as any;
-  const host: string =
+  // Best: explicit xmpp settings.
+  let host: string | undefined =
     config?.xmppSettings?.host ||
-    config?.xmppSettings?.conference?.replace(/^conference\./, '') ||
-    'xmpp.chat.ethora.com';
-  const conference =
-    config?.xmppSettings?.conference || `conference.${host}`;
+    config?.xmppSettings?.conference?.replace(/^conference\./, '');
+  // Heuristic fallback: derive xmpp host from the REST baseUrl.
+  // `https://api.foo.com/v1` → `xmpp.foo.com`. Better than a hardcoded
+  // vendor host and right in 99% of single-domain deployments.
+  if (!host && typeof config?.baseUrl === 'string') {
+    const m = /^https?:\/\/(?:api\.)?([^/]+)/i.exec(config.baseUrl);
+    if (m && m[1]) {host = `xmpp.${m[1].replace(/^api\./, '')}`;}
+  }
+  const conference = config?.xmppSettings?.conference
+    || (host ? `conference.${host}` : undefined);
 
   for (const item of items) {
     if (!item) continue;
-    const jid = item.jid || `${item.name}@${conference}`;
+    let jid = item.jid;
+    if (!jid) {
+      if (!conference) {
+        // No server-supplied JID and no way to synthesize one safely —
+        // skip rather than create a phantom room on a wrong host.
+        // Consumers who hit this should set config.xmppSettings.host.
+        console.warn(
+          `[ethora-rn] rooms.api: skipping room "${item.name}" — no item.jid and no xmppSettings.host / baseUrl to derive host from`
+        );
+        continue;
+      }
+      jid = `${item.name}@${conference}`;
+    }
     if (!jid.includes('@')) continue;
     const room: IRoom = {
       id: item._id || jid,

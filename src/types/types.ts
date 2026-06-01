@@ -338,6 +338,22 @@ export interface IConfig {
     disableMembers?: boolean;
     hideMembers?: boolean;
     disableChatHeaderMenu?: boolean;
+    /**
+     * Disables uploading / removing the chat icon from the chat-info
+     * modal. The avatar stays rendered (initials / current icon) but
+     * the press-to-pick / remove affordances are gone — so the room
+     * icon becomes read-only regardless of the user's role.
+     */
+    disableIconEdit?: boolean;
+    /**
+     * Disables the tap on a member row in the chat-info member list —
+     * the popup that would show user-profile + per-member actions
+     * (message / copy-id) never opens. `disableMemberProfileActions`
+     * only hid the action BLOCK inside that popup; the popup itself
+     * still opened on tap. Set this when no per-member interaction is
+     * appropriate (e.g. patient-facing apps). Customer-reported #16.
+     */
+    disableMemberTap?: boolean;
   };
   qrUrl?: string;
 

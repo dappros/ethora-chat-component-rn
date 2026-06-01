@@ -253,7 +253,8 @@ Full details (including the cold-start fix and the scroll-to-bottom unread chip)
 | Flag | What it does |
 | --- | --- |
 | `disableChatHeaderBurgerMenuIcon` | Hides the burger icon in the chat header (the icon that opens the room-list dropdown). `chatHeaderBurgerMenu` controls only the dropdown — set this when you want neither rendered. |
-| `disableMemberProfileActions` | Hides the whole "Message / Copy User Id" action block in the chat-info member modal. Use when no per-user actions are appropriate (e.g. patient-facing apps). |
+| `disableMemberProfileActions` | Hides the whole "Message / Copy User Id" action block **inside** the chat-info member-profile popup. The popup itself still opens — to block the tap entirely, use `disableChatInfo.disableMemberTap`. |
+| `disableChatInfo.disableMemberTap` | Disables the tap on a member row in the chat-info list — the user-profile popup never opens. Set when no per-member interaction is appropriate (e.g. patient-facing apps). |
 | `hideMemberSendMessageAction` | Hides only the "Message" button, keeps everything else. |
 | `hideMemberCopyIdAction` | Hides only the "Copy User Id" button, keeps everything else. |
 | `disableConnectionErrorOverlay` | Replaces the full-screen "Connection error" overlay with a small, non-blocking `ConnectionBanner`. Set this when a transient reconnect shouldn't take over the whole screen. |

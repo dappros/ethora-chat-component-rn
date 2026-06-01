@@ -5,9 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this pr
 
 ## [26.5.10]
 
-Lifecycle hardening on top of 26.5.9, driven by live on-device testing: a full reconnect-after-loss overhaul (a live test surfaced — and this release fixes — a reconnect storm), cache no longer wiped on re-entry, automatic AppState-driven unread visibility plus a new `isVisible` prop for tab hosts, `initBeforeLoad` auto-retry, and the "New messages" divider polish. Full regression sweep — typecheck clean, 583 jest tests green.
+Lifecycle hardening on top of 26.5.9, driven by live on-device testing: a full reconnect-after-loss overhaul (a live test surfaced — and this release fixes — a reconnect storm), cache no longer wiped on re-entry, automatic AppState-driven unread visibility plus a new `isVisible` prop for tab hosts, `initBeforeLoad` auto-retry, and the "New messages" divider polish. Full regression sweep — typecheck clean, 584 jest tests green.
 
 ### Fixed
+
+#### Packaging / TypeScript (regression from 26.5.5)
+
+- **#8 — consumers' tsc no longer compiles our raw source.** `exports['.'].react-native` pointed at `./src/main.ts`, so React Native consumers' TypeScript (which resolves with `customConditions: ["react-native"]`) walked our entire `src/` tree and hit 51 errors about our internal devDeps (`@types/ltx`, `@types/uuid`, `@types/xmpp__client`, JSX namespace) — blocking pre-commit hooks on consumer side. The condition is now a nested entry that exposes the **compiled** artifacts: `react-native.types → ./lib/typescript/main.d.ts`, `react-native.default → ./lib/module/main.js`. No `src/*.ts` is reachable through any `exports` chain. (Verified by parsing the resolution graph and confirming zero `./src/` references in `exports`.)
+- **Pre-commit typecheck hook (repo-side).** Added `.githooks/pre-commit` that runs `tsc --noEmit` with the project's `--moduleResolution bundler --module esnext` flags before every commit; a `scripts/install-git-hooks.js` wires `core.hooksPath` from the `prepare` script on `npm install`. Zero runtime deps. Bypass with `ETHORA_SKIP_TYPECHECK=1` or `git commit --no-verify` if you really need to. Catches future packaging-style regressions before they ship.
 
 #### Connectivity / reconnect (the big one)
 
@@ -34,6 +39,19 @@ Lifecycle hardening on top of 26.5.9, driven by live on-device testing: a full r
 
 - **White text.** The label sits on a dark pill but rendered in the (often blue) primary color — unreadable. It's now white.
 - **Removed when you leave the chat** (tab switch / navigation / app background) and **spliced out rather than tombstoned**, so it correctly re-appears for the next batch of unread — previously it was a one-shot (the tombstone blocked every future divider).
+
+#### Customer-reported bugs (this round)
+
+- **#19 — `useUnread()` always 0 in tab-mounted hosts.** `ChatRoom`'s visibility effect had `client` in its dep array, so any `client` identity change (reconnect, provider re-render) re-fired setup → `dispatch(setVisibleRoom(activeRoomJID))` ~one tick after the host cleared visibility via the `isVisible` prop on `<Chat>`, clobbering it. Effect now splits setup (deps without `client`) from cleanup (reads client through a ref). `<Chat isVisible={...} />` now works as documented.
+- **#15 — `disableChatHeaderBurgerMenuIcon` clipped the chat avatar/name.** When the burger was hidden the header still reserved an empty `leftContainer` at `width: 15%`, eating space and clipping the title. The placeholder is no longer rendered — `CenterContainer` expands to fill, the chat-name row now sits flush with the left edge as intended.
+- **#16 — new `disableChatInfo.disableMemberTap` flag.** `disableMemberProfileActions` only hides the *action block inside* the member-profile popup; the popup itself still opened on tap. The new flag blocks the tap entirely, so the popup never opens. Both flags can be combined for full lock-down.
+- **#9 (video) — video preview tap unresponsive.** `VideoMessage` wrapped a `VideoView` in a `TouchableOpacity` with `pointerEvents="none"` on the inner view — on some `expo-video` versions / iOS the native VideoView still intercepted gestures, so tapping the poster did nothing. Switched to a capture-overlay pattern: VideoView at the bottom, transparent `Pressable` absolute-filled on top owns the tap → `setActiveModal(FILE_PREVIEW)` reliably fires. (The .bin voicemail case is a web-app issue — see migration note below.)
+- **#23 — phantom "ethora.com" room stub.** `rooms.api` synthesized JIDs as `<name>@conference.xmpp.chat.ethora.com` when the REST item carried no JID and the consumer hadn't configured `xmppSettings.host` — surfacing a fake "ethora" room on third-party servers. Removed the hardcoded vendor host; the fallback now derives the host from `config.baseUrl` (`api.foo.com` → `xmpp.foo.com`), and if that's still ambiguous the room is skipped with a `warn` log rather than fabricated.
+
+**Migration notes for consumers**
+
+- *#9 voicemail .bin*: the testbed sees voicemails from the web app arrive with `mimetype: application/octet-stream` and no audio file extension, so the audio-extension sniff in `MediaMessage.tsx` doesn't match and the file falls through to `FileDownload` (unplayable). Fix on the **web sender side**: when uploading a voice message, set `mimetype: audio/mp3` (or `audio/m4a` / whatever the actual codec is) and ensure the filename ends in a recognised audio extension (`.mp3` / `.m4a` / `.wav` / `.aac` / `.ogg` / `.flac`). The RN side then plays it correctly without further changes.
+- *#16 migration*: if you previously set `disableMemberProfileActions: true` expecting it to also suppress the tap, set `disableChatInfo.disableMemberTap: true` additionally.
 
 #### Misc
 

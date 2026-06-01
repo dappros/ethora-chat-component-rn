@@ -5,7 +5,7 @@ import CustomMessageImage from '../styled/MessageImage';
 import CustomMessageVideo from '../styled/VideoMessage';
 import AudioMessage from '../styled/AudioMessage';
 import { Text } from 'react-native';
-import { deriveDisplayFilename } from '../../helpers/mimeToExtension';
+import { deriveDisplayFilename, isLikelyAudio } from '../../helpers/mimeToExtension';
 
 interface MediaMessageProps {
   mimeType?: string;
@@ -50,13 +50,16 @@ const MediaMessage: React.FC<MediaMessageProps> = ({
         return <AudioMessage src={location || ''} />;
       }
       default: {
-        // Many backends tag binary payloads (PDFs, DOCX, archives) as
-        // application/octet-stream; sniff the filename extension for the
-        // legitimate audio case before falling through to FileDownload.
-        if (mimeType.includes('application/octet-stream')) {
-          if (/\.(mp3|m4a|wav|aac|ogg|flac)$/i.test(displayName)) {
-            return <AudioMessage src={location || ''} />;
-          }
+        // Some senders (notably the web app's voice-message uploader)
+        // ship audio as `application/octet-stream` with no audio file
+        // extension. `isLikelyAudio` recognises those via the URL path,
+        // filename, or voice-message naming hints (voicemail-,
+        // voice-note-, recording-, …) so we still render the AudioMessage
+        // player instead of falling through to the generic FileDownload
+        // card (where the voicemail rendered as a broken `.bin`
+        // attachment). Customer-reported #9 voicemail fix.
+        if (isLikelyAudio(mimeType, displayName, location)) {
+          return <AudioMessage src={location || ''} />;
         }
         return (
           <FileDownload

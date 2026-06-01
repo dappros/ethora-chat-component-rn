@@ -377,7 +377,18 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
                   >
                     <Pressable
                       style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', gap: 16 }}
-                      onPress={() => handleUserAvatarClick(user)}
+                      // `disableChatInfo.disableMemberTap` blocks the
+                      // tap entirely so the user-profile popup never
+                      // opens. `disableMemberProfileActions` only hid
+                      // the action buttons INSIDE that popup, leaving
+                      // the popup itself to open on tap — this gate
+                      // closes the door. Customer-reported #16.
+                      onPress={
+                        config?.disableChatInfo?.disableMemberTap
+                          ? undefined
+                          : () => handleUserAvatarClick(user)
+                      }
+                      disabled={!!config?.disableChatInfo?.disableMemberTap}
                     >
                       <ProfileImagePlaceholder
                         name={`${user.firstName} ${user.lastName}`}
