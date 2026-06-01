@@ -67,6 +67,11 @@ const TRIGGER_ACTIONS = new Set([
   'roomMessages/setCurrentRoom',
   'roomMessages/addRoom',
   'roomMessages/updateRoom',
+  // The history preload scheduler merges fetched pages via this action on
+  // re-entry; recompute so unread reflects messages that arrived while the
+  // app was away (the per-room fingerprint cache below skips no-op batches,
+  // e.g. the 'loading' marker dispatch that carries no messages).
+  'roomMessages/applyRoomsPreloadBatch',
 ]);
 
 export const unreadMiddleware: Middleware =

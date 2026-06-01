@@ -28,6 +28,7 @@ import {
   ActivityIndicator,
   FlatList,
   KeyboardAvoidingView,
+  LogBox,
   Platform,
   Pressable,
   ScrollView,
@@ -37,6 +38,19 @@ import {
   TextInput,
   View,
 } from 'react-native';
+
+// Testbed-only: hide the on-screen LogBox toast for KNOWN-BENIGN dev
+// noise (third-party deprecation/style warnings + the no-op promise
+// rejection that fires during XMPP connect teardown). Everything is still
+// captured in the in-app Logs tab via devLogger. We deliberately DON'T
+// `ignoreAllLogs` — unexpected errors should still surface their overlay
+// while developing.
+LogBox.ignoreLogs([
+  /\[ethora-rn\] (Hermes unhandled rejection|UNHANDLED PROMISE)/,
+  /Expo AV has been deprecated/,
+  /\[styled-components\/native\]/,
+  /Expected style .* to contain units/,
+]);
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 // `SafeAreaView` from `react-native` is deprecated and crucially does

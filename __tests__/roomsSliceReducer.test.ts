@@ -23,6 +23,7 @@
 import roomsReducer, {
   addRoom,
   addRoomMessage,
+  applyRoomsPreloadBatch,
   deleteAllRooms,
   deleteRoom,
   deleteRoomMessage,
@@ -80,11 +81,12 @@ describe('roomsSlice — Cluster A (multi-room state machine)', () => {
     expect(state.rooms['a@conference.test'].title).toBe('Room a');
   });
 
-  it('addRoom overwrites an existing room with the new payload (RN contract)', () => {
-    // RN's `addRoom` is an authoritative overwrite — different from
-    // chat-component's preserve-existing-unread behaviour. Documenting
-    // the divergence here so a future "make these consistent" refactor
-    // is a deliberate choice, not a silent drift.
+  it('addRoom overwrites existing room fields when the payload provides them', () => {
+    // `addRoom` overwrites with EXPLICIT payload values (title, and an
+    // explicit unreadMessages: 0 here). What it must NOT do is wipe fields
+    // the payload OMITS — see the re-entry test below, where the /chats/my
+    // refetch (messages: [], no unread) must preserve cached history +
+    // unread instead of clobbering them. Explicit value still wins.
     let state = roomsReducer(
       initial(),
       addRoom({
@@ -536,5 +538,97 @@ describe('roomsSlice — per-room state isolation', () => {
       setRoomNoMessages({ chatJID: 'a@conference.test', value: false })
     );
     expect(state.rooms['a@conference.test'].noMessages).toBe(false);
+  });
+});
+
+// ---------- Re-entry: merge history, never wipe the cache ------------
+// Regression coverage for the "re-entering the app clears cache, unread
+// and messages" bug. Two cooperating fixes:
+//   • addRoom preserves cached messages + unread when the /chats/my
+//     refetch sends a metadata-only room (messages: [], no unread);
+//   • applyRoomsPreloadBatch (history scheduler) merges the fetched page
+//     into cache by message id instead of replacing — only a true gap
+//     (no overlapping id) clears that one chat's cache.
+describe('roomsSlice — re-entry history merge (no cache wipe)', () => {
+  const JID = 'a@conference.test';
+  // 13-digit-ms-prefixed ids so msgSortableMs orders them like real
+  // server stanza ids.
+  const M = (n: number) => makeMessage(`178000000000${n}`, { roomJid: JID });
+  const idsOf = (s: ReturnType<typeof initial>) =>
+    s.rooms[JID].messages.map((m) => m.id);
+
+  const withCachedRoom = (messages: IMessage[], extra: Partial<IRoom> = {}) =>
+    roomsReducer(
+      initial(),
+      addRoom({ roomData: makeRoom(JID, { messages, ...extra }) })
+    );
+
+  it('addRoom keeps cached messages + unread when the refetch omits them', () => {
+    let state = withCachedRoom([M(1), M(2)], {
+      unreadMessages: 3,
+      lastViewedTimestamp: 1_780_000_000_000,
+    });
+    // /chats/my refresh: metadata only.
+    state = roomsReducer(
+      state,
+      addRoom({ roomData: makeRoom(JID, { title: 'Refreshed', messages: [] }) })
+    );
+    expect(state.rooms[JID].title).toBe('Refreshed'); // metadata still updates
+    expect(idsOf(state)).toEqual(['1780000000001', '1780000000002']); // history kept
+    expect(state.rooms[JID].unreadMessages).toBe(3); // unread kept
+  });
+
+  it('applyRoomsPreloadBatch merges an overlapping page, keeping older history', () => {
+    let state = withCachedRoom([M(1), M(2), M(3)]);
+    state = roomsReducer(
+      state,
+      applyRoomsPreloadBatch({
+        rooms: [{ jid: JID, messages: [M(2), M(3), M(4)] }],
+      })
+    );
+    // Union + dedupe + sorted; the older M(1) (not in the fetched page) survives.
+    expect(idsOf(state)).toEqual([
+      '1780000000001',
+      '1780000000002',
+      '1780000000003',
+      '1780000000004',
+    ]);
+  });
+
+  it('applyRoomsPreloadBatch clears the chat cache when the page shares no id (gap)', () => {
+    let state = withCachedRoom([M(1), M(2)]);
+    state = roomsReducer(
+      state,
+      applyRoomsPreloadBatch({
+        rooms: [{ jid: JID, messages: [M(8), M(9)] }],
+      })
+    );
+    // No overlap → can't safely stitch → replace with the fresh page only.
+    expect(idsOf(state)).toEqual(['1780000000008', '1780000000009']);
+  });
+
+  it('applyRoomsPreloadBatch with an empty page leaves the cache untouched', () => {
+    let state = withCachedRoom([M(1), M(2)]);
+    state = roomsReducer(
+      state,
+      applyRoomsPreloadBatch({ rooms: [{ jid: JID, messages: [] }] })
+    );
+    expect(idsOf(state)).toEqual(['1780000000001', '1780000000002']);
+  });
+
+  it('applyRoomsPreloadBatch preserves locally-pending sends across a merge', () => {
+    let state = withCachedRoom([
+      M(1),
+      makeMessage('1780000000005', { roomJid: JID, pending: true }),
+    ]);
+    state = roomsReducer(
+      state,
+      applyRoomsPreloadBatch({
+        rooms: [{ jid: JID, messages: [M(1), M(2)] }],
+      })
+    );
+    const ids = idsOf(state);
+    expect(ids).toContain('1780000000002'); // merged settled message
+    expect(ids).toContain('1780000000005'); // pending send kept
   });
 });

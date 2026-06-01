@@ -23,6 +23,64 @@ const enforceMessageCap = (messages: IMessage[]): void => {
   }
 };
 
+// Merge a freshly-fetched recent history page into a room's cached
+// messages instead of REPLACING them — so re-entering the app no longer
+// wipes older history (and the unread derived from it). Mirrors the web
+// SDK's incremental sync:
+//   • union + dedupe by message id (the server-authoritative,
+//     microsecond-resolution stanza id) — overlapping messages collapse
+//     and older cached history is kept;
+//   • if the fetched page shares NO id with the cache, a gap has opened
+//     (more than a page of new messages arrived while away) and stitching
+//     them would leave a hole — so we clear THIS chat's cache and keep
+//     just the fresh page;
+//   • locally-pending (optimistic) sends are always preserved;
+//   • an empty fetch leaves the cache untouched (the old replace wiped it);
+//   • the transient 'delimiter-new' marker is dropped (the realtime insert
+//     path re-derives it) so it can't mis-sort.
+// `function` (hoisted) so the reducers above can call it regardless of
+// where it sits in the file. msgSortableMs (defined below) is referenced
+// at call time, after module init.
+function mergeHistoryIntoCache(
+  existing: IMessage[] | undefined,
+  fetched: IMessage[] | undefined
+): IMessage[] {
+  const ex = Array.isArray(existing) ? existing : [];
+  const fe = Array.isArray(fetched) ? fetched : [];
+
+  const pending = ex.filter((m) => m?.pending);
+  const realExisting = ex.filter(
+    (m) => m && !m.pending && m.id !== 'delimiter-new'
+  );
+  const realFetched = fe.filter((m) => m && m.id !== 'delimiter-new');
+
+  // Nothing usable came back → keep the cache exactly as it was.
+  if (realFetched.length === 0) {return ex;}
+
+  const byMs = (a: IMessage, b: IMessage) =>
+    msgSortableMs(a) - msgSortableMs(b);
+  const capTail = (arr: IMessage[]) =>
+    arr.length > RUNTIME_MESSAGE_LIMIT
+      ? arr.slice(-RUNTIME_MESSAGE_LIMIT)
+      : arr;
+
+  const existingIds = new Set(realExisting.map((m) => String(m.id)));
+  const overlaps = realFetched.some((m) => existingIds.has(String(m.id)));
+
+  // Cold room, or a gap (no shared id) → can't merge → use the fresh page.
+  if (realExisting.length === 0 || !overlaps) {
+    return [...capTail(realFetched.slice().sort(byMs)), ...pending];
+  }
+
+  // Overlap → union + dedupe by id. Fetched wins on collision: it carries
+  // the freshest server state (reactions / edits / deletions).
+  const byId = new Map<string, IMessage>();
+  for (const m of realExisting) {byId.set(String(m.id), m);}
+  for (const m of realFetched) {byId.set(String(m.id), m);}
+  const merged = Array.from(byId.values()).sort(byMs);
+  return [...capTail(merged), ...pending];
+}
+
 export interface RoomPreloadPatch {
   jid: string;
   messages?: IMessage[];
@@ -115,7 +173,33 @@ const reducers = {
         }
         lastViewed = newest; // 0 if no messages → cold-start safe
       }
-      state.rooms[roomData.jid] = { ...roomData, lastViewedTimestamp: lastViewed };
+      // Preserve cached messages + unread when the incoming room carries
+      // none. The /chats/my fetch (rooms.api) builds rooms with
+      // `messages: []` and no unread; without this guard, re-entering the
+      // app replaced every cached room with an empty one — wiping history
+      // AND the unread badge before the history scheduler could re-merge
+      // (the user's "it clears cache, unread and messages" bug). New rooms
+      // (no existing) fall through to the incoming values. Mirrors
+      // addRoomFromApi's preservation.
+      const incomingMessages = Array.isArray(roomData.messages)
+        ? roomData.messages
+        : [];
+      const existingMessages = Array.isArray(existing?.messages)
+        ? existing!.messages
+        : [];
+      state.rooms[roomData.jid] = {
+        ...roomData,
+        messages:
+          existingMessages.length > 0 ? existingMessages : incomingMessages,
+        lastViewedTimestamp: lastViewed,
+        unreadMessages:
+          roomData.unreadMessages ?? existing?.unreadMessages ?? 0,
+        unreadBaselineTimestamp:
+          existing?.unreadBaselineTimestamp ??
+          existing?.lastViewedTimestamp ??
+          (roomData as any).unreadBaselineTimestamp ??
+          0,
+      };
     },
     deleteRoom(state: WritableDraft<RoomMessagesState>, action: PayloadAction<{ jid: string }>) {
       const { jid } = action.payload;
@@ -451,9 +535,11 @@ const reducers = {
           room.historyComplete = patch.historyComplete;
         }
         if (Array.isArray(patch.messages)) {
-          // Merge: keep any locally-pending messages, replace the rest.
-          const pending = room.messages?.filter((m) => m?.pending) || [];
-          room.messages = [...patch.messages, ...pending];
+          // Merge the fetched page into cache by message id rather than
+          // replacing — preserves older history + unread on re-entry. Only
+          // a true gap (no overlapping id) clears this chat's cache. See
+          // mergeHistoryIntoCache.
+          room.messages = mergeHistoryIntoCache(room.messages, patch.messages);
         }
       }
     },

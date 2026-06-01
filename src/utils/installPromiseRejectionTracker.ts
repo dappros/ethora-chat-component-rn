@@ -39,8 +39,13 @@ export function installPromiseRejectionTracker() {
     const stack =
       (reason && reason.stack) ||
       new Error('unhandledrejection (captured at handler)').stack;
+    // console.WARN (not error): RN's LogBox turns every console.error into
+    // a full-screen red overlay. With `allRejections: true` Hermes reports
+    // rejections that get handled a microtask later (false positives, e.g.
+    // a bare `undefined` rejection during connect teardown), so escalating
+    // to a red box was pure noise. warn keeps the trace in Metro/Logs.
     // eslint-disable-next-line no-console
-    console.error(
+    console.warn(
       '[ethora-rn] UNHANDLED PROMISE REJECTION:',
       typeof reason === 'object' ? JSON.stringify(reason, null, 2) : String(reason),
       '\nstack:',
@@ -66,8 +71,11 @@ export function installPromiseRejectionTracker() {
       g.HermesInternal.enablePromiseRejectionTracker({
         allRejections: true,
         onUnhandled: (id: number, error: any) => {
+          // warn, not error — see note above. `allRejections: true` fires
+          // this for rejections handled a tick later, so a red box here
+          // was a false alarm. Stays visible in Metro/Logs as a warning.
           // eslint-disable-next-line no-console
-          console.error(
+          console.warn(
             `[ethora-rn] Hermes unhandled rejection id=${id}:`,
             error?.message ?? error,
             '\nstack:',

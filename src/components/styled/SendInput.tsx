@@ -397,6 +397,15 @@ const SendInput: React.FC<SendInputProps> = ({
               borderRadius: 20,
               alignItems: 'center',
               justifyContent: 'center',
+              // The shared Button (CustomButton) bakes in `margin: 0 10px`,
+              // which pushed the send button 10px further from the input
+              // and from the right edge than the attach button (a raw
+              // TouchableOpacity with no margin). Zero it so both sides of
+              // the input use the row's uniform gap:8 + 16px container
+              // padding. Longhand left/right to override the styled
+              // longhand (marginHorizontal loses to marginLeft/Right in RN).
+              marginLeft: 0,
+              marginRight: 0,
               backgroundColor:
                 message || filePreviews.length > 0
                   ? config?.colors?.primary

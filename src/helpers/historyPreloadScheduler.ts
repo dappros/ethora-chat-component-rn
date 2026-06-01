@@ -25,7 +25,10 @@ interface QueueItem {
 }
 
 const DEFAULT_CONCURRENCY = 3;
-const DEFAULT_PAGE_SIZE = 10;
+// Fetch the most recent ~20 on re-entry (mirrors web). A larger first page
+// also means more id-overlap with cache, so the merge in
+// `mergeHistoryIntoCache` rarely has to fall back to clear-and-replace.
+const DEFAULT_PAGE_SIZE = 20;
 const DEFAULT_RETRY_LIMIT = 2;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
