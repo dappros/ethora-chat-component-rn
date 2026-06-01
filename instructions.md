@@ -113,7 +113,7 @@ To avoid duplicate XMPP WebSocket connections — same contract as the web packa
 | Option | Type | Description |
 | --- | --- | --- |
 | `appId` | `string` | App identifier sent in REST requests / app-token context. |
-| `baseUrl` | `string` | API base URL. Default: `https://api.chat.ethora.com/v1`. Point at `chat-qa.ethora.com` for QA, or your self-host. |
+| `baseUrl` | `string` | API base URL. Default: `https://api.chat.ethora.com/v1`. Override it for your QA/staging environment or self-hosted deployment. |
 | `customAppToken` | `string` | App-level JWT used in the `Authorization` header for endpoints like `/users/login-with-email`. Required for email login. |
 | `projectName` | `string` | Free-form project label, surfaced in dev logs. |
 

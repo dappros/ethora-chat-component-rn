@@ -4,25 +4,39 @@
 # (the same store the ethora-setup CLI writes to).
 #
 # Usage:
-#   scripts/run-e2e.sh ios|android <profile-name> [room-title]
+#   scripts/run-e2e.sh ios|android [profile-name] [room-title]
 #
 # Examples:
-#   scripts/run-e2e.sh ios "mychatapp QA"
-#   scripts/run-e2e.sh ios "mychatapp QA" "Main chat"
+#   scripts/run-e2e.sh ios
+#   scripts/run-e2e.sh ios "Sample Profile" "Main chat"
 #   scripts/run-e2e.sh android "Sample Profile"
 #
-# Defaults: profile name "mychatapp QA", room title "Main chat",
-# user email/password = the first entry in profile.testUsers.
+# Defaults: first profile in ~/.ethora/profiles.json, room title
+# "Main chat", user email/password = the first entry in profile.testUsers.
 set -euo pipefail
 
 PLATFORM="${1:-ios}"
-PROFILE_NAME="${2:-mychatapp QA}"
+PROFILE_NAME="${2:-}"
 ROOM_TITLE="${3:-Main chat}"
 
 PROFILE_PATH="$HOME/.ethora/profiles.json"
 if [ ! -f "$PROFILE_PATH" ]; then
   echo "error: $PROFILE_PATH not found. Run \`npx @ethora/setup\` first." >&2
   exit 2
+fi
+
+if [ -z "$PROFILE_NAME" ]; then
+  PROFILE_NAME="$(node -e "
+    const fs = require('fs');
+    const profiles = JSON.parse(fs.readFileSync('$PROFILE_PATH', 'utf8')).profiles || {};
+    const first = Object.keys(profiles)[0] || '';
+    if (!first) process.exit(1);
+    process.stdout.write(first);
+  " || true)"
+  if [ -z "$PROFILE_NAME" ]; then
+    echo "error: no profiles found in $PROFILE_PATH" >&2
+    exit 3
+  fi
 fi
 
 # Pull the profile via node (avoids a jq dependency). One field per
@@ -32,9 +46,9 @@ TMP_FIELDS="$(mktemp)"
 node -e "
   const fs = require('fs');
   const p = JSON.parse(fs.readFileSync('$PROFILE_PATH', 'utf8')).profiles['$PROFILE_NAME'];
-  if (!p) { console.error('profile not found'); process.exit(3); }
+  if (!p) { console.error('profile not found'); process.exit(4); }
   const u = (p.testUsers || [])[0];
-  if (!u) { console.error('profile has no testUsers'); process.exit(4); }
+  if (!u) { console.error('profile has no testUsers'); process.exit(5); }
   console.log(p.appToken);
   console.log(p.endpoints.apiUrl);
   console.log(p.endpoints.xmppHost);
@@ -52,7 +66,7 @@ rm -f "$TMP_FIELDS"
 
 if [ -z "$APP_TOKEN" ]; then
   echo "error: missing app token from profile" >&2
-  exit 5
+  exit 6
 fi
 
 MAESTRO_RUN_ID="$(date +%s)"
@@ -106,7 +120,7 @@ case "$PLATFORM" in
       echo "warn: no sim with $APP_BUNDLE installed — falling back to a fresh iPhone 16. Run \`npm run ios\` first." >&2
     fi
     if [ -z "$UDID" ]; then
-      echo "error: no iPhone 16 simulator found" >&2; exit 6
+      echo "error: no iPhone 16 simulator found" >&2; exit 7
     fi
     xcrun simctl boot "$UDID" 2>/dev/null || true
     open -a Simulator 2>/dev/null || true
@@ -117,7 +131,7 @@ case "$PLATFORM" in
   android)
     # Assume an emulator is already booted (`emulator -avd Pixel_6` etc).
     if ! adb devices | grep -q "emulator-"; then
-      echo "error: no Android emulator running. Start one with: \`emulator -avd Pixel_6\`" >&2; exit 7
+      echo "error: no Android emulator running. Start one with: \`emulator -avd Pixel_6\`" >&2; exit 8
     fi
     DEVICE_ARG=""
     ;;
@@ -126,7 +140,7 @@ case "$PLATFORM" in
     ;;
 esac
 
-# Login the user against the configured tenant and seed the
+# Login the user against the configured environment and seed the
 # testbed's AsyncStorage with the resolved Creds. This sidesteps the
 # in-app Setup UI (typing a 600-char JWT into a multiline TextInput
 # via Maestro's inputText proved both slow and lossy — sims will

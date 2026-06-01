@@ -44,7 +44,7 @@ The package defaults to the canonical Ethora Cloud endpoints:
 | Web / sign up | `https://app.chat.ethora.com` |
 | Swagger / API docs | `https://api.chat.ethora.com/api-docs/#/` |
 
-To target QA, point the equivalent props/env vars at `chat-qa.ethora.com`. To self-host, override with your own `xmppSettings` and `baseUrl` — see the example below.
+To target a QA or staging environment, point the equivalent props/env vars at that environment's API + XMPP hosts. To self-host, override with your own `xmppSettings` and `baseUrl` — see the example below.
 
 ## Install
 
@@ -276,7 +276,7 @@ npm run e2e:android        # ditto Pixel_6
 Uses any profile in `~/.ethora/profiles.json` (the same file the
 `@ethora/setup` CLI writes to). The runner logs the test user via
 REST, seeds the testbed's AsyncStorage with the resolved Creds, and
-exercises the full pipeline against a real tenant:
+exercises the full pipeline against a real environment:
 
 > REST login → AsyncStorage persisted Creds → app boot →
 > `/chats/my` → XMPP WebSocket → MUC presence join → MAM history →
@@ -287,9 +287,9 @@ single high-signal smoke for the most-likely class of regressions
 (auth flow, XMPP transport, room hydration).
 
 ### Live deep test
-A documented session log + screenshots from a side-by-side
-alice/iOS ↔ bob/Android run against chat-qa.ethora.com lives at
-`docs/260517_deep-test-chat-qa.md`. Useful as a reproducer recipe.
+A generic deep-test runbook for side-by-side iOS ↔ Android validation
+lives at `docs/deep-test-chat-runbook.md`. Use it as a reproducible
+checklist for your own QA environment.
 
 ### Bugs surfaced + fixed (full history on PR #4)
 The test pass surfaced a handful of latent bugs that had been
@@ -314,8 +314,8 @@ silently shipping. All fixed in the same branch:
 This repo doubles as an Expo testbed app: `App.tsx` mounts
 `AppLoginChatsRn`, a 3-tab (Setup / Chat / Logs) shell that drives the
 SDK end-to-end via either paste-a-JWT or email + app-token login. Run
-it against the canonical Ethora Cloud endpoints, your QA tenant, or a
-self-hosted Ethora instance — all configurable from the Setup tab at
+it against the canonical Ethora Cloud endpoints, your QA/staging
+environment, or a self-hosted Ethora instance — all configurable from the Setup tab at
 runtime.
 
 ### Prerequisites
@@ -426,7 +426,7 @@ export PATH="$PATH:$HOME/.maestro/bin"
 Run against an already-built + installed app + a booted simulator:
 
 ```bash
-# Default profile "mychatapp QA", room "Main chat"
+# Uses the first profile from ~/.ethora/profiles.json, room "Main chat"
 npm run e2e:ios
 npm run e2e:android
 

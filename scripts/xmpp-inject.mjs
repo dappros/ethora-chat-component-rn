@@ -8,7 +8,7 @@
  */
 import { client, xml } from '@xmpp/client';
 
-const BASE = 'https://api.messenger-dev2.vitall.com/v1';
+const BASE = process.env.ETHORA_API_BASE_URL || 'https://api.chat.ethora.com/v1';
 const [, , jwt, roomJid, countArg, prefixArg] = process.argv;
 const count = Number(countArg || 1);
 const prefix = prefixArg || 'inject';
