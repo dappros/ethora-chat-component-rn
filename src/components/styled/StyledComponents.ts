@@ -54,11 +54,14 @@ export const ChatContainerHeaderBoxInfo = styled.TouchableOpacity`
   flex: 1;
   flex-direction: row;
   align-items: center;
-  justify-content: center;
+  /* Left-aligned: the avatar + chat-name row now hugs the left edge of
+   * the header instead of centering itself within the available space.
+   * Was: justify-content:center + max-width:90% which double-centered
+   * with CenterContainer and pushed the title to the middle. */
+  justify-content: flex-start;
+  width: 100%;
   overflow: hidden;
-  max-width: 90%;
   gap: 16px;
-  flex: 1;
 `;
 
 export const ChatContainerHeaderInfo = styled.View`

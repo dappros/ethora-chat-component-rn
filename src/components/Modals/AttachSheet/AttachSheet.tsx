@@ -1,7 +1,9 @@
 /** @format */
 
-import React, { useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
+  Animated,
+  Easing,
   Modal,
   Platform,
   StyleSheet,
@@ -20,6 +22,11 @@ interface AttachSheetProps {
   primaryColor?: string;
 }
 
+// Starting translateY for the sheet. Larger than any realistic sheet
+// height so it sits fully below the viewport before opening; the exact
+// number doesn't matter visually because it animates to 0.
+const SHEET_OFFSCREEN = 600;
+
 const AttachSheet: React.FC<AttachSheetProps> = ({
   visible,
   onClose,
@@ -28,22 +35,94 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
   onDocument,
   primaryColor = '#0052CD',
 }) => {
+  // Pending handler captured on row tap — runs once the EXIT animation
+  // finishes so iOS doesn't try to present an image picker over a
+  // still-dismissing modal (was the original reason for the
+  // platform-split + Modal.onDismiss dance). The animation completion
+  // callback now drives this on both platforms.
   const pendingRef = useRef<(() => void) | null>(null);
 
-  const runPending = () => {
-    const fn = pendingRef.current;
-    pendingRef.current = null;
-    fn?.();
-  };
+  // Local "modal stays mounted while animating out" state. The parent
+  // controls `visible`; we mirror it but delay unmount until the exit
+  // animation has played so the slide-down is actually seen.
+  const [mounted, setMounted] = useState(visible);
+
+  // Two separate Animated values — the whole point of the rewrite:
+  //   • backdropOpacity: fades the dim layer in/out (no slide).
+  //   • sheetTranslateY: slides ONLY the sheet up from below.
+  // RN Modal's built-in `animationType="slide"` slides the entire
+  // contents (backdrop included) so the dim shade entered from the
+  // bottom — what looked "awful". Splitting these gives the standard
+  // bottom-sheet feel.
+  const backdropOpacity = useRef(new Animated.Value(0)).current;
+  const sheetTranslateY = useRef(
+    new Animated.Value(SHEET_OFFSCREEN)
+  ).current;
+
+  useEffect(() => {
+    if (visible) {
+      setMounted(true);
+      // Reset to starting positions BEFORE the Modal becomes visible so
+      // the first animated frame is below-the-fold (not a flash of the
+      // settled sheet).
+      backdropOpacity.setValue(0);
+      sheetTranslateY.setValue(SHEET_OFFSCREEN);
+      // requestAnimationFrame lets the Modal commit its mount before the
+      // animation starts; without this the first frame can be skipped.
+      const raf = requestAnimationFrame(() => {
+        Animated.parallel([
+          Animated.timing(backdropOpacity, {
+            toValue: 1,
+            duration: 220,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+          Animated.spring(sheetTranslateY, {
+            toValue: 0,
+            // Tuned for a quick-but-not-bouncy entry. tension is the
+            // "stiffness" knob, friction the "damping" knob in RN's
+            // spring config.
+            tension: 90,
+            friction: 14,
+            useNativeDriver: true,
+          }),
+        ]).start();
+      });
+      return () => cancelAnimationFrame(raf);
+    }
+    if (!mounted) {return;}
+    // Exit: fade the backdrop, slide the sheet down, then unmount and
+    // fire any pending picker handler.
+    Animated.parallel([
+      Animated.timing(backdropOpacity, {
+        toValue: 0,
+        duration: 180,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(sheetTranslateY, {
+        toValue: SHEET_OFFSCREEN,
+        duration: 220,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start(({ finished }) => {
+      if (!finished) {return;} // interrupted (rapid re-open) → leave state alone
+      setMounted(false);
+      const fn = pendingRef.current;
+      pendingRef.current = null;
+      fn?.();
+    });
+    return undefined;
+  }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const trigger = (handler: () => void) => () => {
-    if (Platform.OS === 'ios') {
-      pendingRef.current = handler;
-      onClose();
-    } else {
-      onClose();
-      setTimeout(handler, 150);
-    }
+    // Capture the handler and ask parent to close. The exit-animation
+    // completion above fires `handler` AFTER the sheet has slid away,
+    // so iOS no longer tries to present a picker over a dismissing
+    // modal — and Android no longer needs the ad-hoc 150ms setTimeout.
+    pendingRef.current = handler;
+    onClose();
   };
 
   const rows: {
@@ -75,52 +154,66 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
   return (
     <Modal
       transparent
-      visible={visible}
-      animationType="slide"
+      visible={mounted}
+      // We drive the animation ourselves — disable RN's built-in slide
+      // (which slid the backdrop too) so the fade + spring above are the
+      // only motion.
+      animationType="none"
       onRequestClose={onClose}
-      onDismiss={runPending}
+      // Hardware-back / iOS gesture also routes through onClose, which
+      // flips `visible` and triggers our exit animation above.
     >
-      <TouchableOpacity
-        style={styles.backdrop}
-        activeOpacity={1}
-        onPress={onClose}
+      <Animated.View
+        style={[styles.backdrop, { opacity: backdropOpacity }]}
       >
-        <TouchableOpacity activeOpacity={1} style={styles.sheet}>
-          <View style={styles.grabber} />
-          <Text style={styles.title}>Attach</Text>
-          {rows.map(({ label, hint, Icon, handler }, idx) => (
-            <TouchableOpacity
-              key={label}
-              activeOpacity={0.6}
-              style={[
-                styles.row,
-                idx < rows.length - 1 && styles.rowDivider,
-              ]}
-              onPress={trigger(handler)}
-            >
-              <View
+        <TouchableOpacity
+          style={StyleSheet.absoluteFill}
+          activeOpacity={1}
+          onPress={onClose}
+        />
+        <Animated.View
+          style={[
+            styles.sheet,
+            { transform: [{ translateY: sheetTranslateY }] },
+          ]}
+        >
+          <TouchableOpacity activeOpacity={1}>
+            <View style={styles.grabber} />
+            <Text style={styles.title}>Attach</Text>
+            {rows.map(({ label, hint, Icon, handler }, idx) => (
+              <TouchableOpacity
+                key={label}
+                activeOpacity={0.6}
                 style={[
-                  styles.iconBubble,
-                  { backgroundColor: primaryColor + '14' },
+                  styles.row,
+                  idx < rows.length - 1 && styles.rowDivider,
                 ]}
+                onPress={trigger(handler)}
               >
-                <Icon color={primaryColor} width={20} height={20} />
-              </View>
-              <View style={styles.rowText}>
-                <Text style={styles.rowLabel}>{label}</Text>
-                <Text style={styles.rowHint}>{hint}</Text>
-              </View>
+                <View
+                  style={[
+                    styles.iconBubble,
+                    { backgroundColor: primaryColor + '14' },
+                  ]}
+                >
+                  <Icon color={primaryColor} width={20} height={20} />
+                </View>
+                <View style={styles.rowText}>
+                  <Text style={styles.rowLabel}>{label}</Text>
+                  <Text style={styles.rowHint}>{hint}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity
+              activeOpacity={0.6}
+              style={styles.cancelRow}
+              onPress={onClose}
+            >
+              <Text style={styles.cancelLabel}>Cancel</Text>
             </TouchableOpacity>
-          ))}
-          <TouchableOpacity
-            activeOpacity={0.6}
-            style={styles.cancelRow}
-            onPress={onClose}
-          >
-            <Text style={styles.cancelLabel}>Cancel</Text>
           </TouchableOpacity>
-        </TouchableOpacity>
-      </TouchableOpacity>
+        </Animated.View>
+      </Animated.View>
     </Modal>
   );
 };

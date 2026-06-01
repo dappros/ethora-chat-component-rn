@@ -338,6 +338,13 @@ export interface IConfig {
     disableMembers?: boolean;
     hideMembers?: boolean;
     disableChatHeaderMenu?: boolean;
+    /**
+     * Disables uploading / removing the chat icon from the chat-info
+     * modal. The avatar stays rendered (initials / current icon) but
+     * the press-to-pick / remove affordances are gone — so the room
+     * icon becomes read-only regardless of the user's role.
+     */
+    disableIconEdit?: boolean;
   };
   qrUrl?: string;
 
