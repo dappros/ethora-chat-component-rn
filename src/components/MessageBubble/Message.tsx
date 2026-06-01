@@ -323,8 +323,10 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
             disabled={!!config?.disableProfilesInteractions}
             accessible={!config?.disableProfilesInteractions}
           >
-            {message.user?.profileImage ? (
-              <CustomMessagePhoto source={{ uri: message.user.profileImage }} />
+            {(message.user?.profileImage || (message.user as any)?.photoURL) ? (
+              <CustomMessagePhoto
+                source={{ uri: message.user.profileImage || (message.user as any).photoURL }}
+              />
             ) : (
               <Avatar username={message.user.name} />
             )}
