@@ -71,11 +71,15 @@ const XmppContext = createContext<XmppContextType | null>(null);
 interface XmppProviderProps {
   children: ReactNode;
   config?: IConfig;
+  // Consumer-supplied "is the chat surface shown" signal for hosts that
+  // keep <Chat> mounted while hidden (tab/route navigators). See the
+  // visibility effect below. Omit when you unmount <Chat> on hide.
+  isVisible?: boolean;
 }
 
 const LOGOUT_EVENT = 'ethora-xmpp-logout';
 
-export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) => {
+export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, isVisible }) => {
   const [client, setClient] = useState<XmppClient | null>(null);
   const [providerBootstrapStatus, setProviderBootstrapStatus] =
     useState<ProviderBootstrapStatus>('idle');
@@ -573,6 +577,43 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
     });
     return () => sub.remove();
   }, [client]);
+
+  // -----------------------------------------------------------
+  // Consumer visibility signal (`isVisible` prop). For hosts that keep
+  // <Chat> MOUNTED while hidden (tab/route navigators — so the XMPP
+  // connection survives tab switches), ChatRoom's mount/unmount can't tell
+  // "shown" from "hidden", so the unread middleware would keep the open
+  // room's badge at 0 and messages arriving while you're elsewhere look
+  // already-read. When the host passes `isVisible`, mirror the AppState
+  // background/foreground handling: hidden → stamp lastViewed=now + clear
+  // room visibility (so later messages count) + flush; shown → restore
+  // visibility for the open room. Doing it here means consumers never
+  // touch the chat store themselves. (Undefined = host unmounts on hide,
+  // nothing to do.)
+  // -----------------------------------------------------------
+  useEffect(() => {
+    if (typeof isVisible !== 'boolean') {return;}
+    const state = store.getState();
+    const rooms = state.rooms?.rooms;
+    const activeRoomJID = state.rooms?.activeRoomJID || null;
+    if (isVisible) {
+      if (activeRoomJID) {
+        store.dispatch(setVisibleRoom({ roomJID: activeRoomJID }));
+      }
+    } else {
+      if (activeRoomJID) {
+        store.dispatch(
+          setLastViewedTimestamp({ chatJID: activeRoomJID, timestamp: Date.now() })
+        );
+      }
+      store.dispatch(clearVisibleRoom());
+      if (client?.flushLastViewedToPrivateStoreStanza) {
+        client
+          .flushLastViewedToPrivateStoreStanza(rooms, { visibleRoomJID: activeRoomJID })
+          .catch(() => {});
+      }
+    }
+  }, [isVisible, client]);
 
   // -----------------------------------------------------------
   // NetInfo → proactive reconnect on network restore. Without this the

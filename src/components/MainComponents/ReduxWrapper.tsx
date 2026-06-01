@@ -24,6 +24,7 @@ interface ChatWrapperProps {
   MainComponentStyles?: React.CSSProperties;
   CustomMessageComponent?: React.ComponentType<MessageProps>;
   config?: IConfig;
+  isVisible?: boolean;
 }
 
 export const ReduxWrapper: React.FC<ChatWrapperProps> = React.memo(
@@ -36,7 +37,7 @@ export const ReduxWrapper: React.FC<ChatWrapperProps> = React.memo(
       <Provider store={store}>
         <SafeAreaProvider>
           <KeyboardProvider>
-            <XmppProvider config={memoizedConfig}>
+            <XmppProvider config={memoizedConfig} isVisible={props.isVisible}>
               <ToastProvider>
                 <MessageNotificationProvider config={memoizedConfig}>
                   <LoginWrapper config={memoizedConfig} {...props} />

@@ -50,11 +50,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ReduxWrapper as Chat } from './src/components/MainComponents/ReduxWrapper';
 import { store as chatStore } from './src/roomStore';
-import {
-  setVisibleRoom,
-  clearVisibleRoom,
-  setLastViewedTimestamp,
-} from './src/roomStore/roomsSlice';
 import { logoutService } from './src/hooks/useLogout';
 import type { IConfig, IRoom } from './src/types/types';
 import {
@@ -687,7 +682,7 @@ const Field: React.FC<{
 // ---------------------------------------------------------------------
 // Chat pane — mounts the local chat component once creds are valid
 // ---------------------------------------------------------------------
-const ChatPane: React.FC<{ creds: Creds | null }> = ({ creds }) => {
+const ChatPane: React.FC<{ creds: Creds | null; isVisible: boolean }> = ({ creds, isVisible }) => {
   const config = useMemo<IConfig | null>(() => {
     if (!creds) {return null;}
     const base = {
@@ -755,7 +750,7 @@ const ChatPane: React.FC<{ creds: Creds | null }> = ({ creds }) => {
         different account. Without it the in-flight XMPP client would
         carry over with the old session.
       */}
-      <Chat key={keyId} config={chatConfig} roomJID={chatRoomJid} />
+      <Chat key={keyId} config={chatConfig} roomJID={chatRoomJid} isVisible={isVisible} />
     </View>
   );
 };
@@ -926,51 +921,11 @@ const AppLoginChatsRn: React.FC = () => {
   const [tab, setTab] = useState<Tab>('setup');
   const [creds, setCreds] = useState<Creds | null>(null);
   const [loading, setLoading] = useState(true);
-  const prevTabRef = useRef<Tab>('setup');
-
-  // When the user leaves the Chat tab (Setup / Logs), flush the
-  // in-memory lastViewedTimestamp for the active room into the server's
-  // private store. Mirrors the AppState→background hook in XmppProvider
-  // — same intent ("user just stopped looking"), different trigger.
-  useEffect(() => {
-    const prev = prevTabRef.current;
-    prevTabRef.current = tab;
-    try {
-      const state = chatStore.getState();
-      const client = (state.chatSettingStore as any)?.client;
-      const rooms = state.rooms?.rooms;
-      const activeRoomJID = state.rooms?.activeRoomJID || null;
-
-      if (prev === 'chat' && tab !== 'chat') {
-        // Left the Chat tab. The chat pane stays MOUNTED (just hidden via
-        // styles), so ChatRoom's unmount cleanup never runs — we must mark
-        // the room "not visible" ourselves. Otherwise `visibleRoomJID`
-        // stays set and the unread middleware keeps forcing this room's
-        // badge to 0, so messages arriving while you're on Setup/Logs show
-        // up as already-read. Stamp lastViewed=now (everything so far is
-        // read), clear visibility (so later messages count as unread),
-        // then flush to the server's private store.
-        if (activeRoomJID) {
-          chatStore.dispatch(
-            setLastViewedTimestamp({ chatJID: activeRoomJID, timestamp: Date.now() })
-          );
-        }
-        chatStore.dispatch(clearVisibleRoom());
-        if (client?.flushLastViewedToPrivateStoreStanza) {
-          client
-            .flushLastViewedToPrivateStoreStanza(rooms, { activeRoomJID })
-            .catch(() => {});
-        }
-      } else if (prev !== 'chat' && tab === 'chat' && activeRoomJID) {
-        // Returned to the Chat tab on an already-open room → mark it
-        // visible again so its unread clears (ChatRoom's mount effect
-        // doesn't re-run; the pane was only hidden, not remounted).
-        chatStore.dispatch(setVisibleRoom({ roomJID: activeRoomJID }));
-      }
-    } catch {
-      /* non-fatal */
-    }
-  }, [tab]);
+  // Chat-tab visibility is signalled to <Chat> via its public `isVisible`
+  // prop (see render below). The library clears/restores room visibility
+  // and flushes lastViewed internally, so the testbed no longer reaches
+  // into the chat store to manage unread — the wrong layer for a packaged
+  // component.
 
   // Restore creds from AsyncStorage on first mount.
   useEffect(() => {
@@ -1062,7 +1017,7 @@ const AppLoginChatsRn: React.FC = () => {
           ]}
           pointerEvents={tab === 'chat' ? 'auto' : 'none'}
         >
-          <ChatPane creds={creds} />
+          <ChatPane creds={creds} isVisible={tab === 'chat'} />
         </View>
         <View
           style={[
