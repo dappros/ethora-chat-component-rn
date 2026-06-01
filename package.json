@@ -4,12 +4,15 @@
   "description": "Drop-in XMPP chat component for React Native / Expo. <Chat config={...}/> and you're done.",
   "main": "index.js",
   "module": "lib/module/main.js",
-  "react-native": "src/main.ts",
+  "react-native": "lib/module/main.js",
   "source": "src/main.ts",
   "types": "lib/typescript/main.d.ts",
   "exports": {
     ".": {
-      "react-native": "./src/main.ts",
+      "react-native": {
+        "types": "./lib/typescript/main.d.ts",
+        "default": "./lib/module/main.js"
+      },
       "import": "./lib/module/main.js",
       "require": "./lib/commonjs/main.js",
       "types": "./lib/typescript/main.d.ts"
@@ -95,7 +98,7 @@
     }
   },
   "scripts": {
-    "prepare": "patch-package",
+    "prepare": "patch-package && node scripts/install-git-hooks.js",
     "start": "expo start",
     "android": "node scripts/ensure-emulator.js && (expo run:android; node scripts/fix-prebuild-deps.js)",
     "ios": "expo run:ios; node scripts/fix-prebuild-deps.js",

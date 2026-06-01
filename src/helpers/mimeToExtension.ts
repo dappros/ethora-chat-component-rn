@@ -64,6 +64,70 @@ const MIME_TO_EXT: Record<string, string> = {
 
 const VALID_EXT_RE = /\.[a-z0-9]{1,8}$/i;
 
+// Audio file extensions we recognise across the SDK. Used for the
+// "looks like audio even when the mimetype is application/octet-stream"
+// heuristic in MediaMessage / FilePreviewModal. Voice-message senders
+// (web app, push voice memos) sometimes ship audio as octet-stream with
+// no audio mime — sniffing the extension lets us still play it.
+// `.bin` is intentionally NOT here: it's our own fallback extension for
+// truly unknown payloads (see getExtensionForMime), not a real format.
+const AUDIO_EXTENSIONS = [
+  '.mp3', '.m4a', '.wav', '.aac', '.ogg', '.flac',
+  '.weba', '.webm', '.opus', '.amr', '.3gp', '.3gpp',
+] as const;
+const AUDIO_EXT_RE = new RegExp(
+  `(${AUDIO_EXTENSIONS.map((e) => e.replace('.', '\\.')).join('|')})$`,
+  'i'
+);
+// Filename / URL substrings that strongly indicate a voice / audio
+// payload even without an explicit audio extension — e.g. a web-app
+// voicemail uploaded as application/octet-stream named "voicemail-…".
+const AUDIO_NAME_HINT_RE =
+  /(?:^|[_\-./])(voice|voicemail|audio|audio-message|audiomessage|recording|voice-?note)(?:[_\-./]|$)/i;
+
+/**
+ * Returns true when the (mime, fileName, url) triple looks like an
+ * audio payload — either by mime, by recognised extension on the
+ * filename or URL path, or by a voice-message naming hint. The hint
+ * branch is what catches voicemails sent as `application/octet-stream`
+ * with a generic `.bin` filename (customer-reported #9 voicemail).
+ */
+export function isLikelyAudio(
+  mime: string | undefined | null,
+  fileName?: string | null,
+  url?: string | null
+): boolean {
+  const m = (mime || '').toLowerCase();
+  if (m.startsWith('audio/')) {return true;}
+  // For octet-stream (and any other non-audio mime) fall through to the
+  // filename / URL heuristics. We don't restrict to octet-stream — some
+  // backends send no mime at all, or send text/plain by accident.
+  const name = (fileName || '').toLowerCase();
+  const urlLast = filenameFromUrl(url).toLowerCase();
+  if (AUDIO_EXT_RE.test(name) || AUDIO_EXT_RE.test(urlLast)) {return true;}
+  // Last resort: voice-message naming hint anywhere in the filename, the
+  // URL's last segment, OR the URL's full path. Voicemails are commonly
+  // hosted under `/voice/abc-123` or `/voicemail/abc-123` where the last
+  // segment is an opaque id with no hint by itself.
+  const urlPath = (() => {
+    if (!url) {return '';}
+    try {
+      const noQuery = url.split('?')[0]!.split('#')[0]!;
+      return decodeURIComponent(noQuery).toLowerCase();
+    } catch {
+      return '';
+    }
+  })();
+  if (
+    AUDIO_NAME_HINT_RE.test(name) ||
+    AUDIO_NAME_HINT_RE.test(urlLast) ||
+    AUDIO_NAME_HINT_RE.test(urlPath)
+  ) {
+    return true;
+  }
+  return false;
+}
+
 /**
  * Returns the conventional extension (including the leading dot) for a
  * MIME type, or `.bin` as a last-resort fallback so callers never end up

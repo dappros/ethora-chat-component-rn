@@ -27,7 +27,7 @@ import { useToast } from '../../../context/ToastContext';
 import PdfViewer from './PdfView';
 import DocumentViewer from './DocumentViewer';
 import AudioMessage from '../../styled/AudioMessage';
-import { ensureFilenameHasExtension } from '../../../helpers/mimeToExtension';
+import { ensureFilenameHasExtension, isLikelyAudio } from '../../../helpers/mimeToExtension';
 
 // MIME types Google's gview embed renders reliably. Everything else
 // falls through to the info-card so the user can still download.
@@ -240,7 +240,15 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
         );
       case activeFile.mimetype.startsWith('video/'):
         return <ModalVideo uri={activeFile.fileURL} />;
-      case activeFile.mimetype.startsWith('audio/'):
+      // Mirrors the MediaMessage heuristic: treat octet-stream voicemails
+      // with audio-shaped filenames / URLs as audio so the preview shows
+      // the player instead of an "Unsupported" card. Customer-reported
+      // #9 voicemail fix — see isLikelyAudio in mimeToExtension.ts.
+      case isLikelyAudio(
+        activeFile.mimetype,
+        activeFile.fileName,
+        activeFile.fileURL
+      ):
         return (
           <View
             style={{
