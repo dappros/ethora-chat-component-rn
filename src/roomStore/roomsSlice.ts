@@ -247,13 +247,23 @@ const reducers = {
       action: PayloadAction<{ roomJID: string; messageId: string }>
     ) {
       const { roomJID, messageId } = action.payload;
-      if (state.rooms[roomJID]) {
-        state.rooms[roomJID].messages.map((message) => {
-          if (message.id === messageId) {
-            message.isDeleted = true;
-          }
-        });
+      const room = state.rooms[roomJID];
+      if (!room?.messages) {return;}
+      // The "New messages" divider is a transient UI marker, not a real
+      // message — SPLICE it out so it can be re-inserted for the next
+      // unread batch. Marking it isDeleted (like a real message) left it in
+      // the array, where insertMessageWithDelimiter's "already present"
+      // guard then blocked every future divider (one-shot bug).
+      if (messageId === 'delimiter-new') {
+        const idx = room.messages.findIndex((m) => m.id === 'delimiter-new');
+        if (idx !== -1) {room.messages.splice(idx, 1);}
+        return;
       }
+      room.messages.map((message) => {
+        if (message.id === messageId) {
+          message.isDeleted = true;
+        }
+      });
     },
     setEditAction: (state: WritableDraft<RoomMessagesState>, action: PayloadAction<EditAction | undefined>) => {
       if (action.payload?.isEdit) {

@@ -24,23 +24,26 @@ export const StyledLabel = styled.View`
   margin: 10px 0px;
 `;
 
-export const StyledLabelText = styled.Text<{ color?: string }>`
-  color: ${(props) => (props?.color ? props?.color : '#0052CD')};
+export const StyledLabelText = styled.Text`
+  color: #ffffff;
   font-size: 12px;
   line-height: 14px;
-  font-weight: 400;
+  font-weight: 500;
 `;
 
+// `color` is kept for CustomNewMessageLabel API parity, but the built-in
+// label always renders WHITE text — it sits on a dark (#3f3f3f) pill, where
+// the previous primary/blue text was unreadable.
 interface NewMessageLabelProps {
   color?: string;
 }
 
-const NewMessageLabel: React.FC<NewMessageLabelProps> = ({ color }) => {
+const NewMessageLabel: React.FC<NewMessageLabelProps> = () => {
   return (
     <Container>
       <Line />
       <StyledLabel>
-        <StyledLabelText color={color}>New messages</StyledLabelText>
+        <StyledLabelText>New messages</StyledLabelText>
       </StyledLabel>
       <Line />
     </Container>

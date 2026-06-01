@@ -43,6 +43,7 @@ import {
   setVisibleRoom,
   clearVisibleRoom,
   setLastViewedTimestamp,
+  deleteRoomMessage,
 } from '../roomStore/roomsSlice';
 import { runHistoryPreloadScheduler } from '../helpers/historyPreloadScheduler';
 import { asyncLocalStorage } from '../hooks/useLocalStorage';
@@ -567,6 +568,12 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
         store.dispatch(
           setLastViewedTimestamp({ chatJID: visibleRoomJID, timestamp: Date.now() })
         );
+        // Drop the "New messages" divider for the room we're leaving so it
+        // doesn't linger when the user comes back (mirrors ChatRoom's
+        // unmount cleanup, which never runs while the pane stays mounted).
+        store.dispatch(
+          deleteRoomMessage({ roomJID: visibleRoomJID, messageId: 'delimiter-new' })
+        );
         store.dispatch(clearVisibleRoom());
       }
       // Fire-and-forget — we're going to the background and don't
@@ -604,6 +611,11 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
       if (activeRoomJID) {
         store.dispatch(
           setLastViewedTimestamp({ chatJID: activeRoomJID, timestamp: Date.now() })
+        );
+        // Drop the "New messages" divider so it's gone when the user
+        // returns to the chat (mirrors ChatRoom's unmount cleanup).
+        store.dispatch(
+          deleteRoomMessage({ roomJID: activeRoomJID, messageId: 'delimiter-new' })
         );
       }
       store.dispatch(clearVisibleRoom());

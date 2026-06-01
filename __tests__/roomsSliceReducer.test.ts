@@ -336,6 +336,33 @@ describe('roomsSlice — Cluster D (message lifecycle)', () => {
     expect(doomed?.isDeleted).toBe(true);
   });
 
+  it('deleteRoomMessage SPLICES the new-messages divider (not tombstone, so it can re-appear)', () => {
+    let state = roomsReducer(
+      initial(),
+      addRoom({ roomData: makeRoom('a@conference.test') })
+    );
+    state = roomsReducer(
+      state,
+      setRoomMessages({
+        roomJID: 'a@conference.test',
+        messages: [
+          makeMessage('m1', { timestamp: 1_000 }),
+          makeMessage('delimiter-new', { body: 'New messages', timestamp: 1_500 }),
+          makeMessage('m2', { timestamp: 2_000 }),
+        ],
+      })
+    );
+    state = roomsReducer(
+      state,
+      deleteRoomMessage({ roomJID: 'a@conference.test', messageId: 'delimiter-new' })
+    );
+    const messages = state.rooms['a@conference.test'].messages;
+    // The divider is removed entirely (a tombstone would keep id
+    // 'delimiter-new' in the array and block re-insertion); real messages
+    // are untouched.
+    expect(messages.map((m) => m.id)).toEqual(['m1', 'm2']);
+  });
+
   it('editRoomMessage updates the body in place', () => {
     let state = roomsReducer(
       initial(),
