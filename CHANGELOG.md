@@ -3,11 +3,52 @@
 All notable changes to `@ethora/chat-component-rn` are listed here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project doesn't follow strict semver yet — version corresponds to the `package.json` field.
 
-## [26.5.10]
+## [26.5.11]
 
-Lifecycle hardening on top of 26.5.9, driven by live on-device testing: a full reconnect-after-loss overhaul (a live test surfaced — and this release fixes — a reconnect storm), cache no longer wiped on re-entry, automatic AppState-driven unread visibility plus a new `isVisible` prop for tab hosts, `initBeforeLoad` auto-retry, and the "New messages" divider polish. Full regression sweep — typecheck clean, 583 jest tests green.
+Single-room and host-app hardening on top of 26.5.10: unread state no longer overloads `lastViewedTimestamp`, room JIDs are normalized before XMPP join paths, iOS keyboard spacing is normalized across devices, tracked default credentials are removed from source, and tenant-specific docs/testbed defaults are scrubbed. Verified with targeted Jest regression suites plus `npm run build`.
+
+### Changed
+
+#### Unread / single-room lifecycle
+
+- **Unread state split into persisted vs ephemeral visibility.** The store now tracks room visibility separately (`visibleRoomJID`) instead of overloading `lastViewedTimestamp = 0` as an "active room" sentinel. This removes the main source of tab-mounted single-room unread regressions and makes cold-start / blur / background semantics consistent.
+- **Canonical private-store flush path.** Blur, unmount, background, and logout paths now converge on the same unread timestamp flush flow instead of mixing local state updates with special-case stanza writes.
+- **Delimiter logic no longer depends on sentinel `0`.** "New messages" UI now derives from real timestamps / visibility instead of a magic unread value, which keeps divider behavior stable in mounted-tab hosts.
+
+#### Single-room roomJID normalization
+
+- **Bare room ids are normalized to full MUC JIDs** before single-room join/info/member/archive calls. This aligns the join path with the existing history path and prevents reconnect/join failures when a host passes only the room local-part.
+
+#### iOS keyboard layout
+
+- **Keyboard spacing normalized across iOS devices.** Chat input safe-area compensation is now centralized so devices with and without a home indicator keep the same visual dock behavior when the keyboard opens.
+- **`SafeAreaProvider` wrapped by the RN testbed shell.** The shared wrapper now guarantees `useSafeAreaInsets()` has a provider in the local app path.
+
+#### Credentials / docs hygiene
+
+- **Tracked default credentials removed.** `AppLoginChatsRn` now ships with blank setup defaults; the JWT seed helper reads from an ignored local JSON file instead of secrets in tracked source.
+- **Tenant-specific docs and QA notes replaced with generic runbooks.** Example profile names, QA hostnames, and customer-specific notes were scrubbed from README / scripts / docs in favor of reusable environment-agnostic instructions.
 
 ### Fixed
+
+- **Tab-mounted single-room unread regressions.** Focus/blur/background behavior now works without importing internal store paths from consumer apps.
+- **Cold-start unread marker clobbering.** Persisted last-viewed state is no longer vulnerable to being overwritten by the old active-room sentinel flow.
+- **Single-room reconnect/join mismatch for bare room ids.** XMPP room operations now operate on normalized MUC JIDs consistently.
+
+### Internal
+
+- **Repo-side pre-commit typecheck hook is versioned and wired.** `.githooks/pre-commit` runs `tsc --noEmit --moduleResolution bundler --module esnext -p tsconfig.json`, and `scripts/install-git-hooks.js` sets `git config core.hooksPath .githooks` from the `prepare` script. Use `ETHORA_SKIP_TYPECHECK=1` or `git commit --no-verify` only when intentionally bypassing it.
+
+## [26.5.10]
+
+Lifecycle hardening on top of 26.5.9, driven by live on-device testing: a full reconnect-after-loss overhaul (a live test surfaced — and this release fixes — a reconnect storm), cache no longer wiped on re-entry, automatic AppState-driven unread visibility plus a new `isVisible` prop for tab hosts, `initBeforeLoad` auto-retry, and the "New messages" divider polish. Full regression sweep — typecheck clean, 584 jest tests green.
+
+### Fixed
+
+#### Packaging / TypeScript (regression from 26.5.5)
+
+- **#8 — consumers' tsc no longer compiles our raw source.** `exports['.'].react-native` pointed at `./src/main.ts`, so React Native consumers' TypeScript (which resolves with `customConditions: ["react-native"]`) walked our entire `src/` tree and hit 51 errors about our internal devDeps (`@types/ltx`, `@types/uuid`, `@types/xmpp__client`, JSX namespace) — blocking pre-commit hooks on consumer side. The condition is now a nested entry that exposes the **compiled** artifacts: `react-native.types → ./lib/typescript/main.d.ts`, `react-native.default → ./lib/module/main.js`. No `src/*.ts` is reachable through any `exports` chain. (Verified by parsing the resolution graph and confirming zero `./src/` references in `exports`.)
+- **Pre-commit typecheck hook (repo-side).** Added `.githooks/pre-commit` that runs `tsc --noEmit` with the project's `--moduleResolution bundler --module esnext` flags before every commit; a `scripts/install-git-hooks.js` wires `core.hooksPath` from the `prepare` script on `npm install`. Zero runtime deps. Bypass with `ETHORA_SKIP_TYPECHECK=1` or `git commit --no-verify` if you really need to. Catches future packaging-style regressions before they ship.
 
 #### Connectivity / reconnect (the big one)
 
@@ -34,6 +75,19 @@ Lifecycle hardening on top of 26.5.9, driven by live on-device testing: a full r
 
 - **White text.** The label sits on a dark pill but rendered in the (often blue) primary color — unreadable. It's now white.
 - **Removed when you leave the chat** (tab switch / navigation / app background) and **spliced out rather than tombstoned**, so it correctly re-appears for the next batch of unread — previously it was a one-shot (the tombstone blocked every future divider).
+
+#### Customer-reported bugs (this round)
+
+- **#19 — `useUnread()` always 0 in tab-mounted hosts.** `ChatRoom`'s visibility effect had `client` in its dep array, so any `client` identity change (reconnect, provider re-render) re-fired setup → `dispatch(setVisibleRoom(activeRoomJID))` ~one tick after the host cleared visibility via the `isVisible` prop on `<Chat>`, clobbering it. Effect now splits setup (deps without `client`) from cleanup (reads client through a ref). `<Chat isVisible={...} />` now works as documented.
+- **#15 — `disableChatHeaderBurgerMenuIcon` clipped the chat avatar/name.** When the burger was hidden the header still reserved an empty `leftContainer` at `width: 15%`, eating space and clipping the title. The placeholder is no longer rendered — `CenterContainer` expands to fill, the chat-name row now sits flush with the left edge as intended.
+- **#16 — new `disableChatInfo.disableMemberTap` flag.** `disableMemberProfileActions` only hides the *action block inside* the member-profile popup; the popup itself still opened on tap. The new flag blocks the tap entirely, so the popup never opens. Both flags can be combined for full lock-down.
+- **#9 (video) — video preview tap unresponsive.** `VideoMessage` wrapped a `VideoView` in a `TouchableOpacity` with `pointerEvents="none"` on the inner view — on some `expo-video` versions / iOS the native VideoView still intercepted gestures, so tapping the poster did nothing. Switched to a capture-overlay pattern: VideoView at the bottom, transparent `Pressable` absolute-filled on top owns the tap → `setActiveModal(FILE_PREVIEW)` reliably fires. (The .bin voicemail case is a web-app issue — see migration note below.)
+- **#23 — phantom "ethora.com" room stub.** `rooms.api` synthesized JIDs as `<name>@conference.xmpp.chat.ethora.com` when the REST item carried no JID and the consumer hadn't configured `xmppSettings.host` — surfacing a fake "ethora" room on third-party servers. Removed the hardcoded vendor host; the fallback now derives the host from `config.baseUrl` (`api.foo.com` → `xmpp.foo.com`), and if that's still ambiguous the room is skipped with a `warn` log rather than fabricated.
+
+**Migration notes for consumers**
+
+- *#9 voicemail .bin*: the testbed sees voicemails from the web app arrive with `mimetype: application/octet-stream` and no audio file extension, so the audio-extension sniff in `MediaMessage.tsx` doesn't match and the file falls through to `FileDownload` (unplayable). Fix on the **web sender side**: when uploading a voice message, set `mimetype: audio/mp3` (or `audio/m4a` / whatever the actual codec is) and ensure the filename ends in a recognised audio extension (`.mp3` / `.m4a` / `.wav` / `.aac` / `.ogg` / `.flac`). The RN side then plays it correctly without further changes.
+- *#16 migration*: if you previously set `disableMemberProfileActions: true` expecting it to also suppress the tap, set `disableChatInfo.disableMemberTap: true` additionally.
 
 #### Misc
 

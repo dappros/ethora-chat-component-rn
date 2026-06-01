@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Pre-commit gate: TypeScript MUST type-check before any commit.
+#
+# Why this exists: 26.5.10 shipped with `exports.react-native` pointing
+# at raw `./src/main.ts` instead of the compiled `./lib/module/main.js`.
+# That made consumers' tsc traverse our entire src/ tree and explode on
+# our internal @types/* devDeps (#8 regression). A repo-side tsc hook
+# would not by itself have caught THAT (those devDeps make our own tsc
+# pass), but it's the right hygiene step — it keeps us from ever
+# shipping code that doesn't type-check locally, which is a strictly
+# necessary condition for a clean consumer build.
+#
+# Disabling: set ETHORA_SKIP_TYPECHECK=1 in your env to bypass for a
+# single commit (e.g. WIP branches), or use `git commit --no-verify`.
+# Don't make either the default.
+set -e
+
+if [ "${ETHORA_SKIP_TYPECHECK:-0}" = "1" ]; then
+  echo "pre-commit: ETHORA_SKIP_TYPECHECK=1 — skipping tsc" >&2
+  exit 0
+fi
+
+# This project's tsconfig sets `module: commonjs` which clashes with
+# `customConditions` from the extended @react-native config, so the
+# CLI flags here override that pair. Mirrors what the typecheck
+# documentation in the repo recommends.
+TSC="$(git rev-parse --show-toplevel)/node_modules/.bin/tsc"
+if [ ! -x "$TSC" ]; then
+  echo "pre-commit: tsc not found at $TSC — run 'npm install' first" >&2
+  exit 1
+fi
+
+"$TSC" --noEmit \
+  --moduleResolution bundler \
+  --module esnext \
+  -p tsconfig.json

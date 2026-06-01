@@ -280,7 +280,8 @@ Why awaitable: the persistence layer debounces writes by 200 ms, and the chat sl
 | `disableChatInfo.disableChatHeaderMenu` | Disables the **chat-info modal entry point** in the header (tapping the chat title / icon). Use this when you want the header purely informational. The chat-info modal itself has further granular flags (`disableDescription`, `disableType`, `disableMembers`, `hideMembers`, `disableIconEdit`). |
 | `disableChatInfo.disableIconEdit` | Makes the chat icon read-only in the chat-info modal — hides the press-to-pick picker AND the remove affordance regardless of the user's role. The icon still renders. |
 | `disableChatHeaderBurgerMenuIcon` | Hides the burger icon in the chat header (the icon that opens the room-list dropdown). `chatHeaderBurgerMenu` controls only the dropdown — set this when you want neither rendered. |
-| `disableMemberProfileActions` | Hides the whole "Message / Copy User Id" action block in the chat-info member modal. Use when no per-user actions are appropriate (e.g. patient-facing apps). |
+| `disableMemberProfileActions` | Hides the whole "Message / Copy User Id" action block **inside** the chat-info member-profile popup. The popup itself still opens — to block the tap entirely, use `disableChatInfo.disableMemberTap`. |
+| `disableChatInfo.disableMemberTap` | Disables the tap on a member row in the chat-info list — the user-profile popup never opens. Set when no per-member interaction is appropriate (e.g. patient-facing apps). |
 | `hideMemberSendMessageAction` | Hides only the "Message" button, keeps everything else. |
 | `hideMemberCopyIdAction` | Hides only the "Copy User Id" button, keeps everything else. |
 | `disableConnectionErrorOverlay` | Replaces the full-screen "Connection error" overlay with a small, non-blocking `ConnectionBanner`. Set this when a transient reconnect shouldn't take over the whole screen. |

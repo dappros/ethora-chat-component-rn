@@ -93,11 +93,14 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
               onPress={handleHeaderChatMenu}
             />
           </View>
-        ) : (
-          // Reserve the slot so the title stays centered relative to
-          // the right-hand actions even when the icon is hidden.
-          <View style={styles.leftContainer} />
-        )}
+        ) : null
+        /* Don't reserve the 15%-wide leftContainer when both the back
+         * button is absent AND the burger icon is hidden — the empty
+         * slot used to steal width from the title row, clipping the chat
+         * name. Customer-reported #15. The right action area still fills
+         * its own slot, so the title now starts at the left edge as
+         * intended by `disableChatHeaderBurgerMenuIcon`. */
+        }
         <CenterContainer
           rightSpace={config?.disableRoomConfig}
           leftSpace={!!config?.headerChatMenu}

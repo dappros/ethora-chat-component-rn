@@ -32,6 +32,7 @@ import {useChatSettingState} from '../../hooks/useChatSettingState';
 import {DeviceEventEmitter, Pressable, Text, View} from 'react-native';
 import {pushLog as devPushLog} from '../../utils/devLogger';
 import {normalizeRoomJid} from '../../helpers/normalizeRoomJid';
+import {InteractionsOverlayProvider} from '../MessageBubble/InteractionsOverlay';
 
 interface ChatWrapperProps {
   token?: string;
@@ -398,28 +399,34 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
             style={{
               ...MainComponentStyles,
             }}>
-            {showRoomList ? (
-              <RoomList
-                chats={Object.values(rooms)}
-                onRoomClick={handleChangeChat}
-              />
-            ) : (
-              <ChatWrapperBox
-                style={{
-                  ...MainComponentStyles,
-                }}>
-                <ChatRoom
-                  CustomMessageComponent={CustomMessageComponent || Message}
-                  handleBackClick={
-                    roomJID || config?.disableRooms
-                      ? undefined
-                      : () => {
-                          dispatch(setCurrentRoom({ roomJID: '' }));
-                        }
-                  }
+            {/* Host the message context menu in-tree (not a RN Modal) so
+                opening it doesn't steal focus / dismiss the keyboard on
+                Android. Wraps only the chat area — the global Modal /
+                ModalWrapper below stay above it. */}
+            <InteractionsOverlayProvider>
+              {showRoomList ? (
+                <RoomList
+                  chats={Object.values(rooms)}
+                  onRoomClick={handleChangeChat}
                 />
-              </ChatWrapperBox>
-            )}
+              ) : (
+                <ChatWrapperBox
+                  style={{
+                    ...MainComponentStyles,
+                  }}>
+                  <ChatRoom
+                    CustomMessageComponent={CustomMessageComponent || Message}
+                    handleBackClick={
+                      roomJID || config?.disableRooms
+                        ? undefined
+                        : () => {
+                            dispatch(setCurrentRoom({ roomJID: '' }));
+                          }
+                    }
+                  />
+                </ChatWrapperBox>
+              )}
+            </InteractionsOverlayProvider>
             <Modal
               modal={activeModal}
               setOpenModal={(value?: ModalType) =>

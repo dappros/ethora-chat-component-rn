@@ -154,6 +154,19 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
       dispatch(setEditAction({ isEdit: false }));
     };
 
+    // Read the latest client through a ref so this effect's setup phase
+    // does NOT re-run on every `client` identity change. With `client` in
+    // the deps array, a reconnect or any provider re-render would re-fire
+    // setup → `dispatch(setVisibleRoom(...))` ~one tick after the host
+    // cleared visibility via the `isVisible` prop (XmppProvider) — racing
+    // and clobbering it, so `useUnread()` reported 0 in tab-mounted hosts.
+    // Customer-reported #19. The cleanup still needs the live client for
+    // flushLastViewedToPrivateStoreStanza, which is what the ref provides.
+    const clientRef = useRef(client);
+    useEffect(() => {
+      clientRef.current = client;
+    }, [client]);
+
     useEffect(() => {
       if (!activeRoomJID) {
         return;
@@ -170,8 +183,9 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
           }),
         );
         dispatch(clearVisibleRoom());
-        if (client) {
-          client
+        const liveClient = clientRef.current;
+        if (liveClient) {
+          liveClient
             .flushLastViewedToPrivateStoreStanza(store.getState().rooms?.rooms, {
               visibleRoomJID: activeRoomJID,
             })
@@ -180,7 +194,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
         dispatch(deleteRoomMessage({ roomJID: activeRoomJID, messageId: 'delimiter-new' }));
         setIsLoadingMore(false);
       };
-    }, [activeRoomJID, client, dispatch]);
+    }, [activeRoomJID, dispatch]);
 
     // hooks useEffects
     // useRoomUrl(activeRoomJID || "", roomsList, config);

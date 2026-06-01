@@ -203,22 +203,64 @@ describe('customer feedback round — locked behaviour', () => {
     });
 
     it('routes octet-stream with audio extension to AudioMessage', () => {
+      // The audio-extension sniff lives in the shared `isLikelyAudio`
+      // helper now (mimeToExtension.ts) so MediaMessage + FilePreviewModal
+      // share one source of truth. Verify the helper actually says "yes"
+      // for octet-stream + audio extension, and "no" for octet-stream +
+      // non-audio. Functional assertion, not a regex pin.
+      const { isLikelyAudio } = require('../src/helpers/mimeToExtension');
+      const audioExts = ['mp3', 'm4a', 'wav', 'aac', 'ogg', 'flac'];
+      for (const ext of audioExts) {
+        expect(
+          isLikelyAudio('application/octet-stream', `voice.${ext}`, null)
+        ).toBe(true);
+      }
+      expect(
+        isLikelyAudio('application/octet-stream', 'random.bin', null)
+      ).toBe(false);
+
+      // And the unconditional `case 'application/octet-stream':
+      // return <AudioMessage />` routing (the original bug) must still
+      // be gone in MediaMessage.tsx — guarded behind the helper now.
       const fs = require('fs');
       const src = fs.readFileSync(
         require.resolve('../src/components/MainComponents/MediaMessage'),
         'utf-8'
       );
-      // Source assertion: the audio-extension sniff regex covers the
-      // common audio mime extensions before falling through.
-      expect(src).toMatch(/\.\(mp3\|m4a\|wav\|aac\|ogg\|flac\)/i);
-      // And the unconditional `case 'application/octet-stream':
-      // return <AudioMessage />` routing (the bug) must be gone — it
-      // must be guarded behind an `if` on the audio-extension regex.
-      // We match on actual code patterns (no comment word matches) by
-      // anchoring on the `case ... :` switch syntax.
       expect(src).not.toMatch(
         /case[^:]*application\/octet-stream[^:]*:\s*\n?\s*return\s+<AudioMessage/
       );
+      // The new contract: MediaMessage delegates to `isLikelyAudio`.
+      expect(src).toMatch(/isLikelyAudio\s*\(/);
+    });
+
+    it('isLikelyAudio recognises voice-message naming hints (octet-stream voicemails)', () => {
+      // Customer-reported #9: web app ships voicemails as
+      // application/octet-stream with no audio extension. The helper
+      // must still recognise them via voice/voicemail/recording naming
+      // hints in the filename OR the URL path.
+      const { isLikelyAudio } = require('../src/helpers/mimeToExtension');
+      expect(
+        isLikelyAudio('application/octet-stream', 'voicemail-12345.bin', null)
+      ).toBe(true);
+      expect(
+        isLikelyAudio('application/octet-stream', 'voice-note.bin', null)
+      ).toBe(true);
+      expect(
+        isLikelyAudio('application/octet-stream', 'recording_2026.bin', null)
+      ).toBe(true);
+      expect(
+        isLikelyAudio(
+          'application/octet-stream',
+          null,
+          'https://cdn.example.com/voicemail/abc-123'
+        )
+      ).toBe(true);
+      // A non-audio file with a similar-looking word doesn't match —
+      // the hint requires a word-boundary on at least one side.
+      expect(
+        isLikelyAudio('application/octet-stream', 'invoice.pdf', null)
+      ).toBe(false);
     });
 
     it('routes octet-stream without audio extension to FileDownload', () => {
@@ -254,6 +296,35 @@ describe('customer feedback round — locked behaviour', () => {
       expect(entry.import).toContain('lib/module'); // ESM consumers
       expect(entry.types).toMatch(/\.d\.ts$/);
       expect(entry.types).toContain('lib/');
+    });
+
+    it('exports map contains no ./src/ paths anywhere', () => {
+      const pkg = require('../package.json');
+      const seen: string[] = [];
+
+      const walk = (value: unknown) => {
+        if (typeof value === 'string') {
+          seen.push(value);
+          return;
+        }
+        if (Array.isArray(value)) {
+          value.forEach(walk);
+          return;
+        }
+        if (value && typeof value === 'object') {
+          Object.values(value).forEach(walk);
+        }
+      };
+
+      walk(pkg.exports);
+
+      expect(seen.length).toBeGreaterThan(0);
+      expect(seen).not.toEqual(
+        expect.arrayContaining([expect.stringMatching(/(^|\/)\.\/src\//)])
+      );
+      expect(seen).not.toEqual(
+        expect.arrayContaining([expect.stringMatching(/(^|\/)src\//)])
+      );
     });
 
     it('react-native-builder-bob config present', () => {
