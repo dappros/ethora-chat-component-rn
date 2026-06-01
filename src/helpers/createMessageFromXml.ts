@@ -103,6 +103,18 @@ export const createMessageFromXml = async (
     merged?.user?.id ||
     '';
 
+  // Avatar: the bubble renders user.profileImage. Derive it directly from the
+  // message <data> attrs (`photo`/`photoURL`) which are flattened into `merged`,
+  // so it is populated regardless of whether the upstream parser set it on the
+  // nested user object. The room-member list omits profileImage, so the message
+  // envelope is the only reliable avatar source for incoming messages.
+  const envelopePhoto =
+    merged?.user?.profileImage ||
+    (merged as any).photo ||
+    (merged as any).photoURL ||
+    (merged?.user as any)?.photoURL ||
+    '';
+
   const message: IMessage = {
     ...merged,
     user: {
@@ -111,6 +123,7 @@ export const createMessageFromXml = async (
       name: resolvedName,
       firstName: firstName || merged?.user?.firstName,
       lastName: lastName || merged?.user?.lastName,
+      profileImage: envelopePhoto || undefined,
     },
   };
 
