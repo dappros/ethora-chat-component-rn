@@ -50,6 +50,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ReduxWrapper as Chat } from './src/components/MainComponents/ReduxWrapper';
 import { store as chatStore } from './src/roomStore';
+import {
+  setVisibleRoom,
+  clearVisibleRoom,
+  setLastViewedTimestamp,
+} from './src/roomStore/roomsSlice';
 import { logoutService } from './src/hooks/useLogout';
 import type { IConfig, IRoom } from './src/types/types';
 import {
@@ -930,20 +935,40 @@ const AppLoginChatsRn: React.FC = () => {
   useEffect(() => {
     const prev = prevTabRef.current;
     prevTabRef.current = tab;
-    if (prev === 'chat' && tab !== 'chat') {
-      try {
-        const state = chatStore.getState();
-        const client = (state.chatSettingStore as any)?.client;
-        const rooms = state.rooms?.rooms;
-        const activeRoomJID = state.rooms?.activeRoomJID || null;
+    try {
+      const state = chatStore.getState();
+      const client = (state.chatSettingStore as any)?.client;
+      const rooms = state.rooms?.rooms;
+      const activeRoomJID = state.rooms?.activeRoomJID || null;
+
+      if (prev === 'chat' && tab !== 'chat') {
+        // Left the Chat tab. The chat pane stays MOUNTED (just hidden via
+        // styles), so ChatRoom's unmount cleanup never runs — we must mark
+        // the room "not visible" ourselves. Otherwise `visibleRoomJID`
+        // stays set and the unread middleware keeps forcing this room's
+        // badge to 0, so messages arriving while you're on Setup/Logs show
+        // up as already-read. Stamp lastViewed=now (everything so far is
+        // read), clear visibility (so later messages count as unread),
+        // then flush to the server's private store.
+        if (activeRoomJID) {
+          chatStore.dispatch(
+            setLastViewedTimestamp({ chatJID: activeRoomJID, timestamp: Date.now() })
+          );
+        }
+        chatStore.dispatch(clearVisibleRoom());
         if (client?.flushLastViewedToPrivateStoreStanza) {
           client
             .flushLastViewedToPrivateStoreStanza(rooms, { activeRoomJID })
             .catch(() => {});
         }
-      } catch {
-        /* non-fatal */
+      } else if (prev !== 'chat' && tab === 'chat' && activeRoomJID) {
+        // Returned to the Chat tab on an already-open room → mark it
+        // visible again so its unread clears (ChatRoom's mount effect
+        // doesn't re-run; the pane was only hidden, not remounted).
+        chatStore.dispatch(setVisibleRoom({ roomJID: activeRoomJID }));
       }
+    } catch {
+      /* non-fatal */
     }
   }, [tab]);
 
@@ -955,12 +980,11 @@ const AppLoginChatsRn: React.FC = () => {
         if (raw) {
           const parsed = { ...DEFAULT_CREDS, ...JSON.parse(raw) };
           setCreds(parsed);
-          pushLog('rn', 'Restored creds from AsyncStorage');
-          // Auto-jump to Chat for either mode if we have what we need.
-          const ready =
-            (parsed.mode === 'jwt' && !!parsed.jwt) ||
-            (parsed.mode === 'email' && !!parsed.resolvedUser);
-          if (ready) {setTab('chat');}
+          pushLog('rn', 'Restored creds from AsyncStorage (staying on Setup)');
+          // Intentionally DO NOT auto-jump to Chat on startup — the app
+          // always opens on the Setup tab, even when creds are already
+          // saved, so you can review/edit them first. (Pressing Save in
+          // Setup still navigates to Chat; see handleSave.)
         }
       } catch (err) {
         pushLog('error', 'Failed to read creds', err);

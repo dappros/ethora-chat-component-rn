@@ -38,7 +38,12 @@ import { getRooms as prefetchRoomsViaRest } from '../networking/api-requests/roo
 import { allRoomPresences } from '../networking/xmpp/allRoomPresences.xmpp';
 import { store } from '../roomStore';
 import { logout, setStoreClient } from '../roomStore/chatSettingsSlice';
-import { setLogoutState } from '../roomStore/roomsSlice';
+import {
+  setLogoutState,
+  setVisibleRoom,
+  clearVisibleRoom,
+  setLastViewedTimestamp,
+} from '../roomStore/roomsSlice';
 import { runHistoryPreloadScheduler } from '../helpers/historyPreloadScheduler';
 import { asyncLocalStorage } from '../hooks/useLocalStorage';
 import { localStorageConstants } from '../helpers/constants/LOCAL_STORAGE';
@@ -508,6 +513,10 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
   // entry, or when this build has `disableLastRead`.
   // -----------------------------------------------------------
   useEffect(() => {
+    // Remembers the room that was visible when we backgrounded so it can
+    // be re-marked visible on return. Lives in the effect closure (one per
+    // client) — persists across the listener's many invocations.
+    let visibleBeforeBackground: string | null = null;
     const sub = AppState.addEventListener('change', (next) => {
       const c = client;
       if (next === 'active') {
@@ -526,15 +535,36 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config }) 
           devPushLog('rn', `AppState active: client ${c.status} → forceReconnect`);
           c.forceReconnect();
         }
+        // Re-mark the previously-open room visible so its unread clears
+        // now that the user is looking again. We restore ONLY what was
+        // visible at background time, so a chat the consumer had already
+        // blurred (e.g. on a non-chat tab/route) correctly stays cleared.
+        if (visibleBeforeBackground) {
+          store.dispatch(setVisibleRoom({ roomJID: visibleBeforeBackground }));
+          visibleBeforeBackground = null;
+        }
         return;
       }
       // Going to background/inactive (sleep / app switcher / tray):
-      // flush lastViewedTimestamp into the server private store so the
-      // next session shows the correct unread state.
       if (!c) {return;}
       const state = store.getState();
       const rooms = state.rooms?.rooms;
       const visibleRoomJID = state.rooms?.visibleRoomJID || null;
+      // Mark the open room "not visible" while backgrounded so messages
+      // that arrive (or MAM-replay on reconnect) count as unread instead
+      // of being silently treated as read — the "mounted == visible ==
+      // read" gap. Stamp lastViewed=now as the read baseline, clear
+      // visibility, then flush that marker to the server private store.
+      // Restored on the next 'active' transition above. Handled here in
+      // the provider so consumers using the component as a package get
+      // correct unread without reaching into the chat store themselves.
+      visibleBeforeBackground = visibleRoomJID;
+      if (visibleRoomJID) {
+        store.dispatch(
+          setLastViewedTimestamp({ chatJID: visibleRoomJID, timestamp: Date.now() })
+        );
+        store.dispatch(clearVisibleRoom());
+      }
       // Fire-and-forget — we're going to the background and don't
       // care about the resolution path.
       c.flushLastViewedToPrivateStoreStanza(rooms, { visibleRoomJID }).catch(
