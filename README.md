@@ -208,7 +208,20 @@ The complete field-by-field reference — every option in `IConfig`, grouped by 
 
 ## Unread tracking in tab-based hosts
 
-`useUnread()` is wired to the `<ChatRoom>` mount/unmount lifecycle by default. In a tab-based navigator where the chat tab stays mounted while another tab is focused, that lifecycle never fires and the unread counter never increments. The `useChatRoomFocus` hook bridges the gap — feed it the focus flag from your navigator and the SDK takes over.
+`useUnread()` and the room-list badge are wired to the `<ChatRoom>` mount/unmount lifecycle by default, and **app background/foreground is handled automatically** — backgrounding stamps "read up to now" and clears the open room's "viewed" state (so messages that arrive while you're away count as unread instead of looking already-read); foreground restores it. No wiring needed for that.
+
+What the SDK *can't* see on its own is an in-app **tab/route switch** where the chat screen **stays mounted while hidden** — there the lifecycle never fires and the room looks "always viewed". Signal it one of two ways (don't reach into the store):
+
+**Option A — the `isVisible` prop (simplest):**
+
+```tsx
+function ChatTab({ currentTab }: { currentTab: string }) {
+  // Library clears/restores the room's unread state from this flag.
+  return <Chat config={{...}} isVisible={currentTab === 'chat'} />;
+}
+```
+
+**Option B — the `useChatRoomFocus` hook** (drive it from a navigator focus signal):
 
 ```tsx
 import { useIsFocused } from '@react-navigation/native';
@@ -231,6 +244,8 @@ function TabBar() {
 }
 ```
 
+(If instead you **unmount** `<Chat>` when it's hidden, you need neither — mount/unmount already handles it.)
+
 Full details (including the cold-start fix and the scroll-to-bottom unread chip) live in [`docs/unread-tracking.md`](docs/unread-tracking.md).
 
 ## Customization flags worth knowing
@@ -252,7 +267,7 @@ Full details (including the cold-start fix and the scroll-to-bottom unread chip)
 npm test          # ~2s, full suite
 ```
 
-49 files, 554 tests cover the SDK's substantive surface:
+54 files, 583 tests cover the SDK's substantive surface:
 
 | Layer                          | Coverage |
 |--------------------------------|----------|

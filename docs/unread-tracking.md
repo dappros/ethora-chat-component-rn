@@ -106,7 +106,21 @@ You don't need `useUnread` to drive this badge; the room list reads `room.unread
 
 ## Tab-based navigators: `useChatRoomFocus`
 
-If you embed `<Chat>` inside a tab navigator where the chat screen **stays mounted** when you switch tabs (the common React Navigation case), the SDK can't tell "looking at the chat" from "on another tab" on its own — so `useUnread()` would report **0** for that room even while messages arrive in the background. **You should not** reach into internal paths (`src/roomStore`, `setLastViewedTimestamp`, …) to work around this — use the public [`useChatRoomFocus`](../src/hooks/useChatRoomFocus.ts) hook, driven by your navigator's focus signal:
+First, the case you **don't** have to handle: **app background/foreground is automatic.** When the OS backgrounds the app, the provider stamps "read up to now" for the open room and clears its "viewed" state, so messages that arrive while you're away count as unread (rather than looking already-read); foreground restores it. (It also drops the open room's "New messages" divider so it doesn't linger.)
+
+The case you *do* handle: an **in-app tab/route switch** where `<Chat>` **stays mounted while hidden** (the common React Navigation case). The SDK can't tell "looking at the chat" from "on another tab", so without a signal `useUnread()` would report **0** for that room while messages arrive in the background. **Do not** reach into internal paths (`src/roomStore`, `setLastViewedTimestamp`, …) — signal it one of two public ways:
+
+**Option A — the `isVisible` prop on `<Chat>` (simplest):**
+
+```tsx
+function ChatTab({ currentTab }: { currentTab: string }) {
+  // The library clears the room's "viewed" state (so messages count as
+  // unread) when hidden and restores it when shown.
+  return <Chat config={/* … */} isVisible={currentTab === 'chat'} />;
+}
+```
+
+**Option B — the [`useChatRoomFocus`](../src/hooks/useChatRoomFocus.ts) hook**, driven by your navigator's focus signal:
 
 ```tsx
 import { useIsFocused } from '@react-navigation/native';
@@ -122,7 +136,7 @@ function ChatTab() {
 const { totalCount } = useUnread(); // now updates correctly on blur/focus
 ```
 
-On **focus** it marks the room actively-viewed (clears the badge); on **blur** it stamps "read up to now" **and** releases the active-room marker so subsequent messages count as unread. No internal imports required.
+Either way: shown → the room is marked actively-viewed (badge clears); hidden → "read up to now" is stamped **and** the active-room marker is released so subsequent messages count as unread. No internal imports required. (If you **unmount** `<Chat>` when it's hidden, you need neither — mount/unmount already handles it.)
 
 ## Opting out: `disableLastRead`
 
