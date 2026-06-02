@@ -187,10 +187,28 @@ const MediaMessage: React.FC<MediaMessageProps> = ({
           />
         );
       case mimeType.startsWith('audio/'): {
-        return <AudioMessage src={location || ''} />;
+        return (
+          <AudioMessage
+            src={location || ''}
+            mimeType={mimeType}
+            fileName={displayName}
+            originalName={(message as any)?.originalName}
+            duration={(message as any)?.duration}
+            waveForm={(message as any)?.waveForm}
+          />
+        );
       }
       case mimeType.includes('application/octet-stream'): {
-        return <AudioMessage src={location || ''} />;
+        return (
+          <AudioMessage
+            src={location || ''}
+            mimeType={mimeType}
+            fileName={displayName}
+            originalName={(message as any)?.originalName}
+            duration={(message as any)?.duration}
+            waveForm={(message as any)?.waveForm}
+          />
+        );
       }
       default: {
         // Some senders (notably the web app's voice-message uploader)
@@ -202,7 +220,16 @@ const MediaMessage: React.FC<MediaMessageProps> = ({
         // card (where the voicemail rendered as a broken `.bin`
         // attachment). Customer-reported #9 voicemail fix.
         if (isAudioPayload) {
-          return <AudioMessage src={location || ''} />;
+          return (
+            <AudioMessage
+              src={location || ''}
+              mimeType={mimeType}
+              fileName={displayName}
+              originalName={(message as any)?.originalName}
+              duration={(message as any)?.duration}
+              waveForm={(message as any)?.waveForm}
+            />
+          );
         }
         return (
           <FileDownload

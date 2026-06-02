@@ -254,7 +254,14 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
             <Text style={{ fontSize: 16, fontWeight: '600' }}>
               Voice message
             </Text>
-            <AudioMessage src={activeFile.fileURL} />
+            <AudioMessage
+              src={activeFile.fileURL}
+              mimeType={activeFile.mimetype}
+              fileName={activeFile.fileName}
+              originalName={activeFile.originalName}
+              duration={activeFile.duration}
+              waveForm={activeFile.waveForm}
+            />
           </View>
         );
       // Mirrors the MediaMessage heuristic: treat octet-stream voicemails
@@ -287,7 +294,14 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                 activeFile.mimetype
               )}
             </Text>
-            <AudioMessage src={activeFile.fileURL} />
+            <AudioMessage
+              src={activeFile.fileURL}
+              mimeType={activeFile.mimetype}
+              fileName={activeFile.fileName}
+              originalName={activeFile.originalName}
+              duration={activeFile.duration}
+              waveForm={activeFile.waveForm}
+            />
           </View>
         );
       case activeFile.mimetype === 'application/pdf':

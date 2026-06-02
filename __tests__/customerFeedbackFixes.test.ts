@@ -227,7 +227,9 @@ describe('customer feedback round — locked behaviour', () => {
       expect(src).toMatch(
         /case\s+mimeType\.includes\('application\/octet-stream'\)/
       );
-      expect(src).toMatch(/return\s+<AudioMessage src=\{location \|\| ''\} \/>/);
+      expect(src).toMatch(/<AudioMessage\s+src=\{location \|\| ''\}/);
+      expect(src).toContain('mimeType={mimeType}');
+      expect(src).toContain('originalName={(message as any)?.originalName}');
     });
 
     it('isLikelyAudio recognises voice-message naming hints (octet-stream voicemails)', () => {

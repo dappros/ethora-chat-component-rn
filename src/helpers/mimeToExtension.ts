@@ -75,8 +75,19 @@ const AUDIO_EXTENSIONS = [
   '.mp3', '.m4a', '.wav', '.aac', '.ogg', '.flac',
   '.weba', '.webm', '.opus', '.amr', '.3gp', '.3gpp',
 ] as const;
+const IOS_AUDIO_PLAYBACK_EXTENSIONS = [
+  '.mp3', '.m4a', '.mp4', '.wav', '.aac', '.caf',
+  '.aif', '.aiff', '.amr', '.3gp', '.3gpp',
+] as const;
+const IOS_AUDIO_UNSUPPORTED_EXTENSIONS = [
+  '.webm', '.weba', '.opus', '.ogg',
+] as const;
 const AUDIO_EXT_RE = new RegExp(
   `(${AUDIO_EXTENSIONS.map((e) => e.replace('.', '\\.')).join('|')})$`,
+  'i'
+);
+const IOS_AUDIO_PLAYBACK_EXT_RE = new RegExp(
+  `(${IOS_AUDIO_PLAYBACK_EXTENSIONS.map((e) => e.replace('.', '\\.')).join('|')})$`,
   'i'
 );
 // Filename / URL substrings that strongly indicate a voice / audio
@@ -175,6 +186,88 @@ export function filenameFromUrl(url: string | undefined | null): string {
   } catch {
     return '';
   }
+}
+
+const getLowerExtension = (value: string | undefined | null) => {
+  if (!value) {return '';}
+  const match = value.toLowerCase().match(VALID_EXT_RE);
+  return match ? match[0] : '';
+};
+
+/**
+ * AVFoundation on iOS is stricter than browsers: a remote URL served as
+ * `application/octet-stream` with an opaque `.bin` name may fail before
+ * probing the actual audio payload. When the payload already looks like
+ * audio, cache it locally with an iOS-playable extension before playback.
+ */
+export function shouldCacheAudioForIosPlayback(opts: {
+  src?: string | null;
+  mime?: string | null;
+  fileName?: string | null;
+  originalName?: string | null;
+  duration?: number | string | null;
+  waveForm?: string | null;
+}): boolean {
+  const src = opts.src || '';
+  if (!/^https?:\/\//i.test(src)) {return false;}
+
+  const mime = (opts.mime || '').toLowerCase().split(';')[0]!.trim();
+  const urlName = filenameFromUrl(src);
+  const candidates = [urlName, opts.fileName || '', opts.originalName || ''];
+  const hasIosPlayableName = candidates.some((value) =>
+    IOS_AUDIO_PLAYBACK_EXT_RE.test(value)
+  );
+  if (hasIosPlayableName && mime.startsWith('audio/')) {return false;}
+
+  return isLikelyAudio(mime, opts.fileName, src, {
+    duration: opts.duration,
+    waveForm: opts.waveForm,
+    originalName: opts.originalName,
+  });
+}
+
+export function getIosAudioPlaybackCacheExtension(opts: {
+  mime?: string | null;
+  fileName?: string | null;
+  originalName?: string | null;
+  url?: string | null;
+}): string {
+  const candidates = [
+    opts.fileName,
+    opts.originalName,
+    filenameFromUrl(opts.url),
+    getExtensionForMime(opts.mime),
+  ];
+  for (const candidate of candidates) {
+    const ext = getLowerExtension(candidate);
+    if (ext && IOS_AUDIO_PLAYBACK_EXT_RE.test(ext)) {
+      return ext === '.mp4' ? '.m4a' : ext;
+    }
+  }
+  return '.m4a';
+}
+
+export function isUnsupportedAudioForIosPlayback(opts: {
+  mime?: string | null;
+  fileName?: string | null;
+  originalName?: string | null;
+  url?: string | null;
+}): boolean {
+  const mime = (opts.mime || '').toLowerCase().split(';')[0]!.trim();
+  if (mime === 'audio/webm' || mime === 'audio/ogg') {
+    return true;
+  }
+  const candidates = [
+    opts.fileName,
+    opts.originalName,
+    filenameFromUrl(opts.url),
+  ];
+  return candidates.some((candidate) => {
+    const ext = getLowerExtension(candidate);
+    return IOS_AUDIO_UNSUPPORTED_EXTENSIONS.includes(
+      ext as (typeof IOS_AUDIO_UNSUPPORTED_EXTENSIONS)[number]
+    );
+  });
 }
 
 /**
