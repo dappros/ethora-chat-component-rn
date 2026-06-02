@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { WebView } from 'react-native-webview';
+import { StyleSheet, Text, View } from 'react-native';
+import GViewWebView from './GViewWebView';
 
 interface DocumentViewerProps {
   /** Public CDN URL of the doc. Must be reachable from Google's servers. */
@@ -14,27 +14,15 @@ interface DocumentViewerProps {
  * PPTX / TXT / RTF / CSV) and other non-PDF formats supported by
  * Google's free gview rendering service.
  *
- * Strategy: embed `https://docs.google.com/gview?url=<encoded>&embedded=true`
- * inside a WebView. Google fetches the doc from its public URL and
- * renders it to a viewable iframe — no client-side dependency on
- * native office libraries, no extra peer dep. Works for any backend
- * whose file URLs are publicly reachable (which Ethora's `/files/`
- * already are — they're CDN URLs returned in `item.location`).
  *
  * Limitations (documented for the integrator):
  *   - Requires public URL — won't work for auth-gated downloads.
  *   - First load can take 2-5s on slow networks.
  *   - Read-only — no editing, no print/share buttons.
  *
- * For PDFs use the existing PdfViewer (downloads then renders locally).
  */
 const DocumentViewer: React.FC<DocumentViewerProps> = ({ url, fileName }) => {
-  const [loaded, setLoaded] = useState(false);
   const [errored, setErrored] = useState(false);
-
-  const viewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(
-    url
-  )}&embedded=true`;
 
   if (errored) {
     return (
@@ -50,37 +38,12 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ url, fileName }) => {
     );
   }
 
-  return (
-    <View style={styles.container}>
-      <WebView
-        source={{ uri: viewerUrl }}
-        style={styles.webview}
-        originWhitelist={['*']}
-        startInLoadingState
-        onLoadEnd={() => setLoaded(true)}
-        onError={() => setErrored(true)}
-        onHttpError={() => setErrored(true)}
-      />
-      {!loaded && (
-        <View style={styles.loadingOverlay} pointerEvents="none">
-          <ActivityIndicator size="large" />
-        </View>
-      )}
-    </View>
-  );
+  return <GViewWebView url={url} onError={() => setErrored(true)} />;
 };
 
 export default DocumentViewer;
 
 const styles = StyleSheet.create({
-  container: { flex: 1, width: '100%', backgroundColor: '#fff' },
-  webview: { flex: 1, backgroundColor: '#fff' },
-  loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-  },
   center: {
     flex: 1,
     alignItems: 'center',

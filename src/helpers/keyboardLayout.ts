@@ -4,6 +4,8 @@ type KeyboardLayoutArgs = {
   bottomInset?: number;
 };
 
+export const ANDROID_INPUT_DOCK_GAP = 12;
+
 export const getKeyboardVerticalOffset = ({
   platform,
   configuredOffset = 0,
@@ -15,4 +17,4 @@ export const getInputDockPaddingBottom = ({
   platform,
   bottomInset = 0,
 }: Omit<KeyboardLayoutArgs, 'configuredOffset'>): number =>
-  platform === 'ios' ? bottomInset : 0;
+  platform === 'ios' ? bottomInset : ANDROID_INPUT_DOCK_GAP;
