@@ -65,6 +65,14 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
     config?.headerChatMenu && config?.headerChatMenu();
   };
 
+  // Shared open-chat-info handler used by BOTH the outer touchable row
+  // and the avatar's own press (the avatar otherwise absorbs taps without
+  // bubbling — see the comment on ProfileImagePlaceholder below).
+  const openChatInfo = useCallback(
+    () => dispatch(setActiveModal(MODAL_TYPES.CHAT_PROFILE)),
+    [dispatch]
+  );
+
   return (
     <>
       <ChatContainerHeader>
@@ -105,17 +113,37 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
             />
           )}
           <ChatContainerHeaderBoxInfo
-            onPress={() => dispatch(setActiveModal(MODAL_TYPES.CHAT_PROFILE))}
-            disabled={config?.disableProfilesInteractions}
+            onPress={openChatInfo}
+            // Gates the entry to the CHAT-INFO modal (room name, members,
+            // settings) via the dedicated `disableChatInfo.disableChatHeaderMenu`
+            // flag. Previously wired to `disableProfilesInteractions`, which
+            // is for USER-profile popups (the in-bubble avatar tap, see
+            // Message.tsx) — wrong semantic gate, and it meant a consumer
+            // who wanted to hide user profiles also lost their entry to
+            // the chat info screen.
+            disabled={config?.disableChatInfo?.disableChatHeaderMenu}
           >
-            <View>
-              <ProfileImagePlaceholder
-                name={currentRoom?.title || currentRoom?.name}
-                size={40}
-                icon={currentRoom?.icon}
-                active={!config?.disableProfilesInteractions || true}
-              />
-            </View>
+            {/* No wrapping <View> here: ProfileImagePlaceholder renders
+              * its avatar as a TouchableOpacity (AvatarCircle) that
+              * INTERCEPTS taps even when its own onPress is undefined —
+              * so without forwarding a press handler, tapping the chat
+              * avatar did nothing (clicks on the name worked because
+              * those bubble up to the outer TouchableOpacity). Pass
+              * `click` so the avatar fires the same openChatInfo
+              * dispatch; the surrounding text + the gap between avatar
+              * and text continue to be handled by the outer
+              * ChatContainerHeaderBoxInfo. */}
+            <ProfileImagePlaceholder
+              name={currentRoom?.title || currentRoom?.name}
+              size={40}
+              icon={currentRoom?.icon}
+              active={!config?.disableChatInfo?.disableChatHeaderMenu}
+              click={
+                config?.disableChatInfo?.disableChatHeaderMenu
+                  ? undefined
+                  : { isClick: true, onPress: openChatInfo }
+              }
+            />
             <ChatContainerHeaderInfo>
               <ChatContainerHeaderLabel numberOfLines={1} ellipsizeMode="tail">
                 {currentRoom?.title || currentRoom?.name}

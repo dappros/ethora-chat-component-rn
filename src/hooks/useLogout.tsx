@@ -134,18 +134,41 @@ const logoutService = {
   },
 };
 
-export const useLogout = () => {
-  const dispatch = useDispatch();
+/**
+ * Hook that returns an awaitable logout function.
+ *
+ * ```tsx
+ * const logout = useLogout();
+ * await logout();
+ * navigation.replace('SignIn'); // disk is provably clean here
+ * ```
+ *
+ * The returned function resolves AFTER all teardown work has landed:
+ * XMPP disconnect, redux reset, persisted slices wiped, stray
+ * AsyncStorage keys removed, REST cache cleared. It never rejects —
+ * any internal failure is logged via console.warn so a fire-and-forget
+ * `logout()` call (no `await`) still won't crash the host.
+ *
+ * Why awaitable: the persistence middleware debounces writes by 200ms,
+ * and the chat-slice `logout` reducer removes ETHORA_USER fire-and-
+ * forget. If the host navigated / re-mounted `<Chat>` immediately
+ * after a non-awaited call, the next bootstrap could occasionally
+ * read stale persisted state ("old chats reappear"). Awaiting the
+ * returned promise eliminates that race entirely.
+ */
+export const useLogout = (): (() => Promise<void>) => {
+  // dispatch is kept for backward-compat with consumers who treat the
+  // hook's presence as a redux-context requirement; not used directly
+  // here because the work happens through the module-level service.
+  useDispatch();
 
-  const handleLogout = useCallback(() => {
-    // The hook fires-and-forgets — consumers that need to await the
-    // teardown should call `logoutService.performLogout()` directly.
-    logoutService.performLogout().catch((err) => {
-      console.warn('useLogout: performLogout rejected', err);
-    });
+  return useCallback(async () => {
+    try {
+      await logoutService.performLogout();
+    } catch (err) {
+      console.warn('useLogout: performLogout failed', err);
+    }
   }, []);
-
-  return handleLogout;
 };
 
 export { logoutService };

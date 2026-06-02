@@ -16,6 +16,7 @@ React Native chat UI + chat core for iOS and Android, powered by the Ethora plat
 - [Authentication modes](#authentication-modes)
 - [Pinning a single room](#pinning-a-single-room)
 - [Unread tracking in tab-based hosts](#unread-tracking-in-tab-based-hosts)
+- [Logging out](#logging-out)
 - [Customization flags worth knowing](#customization-flags-worth-knowing)
 - [Quality & test coverage](#quality--test-coverage)
 - [Local development](#local-development)
@@ -248,10 +249,36 @@ function TabBar() {
 
 Full details (including the cold-start fix and the scroll-to-bottom unread chip) live in [`docs/unread-tracking.md`](docs/unread-tracking.md).
 
+## Logging out
+
+`useLogout()` returns an **awaitable** `() => Promise<void>` that resolves only after the SDK has fully torn down: XMPP disconnect, redux reset, persisted slices wiped, AsyncStorage stray keys removed, REST cache cleared.
+
+```tsx
+import { useLogout } from '@ethora/chat-component-rn';
+
+function SignOutButton() {
+  const logout = useLogout();
+  return (
+    <Button
+      title="Sign out"
+      onPress={async () => {
+        await logout();                      // ← awaits the full teardown
+        navigation.replace('SignIn');        // disk is provably clean here
+      }}
+    />
+  );
+}
+```
+
+Why awaitable: the persistence layer debounces writes by 200 ms, and the chat slice removes its persisted user fire-and-forget. If the host navigated / re-mounted `<Chat>` immediately after a non-awaited call, the next bootstrap could occasionally rehydrate stale state ("old chats reappear"). Awaiting the returned promise eliminates that race. The function never rejects — any internal failure is logged via `console.warn`, so a non-awaited call still won't crash the host. For non-React contexts you can call `logoutService.performLogout()` directly (same Promise).
+
 ## Customization flags worth knowing
 
 | Flag | What it does |
 | --- | --- |
+| `disableProfilesInteractions` | Disables entry to the **user-profile popup** — the in-bubble avatar tap on other users' messages. The avatar is still rendered, just non-interactive. (Does **not** affect the chat-title press → use `disableChatInfo.disableChatHeaderMenu` for that.) |
+| `disableChatInfo.disableChatHeaderMenu` | Disables the **chat-info modal entry point** in the header (tapping the chat title / icon). Use this when you want the header purely informational. The chat-info modal itself has further granular flags (`disableDescription`, `disableType`, `disableMembers`, `hideMembers`, `disableIconEdit`). |
+| `disableChatInfo.disableIconEdit` | Makes the chat icon read-only in the chat-info modal — hides the press-to-pick picker AND the remove affordance regardless of the user's role. The icon still renders. |
 | `disableChatHeaderBurgerMenuIcon` | Hides the burger icon in the chat header (the icon that opens the room-list dropdown). `chatHeaderBurgerMenu` controls only the dropdown — set this when you want neither rendered. |
 | `enableAudio` | Opt-in voice messages. **Off by default.** When `true`, an idle input (no text, no attachments) shows a mic icon in the send-button slot — tap → start recording → stop & send. iOS apps need `NSMicrophoneUsageDescription` in Info.plist (add via `expo-av`'s plugin block in `app.json`). Receiving voice messages from other clients (incl. legacy web `.bin` voicemails) is **independent of this flag** — incoming audio plays regardless. |
 | `disableMemberProfileActions` | Hides the whole "Message / Copy User Id" action block **inside** the chat-info member-profile popup. The popup itself still opens — to block the tap entirely, use `disableChatInfo.disableMemberTap`. |

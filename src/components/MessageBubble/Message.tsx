@@ -309,7 +309,19 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
       >
         {!isUser && (
           <CustomMessagePhotoContainer
-            onPress={() => handleUserAvatarClick(message.user)}
+            // `disableProfilesInteractions` gates every entry point to the
+            // user-profile popup: this in-bubble avatar AND the chat-title
+            // press in ChatHeader. When disabled we still render the avatar
+            // visually but make it non-interactive (no press, no a11y
+            // affordance) — consumers who want it gone entirely can return
+            // null from a custom message component.
+            onPress={
+              config?.disableProfilesInteractions
+                ? undefined
+                : () => handleUserAvatarClick(message.user)
+            }
+            disabled={!!config?.disableProfilesInteractions}
+            accessible={!config?.disableProfilesInteractions}
           >
             {message.user?.profileImage ? (
               <CustomMessagePhoto source={{ uri: message.user.profileImage }} />

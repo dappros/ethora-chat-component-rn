@@ -293,11 +293,22 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
         <ProfileImagePlaceholder
           name={activeRoom.title || activeRoom.name}
           icon={activeRoom.icon}
+          // Two gates control whether the icon is editable:
+          //   1. role — only non-participants could edit before.
+          //   2. NEW: `disableChatInfo.disableIconEdit` — hard kill from
+          //      config so a consumer can make the icon read-only for
+          //      everyone (e.g. branded rooms, patient-facing apps).
+          // Both must allow it for the picker/remove affordances to show.
           upload={{
             onUpload,
-            active: activeRoom?.role !== 'participant' ? true : false,
+            active:
+              !config?.disableChatInfo?.disableIconEdit &&
+              activeRoom?.role !== 'participant',
           }}
-          remove={{ enabled: true, onRemoveClick }}
+          remove={{
+            enabled: !config?.disableChatInfo?.disableIconEdit,
+            onRemoveClick,
+          }}
           role={activeRoom?.role}
           size={128}
         />

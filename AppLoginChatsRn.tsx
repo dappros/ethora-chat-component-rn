@@ -698,11 +698,19 @@ const ChatPane: React.FC<{ creds: Creds | null; isVisible: boolean }> = ({ creds
       disableInteractions: false,
       disableReactions: false,
       enableAudio: true,
+      // Single flag for every entry point to the user-profile popup:
+      // ChatHeader title press AND the in-bubble avatar tap. The bubble
+      // avatar fix landed alongside this — `Message.tsx` now respects this
+      // gate the same way `ChatHeader` already did.
+      disableProfilesInteractions: true,
       keyboardVerticalOffset: Platform.OS === 'ios' ? 130 : 100,
       disableChatHeaderBurgerMenuIcon: true,
       disableChatInfo: {
         disableDescription: true,
-        disableType:true
+        disableType: true,
+        // Make the chat icon read-only — no press-to-edit picker, no
+        // remove affordance, regardless of the user's role.
+        disableIconEdit: true,
       },
       disableMemberProfileActions: true
     } as IConfig;

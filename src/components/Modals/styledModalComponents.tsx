@@ -72,10 +72,19 @@ export const HeaderContainer = styled.View`
   position: relative;
   top: 0;
   width: 100%;
-  padding: 2px 8px;
-  padding-top: 62px;
-  max-height: 24px;
-  min-height: 24px;
+  /* The previous incarnation had padding-top:62px (hard-coded status-bar
+   * offset) clamped to min/max-height:24px — content overflowed the
+   * visible band and the back arrow hugged the bottom edge. The earlier
+   * fix dropped the clamp but kept a hard-coded 56px top inset, which on
+   * top of this modal's absolute-fill overlay (no system inset is auto-
+   * applied) made the header eat far more space than it should.
+   *
+   * Now: compact 8px vertical padding here; the dynamic top inset for
+   * the status bar / Dynamic Island is supplied by ModalHeaderComponent
+   * via useSafeAreaInsets() — accurate per-device (~59px on a 16 Pro,
+   * 20px on an SE). Together that's status-bar + 8px above the back
+   * button and 8px below — properly sized and properly centered. */
+  padding: 8px 16px;
   background-color: #fff;
   border-bottom-width: 1px;
   border-bottom-color: #f0f0f0;
