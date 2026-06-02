@@ -313,6 +313,11 @@ export const useSendMessage = (_configOverride?: IConfig) => {
         `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || selfId;
       const fileSizeStr = data?.size != null ? String(data.size) : '';
 
+      const normalizedFileUri =
+        typeof data?.uri === 'string'
+          ? data.uri.replace(/^assets-library:\/\//, 'file://')
+          : '';
+
       if (!config?.disableSentLogic && !existingId) {
         dispatch(
           addRoomMessage({
@@ -335,8 +340,8 @@ export const useSendMessage = (_configOverride?: IConfig) => {
               isSystemMessage: 'false',
               isMediafile: 'true',
               fileName: data?.name,
-              location: '',
-              locationPreview: '',
+              location: normalizedFileUri,
+              locationPreview: normalizedFileUri,
               mimetype: type,
               originalName: data?.name,
               size: fileSizeStr,
@@ -408,10 +413,7 @@ export const useSendMessage = (_configOverride?: IConfig) => {
       // legacy library items — those can't be read as files. Coerce
       // to a file:// scheme when possible so the body is a real blob.
       const fileBlob = {
-        uri:
-          typeof data?.uri === 'string'
-            ? data.uri.replace(/^assets-library:\/\//, 'file://')
-            : data?.uri,
+        uri: normalizedFileUri || data?.uri,
         type:
           data?.type ||
           data?.mimeType ||
@@ -492,6 +494,10 @@ export const useSendMessage = (_configOverride?: IConfig) => {
               store.getState()?.chatSettingStore?.client,
             ].find((c: any) => c && c.status === 'online');
           if (effectiveMediaClient) {
+            effectiveMediaClient.setActiveRoomJid?.(activeRoomJID);
+            await Promise.resolve(
+              effectiveMediaClient.prioritizeRoomPresence?.(activeRoomJID)
+            ).catch(() => false);
             effectiveMediaClient.sendMediaMessageStanza(
               activeRoomJID,
               messagePayload,

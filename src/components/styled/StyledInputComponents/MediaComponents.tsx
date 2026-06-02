@@ -49,52 +49,63 @@ export const IconButton = styled.TouchableOpacity`
   pointer-events: auto;
 `;
 
-export const UnsupportedContainer = styled.TouchableOpacity`
+export const UnsupportedContainer = styled.TouchableOpacity<{ isUser?: boolean }>`
   display: flex;
   flex-direction: row;
   align-items: center;
-  justify-content: space-between;
-  border-radius: 8px;
-  padding: 10px;
-  margin: 5px 0;
+  justify-content: flex-start;
+  border-radius: 12px;
+  padding: 8px;
+  margin: 8px;
   cursor: pointer;
   gap: 8px;
+  background-color: ${({ isUser }) => (isUser ? '#EDF5FF' : '#F7F9FC')};
+  border-width: 1px;
+  border-color: ${({ isUser }) => (isUser ? '#D7E6FF' : '#E7ECF3')};
+  min-width: 196px;
+  max-width: 260px;
 `;
 
 export const BackgroundFile = styled.View`
-  background-color: #f9f9f9;
-  border-radius: 8px;
+  width: 54px;
+  height: 54px;
+  align-items: center;
+  justify-content: center;
+  background-color: #F3EAFB;
+  border-radius: 10px;
 `;
 
 export const FileInformation = styled.View`
+  flex: 1;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
 `;
 
 export const FileName = styled.Text<{
   isUser: boolean;
-  colorIsUser: string| undefined;
+  colorIsUser: string | undefined;
   colorUsers: string | undefined;
 }>`
   font-size: 14px;
-  font-weight: 500;
-  flex-grow: 1;
-  color: ${({isUser, colorIsUser, colorUsers}) => isUser? colorIsUser : colorUsers};
-  overflow: hidden;
+  font-weight: 600;
+  flex-shrink: 1;
+  color: ${({ isUser, colorIsUser }) =>
+    isUser ? colorIsUser || '#1D4ED8' : '#1F2937'};
 `;
 
 export const FileSizeContainer = styled.View`
   align-items: flex-start;
   flex-direction: row;
-  background-color: #f2e6f6;
-  padding: 2px 8px;
-  border-radius: 10px;
+  background-color: #FFFFFF;
+  padding: 3px 8px;
+  border-radius: 999px;
 `;
 
 export const FileSize = styled.Text`
-  color: #53575a;
+  color: #667085;
   overflow: hidden;
   text-align: left;
-  font-weight: 500;
+  font-size: 12px;
+  font-weight: 600;
 `;

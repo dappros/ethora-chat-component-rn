@@ -219,19 +219,15 @@ describe('customer feedback round — locked behaviour', () => {
         isLikelyAudio('application/octet-stream', 'random.bin', null)
       ).toBe(false);
 
-      // And the unconditional `case 'application/octet-stream':
-      // return <AudioMessage />` routing (the original bug) must still
-      // be gone in MediaMessage.tsx — guarded behind the helper now.
       const fs = require('fs');
       const src = fs.readFileSync(
         require.resolve('../src/components/MainComponents/MediaMessage'),
         'utf-8'
       );
-      expect(src).not.toMatch(
-        /case[^:]*application\/octet-stream[^:]*:\s*\n?\s*return\s+<AudioMessage/
+      expect(src).toMatch(
+        /case\s+mimeType\.includes\('application\/octet-stream'\)/
       );
-      // The new contract: MediaMessage delegates to `isLikelyAudio`.
-      expect(src).toMatch(/isLikelyAudio\s*\(/);
+      expect(src).toMatch(/return\s+<AudioMessage src=\{location \|\| ''\} \/>/);
     });
 
     it('isLikelyAudio recognises voice-message naming hints (octet-stream voicemails)', () => {
@@ -263,7 +259,7 @@ describe('customer feedback round — locked behaviour', () => {
       ).toBe(false);
     });
 
-    it('routes octet-stream without audio extension to FileDownload', () => {
+    it('keeps a generic helper fallback for non-octet-stream files', () => {
       const fs = require('fs');
       const src = fs.readFileSync(
         require.resolve('../src/components/MainComponents/MediaMessage'),

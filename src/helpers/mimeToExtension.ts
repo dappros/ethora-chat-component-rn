@@ -95,16 +95,36 @@ const AUDIO_NAME_HINT_RE =
 export function isLikelyAudio(
   mime: string | undefined | null,
   fileName?: string | null,
-  url?: string | null
+  url?: string | null,
+  opts?: {
+    duration?: number | string | null;
+    waveForm?: string | null;
+    originalName?: string | null;
+  }
 ): boolean {
   const m = (mime || '').toLowerCase();
   if (m.startsWith('audio/')) {return true;}
+  const durationNum =
+    typeof opts?.duration === 'string'
+      ? Number(opts.duration)
+      : opts?.duration ?? 0;
+  if (Number.isFinite(durationNum) && durationNum > 0) {return true;}
+  if (typeof opts?.waveForm === 'string' && opts.waveForm.trim().length > 0) {
+    return true;
+  }
   // For octet-stream (and any other non-audio mime) fall through to the
   // filename / URL heuristics. We don't restrict to octet-stream — some
   // backends send no mime at all, or send text/plain by accident.
   const name = (fileName || '').toLowerCase();
+  const originalName = (opts?.originalName || '').toLowerCase();
   const urlLast = filenameFromUrl(url).toLowerCase();
-  if (AUDIO_EXT_RE.test(name) || AUDIO_EXT_RE.test(urlLast)) {return true;}
+  if (
+    AUDIO_EXT_RE.test(name) ||
+    AUDIO_EXT_RE.test(originalName) ||
+    AUDIO_EXT_RE.test(urlLast)
+  ) {
+    return true;
+  }
   // Last resort: voice-message naming hint anywhere in the filename, the
   // URL's last segment, OR the URL's full path. Voicemails are commonly
   // hosted under `/voice/abc-123` or `/voicemail/abc-123` where the last
@@ -120,6 +140,7 @@ export function isLikelyAudio(
   })();
   if (
     AUDIO_NAME_HINT_RE.test(name) ||
+    AUDIO_NAME_HINT_RE.test(originalName) ||
     AUDIO_NAME_HINT_RE.test(urlLast) ||
     AUDIO_NAME_HINT_RE.test(urlPath)
   ) {

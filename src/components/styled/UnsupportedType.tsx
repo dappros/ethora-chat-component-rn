@@ -14,9 +14,10 @@ import {
   setActiveFile,
   setActiveModal,
 } from '../../roomStore/chatSettingsSlice';
-import { Text, View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 import { useChatSettingState } from '../../hooks/useChatSettingState';
 import { FileIcon } from '../../assets/icons';
+import { getExtensionForMime } from '../../helpers/mimeToExtension';
 
 interface FileDownloadProps {
   fileName: string;
@@ -24,6 +25,11 @@ interface FileDownloadProps {
   mimetype: string;
   size?: string;
   isUser: boolean;
+  originalName?: string;
+  duration?: number | string;
+  waveForm?: string;
+  pending?: boolean;
+  placeholderIcon?: React.ReactNode;
 }
 
 const FileDownload: React.FC<FileDownloadProps> = ({
@@ -32,6 +38,11 @@ const FileDownload: React.FC<FileDownloadProps> = ({
   mimetype,
   size,
   isUser,
+  originalName,
+  duration,
+  waveForm,
+  pending = false,
+  placeholderIcon,
 }) => {
   const dispatch = useDispatch();
   const { config } = useChatSettingState();
@@ -73,24 +84,67 @@ const FileDownload: React.FC<FileDownloadProps> = ({
   };
 
   const handleOpen = () => {
-    dispatch(setActiveFile({ fileName, fileURL, mimetype }));
+    if (!fileURL || pending) {
+      return;
+    }
+    dispatch(
+      setActiveFile({
+        fileName,
+        fileURL,
+        mimetype,
+        originalName,
+        duration,
+        waveForm,
+      })
+    );
     dispatch(setActiveModal(MODAL_TYPES.FILE_PREVIEW));
   };
 
+  const extensionLabel = (() => {
+    const dotIndex = fileName.lastIndexOf('.');
+    if (dotIndex !== -1 && dotIndex < fileName.length - 1) {
+      return fileName.slice(dotIndex + 1).toUpperCase();
+    }
+    return getExtensionForMime(mimetype).replace('.', '').toUpperCase();
+  })();
+
   return (
-    <UnsupportedContainer onPress={handleOpen}>
+    <UnsupportedContainer
+      isUser={isUser}
+      onPress={handleOpen}
+      activeOpacity={pending ? 1 : 0.7}
+    >
       <BackgroundFile>
-        <FileIcon />
+        {placeholderIcon || <FileIcon width={36} height={36} />}
       </BackgroundFile>
       <FileInformation>
         <FileName
+          numberOfLines={1}
           isUser={isUser}
           colorIsUser={config?.colors?.primary}
           colorUsers={config?.colors?.secondary}
         >{formatFileName(fileName, 20)}</FileName>
-        {size && (
+        {(pending || size) && (
           <FileSizeContainer>
-            <FileSize>{formatFileSize(size)}</FileSize>
+            {pending ? (
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <ActivityIndicator size="small" color="#5B6B8C" />
+                <FileSize>Uploading...</FileSize>
+              </View>
+            ) : (
+              <FileSize>{formatFileSize(size as string)}</FileSize>
+            )}
+          </FileSizeContainer>
+        )}
+        {!pending && !size && (
+          <FileSizeContainer>
+            <FileSize>{extensionLabel}</FileSize>
           </FileSizeContainer>
         )}
       </FileInformation>

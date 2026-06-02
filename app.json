@@ -45,7 +45,13 @@
           "iCloudContainerEnvironment": "Production"
         }
       ],
-      "expo-video"
+      "expo-video",
+      [
+        "expo-av",
+        {
+          "microphonePermission": "$(PRODUCT_NAME) needs access to your microphone so you can record voice messages."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": false

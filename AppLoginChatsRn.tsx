@@ -697,6 +697,7 @@ const ChatPane: React.FC<{ creds: Creds | null; isVisible: boolean }> = ({ creds
       initBeforeLoad: true,
       disableInteractions: false,
       disableReactions: false,
+      enableAudio: true,
       keyboardVerticalOffset: Platform.OS === 'ios' ? 130 : 100,
       disableChatHeaderBurgerMenuIcon: true,
       disableChatInfo: {

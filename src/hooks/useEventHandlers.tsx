@@ -57,7 +57,7 @@ export const useEventHandlers = (config?: IConfig): EventHandlersHook => {
         if (config?.eventHandlers?.onMessageFailed) {
           config.eventHandlers.onMessageFailed(event);
         }
-        console.error('Message failed details:', {
+        console.warn('Message failed details:', {
           message: event.message,
           roomJID: event.roomJID,
           messageType: event.messageType,

@@ -1,6 +1,6 @@
 {
   "name": "@ethora/chat-component-rn",
-  "version": "26.5.11",
+  "version": "26.5.12",
   "description": "Drop-in XMPP chat component for React Native / Expo. <Chat config={...}/> and you're done.",
   "main": "index.js",
   "module": "lib/module/main.js",
