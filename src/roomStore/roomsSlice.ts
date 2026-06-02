@@ -429,7 +429,14 @@ const reducers = {
       }
     },
     clearVisibleRoom: (state: WritableDraft<RoomMessagesState>) => {
+      const jid = state.visibleRoomJID;
       state.visibleRoomJID = null;
+   
+      if (jid && state.rooms[jid]) {
+        const room = state.rooms[jid];
+        const t = room.lastViewedTimestamp || 0;
+        room.unreadMessages = t > 0 ? countNewerMessages(room.messages, t) : 0;
+      }
     },
     /**
      * Stash a JID that a push notification asked us to open before

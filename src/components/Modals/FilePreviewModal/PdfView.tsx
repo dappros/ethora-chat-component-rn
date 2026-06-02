@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import * as FileSystem from 'expo-file-system/legacy';
+import GViewWebView from './GViewWebView';
 
 interface PdfViewerProps {
   pdfUrl: string;
@@ -40,24 +41,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({ pdfUrl }) => {
   }, [pdfUrl, isAndroid]);
 
   if (isAndroid) {
-    const gviewUrl = `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(
-      pdfUrl
-    )}`;
-    return (
-      <View style={styles.container}>
-        <WebView
-          source={{ uri: gviewUrl }}
-          style={styles.webview}
-          originWhitelist={['*']}
-          startInLoadingState
-          renderLoading={() => (
-            <View style={styles.center}>
-              <ActivityIndicator size="large" />
-            </View>
-          )}
-        />
-      </View>
-    );
+    return <GViewWebView url={pdfUrl} />;
   }
 
   if (error) {

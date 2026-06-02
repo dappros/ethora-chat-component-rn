@@ -6,4 +6,7 @@ export interface ModalFile {
   fileName: string;
   fileURL: string;
   mimetype: string;
+  originalName?: string;
+  duration?: number | string;
+  waveForm?: string;
 }

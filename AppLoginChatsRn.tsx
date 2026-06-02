@@ -697,6 +697,7 @@ const ChatPane: React.FC<{ creds: Creds | null; isVisible: boolean }> = ({ creds
       initBeforeLoad: true,
       disableInteractions: false,
       disableReactions: false,
+      enableAudio: true,
       // Single flag for every entry point to the user-profile popup:
       // ChatHeader title press AND the in-bubble avatar tap. The bubble
       // avatar fix landed alongside this — `Message.tsx` now respects this

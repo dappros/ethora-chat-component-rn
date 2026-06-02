@@ -79,6 +79,8 @@ const Button: React.FC<ButtonProps> = ({
   testID,
   accessibilityLabel,
 }) => {
+  const iconOnly = !loading && !children && !text && !StartIcon && !!EndIcon;
+
   return (
     <CustomButton
       testID={testID}
@@ -91,17 +93,19 @@ const Button: React.FC<ButtonProps> = ({
     >
       {loading && <Loader size={24} />}
       {!loading && StartIcon && <View style={styles.icon}>{StartIcon}</View>}
-      {!loading &&
-        (children || (
-          <ButtonText
-            style={[{ color: color || 'black' }]}
-            variant={variant}
-            backgroundColor={backgroundColor}
-          >
-            {text}
-          </ButtonText>
-        ))}
-      {!loading && EndIcon && <View style={styles.icon}>{EndIcon}</View>}
+      {!loading && children}
+      {!loading && !children && typeof text !== 'undefined' && (
+        <ButtonText
+          style={[{ color: color || 'black' }]}
+          variant={variant}
+          backgroundColor={backgroundColor}
+        >
+          {text}
+        </ButtonText>
+      )}
+      {!loading && EndIcon && (
+        <View style={iconOnly ? styles.iconOnly : styles.icon}>{EndIcon}</View>
+      )}
     </CustomButton>
   );
 };
@@ -110,6 +114,11 @@ const styles = StyleSheet.create({
   icon: {
     marginHorizontal: 4,
     // maxWidth: '20%',
+  },
+  iconOnly: {
+    marginHorizontal: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 

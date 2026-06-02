@@ -3,58 +3,43 @@ import {
   LastRoomMessageContainer,
   LastRoomMessageName,
   LastRoomMessageText,
-  ShadeWrapper,
 } from './StyledRoomComponents';
 import { LastMessage } from '../../../types/types';
 import styled from 'styled-components/native';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { PlayIcon } from '../../../assets/icons';
 
 interface LastMessageEmojiProps extends Pick<LastMessage, 'user' | 'body'> {}
 
 const PlayButton = styled.View`
-  position: absolute;
-  width: 8px;
-  height: 9px;
-  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  border-radius: 10px;
   display: flex;
   justify-content: center;
   align-items: center;
-  color: white;
-  font-size: 10px;
-  pointer-events: none;
-  z-index: 100;
+  background-color: #d8ecff;
+  margin-top: 1px;
 `;
 
-const PhotoContainer = styled.View`
-  position: relative;
-  width: 20px;
-  height: 20px;
-  overflow: hidden;
-  border-radius: 8px;
-  width: 20px;
-  height: 20px;
-  object-fit: cover;
-  pointer-events: none;
+const AudioRow = styled.View`
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
 `;
 
 const LastAudioMessage: FC<LastMessageEmojiProps> = ({ user, body }) => {
   return (
     <LastRoomMessageContainer>
-      <LastRoomMessageName>{user?.name ?? ''}</LastRoomMessageName>
-      <View
-        style={{
-          display: 'flex',
-          flexDirection: 'row',
-          gap: '4px',
-        }}
-      >
-        <PhotoContainer>
-          <ShadeWrapper>
-            <PlayButton><Text>▶</Text></PlayButton>
-          </ShadeWrapper>
-        </PhotoContainer>
-        <LastRoomMessageText>audio</LastRoomMessageText>
-      </View>
+      <LastRoomMessageName numberOfLines={1}>{user?.name ?? ''}</LastRoomMessageName>
+      <AudioRow>
+        <PlayButton>
+          <PlayIcon width={10} height={10} color="#1F2937" />
+        </PlayButton>
+        <LastRoomMessageText numberOfLines={1}>
+          {body?.trim() ? body : 'audio'}
+        </LastRoomMessageText>
+      </AudioRow>
     </LastRoomMessageContainer>
   );
 };

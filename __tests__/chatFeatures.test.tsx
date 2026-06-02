@@ -122,6 +122,8 @@ jest.mock('../src/networking/xmpp/getHistory.xmpp', () => ({
 const mockSpyClient: any = {
   sendMessage: jest.fn(),
   sendMediaMessageStanza: jest.fn(),
+  prioritizeRoomPresence: jest.fn().mockResolvedValue(true),
+  setActiveRoomJid: jest.fn(),
   editMessageStanza: jest.fn(),
   deleteMessageStanza: jest.fn(),
   sendTypingRequestStanza: jest.fn(),
@@ -135,6 +137,8 @@ const mockSpyClient: any = {
 function mockResetSpyClient() {
   mockSpyClient.sendMessage.mockClear();
   mockSpyClient.sendMediaMessageStanza.mockClear();
+  mockSpyClient.prioritizeRoomPresence.mockClear();
+  mockSpyClient.setActiveRoomJid.mockClear();
   mockSpyClient.editMessageStanza.mockClear();
   mockSpyClient.deleteMessageStanza.mockClear();
   mockSpyClient.sendTypingRequestStanza.mockClear();
@@ -440,6 +444,20 @@ describe('useSendMessage — media', () => {
     });
 
     const ROOM = 'media-room@conference.xmpp.chat.ethora.com';
+    store.dispatch(
+      addRoom({
+        roomData: {
+          id: 'media-room',
+          jid: ROOM,
+          name: 'media-room',
+          title: 'Media room',
+          usersCnt: 2,
+          messages: [],
+          isLoading: false,
+          roomBg: '',
+        },
+      })
+    );
     const fakeFile = { uri: 'file:///tmp/photo.jpg', name: 'photo.jpg', type: 'image/jpeg' };
     await act(async () => {
       await api.sendMedia(fakeFile, 'image/jpeg', ROOM);
@@ -469,6 +487,21 @@ describe('useSendMessage — media', () => {
       expect.stringMatching(
         /^send-media-message:[0-9a-f-]{36}$/
       )
+    );
+    expect(mockSpyClient.setActiveRoomJid).toHaveBeenCalledWith(ROOM);
+    expect(mockSpyClient.prioritizeRoomPresence).toHaveBeenCalledWith(ROOM);
+    const optimisticMediaMessage = store
+      .getState()
+      .rooms.rooms[ROOM]?.messages?.find(
+        (message: any) => message.id?.startsWith('send-media-message:')
+      );
+    expect(optimisticMediaMessage).toEqual(
+      expect.objectContaining({
+        pending: true,
+        location: 'file:///tmp/photo.jpg',
+        locationPreview: 'file:///tmp/photo.jpg',
+        fileName: 'photo.jpg',
+      })
     );
     expect(onMessageSent).toHaveBeenCalledWith(
       expect.objectContaining({ messageType: 'media', roomJID: ROOM })

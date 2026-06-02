@@ -8,13 +8,16 @@ import {
 } from './StyledInputComponents/StyledInputComponents';
 import { IConfig, MediaFile } from '../../types/types';
 import Button from './Button';
-import { SendIcon, AttachIcon } from '../../assets/icons';
-import { KeyboardAvoidingView, View, TouchableOpacity, Alert, Linking } from 'react-native';
+import { SendIcon, AttachIcon, RecordIcon } from '../../assets/icons';
+import { KeyboardAvoidingView, Platform, View, Text, TouchableOpacity, Alert, Linking } from 'react-native';
 import AttachSheet from '../Modals/AttachSheet/AttachSheet';
 import { MediaFilePreview } from './MediaFilePreview';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
+// `Audio` namespace gives us permissions, audio mode, presets, and the
+// Recording class — same pattern AudioMessage uses for Audio.Sound.
+import { Audio } from 'expo-av';
 
 // iOS photos default to HEIC; many web backends (incl. ours) 500 on
 // HEIC uploads because they can't decode it. Convert to JPEG before
@@ -85,9 +88,22 @@ const SendInput: React.FC<SendInputProps> = ({
 }) => {
   const [message, setMessage] = useState('');
   const [isRecording, setIsRecording] = useState(false);
+  // Live counter (seconds) for the recording overlay. Updated by a
+  // 250ms interval started in `startRecording`.
+  const [recordingDuration, setRecordingDuration] = useState(0);
   const [isFocused, setIsFocused] = useState(false);
   const [filePreviews, setFilePreviews] = useState<MediaFile[]>([]);
   const [showMediaMenu, setShowMediaMenu] = useState(false);
+
+  // expo-av's Audio.Recording instance for the in-progress recording.
+  // Kept in a ref (not state) because handlers fire synchronously and we
+  // need the latest instance without waiting for a re-render.
+  // Typed via InstanceType<typeof Audio.Recording> because direct
+  // `Audio.Recording` as a type-position lookup fails under bundler
+  // resolution even though the class is in the Audio namespace at
+  // runtime. InstanceType resolves through the typeof of the value.
+  const recordingRef = useRef<InstanceType<typeof Audio.Recording> | null>(null);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Refs shadow `message` and `filePreviews` so handleSendClick can:
   //   (a) read the LATEST typed value even when React state hasn't
@@ -245,6 +261,148 @@ const SendInput: React.FC<SendInputProps> = ({
     setShowMediaMenu(true);
   };
 
+  // ─── Voice recording ──────────────────────────────────────────────
+  //
+  // Mirrors the web experience: tap mic → start recording → either tap
+  // X to discard, or tap send to stop + immediately upload + post the
+  // voice message. Uses expo-av's Audio.Recording (already a peer dep
+  // for AudioMessage playback). Filename is `voice-<timestamp>.m4a` with
+  // mimetype `audio/m4a` so the receiver routes through the audio
+  // branch in MediaMessage directly, no octet-stream sniffing needed.
+
+  const stopRecordingTimer = () => {
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+  };
+
+  // Always reset the iOS audio mode after teardown so AudioMessage
+  // playback elsewhere in the app isn't routed to the earpiece.
+  const restoreAudioMode = async () => {
+    try {
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+      });
+    } catch {
+      /* non-fatal */
+    }
+  };
+
+  const handleStartRecording = async () => {
+    if (isRecording || recordingRef.current) {return;}
+    try {
+      const perm = await Audio.requestPermissionsAsync();
+      if (!perm.granted) {
+        promptOpenSettings(
+          'Microphone permission is needed to record voice messages.'
+        );
+        return;
+      }
+      // iOS: recording requires `allowsRecordingIOS:true`; we'll
+      // flip it back in restoreAudioMode after stop/cancel.
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+      const rec = new Audio.Recording();
+      await rec.prepareToRecordAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+      await rec.startAsync();
+      recordingRef.current = rec;
+      setIsRecording(true);
+      setRecordingDuration(0);
+      const startedAt = Date.now();
+      // 250ms tick is fine for a seconds counter — keeps re-renders cheap.
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingDuration(Math.floor((Date.now() - startedAt) / 1000));
+      }, 250);
+    } catch (err) {
+      console.warn('startRecording failed', err);
+      recordingRef.current = null;
+      setIsRecording(false);
+      setRecordingDuration(0);
+      await restoreAudioMode();
+    }
+  };
+
+  const handleCancelRecording = async () => {
+    stopRecordingTimer();
+    const rec = recordingRef.current;
+    recordingRef.current = null;
+    setIsRecording(false);
+    setRecordingDuration(0);
+    if (rec) {
+      try {
+        await rec.stopAndUnloadAsync();
+      } catch {
+        /* already stopped / unloaded — fine */
+      }
+    }
+    await restoreAudioMode();
+  };
+
+  const handleStopAndSendRecording = async () => {
+    stopRecordingTimer();
+    const rec = recordingRef.current;
+    recordingRef.current = null;
+    setIsRecording(false);
+    const seconds = recordingDuration;
+    setRecordingDuration(0);
+    if (!rec) {
+      await restoreAudioMode();
+      return;
+    }
+    // Guard against zero-length taps — if the user tapped mic + send
+    // within the same tick there's nothing audible to send.
+    if (seconds < 1) {
+      try {
+        await rec.stopAndUnloadAsync();
+      } catch {}
+      await restoreAudioMode();
+      return;
+    }
+    try {
+      await rec.stopAndUnloadAsync();
+    } catch (err) {
+      console.warn('stopAndUnloadAsync failed', err);
+    }
+    await restoreAudioMode();
+    const uri = rec.getURI();
+    if (!uri) {return;}
+    // HIGH_QUALITY preset writes AAC in an M4A container on both iOS
+    // and Android, so a single mimetype works. `voice-<ts>.m4a`
+    // matches the receiver's audio branch in MediaMessage (and
+    // isLikelyAudio for any backend that strips mimetype).
+    const ts = Date.now();
+    const file: MediaFile = {
+      uri,
+      type: 'audio/m4a',
+      name: `voice-${ts}.m4a`,
+    };
+    try {
+      await sendMedia(file, file.type);
+    } catch (err) {
+      console.error('sendMedia voice failed', err);
+    }
+  };
+
+  // Tear down a recording in progress when the input unmounts (chat
+  // close, navigation, etc.) so the mic isn't left hot.
+  useEffect(() => {
+    return () => {
+      stopRecordingTimer();
+      const rec = recordingRef.current;
+      recordingRef.current = null;
+      if (rec) {
+        rec.stopAndUnloadAsync().catch(() => {});
+      }
+      restoreAudioMode();
+    };
+  }, []);
+
   const handleRemoveImage = (index: number) => {
     const next = filePreviewsRef.current.filter((_, i) => i !== index);
     filePreviewsRef.current = next;
@@ -332,14 +490,6 @@ const SendInput: React.FC<SendInputProps> = ({
                 </TouchableOpacity>
               )}
               <MessageInput
-                // Stable testIDs so Maestro / Detox / Appium can drive
-                // the chat-send flow reliably. accessibilityLabel
-                // mirrors the testID so iOS accessibility-id lookups
-                // also work. (TextInput in src/components/InputComponents
-                // also carries the same testIDs as a fallback, but
-                // SendInput is the input that actually ships in
-                // <ChatRoom> / <Thread> so this is the one e2e drivers
-                // hit in practice.)
                 testID="chat-message-input"
                 accessibilityLabel="chat-message-input"
                 isFocused={isFocused}
@@ -348,9 +498,6 @@ const SendInput: React.FC<SendInputProps> = ({
                 placeholderTextColor="#999"
                 value={message}
                 onChangeText={(text) => {
-                  // Mirror into the ref synchronously so handleSendClick
-                  // reads the latest value even before the React state
-                  // commit lands (the source of the spam-merge bug).
                   messageRef.current = text;
                   setMessage(text);
                 }}
@@ -378,41 +525,103 @@ const SendInput: React.FC<SendInputProps> = ({
               />
             </>
           )}
-          {/* Always show send button - it's needed for sending messages and media */}
-          <Button
-            testID="chat-send-button"
-            accessibilityLabel="chat-send-button"
-            onPress={handleSendClick}
-            disabled={!message && filePreviews.length === 0}
-            EndIcon={
-              <SendIcon
-                color={
-                  message || filePreviews.length > 0 ? '#FFFFFF' : '#D4D4D8'
+          {isRecording && (
+            <>
+              <TouchableOpacity
+                testID="chat-record-cancel"
+                accessibilityLabel="chat-record-cancel"
+                onPress={handleCancelRecording}
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 20,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: '#FEE2E2',
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={{ color: '#B91C1C', fontWeight: '700', fontSize: 18 }}>×</Text>
+              </TouchableOpacity>
+              {/* Live elapsed time + red recording dot. flex:1 so it
+                * occupies the middle slot the input used to have. */}
+              <View
+                style={{
+                  flex: 1,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 8,
+                  paddingHorizontal: 8,
+                  minHeight: 40,
+                }}
+              >
+                <View
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: 5,
+                    backgroundColor: '#EF4444',
+                  }}
+                />
+                <Text style={{ fontSize: 16, color: '#1F2937', fontWeight: '500' }}>
+                  {Math.floor(recordingDuration / 60)}:
+                  {(recordingDuration % 60).toString().padStart(2, '0')}
+                </Text>
+                <Text style={{ fontSize: 13, color: '#6B7280' }}>Recording…</Text>
+              </View>
+            </>
+          )}
+          {/* Right-side action button — swaps based on context:
+            *   • while recording: stop-and-send (red dot in overlay
+            *     is the live indicator; this is the same primary
+            *     button so a single tap stops + ships).
+            *   • idle + nothing typed + voice enabled: MIC (tap →
+            *     start recording).
+            *   • idle + has text / attachments: SEND.
+            *   • idle + nothing typed + voice disabled: SEND in its
+            *     muted/disabled state (so the slot reserved for
+            *     consistency).
+            * Matches the web UX where one button on the right swaps
+            * between mic and send based on whether you have content. */}
+          {(() => {
+            const hasContent = !!message || filePreviews.length > 0;
+            const showMic = !isRecording && !hasContent && !!config?.enableAudio;
+            const onPress = isRecording
+              ? handleStopAndSendRecording
+              : showMic
+                ? handleStartRecording
+                : handleSendClick;
+            const disabled = !isRecording && !showMic && !hasContent;
+            const filled = isRecording || hasContent || showMic;
+            return (
+              <Button
+                testID={showMic ? 'chat-record-button' : 'chat-send-button'}
+                accessibilityLabel={showMic ? 'chat-record-button' : 'chat-send-button'}
+                onPress={onPress}
+                disabled={disabled}
+                EndIcon={
+                  showMic ? (
+                    <RecordIcon color="#FFFFFF" />
+                  ) : (
+                    <SendIcon color={filled ? '#FFFFFF' : '#D4D4D8'} />
+                  )
                 }
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 50,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginLeft: 0,
+                  marginRight: 0,
+                  backgroundColor: filled
+                    ? config?.colors?.primary
+                    : 'transparent',
+                  opacity: filled ? 1 : 0.5,
+                }}
               />
-            }
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 20,
-              alignItems: 'center',
-              justifyContent: 'center',
-              // The shared Button (CustomButton) bakes in `margin: 0 10px`,
-              // which pushed the send button 10px further from the input
-              // and from the right edge than the attach button (a raw
-              // TouchableOpacity with no margin). Zero it so both sides of
-              // the input use the row's uniform gap:8 + 16px container
-              // padding. Longhand left/right to override the styled
-              // longhand (marginHorizontal loses to marginLeft/Right in RN).
-              marginLeft: 0,
-              marginRight: 0,
-              backgroundColor:
-                message || filePreviews.length > 0
-                  ? config?.colors?.primary
-                  : 'transparent',
-              opacity: message || filePreviews.length > 0 ? 1 : 0.5,
-            }}
-          />
+            );
+          })()}
         </MessageInputContainer>
         <AttachSheet
           visible={showMediaMenu}

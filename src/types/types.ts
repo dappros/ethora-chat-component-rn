@@ -248,6 +248,16 @@ export interface IConfig {
   // ----- header / nav -----
   disableHeader?: boolean;
   disableMedia?: boolean;
+  /**
+   * Enable in-chat voice-message recording. **Opt-in — off by default.**
+   * When `true`, an idle input (no text, no attachments) shows a
+   * microphone in the send-button slot; tap → start recording → stop &
+   * send. iOS apps need `NSMicrophoneUsageDescription` in Info.plist
+   * (add via `expo-av`'s plugin block in `app.json`). Receiving voice
+   * messages from other clients (incl. legacy web `.bin` voicemails) is
+   * independent of this flag — incoming audio plays regardless.
+   */
+  enableAudio?: boolean;
   chatHeaderBurgerMenu?: boolean;
   // Hide the burger icon entirely (the icon that opens the chatHeader-
   // BurgerMenu dropdown). `chatHeaderBurgerMenu` controls dropdown
@@ -517,6 +527,9 @@ export interface ModalFile {
   fileName: string;
   fileURL: string;
   mimetype: string;
+  originalName?: string;
+  duration?: number | string;
+  waveForm?: string;
 }
 
 // Re-export so middleware/hooks that historically import from `types`

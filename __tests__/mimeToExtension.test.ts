@@ -3,6 +3,9 @@ import {
   filenameFromUrl,
   ensureFilenameHasExtension,
   deriveDisplayFilename,
+  getIosAudioPlaybackCacheExtension,
+  isUnsupportedAudioForIosPlayback,
+  shouldCacheAudioForIosPlayback,
 } from '../src/helpers/mimeToExtension';
 
 describe('getExtensionForMime', () => {
@@ -140,5 +143,74 @@ describe('deriveDisplayFilename', () => {
         mime: 'audio/wav',
       })
     ).toBe('abc123.wav');
+  });
+});
+
+describe('iOS audio playback fallback', () => {
+  it('caches remote octet-stream voice files so AVFoundation gets an audio extension', () => {
+    expect(
+      shouldCacheAudioForIosPlayback({
+        src: 'https://cdn.example.com/files/opaque.bin',
+        mime: 'application/octet-stream',
+        fileName: 'opaque.bin',
+        originalName: 'voice-note.bin',
+      })
+    ).toBe(true);
+  });
+
+  it('does not cache local files or remote audio that already has a playable audio name', () => {
+    expect(
+      shouldCacheAudioForIosPlayback({
+        src: 'file:///tmp/voice.m4a',
+        mime: 'audio/m4a',
+        fileName: 'voice.m4a',
+      })
+    ).toBe(false);
+    expect(
+      shouldCacheAudioForIosPlayback({
+        src: 'https://cdn.example.com/voice.m4a',
+        mime: 'audio/m4a',
+        fileName: 'voice.m4a',
+      })
+    ).toBe(false);
+  });
+
+  it('chooses an iOS-playable cache extension and falls back to m4a', () => {
+    expect(
+      getIosAudioPlaybackCacheExtension({
+        mime: 'application/octet-stream',
+        fileName: 'voice.bin',
+        originalName: 'recording',
+        url: 'https://cdn.example.com/files/abc123',
+      })
+    ).toBe('.m4a');
+    expect(
+      getIosAudioPlaybackCacheExtension({
+        mime: 'audio/wav',
+        fileName: 'voice',
+        url: 'https://cdn.example.com/files/abc123',
+      })
+    ).toBe('.wav');
+  });
+
+  it('flags webm/ogg-style audio as unsupported for native iOS playback', () => {
+    expect(
+      isUnsupportedAudioForIosPlayback({
+        mime: 'audio/webm',
+        fileName: 'voice.webm',
+      })
+    ).toBe(true);
+    expect(
+      isUnsupportedAudioForIosPlayback({
+        mime: 'application/octet-stream',
+        originalName: 'voice-note.weba',
+      })
+    ).toBe(true);
+    expect(
+      isUnsupportedAudioForIosPlayback({
+        mime: 'audio/mp4',
+        fileName: 'voice.m4a',
+      })
+    ).toBe(false);
   });
 });

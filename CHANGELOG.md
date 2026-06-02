@@ -76,6 +76,12 @@ Lifecycle hardening on top of 26.5.9, driven by live on-device testing: a full r
 - **White text.** The label sits on a dark pill but rendered in the (often blue) primary color — unreadable. It's now white.
 - **Removed when you leave the chat** (tab switch / navigation / app background) and **spliced out rather than tombstoned**, so it correctly re-appears for the next batch of unread — previously it was a one-shot (the tombstone blocked every future divider).
 
+#### Voice messages (new — opt-in, matches the web UX)
+
+- **Tap-to-record voice messages from the input bar.** Behind a new opt-in `config.enableAudio: true` (default off — set `true` to enable). The right-side action button swaps between **mic** (when input is empty) and **send** (when there's text or attachments) — same single-button pattern as the web app. Tap the mic → recording overlay with a live timer + cancel + stop&send. Recording uses `expo-av`'s `Audio.Recording` (HIGH_QUALITY preset: AAC in an M4A container on both iOS and Android), and on stop ships through the same `sendMedia` pipeline with `mimetype: "audio/m4a"` and `filename: "voice-<timestamp>.m4a"`. Receivers route it through `MediaMessage`'s audio branch directly.
+- **Incoming audio always plays** — independent of `enableAudio`. The 26.5.10 `isLikelyAudio` heuristic still catches octet-stream voicemails coming from older web senders.
+- **iOS apps need `NSMicrophoneUsageDescription`** in `Info.plist`. The bundled `expo-av` plugin block in `app.json` adds it on `expo prebuild`; standalone apps should configure it the same way.
+
 #### Customer-reported bugs (this round)
 
 - **#19 — `useUnread()` always 0 in tab-mounted hosts.** `ChatRoom`'s visibility effect had `client` in its dep array, so any `client` identity change (reconnect, provider re-render) re-fired setup → `dispatch(setVisibleRoom(activeRoomJID))` ~one tick after the host cleared visibility via the `isVisible` prop on `<Chat>`, clobbering it. Effect now splits setup (deps without `client`) from cleanup (reads client through a ref). `<Chat isVisible={...} />` now works as documented.

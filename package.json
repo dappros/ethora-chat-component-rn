@@ -1,6 +1,6 @@
 {
   "name": "@ethora/chat-component-rn",
-  "version": "26.5.11",
+  "version": "26.5.12",
   "description": "Drop-in XMPP chat component for React Native / Expo. <Chat config={...}/> and you're done.",
   "main": "index.js",
   "module": "lib/module/main.js",
@@ -48,6 +48,7 @@
     "expo-av": ">=15.0.0",
     "expo-clipboard": ">=7.0.0",
     "expo-document-picker": ">=13.0.0",
+    "expo-file-system": ">=19.0.0",
     "expo-image-manipulator": ">=13.0.0",
     "expo-image-picker": ">=16.0.0",
     "expo-media-library": ">=17.0.0",
@@ -82,6 +83,9 @@
       "optional": true
     },
     "expo-document-picker": {
+      "optional": true
+    },
+    "expo-file-system": {
       "optional": true
     },
     "expo-image-manipulator": {

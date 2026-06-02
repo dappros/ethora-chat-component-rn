@@ -240,6 +240,30 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
         );
       case activeFile.mimetype.startsWith('video/'):
         return <ModalVideo uri={activeFile.fileURL} />;
+      case activeFile.mimetype.includes('application/octet-stream'):
+        return (
+          <View
+            style={{
+              width: '100%',
+              padding: 20,
+              gap: 12,
+              backgroundColor: '#FFF8ED',
+              borderRadius: 16,
+            }}
+          >
+            <Text style={{ fontSize: 16, fontWeight: '600' }}>
+              Voice message
+            </Text>
+            <AudioMessage
+              src={activeFile.fileURL}
+              mimeType={activeFile.mimetype}
+              fileName={activeFile.fileName}
+              originalName={activeFile.originalName}
+              duration={activeFile.duration}
+              waveForm={activeFile.waveForm}
+            />
+          </View>
+        );
       // Mirrors the MediaMessage heuristic: treat octet-stream voicemails
       // with audio-shaped filenames / URLs as audio so the preview shows
       // the player instead of an "Unsupported" card. Customer-reported
@@ -247,7 +271,12 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
       case isLikelyAudio(
         activeFile.mimetype,
         activeFile.fileName,
-        activeFile.fileURL
+        activeFile.fileURL,
+        {
+          duration: activeFile.duration,
+          waveForm: activeFile.waveForm,
+          originalName: activeFile.originalName,
+        }
       ):
         return (
           <View
@@ -261,11 +290,18 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           >
             <Text style={{ fontSize: 16, fontWeight: '600' }}>
               {ensureFilenameHasExtension(
-                activeFile.fileName,
+                activeFile.originalName || activeFile.fileName,
                 activeFile.mimetype
               )}
             </Text>
-            <AudioMessage src={activeFile.fileURL} />
+            <AudioMessage
+              src={activeFile.fileURL}
+              mimeType={activeFile.mimetype}
+              fileName={activeFile.fileName}
+              originalName={activeFile.originalName}
+              duration={activeFile.duration}
+              waveForm={activeFile.waveForm}
+            />
           </View>
         );
       case activeFile.mimetype === 'application/pdf':

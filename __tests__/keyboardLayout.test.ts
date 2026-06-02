@@ -1,6 +1,7 @@
 import {
   getKeyboardVerticalOffset,
   getInputDockPaddingBottom,
+  ANDROID_INPUT_DOCK_GAP,
 } from '../src/helpers/keyboardLayout';
 
 describe('keyboardLayout', () => {
@@ -24,18 +25,21 @@ describe('keyboardLayout', () => {
     ).toBe(12);
   });
 
-  it('pads the input dock by the safe-area inset on iOS only', () => {
+  it('pads the input dock by the safe-area inset on iOS', () => {
     expect(
       getInputDockPaddingBottom({
         platform: 'ios',
         bottomInset: 34,
       })
     ).toBe(34);
+  });
+
+  it('pads the input dock by a small fixed gap on Android so the input is not flush against the keyboard', () => {
     expect(
       getInputDockPaddingBottom({
         platform: 'android',
         bottomInset: 34,
       })
-    ).toBe(0);
+    ).toBe(ANDROID_INPUT_DOCK_GAP);
   });
 });

@@ -13,6 +13,7 @@ import {
   View,
   Pressable,
   Dimensions,
+  Keyboard,
   type LayoutChangeEvent,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
@@ -55,6 +56,28 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
   );
 
   const [menuSize, setMenuSize] = useState({ width: 0, height: 0 });
+
+  // Live keyboard height so the menu knows the REAL space below the message.
+  // Without this the position math used the full screen height and happily
+  // opened the menu downward into the area the keyboard now covers, hiding
+  // it under the keyboard / behind the input. Seeded from current metrics so
+  // an already-open keyboard (the common case: menu opened while typing) is
+  // accounted for on first render, not only after the next show event.
+  const [keyboardHeight, setKeyboardHeight] = useState(
+    () => Keyboard.metrics?.()?.height ?? 0
+  );
+
+  useEffect(() => {
+    const onShow = (e: any) =>
+      setKeyboardHeight(e?.endCoordinates?.height ?? 0);
+    const onHide = () => setKeyboardHeight(0);
+    const subs = [
+      Keyboard.addListener('keyboardDidShow', onShow),
+      Keyboard.addListener('keyboardDidChangeFrame', onShow),
+      Keyboard.addListener('keyboardDidHide', onHide),
+    ];
+    return () => subs.forEach((s) => s.remove());
+  }, []);
 
   const handleMenuLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
@@ -107,7 +130,13 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
     const topReserve = 16;
     const sideMargin = 8;
 
-    const spaceBelow = screenHeight - position.bottom - bottomReserve;
+    // The keyboard occludes the bottom `keyboardHeight` px, so the real
+    // visible bottom edge is above it. Measuring space below against this
+    // (not the full screen) is what makes the menu flip ABOVE the message
+    // when the keyboard is open and the message sits near the input.
+    const visibleBottom = screenHeight - keyboardHeight;
+
+    const spaceBelow = visibleBottom - position.bottom - bottomReserve;
     const spaceAbove = position.top - topReserve;
 
     let top: number;
@@ -116,7 +145,10 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
     } else if (spaceAbove >= menuSize.height) {
       top = position.top - menuSize.height;
     } else {
-      top = Math.max(topReserve, screenHeight - menuSize.height - bottomReserve);
+      top = Math.max(
+        topReserve,
+        visibleBottom - menuSize.height - bottomReserve
+      );
     }
 
     const leftMargin = position.left;
@@ -130,7 +162,7 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
     );
 
     return { top, left };
-  }, [position, menuSize, config?.keyboardVerticalOffset]);
+  }, [position, menuSize, config?.keyboardVerticalOffset, keyboardHeight]);
 
   // Window coords (memoPosition) → host-local coords. The overlay host
   // sits below the status bar / header, so subtract its measured origin.

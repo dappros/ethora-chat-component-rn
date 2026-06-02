@@ -146,7 +146,14 @@ function sleep(ms) {
 
   log(`No device attached. Booting AVD: ${target} (other AVDs: ${avds.filter((a) => a !== target).join(', ') || 'none'})...`);
 
-  const child = spawn(emulatorBin, ['-avd', target], {
+  const dnsServer = process.env.DNS_SERVER ?? '8.8.8.8,8.8.4.4';
+  const emulatorArgs = ['-avd', target];
+  if (dnsServer) {
+    emulatorArgs.push('-dns-server', dnsServer);
+    log(`Pinning DNS resolvers: ${dnsServer} (override via ETHORA_DNS_SERVER).`);
+  }
+
+  const child = spawn(emulatorBin, emulatorArgs, {
     detached: true,
     stdio: 'ignore',
   });
