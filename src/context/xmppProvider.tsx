@@ -598,17 +598,20 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
   // touch the chat store themselves. (Undefined = host unmounts on hide,
   // nothing to do.)
   // -----------------------------------------------------------
+  const chatWasVisibleRef = useRef(false);
   useEffect(() => {
     if (typeof isVisible !== 'boolean') {return;}
     const state = store.getState();
     const rooms = state.rooms?.rooms;
     const activeRoomJID = state.rooms?.activeRoomJID || null;
+    const wasVisible = chatWasVisibleRef.current;
+    chatWasVisibleRef.current = isVisible;
     if (isVisible) {
       if (activeRoomJID) {
         store.dispatch(setVisibleRoom({ roomJID: activeRoomJID }));
       }
     } else {
-      if (activeRoomJID) {
+      if (wasVisible && activeRoomJID) {
         store.dispatch(
           setLastViewedTimestamp({ chatJID: activeRoomJID, timestamp: Date.now() })
         );
@@ -618,8 +621,9 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
           deleteRoomMessage({ roomJID: activeRoomJID, messageId: 'delimiter-new' })
         );
       }
+
       store.dispatch(clearVisibleRoom());
-      if (client?.flushLastViewedToPrivateStoreStanza) {
+      if (wasVisible && client?.flushLastViewedToPrivateStoreStanza) {
         client
           .flushLastViewedToPrivateStoreStanza(rooms, { visibleRoomJID: activeRoomJID })
           .catch(() => {});
