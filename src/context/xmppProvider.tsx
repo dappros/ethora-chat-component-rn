@@ -37,7 +37,7 @@ import { ensureScopedChatCache } from '../helpers/ensureScopedChatCache';
 import { getRooms as prefetchRoomsViaRest } from '../networking/api-requests/rooms.api';
 import { allRoomPresences } from '../networking/xmpp/allRoomPresences.xmpp';
 import { store } from '../roomStore';
-import { logout, setStoreClient } from '../roomStore/chatSettingsSlice';
+import { logout, setStoreClient, setConfig } from '../roomStore/chatSettingsSlice';
 import {
   setLogoutState,
   setVisibleRoom,
@@ -343,6 +343,10 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
 
         devPushLog('rn', `initBeforeLoad: user resolved (${resolved.xmppUsername})`);
         applyResolvedUserToStore(resolved);
+
+        if (config) {
+          store.dispatch(setConfig(config));
+        }
 
         // Kick off REST /chats/my; allRoomPresences below needs the
         // room list to be in redux, otherwise it joins 0 MUCs and the
