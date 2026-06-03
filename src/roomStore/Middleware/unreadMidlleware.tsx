@@ -134,14 +134,13 @@ export const unreadMiddleware: Middleware =
         }
         if (!(room.lastViewedTimestamp > 0)) {return;}
 
-        // Fingerprint = "what would affect the answer". If neither the
-        // message count nor the lastViewedTimestamp changed since last
-        // time we computed, the answer is stable; skip the walk. (The
-        // previous version tracked only message count, so changing
-        // lastViewedTimestamp without a new message dropped the
-        // recompute silently — the unread badge could go stale.)
-        const currentMessagesLength = room.messages?.length || 0;
-        const fingerprint = `${currentMessagesLength}|${room.lastViewedTimestamp || 0}`;
+        const msgs = room.messages;
+        const currentMessagesLength = msgs?.length || 0;
+        const firstId = currentMessagesLength ? String(msgs![0]?.id ?? '') : '';
+        const lastId = currentMessagesLength
+          ? String(msgs![currentMessagesLength - 1]?.id ?? '')
+          : '';
+        const fingerprint = `${currentMessagesLength}|${room.lastViewedTimestamp || 0}|${firstId}|${lastId}`;
         if (triggerCache[jid] === fingerprint) {return;}
         triggerCache[jid] = fingerprint;
 

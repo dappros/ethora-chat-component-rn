@@ -37,13 +37,14 @@ import { ensureScopedChatCache } from '../helpers/ensureScopedChatCache';
 import { getRooms as prefetchRoomsViaRest } from '../networking/api-requests/rooms.api';
 import { allRoomPresences } from '../networking/xmpp/allRoomPresences.xmpp';
 import { store } from '../roomStore';
-import { logout, setStoreClient } from '../roomStore/chatSettingsSlice';
+import { logout, setStoreClient, setConfig } from '../roomStore/chatSettingsSlice';
 import {
   setLogoutState,
   setVisibleRoom,
   clearVisibleRoom,
   setLastViewedTimestamp,
   deleteRoomMessage,
+  msgSortableMs,
 } from '../roomStore/roomsSlice';
 import { runHistoryPreloadScheduler } from '../helpers/historyPreloadScheduler';
 import { asyncLocalStorage } from '../hooks/useLocalStorage';
@@ -343,6 +344,10 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
         devPushLog('rn', `initBeforeLoad: user resolved (${resolved.xmppUsername})`);
         applyResolvedUserToStore(resolved);
 
+        if (config) {
+          store.dispatch(setConfig(config));
+        }
+
         // Kick off REST /chats/my; allRoomPresences below needs the
         // room list to be in redux, otherwise it joins 0 MUCs and the
         // user receives zero realtime messages until they manually tap
@@ -629,6 +634,55 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
           .catch(() => {});
       }
     }
+  }, [isVisible, client]);
+
+  useEffect(() => {
+    if (isVisible !== true) {return;}
+    let lastMessagesRef: any = null;
+    let lastStampedMs = 0;
+    let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const advance = () => {
+      const s = store.getState();
+      const jid = s.rooms?.activeRoomJID;
+      if (!jid) {return;}
+      const room = s.rooms?.rooms?.[jid];
+      if (!room) {return;}
+      if (room.messages === lastMessagesRef) {return;}
+      lastMessagesRef = room.messages;
+
+      let newest = 0;
+      const list = room.messages || [];
+      for (const m of list) {
+        if (!m || m.id === 'delimiter-new') {continue;}
+        const ms = msgSortableMs(m);
+        if (ms > newest) {newest = ms;}
+      }
+      if (newest <= lastStampedMs) {return;}
+      lastStampedMs = newest;
+
+      store.dispatch(
+        setLastViewedTimestamp({ chatJID: jid, timestamp: Date.now() })
+      );
+
+      if (flushTimer) {clearTimeout(flushTimer);}
+      if (client?.flushLastViewedToPrivateStoreStanza) {
+        flushTimer = setTimeout(() => {
+          client
+            .flushLastViewedToPrivateStoreStanza(store.getState().rooms?.rooms, {
+              visibleRoomJID: jid,
+            })
+            .catch(() => {});
+        }, 2000);
+      }
+    };
+
+    advance();
+    const unsub = store.subscribe(advance);
+    return () => {
+      unsub();
+      if (flushTimer) {clearTimeout(flushTimer);}
+    };
   }, [isVisible, client]);
 
   // -----------------------------------------------------------
