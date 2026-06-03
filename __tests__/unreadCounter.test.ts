@@ -219,6 +219,39 @@ describe('unread counter — middleware (incremental)', () => {
     expect(store.getState().rooms.rooms['a@h'].unreadMessages).toBe(1);
   });
 
+  it('keeps incrementing unread once the room is at the 100-message cap', () => {
+    const store = makeStore();
+    const base = 1_781_000_000_000;
+    const seed: IMessage[] = [];
+    for (let i = 1; i <= 100; i++) {
+      const ms = base - 1000 + i;
+      seed.push(makeMsg(String(ms), new Date(ms).toISOString()));
+    }
+    store.dispatch(
+      addRoom({
+        roomData: makeRoom('cap@h', {
+          messages: seed,
+          lastViewedTimestamp: base,
+        }),
+      })
+    );
+    store.dispatch(setCurrentRoom({ roomJID: 'other@h' }));
+    expect(store.getState().rooms.rooms['cap@h'].messages.length).toBe(100);
+    expect(store.getState().rooms.rooms['cap@h'].unreadMessages).toBe(0);
+
+    for (let i = 1; i <= 3; i++) {
+      const ms = base + i;
+      store.dispatch(
+        addRoomMessage({
+          roomJID: 'cap@h',
+          message: makeMsg(String(ms), new Date(ms).toISOString()),
+        })
+      );
+      expect(store.getState().rooms.rooms['cap@h'].messages.length).toBe(100);
+      expect(store.getState().rooms.rooms['cap@h'].unreadMessages).toBe(i);
+    }
+  });
+
   it('chat/logout clears the per-room suppression cache', () => {
     // After logout, a fresh login with the same JID + a single new
     // message must produce unread=1 — not be suppressed by the

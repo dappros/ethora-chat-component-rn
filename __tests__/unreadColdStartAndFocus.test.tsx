@@ -130,6 +130,53 @@ describe('clearVisibleRoom restores unread for a room marked visible but not rea
     });
   });
 
+  it('genuine visibility (isVisible=true) advances + persists the read marker so a force-kill does not resurrect read messages', async () => {
+    const T = LV;
+    store.dispatch(
+      addRoom({
+        roomData: withMsgs(
+          R,
+          T,
+          [msg('a', new Date(T + 1000).toISOString(), false)],
+          1
+        ),
+      })
+    );
+    store.dispatch(setCurrentRoom({ roomJID: R }));
+
+    let tree: any;
+    await act(async () => {
+      tree = renderer.create(
+        <ReduxProvider store={store}>
+          <XmppProvider config={{} as any} isVisible={true}>
+            {null}
+          </XmppProvider>
+        </ReduxProvider>
+      );
+    });
+
+    expect(store.getState().rooms.rooms[R].unreadMessages).toBe(0);
+    const afterOpen = store.getState().rooms.rooms[R].lastViewedTimestamp;
+    expect(afterOpen).toBeGreaterThan(T);
+
+    await act(async () => {
+      store.dispatch(
+        addRoomMessage({
+          roomJID: R,
+          message: msg('b', new Date(T + 5000).toISOString(), false),
+        })
+      );
+    });
+    expect(store.getState().rooms.rooms[R].unreadMessages).toBe(0);
+    expect(
+      store.getState().rooms.rooms[R].lastViewedTimestamp
+    ).toBeGreaterThanOrEqual(afterOpen);
+
+    await act(async () => {
+      tree.unmount();
+    });
+  });
+
   it('genuine read (lastViewed already at now) stays at 0 after clearVisibleRoom', () => {
     const now = Date.now();
     store.dispatch(
