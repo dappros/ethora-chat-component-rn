@@ -23,6 +23,8 @@ import { getRooms } from './xmpp/getRooms.xmpp';
 import { handleStanza } from './xmpp/handleStanzas.xmpp';
 import { pushLog as devPushLog } from '../utils/devLogger';
 import { normalizeRoomJid } from '../helpers/normalizeRoomJid';
+import { store } from '../roomStore';
+import { applyPrivateStoreMarkers } from '../roomStore/roomsSlice';
 import {
   clearOutboundSends,
   enqueueOutboundSend,
@@ -870,7 +872,28 @@ export class XmppClient {
   getChatsPrivateStoreRequestStanza = async () => {
     if (this.disableLastRead) {return null;}
     try {
-      return await getChatsPrivateStoreRequest(this.client);
+      const markers = await getChatsPrivateStoreRequest(this.client);
+      // Hydrate the fetched server-side read markers into redux. Without
+      // this the markers were fetched on every init/reconnect and then
+      // silently dropped, so any room the user hadn't locally opened+left
+      // this session kept `lastViewedTimestamp: 0` and the unread
+      // middleware's `> 0` gate skipped it forever — `useUnread()` stayed
+      // at 0 with no badge. Done here on the single READ method so every
+      // caller (provider init, reconnect, ChatWrapper, push handlers, …)
+      // hydrates automatically and a future caller can't reintroduce the
+      // drop. The write helpers call the lower-level
+      // `getChatsPrivateStoreRequest` directly and intentionally skip this.
+      if (markers && typeof markers === 'object') {
+        const normalized: Record<string, number> = {};
+        for (const jid of Object.keys(markers as Record<string, unknown>)) {
+          const n = Number((markers as Record<string, unknown>)[jid]);
+          if (jid && Number.isFinite(n) && n > 0) {normalized[jid] = n;}
+        }
+        if (Object.keys(normalized).length > 0) {
+          store.dispatch(applyPrivateStoreMarkers(normalized));
+        }
+      }
+      return markers;
     } catch (error) {
       console.log(error);
       return null;

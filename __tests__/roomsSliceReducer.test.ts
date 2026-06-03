@@ -23,6 +23,7 @@
 import roomsReducer, {
   addRoom,
   addRoomMessage,
+  applyPrivateStoreMarkers,
   applyRoomsPreloadBatch,
   deleteAllRooms,
   deleteRoom,
@@ -30,6 +31,7 @@ import roomsReducer, {
   editRoomMessage,
   setComposing,
   setCurrentRoom,
+  setLogoutState,
   setRoomMessages,
   setRoomNoMessages,
   setRoomRole,
@@ -657,5 +659,128 @@ describe('roomsSlice — re-entry history merge (no cache wipe)', () => {
     const ids = idsOf(state);
     expect(ids).toContain('1780000000002'); // merged settled message
     expect(ids).toContain('1780000000005'); // pending send kept
+  });
+});
+
+// ---------- Private-store read markers → unread baseline -------------
+// Regression coverage for the unread bug: `getChatsPrivateStoreRequest`
+// fetched the server-side read markers on every init/reconnect and every
+// caller DISCARDED the result, so rooms kept `lastViewedTimestamp: 0`,
+// the unread middleware's `> 0` gate skipped them forever, and
+// `useUnread()` stayed at 0 — most visibly for a room the user had never
+// opened this session. `applyPrivateStoreMarkers` (dispatched from the
+// client's single read method) hydrates them; `addRoom` consults the
+// remembered markers so rooms that load LATER inherit the baseline too.
+describe('roomsSlice — private-store read markers (unread baseline)', () => {
+  const JID = 'a@conference.test';
+  const M = (n: number) => makeMessage(`178000000000${n}`, { roomJid: JID });
+
+  it('applyPrivateStoreMarkers stamps an already-loaded room and recomputes unread', () => {
+    // Room with 3 messages and an OLD baseline (below all of them). An
+    // explicit baseline is used because a `0` placeholder alongside
+    // messages gets anchored to the newest message by addRoom's cold-start
+    // fallback — here we isolate "a marker moves the baseline forward".
+    let state = roomsReducer(
+      initial(),
+      addRoom({
+        roomData: makeRoom(JID, {
+          messages: [M(1), M(2), M(3)],
+          lastViewedTimestamp: 1_780_000_000_000,
+          unreadMessages: 3,
+        }),
+      })
+    );
+    // Server says "read up to message 2" → only message 3 is unread.
+    state = roomsReducer(
+      state,
+      applyPrivateStoreMarkers({ [JID]: 1_780_000_000_002 })
+    );
+    expect(state.rooms[JID].lastViewedTimestamp).toBe(1_780_000_000_002);
+    expect(state.rooms[JID].unreadMessages).toBe(1);
+  });
+
+  it('a remembered marker hydrates a room that loads AFTER the fetch (the "never opened the tab" fix)', () => {
+    // Markers arrive first (room not in the store yet)…
+    let state = roomsReducer(
+      initial(),
+      applyPrivateStoreMarkers({ [JID]: 1_780_000_000_002 })
+    );
+    expect(state.rooms[JID]).toBeUndefined();
+    expect(state.privateStoreMarkers[JID]).toBe(1_780_000_000_002);
+
+    // …then the room loads via /chats/my with the placeholder `0`.
+    state = roomsReducer(
+      state,
+      addRoom({
+        roomData: makeRoom(JID, { messages: [M(1), M(2), M(3)], lastViewedTimestamp: 0 }),
+      })
+    );
+    // Without the fix this would stay 0 and the badge would never light.
+    expect(state.rooms[JID].lastViewedTimestamp).toBe(1_780_000_000_002);
+  });
+
+  it('is monotonic — an older server marker never rewinds a newer local read', () => {
+    // User locally read up to a recent timestamp (e.g. tab blur stamped it).
+    let state = roomsReducer(
+      initial(),
+      addRoom({
+        roomData: makeRoom(JID, {
+          messages: [M(1), M(2), M(3)],
+          lastViewedTimestamp: 1_780_000_000_900,
+        }),
+      })
+    );
+    // A stale server marker must NOT move the baseline backward (which
+    // would resurrect already-read messages as unread).
+    state = roomsReducer(
+      state,
+      applyPrivateStoreMarkers({ [JID]: 1_780_000_000_002 })
+    );
+    expect(state.rooms[JID].lastViewedTimestamp).toBe(1_780_000_000_900);
+  });
+
+  it('logout clears remembered markers so the next user does not inherit them', () => {
+    let state = roomsReducer(
+      initial(),
+      applyPrivateStoreMarkers({ [JID]: 1_780_000_000_002 })
+    );
+    expect(state.privateStoreMarkers[JID]).toBe(1_780_000_000_002);
+
+    state = roomsReducer(state, setLogoutState());
+    expect(state.privateStoreMarkers).toEqual({});
+
+    // A room loaded for the next session with no marker + no messages must
+    // fall back to 0, not the previous user's stamp.
+    state = roomsReducer(
+      state,
+      addRoom({ roomData: makeRoom(JID, { messages: [], lastViewedTimestamp: 0 }) })
+    );
+    expect(state.rooms[JID].lastViewedTimestamp).toBe(0);
+  });
+
+  it('deleteAllRooms also wipes the markers map', () => {
+    let state = roomsReducer(
+      initial(),
+      applyPrivateStoreMarkers({ [JID]: 1_780_000_000_002 })
+    );
+    state = roomsReducer(state, deleteAllRooms());
+    expect(state.privateStoreMarkers).toEqual({});
+  });
+
+  it('ignores non-positive / malformed marker values', () => {
+    // No messages → addRoom's cold-start fallback leaves the baseline at 0.
+    let state = roomsReducer(
+      initial(),
+      addRoom({
+        roomData: makeRoom(JID, { messages: [], lastViewedTimestamp: 0 }),
+      })
+    );
+    state = roomsReducer(
+      state,
+      applyPrivateStoreMarkers({ [JID]: 0, 'b@conference.test': NaN as unknown as number })
+    );
+    // 0 / NaN are "unknown", not real read positions — must not stamp a baseline.
+    expect(state.rooms[JID].lastViewedTimestamp).toBe(0);
+    expect(state.privateStoreMarkers[JID]).toBeUndefined();
   });
 });

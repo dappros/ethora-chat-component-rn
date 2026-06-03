@@ -33,18 +33,32 @@ export const ReduxWrapper: React.FC<ChatWrapperProps> = React.memo(
       return props.config;
     }, [props.config]);
 
+    // Host apps that own their keyboard handling (their own
+    // KeyboardProvider + KeyboardAvoidingView around <Chat>) set
+    // `disableKeyboardAvoidingView` — drop the built-in KeyboardProvider
+    // here too so there aren't two nested providers (the second is part of
+    // the Android keyboard flicker in bug #6; ChatRoom drops the matching
+    // KeyboardAvoidingView under the same flag).
+    const ownKeyboardHandling = !memoizedConfig?.disableKeyboardAvoidingView;
+
+    const tree = (
+      <XmppProvider config={memoizedConfig} isVisible={props.isVisible}>
+        <ToastProvider>
+          <MessageNotificationProvider config={memoizedConfig}>
+            <LoginWrapper config={memoizedConfig} {...props} />
+          </MessageNotificationProvider>
+        </ToastProvider>
+      </XmppProvider>
+    );
+
     return (
       <Provider store={store}>
         <SafeAreaProvider>
-          <KeyboardProvider>
-            <XmppProvider config={memoizedConfig} isVisible={props.isVisible}>
-              <ToastProvider>
-                <MessageNotificationProvider config={memoizedConfig}>
-                  <LoginWrapper config={memoizedConfig} {...props} />
-                </MessageNotificationProvider>
-              </ToastProvider>
-            </XmppProvider>
-          </KeyboardProvider>
+          {ownKeyboardHandling ? (
+            <KeyboardProvider>{tree}</KeyboardProvider>
+          ) : (
+            tree
+          )}
         </SafeAreaProvider>
       </Provider>
     );

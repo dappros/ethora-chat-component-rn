@@ -64,6 +64,10 @@ const TRIGGER_ACTIONS = new Set([
   'roomMessages/setRoomMessages',
   'roomMessages/editRoomMessage',
   'roomMessages/setLastViewedTimestamp',
+  // Hydrating server-side read markers can move several rooms' baselines
+  // at once; recompute so the badges reflect the freshly-applied markers
+  // (with own-message filtering this middleware adds on top).
+  'roomMessages/applyPrivateStoreMarkers',
   'roomMessages/setCurrentRoom',
   'roomMessages/setVisibleRoom',
   'roomMessages/clearVisibleRoom',

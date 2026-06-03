@@ -98,6 +98,12 @@ export interface RoomMessagesState {
   loadingText?: string;
   usersSet?: Record<string, any>;
   pendingNotificationJid?: string | null;
+  // Server-side read markers fetched from the XMPP private store
+  // (`{ roomJID: lastViewedMs }`). Kept here so a room that loads AFTER
+  // the markers were fetched still inherits its baseline via `addRoom`
+  // — see `applyPrivateStoreMarkers`. Re-fetched every init/reconnect,
+  // so it is intentionally NOT persisted.
+  privateStoreMarkers: Record<string, number>;
 }
 
 const initialState: RoomMessagesState = {
@@ -112,6 +118,7 @@ const initialState: RoomMessagesState = {
     text: '',
   },
   pendingNotificationJid: null,
+  privateStoreMarkers: {},
 };
 
 const isValidRoomJid = (jid: unknown): jid is string => {
@@ -160,11 +167,19 @@ const reducers = {
       // the previous session, so cold-start showed no unread badge for
       // messages received while the app was closed (bug #19/#20). A real
       // (non-zero) explicit value still wins; otherwise keep the existing
-      // value; otherwise anchor to the newest message in the payload.
+      // value; otherwise fall back to the server-side read marker fetched
+      // from the private store (so a room the user has NEVER opened this
+      // session still gets a real baseline — without it the unread
+      // middleware's `lastViewedTimestamp > 0` gate skipped the room
+      // forever and the badge never lit up); otherwise anchor to the
+      // newest message in the payload.
+      const serverMarker = state.privateStoreMarkers?.[roomData.jid] || 0;
       if (roomData.lastViewedTimestamp != null && roomData.lastViewedTimestamp !== 0) {
         lastViewed = roomData.lastViewedTimestamp;
-      } else if (existing?.lastViewedTimestamp != null) {
+      } else if (existing?.lastViewedTimestamp != null && existing.lastViewedTimestamp > 0) {
         lastViewed = existing.lastViewedTimestamp;
+      } else if (serverMarker > 0) {
+        lastViewed = serverMarker;
       } else {
         const msgs = roomData.messages || [];
         let newest = 0;
@@ -346,6 +361,7 @@ const reducers = {
     deleteAllRooms(state: WritableDraft<RoomMessagesState>) {
       state.rooms = {};
       state.visibleRoomJID = null;
+      state.privateStoreMarkers = {};
     },
     setComposing(
       state: WritableDraft<RoomMessagesState>,
@@ -389,6 +405,45 @@ const reducers = {
             state.rooms[chatJID].messages,
             timestamp
           );
+        }
+      }
+    },
+    /**
+     * Apply server-side read markers fetched from the XMPP private store
+     * (`{ roomJID: lastViewedMs }`) to redux. This is the hydration that
+     * was missing: `getChatsPrivateStoreRequest` fetched the markers on
+     * every init/reconnect and every caller then DISCARDED the result, so
+     * rooms kept `lastViewedTimestamp: 0` and the unread middleware's
+     * `> 0` gate skipped them forever — `useUnread()` stayed at 0 for any
+     * room the user hadn't locally opened+left this session. Centralised
+     * here (and consulted by `addRoom`) so BOTH already-loaded rooms and
+     * rooms that load later pick up the baseline.
+     *
+     * Monotonic: a marker only ever moves a baseline FORWARD, so a stale
+     * server value can't resurrect already-read messages and a more-recent
+     * local read (tab blur stamping Date.now()) always wins.
+     */
+    applyPrivateStoreMarkers: (
+      state: WritableDraft<RoomMessagesState>,
+      action: PayloadAction<Record<string, number>>
+    ) => {
+      const markers = action.payload;
+      if (!markers || typeof markers !== 'object') {return;}
+      if (!state.privateStoreMarkers) {state.privateStoreMarkers = {};}
+      for (const jid of Object.keys(markers)) {
+        const ts = Number(markers[jid]);
+        if (!jid || !Number.isFinite(ts) || ts <= 0) {continue;}
+        // Remember the marker so rooms that load LATER (via addRoom)
+        // inherit it even though they don't exist in the store yet.
+        if (ts > (state.privateStoreMarkers[jid] || 0)) {
+          state.privateStoreMarkers[jid] = ts;
+        }
+        // Upgrade an already-loaded room's baseline + recompute its badge.
+        // Only ever forward, so a later local read isn't clobbered.
+        const room = state.rooms[jid];
+        if (room && ts > (room.lastViewedTimestamp || 0)) {
+          room.lastViewedTimestamp = ts;
+          room.unreadMessages = countNewerMessages(room.messages, ts);
         }
       }
     },
@@ -483,6 +538,7 @@ const reducers = {
       state.activeRoomJID = null;
       state.visibleRoomJID = null;
       state.isLoading = false;
+      state.privateStoreMarkers = {};
     },
     setActiveMessage: (
       state: WritableDraft<RoomMessagesState>,
@@ -674,6 +730,7 @@ export const {
   setComposing,
   setIsLoading,
   setLastViewedTimestamp,
+  applyPrivateStoreMarkers,
   setRoomNoMessages,
   setCurrentRoom,
   setVisibleRoom,

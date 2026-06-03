@@ -32,11 +32,13 @@ import { FlatList } from 'react-native';
 import {
   Platform,
   TouchableWithoutFeedback,
-  Keyboard,
   View,
   KeyboardEvent,
 } from 'react-native';
-import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import {
+  KeyboardAvoidingView,
+  KeyboardStickyView,
+} from 'react-native-keyboard-controller';
 import useComposing from '../../hooks/useComposing';
 import { store } from '../../roomStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -70,7 +72,6 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
     const insets = useSafeAreaInsets();
 
     const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
-    const [keyboardVisible, setKeyboardVisible] = useState(false);
 
     const { user, config: storeConfig } = useChatSettingState();
 
@@ -228,47 +229,63 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
     const inputDockPaddingBottom = getInputDockPaddingBottom({
       platform: Platform.OS,
       bottomInset: insets.bottom,
-      keyboardVisible,
     });
 
-    useEffect(() => {
-      const showEvent =
-        Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-      const hideEvent =
-        Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-
-      const showSub = Keyboard.addListener(showEvent, () => {
-        setKeyboardVisible(true);
-      });
-      const hideSub = Keyboard.addListener(hideEvent, () => {
-        setKeyboardVisible(false);
-      });
-
-      return () => {
-        showSub.remove();
-        hideSub.remove();
-      };
-    }, []);
+    // Keyboard avoidance is delegated to react-native-keyboard-controller's
+    // KeyboardAvoidingView. When the HOST app supplies its own keyboard
+    // handling (its own KeyboardProvider + KeyboardAvoidingView around
+    // <Chat>), this built-in one becomes a SECOND avoider wrapping the same
+    // tree; two of them both animating padding on keyboard open is the
+    // Android flicker reported in bug #6. `disableKeyboardAvoidingView`
+    // swaps this wrapper for a plain View so the host owns it outright
+    // (ReduxWrapper drops the built-in KeyboardProvider under the same flag).
+    //
+    // Bug #6 history (built-in path):
+    //  - Original: behavior="height" on Android — flicker, because
+    //    Android's adjustResize already shrinks the window; KAV resizing
+    //    on top double-resized every keyboard open.
+    //  - 26.5.6: behavior={undefined} on Android — input got completely
+    //    blocked when a host disables adjustResize via softInputMode.
+    //  - 26.5.8: behavior="padding" on BOTH platforms — input lifted above
+    //    the keyboard regardless of the host's softInputMode.
+    // Three keyboard strategies (default = avoidingView, behaviour unchanged):
+    //  • none  ('disableKeyboardAvoidingView'): plain View — the host owns
+    //    the keyboard entirely (ReduxWrapper also drops the KeyboardProvider).
+    //  • sticky('keyboardStickyInput'): plain View outer + ONLY the input
+    //    dock wrapped in <KeyboardStickyView>, so just the input tracks the
+    //    keyboard and the message list is never resized/reflowed — avoids the
+    //    Android "messages jump/flash" the padding KAV causes. Best for
+    //    edge-to-edge hosts (the OS doesn't also resize the window).
+    //  • avoidingView (default): keyboard-controller KAV, behavior="padding".
+    const noKeyboardHandling =
+      !!configWithEventHandlers?.disableKeyboardAvoidingView;
+    const stickyInput =
+      !noKeyboardHandling && !!configWithEventHandlers?.keyboardStickyInput;
+    const avoidKeyboard = !noKeyboardHandling && !stickyInput;
+    const KeyboardWrapper: React.ComponentType<any> = avoidKeyboard
+      ? KeyboardAvoidingView
+      : View;
+    const keyboardWrapperProps = avoidKeyboard
+      ? {
+          style: { flex: 1 },
+          behavior: 'padding' as const,
+          keyboardVerticalOffset,
+        }
+      : { style: { flex: 1 } };
+    // Input dock: a plain View normally; under the sticky strategy it becomes
+    // a KeyboardStickyView so it (and only it) lifts with the keyboard.
+    const InputDockTag: React.ComponentType<any> = stickyInput
+      ? KeyboardStickyView
+      : View;
+    const inputDockProps: any = {
+      style: { paddingBottom: inputDockPaddingBottom, backgroundColor: '#fff' },
+      ...(stickyInput
+        ? { offset: { closed: 0, opened: keyboardVerticalOffset } }
+        : {}),
+    };
 
     return (
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        // Bug #6 history:
-        //  - Original code: behavior="height" on Android — caused
-        //    flicker because Android's adjustResize already shrinks
-        //    the window; KAV resizing on top of that double-resized
-        //    every keyboard open.
-        //  - 26.5.6 attempt: behavior={undefined} on Android — input
-        //    got completely blocked because some host apps disable
-        //    adjustResize via the activity's softInputMode.
-        //  - 26.5.8 fix: behavior="padding" on BOTH platforms. Padding
-        //    adds bottom-padding equal to the keyboard height without
-        //    changing the layout's height prop — no double-resize on
-        //    Android, no flicker, and the input is always lifted above
-        //    the keyboard regardless of the host's softInputMode.
-        behavior="padding"
-        keyboardVerticalOffset={keyboardVerticalOffset}
-      >
+      <KeyboardWrapper {...keyboardWrapperProps}>
         <ChatContainer
           style={
             configWithEventHandlers?.chatRoomStyles
@@ -390,7 +407,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
           {editAction && editAction.isEdit && (
             <EditWrapper text={editAction.text || ''} onClose={onCloseEdit} />
           )}
-          <View style={{ paddingBottom: inputDockPaddingBottom, backgroundColor: '#fff' }}>
+          <InputDockTag {...inputDockProps}>
             {CustomInputComponent ? (
               <CustomInputComponent
                 sendMessage={
@@ -422,7 +439,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
                 )}
               />
             )}
-          </View>
+          </InputDockTag>
 
           {configWithEventHandlers?.customTypingIndicator?.enabled &&
             (configWithEventHandlers.customTypingIndicator.position ===
@@ -446,7 +463,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
               />
             )}
         </ChatContainer>
-      </KeyboardAvoidingView>
+      </KeyboardWrapper>
     );
   },
 );

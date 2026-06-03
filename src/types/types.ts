@@ -372,6 +372,25 @@ export interface IConfig {
   chatRoomStyles?: ViewStyle;
 
   keyboardVerticalOffset?: number;
+  // Opt OUT of the built-in keyboard handling. By default <Chat> mounts
+  // its own react-native-keyboard-controller KeyboardProvider +
+  // KeyboardAvoidingView (behavior="padding"). If the HOST app already
+  // wraps <Chat> in its own KeyboardProvider / KeyboardAvoidingView, the
+  // built-in one becomes a SECOND avoider over the same tree — two of them
+  // animating padding on keyboard open is the Android flicker in bug #6.
+  // Set this so the component renders a plain View instead and drops its
+  // KeyboardProvider, leaving the host to own keyboard handling outright.
+  disableKeyboardAvoidingView?: boolean;
+  // Built-in keyboard strategy: instead of the default KeyboardAvoidingView
+  // (which adds bottom padding to the WHOLE chat tree — the message list
+  // reflows on keyboard open, the Android "messages jump/flash" in bug #6),
+  // wrap ONLY the input dock in a react-native-keyboard-controller
+  // KeyboardStickyView so just the input tracks the keyboard and the list
+  // is never resized. Best for edge-to-edge Android hosts (where the OS
+  // doesn't also resize the window). Ignored when
+  // `disableKeyboardAvoidingView` is set. Needs on-device tuning of any
+  // `keyboardVerticalOffset`.
+  keyboardStickyInput?: boolean;
 
   // ----- interactions / messages -----
   disableInteractions?: boolean;
