@@ -257,3 +257,68 @@ describe('useChatRoomFocus: blur releases active room so unread counts (tabs)', 
     });
   });
 });
+
+describe('isOwnMessage must never treat the ROOM jid as "self" (userId == roomId)', () => {
+  beforeEach(reset);
+
+  it('counts an incoming MUC message as unread even when the signed-in userId equals the room id', () => {
+    // Repro of the integrator log (user ankushj, userId == roomId 23a555fa…):
+    // unread stuck at 0 even with newer messages from another account on the
+    // Home tab. xmppUsername is `appId_userId`; the room jid is
+    // `appId_roomId`. When userId === roomId those normalise IDENTICALLY, and
+    // a MUC message's xmppFrom (`<room>/<sender>`) also collapses to the room
+    // under norm — so every message matched "self" and was suppressed.
+    const APP = '69e8f92e5d2b89daec61838f';
+    const RID = '23a555fa-7ef7-4f59-9224-d065f40b9c2f';
+    const ROOM = `${APP}_${RID}@conference.xmpp.messenger-dev2.vitall.com`;
+    const baseline = 1780596164940; // server read marker (18:02:44.940Z)
+
+    store.dispatch(setUser({ xmppUsername: `${APP}_${RID}`, walletAddress: '' } as any));
+    store.dispatch(addRoom({ roomData: { ...mkRoom(ROOM, baseline), messages: [] } as any }));
+
+    // Message from ANOTHER account, newer than the marker, carrying the MUC
+    // `from` that collapses to the room under norm.
+    store.dispatch(
+      addRoomMessage({
+        roomJID: ROOM,
+        message: {
+          id: '1780596224905970', // 18:03:44.905Z — newer than baseline
+          user: { id: 'other-account', name: 'Other' },
+          xmppFrom: `${ROOM}/other-account`,
+          date: '2026-06-04T18:03:44.905Z',
+          body: 'hi',
+          roomJid: ROOM,
+        } as any,
+      })
+    );
+
+    expect(store.getState().rooms.rooms[ROOM].unreadMessages).toBe(1);
+  });
+
+  it('still suppresses the user\'s OWN message (regression guard)', () => {
+    const APP = '69e8f92e5d2b89daec61838f';
+    const RID = '23a555fa-7ef7-4f59-9224-d065f40b9c2f';
+    const ROOM = `${APP}_${RID}@conference.xmpp.messenger-dev2.vitall.com`;
+    const baseline = 1780596164940;
+
+    store.dispatch(setUser({ xmppUsername: `${APP}_${RID}`, walletAddress: '' } as any));
+    store.dispatch(addRoom({ roomData: { ...mkRoom(ROOM, baseline), messages: [] } as any }));
+
+    // Own MAM-replayed send (user.id === self xmppUsername local) must NOT
+    // count as unread.
+    store.dispatch(
+      addRoomMessage({
+        roomJID: ROOM,
+        message: {
+          id: '1780596224905971',
+          user: { id: `${APP}_${RID}`, name: 'Me' },
+          date: '2026-06-04T18:03:44.906Z',
+          body: 'mine',
+          roomJid: ROOM,
+        } as any,
+      })
+    );
+
+    expect(store.getState().rooms.rooms[ROOM].unreadMessages).toBe(0);
+  });
+});
