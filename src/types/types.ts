@@ -348,6 +348,7 @@ export interface IConfig {
     disableMembers?: boolean;
     hideMembers?: boolean;
     disableChatHeaderMenu?: boolean;
+    disableRoomMenu?: boolean;
     /**
      * Disables uploading / removing the chat icon from the chat-info
      * modal. The avatar stays rendered (initials / current icon) but
