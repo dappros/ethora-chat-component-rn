@@ -1,9 +1,23 @@
 import XmppClient from '../networking/xmppClient';
 import { xmppSettingsInterface } from '../types/types';
 
-let currentClient: XmppClient | null = null;
-let currentClientKey = '';
-const initLocks = new Map<string, Promise<XmppClient>>();
+interface XmppRegistryState {
+  currentClient: XmppClient | null;
+  currentClientKey: string;
+  initLocks: Map<string, Promise<XmppClient>>;
+}
+
+const globalScope = globalThis as typeof globalThis & {
+  __XMPP_REGISTRY__?: XmppRegistryState;
+};
+
+const registry: XmppRegistryState =
+  globalScope.__XMPP_REGISTRY__ ||
+  (globalScope.__XMPP_REGISTRY__ = {
+    currentClient: null,
+    currentClientKey: '',
+    initLocks: new Map<string, Promise<XmppClient>>(),
+  });
 
 const DEFAULT_DEV_SERVER = 'xmpp.chat.ethora.com';
 
@@ -26,46 +40,48 @@ export function setGlobalXmppClient(
   client: XmppClient | null,
   key?: string
 ): void {
-  currentClient = client;
-  currentClientKey = client ? key || currentClientKey || '' : '';
+  registry.currentClient = client;
+  registry.currentClientKey = client
+    ? key || registry.currentClientKey || ''
+    : '';
 }
 
 export function getGlobalXmppClient(): XmppClient | null {
-  return currentClient;
+  return registry.currentClient;
 }
 
 export function getGlobalXmppClientKey(): string {
-  return currentClientKey;
+  return registry.currentClientKey;
 }
 
 export function getReusableXmppClientByKey(key: string): XmppClient | null {
-  if (!key || key !== currentClientKey) {return null;}
-  if (!isXmppClientReusable(currentClient)) {return null;}
-  return currentClient;
+  if (!key || key !== registry.currentClientKey) {return null;}
+  if (!isXmppClientReusable(registry.currentClient)) {return null;}
+  return registry.currentClient;
 }
 
 export async function withXmppClientInitLock(
   key: string,
   init: () => Promise<XmppClient>
 ): Promise<XmppClient> {
-  const existing = initLocks.get(key);
+  const existing = registry.initLocks.get(key);
   if (existing) {return existing;}
 
   const createdPromise = init().finally(() => {
-    if (initLocks.get(key) === createdPromise) {
-      initLocks.delete(key);
+    if (registry.initLocks.get(key) === createdPromise) {
+      registry.initLocks.delete(key);
     }
   });
 
-  initLocks.set(key, createdPromise);
+  registry.initLocks.set(key, createdPromise);
   return createdPromise;
 }
 
 export function requireXmppClient(): XmppClient {
-  if (!currentClient) {
+  if (!registry.currentClient) {
     throw new Error('XMPP client is not initialized');
   }
-  return currentClient;
+  return registry.currentClient;
 }
 
 export default {

@@ -15,34 +15,45 @@ const rootReducer = combineReducers({
   roomHeapSlice: roomHeapSlice.reducer,
 });
 
-export const store = configureStore({
-  reducer: rootReducer,
-  middleware: (getDefaultMiddleware) =>
-    getDefaultMiddleware({
-      serializableCheck: {
-        // Slice names: chatSlice→'chat', roomsStore→'roomMessages'.
-        ignoredActions: [
-          'chat/addMessage',
-          'chat/setStoreClient',
-          'chat/setConfig',
-          'roomMessages/addRoom',
-        ],
-        ignoredActionPaths: ['payload.client', 'payload.config'],
-        ignoredPaths: [
-          'chat.messages.timestamp',
-          'chatSettingStore.client',
-          'chatSettingStore.config',
-        ],
-      },
-    })
-      .concat(unreadMiddleware)
-      .concat(newMessageMidlleware)
-      .concat(reactionsMiddleware)
-      .concat(logoutMiddleware)
-      .concat(persistenceMiddleware),
-});
-
 export type RootState = ReturnType<typeof rootReducer>;
+
+const createChatStore = () =>
+  configureStore({
+    reducer: rootReducer,
+    middleware: (getDefaultMiddleware) =>
+      getDefaultMiddleware({
+        serializableCheck: {
+          // Slice names: chatSlice→'chat', roomsStore→'roomMessages'.
+          ignoredActions: [
+            'chat/addMessage',
+            'chat/setStoreClient',
+            'chat/setConfig',
+            'roomMessages/addRoom',
+          ],
+          ignoredActionPaths: ['payload.client', 'payload.config'],
+          ignoredPaths: [
+            'chat.messages.timestamp',
+            'chatSettingStore.client',
+            'chatSettingStore.config',
+          ],
+        },
+      })
+        .concat(unreadMiddleware)
+        .concat(newMessageMidlleware)
+        .concat(reactionsMiddleware)
+        .concat(logoutMiddleware)
+        .concat(persistenceMiddleware),
+  });
+
+const globalScope = globalThis as typeof globalThis & {
+  __CHAT_STORE__?: ReturnType<typeof createChatStore>;
+  __CHAT_PERSISTOR_READY__?: Promise<void>;
+};
+
+export const store =
+  globalScope.__CHAT_STORE__ ||
+  (globalScope.__CHAT_STORE__ = createChatStore());
+
 export type AppDispatch = typeof store.dispatch;
 
 export const getActiveRoom = (state: RootState): IRoom | null => {
@@ -53,16 +64,17 @@ export const getActiveRoom = (state: RootState): IRoom | null => {
 };
 
 // Async rehydrate — read persisted slices and replay them as standard
-// actions. Idempotent: only rehydrates when a slice has data.
-export const persistorReady = (async () => {
-  const { chat, rooms } = await readPersistedState();
-  if (chat?.user && chat.user.walletAddress) {
-    store.dispatch(setUser(chat.user));
-  }
-  if (rooms?.rooms) {
-    for (const [jid, room] of Object.entries(rooms.rooms)) {
-      if (!jid || !room) {continue;}
-      store.dispatch(addRoom({ roomData: room as IRoom }));
+export const persistorReady =
+  globalScope.__CHAT_PERSISTOR_READY__ ||
+  (globalScope.__CHAT_PERSISTOR_READY__ = (async () => {
+    const { chat, rooms } = await readPersistedState();
+    if (chat?.user && chat.user.walletAddress) {
+      store.dispatch(setUser(chat.user));
     }
-  }
-})();
+    if (rooms?.rooms) {
+      for (const [jid, room] of Object.entries(rooms.rooms)) {
+        if (!jid || !room) {continue;}
+        store.dispatch(addRoom({ roomData: room as IRoom }));
+      }
+    }
+  })());
