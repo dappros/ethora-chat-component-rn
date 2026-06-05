@@ -17,6 +17,7 @@ import LoginForm from '../AuthForms/Login';
 import {RootState} from '../../roomStore';
 import Loader from '../styled/Loader';
 import {
+  addRoom,
   setCurrentRoom,
   setEditAction,
   setIsLoading,
@@ -32,6 +33,7 @@ import {useChatSettingState} from '../../hooks/useChatSettingState';
 import {DeviceEventEmitter, Pressable, Text, View} from 'react-native';
 import {pushLog as devPushLog} from '../../utils/devLogger';
 import {normalizeRoomJid} from '../../helpers/normalizeRoomJid';
+import {buildSeedRoom} from '../../helpers/buildSeedRoom';
 import {InteractionsOverlayProvider} from '../MessageBubble/InteractionsOverlay';
 
 interface ChatWrapperProps {
@@ -126,6 +128,23 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
     if (!client) {return;}
     client.setActiveRoomJid?.(activeRoomJID || null);
   }, [client, activeRoomJID]);
+
+  const seededRoomJID = useMemo(
+    () =>
+      roomJID
+        ? normalizeRoomJid(roomJID, config?.xmppSettings?.conference)
+        : '',
+    [roomJID, config?.xmppSettings?.conference],
+  );
+  const seededRoomMissing = !!seededRoomJID && !rooms[seededRoomJID];
+  useEffect(() => {
+    if (!seededRoomJID || !seededRoomMissing) {return;}
+    devPushLog(
+      'rn',
+      `ChatWrapper: seeding minimal room for single-room JID ${seededRoomJID}`,
+    );
+    dispatch(addRoom({roomData: buildSeedRoom(seededRoomJID)}));
+  }, [seededRoomJID, seededRoomMissing, dispatch]);
 
   useEffect(() => {
     if (roomJID) {

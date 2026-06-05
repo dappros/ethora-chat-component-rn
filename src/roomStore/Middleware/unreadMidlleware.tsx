@@ -100,6 +100,23 @@ export const unreadMiddleware: Middleware =
 
     const result = next(action);
 
+    // TEMP-DIAG (logcat): only FRESH incoming messages (last 3 min) so MAM
+    // history replay doesn't spam. Logs the exact unread decision inputs.
+    if (action.type === 'roomMessages/addRoomMessage') {
+      const m: any = action?.payload?.message || {};
+      const sm = (() => { try { return msgSortableMs(m); } catch { return 0; } })();
+      if (sm > Date.now() - 180000) {
+        const st: any = storeAPI.getState();
+        const su = st?.chatSettingStore?.user;
+        const rj = String(action?.payload?.roomJID || '');
+        const rm = st?.rooms?.rooms?.[rj];
+        const own = isOwnMessage(m, su?.xmppUsername || '', su?.walletAddress || '');
+        console.log(
+          `[FRESH] room=${rj.split('@')[0]} own=${own} self=${su?.xmppUsername} uid=${m?.user?.id} sortableMs=${sm} lv=${rm?.lastViewedTimestamp || 0} smGtLv=${sm > (rm?.lastViewedTimestamp || 0)} visible=${rj === st?.rooms?.visibleRoomJID} unreadBefore=${rm?.unreadMessages}`
+        );
+      }
+    }
+
     // Hot-path bail-out: most actions don't touch unread state.
     if (!TRIGGER_ACTIONS.has(action.type)) {return result;}
 
