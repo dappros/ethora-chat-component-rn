@@ -102,6 +102,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
          * intended by `disableChatHeaderBurgerMenuIcon`. */
         }
         <CenterContainer
+          style={{minHeight: 40 }}
           rightSpace={config?.disableRoomConfig}
           leftSpace={!!config?.headerChatMenu}
         >
@@ -146,7 +147,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
             />
             <ChatContainerHeaderInfo>
               <ChatContainerHeaderLabel numberOfLines={1} ellipsizeMode="tail">
-                {currentRoom?.title || currentRoom?.name}
+              {currentRoom?.title || currentRoom?.name}
               </ChatContainerHeaderLabel>
               <View>
                 {composing ? (
@@ -161,7 +162,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
           </ChatContainerHeaderBoxInfo>
         </CenterContainer>
 
-        {!config?.disableRoomConfig ? (
+        {!config?.disableChatInfo?.disableRoomMenu ? (
           <View style={styles.rightContainer}>
             <RoomMenu handleLeaveClick={handleLeaveClick} />
           </View>

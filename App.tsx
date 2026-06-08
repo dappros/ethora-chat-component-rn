@@ -14,7 +14,8 @@
  */
 import React from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import AppLoginChatsRn from './AppLoginChatsRn';
+import AppUnreadRepro from './AppUnreadRepro';
+// import AppLoginChatsRn from './AppLoginChatsRn';
 
 // Hermes/RN error reporter — log full stack so we can find the
 // `Cannot read property 'toString' of undefined` that fires after
@@ -39,7 +40,7 @@ if (ErrorUtils && !(global as any).__claudeErrTrap) {
 function App(): React.JSX.Element {
   return (
     <SafeAreaProvider>
-      <AppLoginChatsRn />
+      <AppUnreadRepro />
     </SafeAreaProvider>
   );
 }

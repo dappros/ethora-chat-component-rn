@@ -42,7 +42,6 @@ const isOwnMessage = (
     norm((msg as any)?.user?.id),
     norm((msg as any)?.user?.userJID),
     norm((msg as any)?.user?.xmppUsername),
-    norm((msg as any)?.xmppFrom),
   ].filter(Boolean);
   if (candidates.length === 0) {return false;}
   const self = new Set(
@@ -157,6 +156,31 @@ export const unreadMiddleware: Middleware =
             msgSortableMs(msg) >
               (room.lastViewedTimestamp || 0)
         ).length;
+
+        const newerByTs = (room.messages || []).filter(
+          (m: IMessage) =>
+            m.id !== 'delimiter-new' &&
+            !m.pending &&
+            msgSortableMs(m) > (room.lastViewedTimestamp || 0)
+        );
+        if (newerByTs.length > 0 && (unreadMessagesCount || 0) === 0) {
+          const s: any = newerByTs[newerByTs.length - 1] || {};
+          console.log('[unread-diag] ownership suppressed', {
+            jid,
+            selfXmpp,
+            selfWallet,
+            newerByTs: newerByTs.length,
+            unreadAfterOwnFilter: unreadMessagesCount,
+            sample: {
+              id: s.id,
+              userId: s?.user?.id,
+              userJID: s?.user?.userJID,
+              xmppUsername: s?.user?.xmppUsername,
+              xmppFrom: s?.xmppFrom,
+              senderJID: s?.senderJID,
+            },
+          });
+        }
 
         if (room.unreadMessages !== unreadMessagesCount) {
           storeAPI.dispatch(
