@@ -1,7 +1,7 @@
 import { AppState } from 'react-native';
 import XmppClient from '../networking/xmppClient';
 import { store } from '../roomStore';
-import { applyRoomsPreloadBatch } from '../roomStore/roomsSlice';
+import { applyRoomsPreloadBatch, setUnreadSyncing } from '../roomStore/roomsSlice';
 import { IMessage, IRoom } from '../types/types';
 
 interface HistoryPreloadSchedulerOptions {
@@ -111,6 +111,9 @@ export const runHistoryPreloadScheduler = async (
   } = options;
 
   if (signal?.aborted) {return;}
+
+  store.dispatch(setUnreadSyncing(true));
+  try {
 
   const state = store.getState();
   const rooms = (state.rooms.rooms || {}) as Record<string, IRoom>;
@@ -275,6 +278,9 @@ export const runHistoryPreloadScheduler = async (
 
     // Yield to JS event loop (no requestIdleCallback in RN).
     await new Promise((r) => setTimeout(r, 0));
+  }
+  } finally {
+    store.dispatch(setUnreadSyncing(false));
   }
 };
 

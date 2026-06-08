@@ -10,6 +10,7 @@ interface UnreadMessagesStats {
   hasUnread: boolean;
   totalCount: number;
   unreadByRoom: UnreadMessagesMap;
+  isLoading: boolean;
 }
 
 export const useUnreadMessagesCounter = (): UnreadMessagesStats => {
@@ -26,11 +27,12 @@ export const useUnreadMessagesCounter = (): UnreadMessagesStats => {
   // so non-rooms dispatches still don't trigger a re-render.)
   const subscribe = (callback: () => void) => store.subscribe(callback);
 
-  const rooms = useSyncExternalStore(
+  const roomsState = useSyncExternalStore(
     subscribe,
-    () => store.getState().rooms.rooms
+    () => store.getState().rooms
   );
 
+  const rooms = roomsState.rooms;
   const unreadByRoom: UnreadMessagesMap = {};
   let totalCount = 0;
 
@@ -46,6 +48,7 @@ export const useUnreadMessagesCounter = (): UnreadMessagesStats => {
     hasUnread: totalCount > 0,
     totalCount,
     unreadByRoom,
+    isLoading: !!roomsState.isUnreadSyncing || !!roomsState.isLoading,
   };
 };
 
