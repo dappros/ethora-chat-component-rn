@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components/native';
 import {
   CenterContainer,
@@ -110,6 +110,10 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   const dispatch = useDispatch();
   const { showToast } = useToast();
 
+  // Cache the SAF directory the user granted so saving several documents
+  // in a row doesn't re-prompt for a folder every time (Android only).
+  const safDirUriRef = useRef<string | null>(null);
+
   const { activeFile } = useSelector(
     (state: RootState) => state.chatSettingStore
   );
@@ -163,10 +167,6 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
 
   const saveFileToDownloads = async () => {
     try {
-      // Always include a valid extension on the cache filename. expo-media-
-      // library's createAssetAsync inspects the URI's extension and throws
-      // "Could not get the file's extension" when missing — see bug #9 in
-      // sdk-bug-tracker.md.
       const fileName = ensureFilenameHasExtension(
         activeFile.fileName,
         activeFile.mimetype
@@ -174,22 +174,44 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
       const filePath = FileSystem.cacheDirectory + fileName;
       const download = await FileSystem.downloadAsync(activeFile.fileURL, filePath);
 
-      if (download.status === 200) {
-        if (Platform.OS === 'android') {
-          const hasPermission = await requestStoragePermission();
-          if (hasPermission) {
-            await MediaLibrary.createAssetAsync(download.uri);
-          }
-        }
-        showToast({
-          id: Date.now().toString(),
-          title: 'Success',
-          message: 'Save successful',
-          type: 'success',
-        });
-      } else {
+      if (download.status !== 200) {
         Alert.alert('Error', 'Failed to save the file.');
+        return;
       }
+
+      if (Platform.OS === 'android') {
+        const saf = (FileSystem as any).StorageAccessFramework;
+        let dirUri = safDirUriRef.current;
+        if (!dirUri) {
+          const perm = await saf.requestDirectoryPermissionsAsync();
+          if (!perm.granted) {
+            Alert.alert(
+              'Permission Denied',
+              'Storage permission is required to save the file.'
+            );
+            return;
+          }
+          dirUri = perm.directoryUri;
+          safDirUriRef.current = dirUri;
+        }
+
+        const baseName = fileName.replace(/\.[^/.]+$/, '');
+        const mime = activeFile.mimetype || 'application/octet-stream';
+        const base64 = await FileSystem.readAsStringAsync(download.uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        const destUri = await saf.createFileAsync(dirUri, baseName, mime);
+        await FileSystem.writeAsStringAsync(destUri, base64, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+      }
+
+      showToast({
+        id: Date.now().toString(),
+        title: 'Success',
+        message: 'Save successful',
+        type: 'success',
+      });
     } catch (err) {
       console.error('Error saving file:', err);
       Alert.alert('Error', 'Failed to save the file.');
