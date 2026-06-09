@@ -189,6 +189,7 @@ const UnreadDiagnosticsLogger: React.FC<{
         visible: state.rooms?.visibleRoomJID || null,
         room,
         total: totalUnread(),
+        syncing: !!state.rooms?.isUnreadSyncing,
       });
       if (reason === 'store' && fingerprint === prevFingerprint.current) return;
       prevFingerprint.current = fingerprint;
@@ -197,6 +198,10 @@ const UnreadDiagnosticsLogger: React.FC<{
         tab,
         chatMounted,
         badgeTotalUnread: totalUnread(),
+        // NEW: useUnread().isLoading surface — true while the count is
+        // still settling (history-preload sync in progress).
+        isLoading: !!state.rooms?.isUnreadSyncing || !!state.rooms?.isLoading,
+        isUnreadSyncing: !!state.rooms?.isUnreadSyncing,
         roomCount,
         activeRoomJID: state.rooms?.activeRoomJID || null,
         visibleRoomJID: state.rooms?.visibleRoomJID || null,
@@ -331,7 +336,7 @@ const MessagesTabIcon: React.FC<{ active: boolean }> = ({ active }) => {
 
 // The full useUnread() surface, live.
 const UnreadPanel: React.FC = () => {
-  const { hasUnread, totalCount, unreadByRoom } = useUnread();
+  const { hasUnread, totalCount, unreadByRoom, isLoading } = useUnread();
   const entries = Object.entries(unreadByRoom || {});
   return (
     <View style={styles.panel}>
@@ -341,6 +346,10 @@ const UnreadPanel: React.FC = () => {
       </Text>
       <Text style={styles.panelRow}>
         totalCount: <Text style={styles.panelVal}>{totalCount}</Text>
+        {isLoading ? <Text style={styles.panelVal}>  ⏳ loading…</Text> : null}
+      </Text>
+      <Text style={styles.panelRow}>
+        isLoading: <Text style={styles.panelVal}>{String(isLoading)}</Text>
       </Text>
       <Text style={styles.panelRow}>unreadByRoom:</Text>
       {entries.length === 0 ? (

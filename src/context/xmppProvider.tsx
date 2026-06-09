@@ -45,6 +45,7 @@ import {
   setLastViewedTimestamp,
   deleteRoomMessage,
   msgSortableMs,
+  setUnreadSyncing,
 } from '../roomStore/roomsSlice';
 import { runHistoryPreloadScheduler } from '../helpers/historyPreloadScheduler';
 import { asyncLocalStorage } from '../hooks/useLocalStorage';
@@ -272,6 +273,7 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
       devPushLog('warn', 'initBeforeLoad: time budget exceeded → failed');
       abortController.abort();
       inflightBootstrapKeyRef.current = '';
+      store.dispatch(setUnreadSyncing(false));
       setProviderBootstrapStatus('failed');
     }, BOOTSTRAP_BUDGET_MS);
     const clearBudget = () => {
@@ -304,6 +306,7 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
       }
       inflightBootstrapKeyRef.current = key;
       setProviderBootstrapStatus('running');
+      store.dispatch(setUnreadSyncing(true));
       devPushLog('rn', 'initBeforeLoad: running', {
         appId: config?.appId,
         baseUrl: config?.baseUrl,
@@ -338,6 +341,7 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
           });
           setProviderBootstrapStatus('failed');
           inflightBootstrapKeyRef.current = '';
+          store.dispatch(setUnreadSyncing(false));
           return;
         }
 
@@ -447,6 +451,7 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
         });
         inflightBootstrapKeyRef.current = '';
         clearBudget();
+        store.dispatch(setUnreadSyncing(false));
         setProviderBootstrapStatus('failed');
       }
     };
