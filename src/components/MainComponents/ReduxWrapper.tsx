@@ -10,6 +10,7 @@ import {ToastProvider} from '../../context/ToastContext';
 import LoginWrapper from './LoginWrapper';
 import '../../helpers/storeConsole';
 import {installPromiseRejectionTracker} from '../../utils/installPromiseRejectionTracker';
+import {useChatFonts} from '../../hooks/useChatFonts';
 
 // Mount-time, dev-only — wire a global unhandled-promise-rejection
 // tracker so any future leak surfaces with a real stack trace in Metro
@@ -32,6 +33,9 @@ export const ReduxWrapper: React.FC<ChatWrapperProps> = React.memo(
     const memoizedConfig = useMemo(() => {
       return props.config;
     }, [props.config]);
+
+    // Load + apply the host-provided font (no-op when typography is unset).
+    useChatFonts(memoizedConfig?.typography);
 
     // Host apps that own their keyboard handling (their own
     // KeyboardProvider + KeyboardAvoidingView around <Chat>) set

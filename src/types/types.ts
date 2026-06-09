@@ -223,6 +223,45 @@ export interface PartialRoomWithMandatoryKeys {
   pinned?: boolean;
 }
 
+/**
+ * A custom font to register at runtime via `expo-font`. On React Native a
+ * font must be loaded before it can be referenced by name — there is no
+ * web-style runtime `@font-face`. Each weight is typically its own file and
+ * its own family name (RN does not synthesise weights reliably).
+ *
+ * `source` accepts what `Font.loadAsync` accepts: a remote URL string (e.g. a
+ * hosted e-Ukraine `.ttf`), or a bundled asset via `require('./e-Ukraine.ttf')`.
+ */
+export interface RNFontSource {
+  /** Family name used in text styles, e.g. "e-Ukraine" or "e-Ukraine-Medium". */
+  family: string;
+  /** Remote URL string or `require(...)` module for the font file. */
+  source: string | number;
+}
+
+/**
+ * Font configuration for the chat UI. When omitted, the component keeps the
+ * platform's default system font, so existing integrations are unaffected.
+ *
+ * Provide `fonts` for the SDK to load via expo-font, then set `fontFamily` to
+ * the family the chat should render in. If the host already loaded the font
+ * itself (e.g. via `@expo-google-fonts/*` or its own `useFonts`), pass only
+ * `fontFamily` and leave `fonts` empty.
+ */
+export interface TypographyConfig {
+  /** Family applied across the chat UI. Must be loaded (via `fonts` or by the host). */
+  fontFamily?: string;
+  /** Optional per-weight families, used where the chat renders bolder text. */
+  weightFamilies?: {
+    regular?: string;
+    medium?: string;
+    semibold?: string;
+    bold?: string;
+  };
+  /** Fonts for the SDK to load with expo-font before applying `fontFamily`. */
+  fonts?: RNFontSource[];
+}
+
 export interface IConfig {
   // ----- identity / network -----
   appId?: string;
@@ -232,6 +271,8 @@ export interface IConfig {
 
   // ----- theming -----
   colors?: { primary: string; secondary: string };
+  /** Configurable font family / weights for the chat UI. See TypographyConfig. */
+  typography?: TypographyConfig;
   messageColor?: {
     backgroundMessage: string;
     backgroundMessageUser: string;
