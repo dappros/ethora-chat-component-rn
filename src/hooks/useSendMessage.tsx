@@ -20,10 +20,24 @@ import type { IConfig, IMessage } from '../types/types';
 // long after the optimistic dispatch, mark it failed so the bubble
 // flips out of the "sending..." state. Covers the silent-failure
 // case (e.g. device offline before the message ever made it to the
-// XMPP socket) — bug #18. Tuned generously so a brief network blip
-// followed by reconnect within 30s still resolves naturally via the
-// server echo.
+// XMPP socket) — bug #18.
+//
+// 5s window: a brief network blip that reconnects inside this window
+// still resolves on its own — the offline send is buffered in the
+// outbound queue (OUTBOUND_QUEUE_TTL_MS, kept in lockstep) and replayed
+// the moment the stream comes back, so the server echo flips the bubble
+// to delivered. Only a drop that outlasts 5s flips it to "Failed → tap
+// to retry". If a slow send completes just after the window, the
+// delivery clears the failed flag (see newMessageMidlleware) so it
+// doesn't get stuck showing "Failed".
 const PENDING_WATCHDOG_MS = 30_000;
+
+// Media gets a longer window than text: the optimistic bubble appears before
+// the file upload even starts, and a large file (up to the 50MB cap) over a
+// slow link can legitimately take far longer than 5s to upload + send. Failing
+// it at 5s mid-upload would flash a wrong "Failed" and let the user kick off a
+// duplicate upload. The text watchdog stays at 5s per product spec.
+const MEDIA_PENDING_WATCHDOG_MS = 30_000;
 
 // Monotonic counter for stanza ids. Bumped on each send within a single
 // process. Two rapid sends in the same millisecond used to collide on
@@ -76,7 +90,14 @@ export const useSendMessage = (_configOverride?: IConfig) => {
       activeRoomJID: string,
       isReply?: boolean,
       isChecked?: boolean,
-      mainMessage?: string
+      mainMessage?: string,
+      // Set by retryMessage to the failed message's own id. When present we
+      // re-use that id (and its existing optimistic bubble) instead of minting
+      // a fresh one — mirroring sendMedia's `existingId`. Without this, a text
+      // retry created a second bubble while the original stayed pending
+      // forever, so a failed message that the user retried showed as two
+      // bubbles, one stuck on "sending...".
+      existingId?: string
     ) => {
       if (editAction?.isEdit) {
         try {
@@ -113,7 +134,7 @@ export const useSendMessage = (_configOverride?: IConfig) => {
       // dedupes by id and flips `pending: false` → DoubleTick renders.
       // Without this, the user taps send and sees nothing for ~200ms
       // until the echo lands, which feels broken.
-      const optimisticId = nextStanzaId('send-text-message');
+      const optimisticId = existingId || nextStanzaId('send-text-message');
       const optimisticDate = new Date().toISOString();
       const selfId =
         (user as any)?.xmppUsername || (user as any)?.walletAddress || '';
@@ -135,7 +156,11 @@ export const useSendMessage = (_configOverride?: IConfig) => {
           name: `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || selfId,
         } as any,
       } as IMessage;
-      if (!config?.disableSentLogic) {
+      // On retry (`existingId`) the original optimistic bubble is still in
+      // the room (pending:true) — clearMessageFailure just flipped it back out
+      // of the "failed" state — so re-adding would duplicate it. Only push a
+      // fresh bubble for a brand-new send.
+      if (!config?.disableSentLogic && !existingId) {
         dispatch(
           addRoomMessage({ roomJID: activeRoomJID, message: optimisticMessage })
         );
@@ -177,15 +202,54 @@ export const useSendMessage = (_configOverride?: IConfig) => {
       }, PENDING_WATCHDOG_MS);
 
       try {
-  
-        const effectiveClient: any =
-          client ||
-          [
-            getGlobalXmppClient(),
-            store.getState()?.chatSettingStore?.client,
-          ].find((c: any) => c && c.status === 'online');
+        // The single send closure, used both for the immediate send and for
+        // the buffered replay. Passing the optimistic id as the stanza id
+        // means the server echoes it back with the same value, so the
+        // reducer's dedupe matches and the bubble flips pending → delivered
+        // in-place (rather than rendering a second copy).
+        const replaySend = (c: any) =>
+          c.sendMessage(
+            activeRoomJID,
+            user.firstName,
+            user.lastName,
+            '',
+            user.walletAddress,
+            message,
+            '',
+            isReply || false,
+            isChecked || false,
+            mainMessage || '',
+            optimisticId
+          );
+
+        // Always buffer a copy BEFORE attempting the live send. The WebSocket
+        // can still read `status: 'online'` for a beat after the network
+        // actually drops (the WS error lands a moment later), so a stanza sent
+        // "while online" can vanish into a dying socket and never get echoed.
+        // Buffering every send means the onOnline reconnect flush replays
+        // anything that wasn't confirmed within the window. The server echo
+        // removes the entry (see newMessageMidlleware), so a healthy online
+        // send never actually replays — only genuinely-lost ones do.
+        enqueueOutboundSend({
+          optimisticId,
+          roomJID: activeRoomJID,
+          enqueuedAt: Date.now(),
+          send: replaySend,
+        });
+
+        // Only treat a client as usable if its underlying stream is actually
+        // `online` — the instance survives a network drop with a stale
+        // 'connecting'/'offline' status, and sending through it would just
+        // lose the stanza.
+        const effectiveClient: any = [
+          client,
+          getGlobalXmppClient(),
+          store.getState()?.chatSettingStore?.client,
+        ].find((c: any) => c && c.status === 'online');
 
         if (!effectiveClient) {
+          // No live stream — kick a reconnect; the buffered copy above is
+          // replayed by the onOnline flush once the stream is back.
           const anyClient: any =
             client ||
             getGlobalXmppClient() ||
@@ -193,45 +257,10 @@ export const useSendMessage = (_configOverride?: IConfig) => {
           try {
             anyClient?.forceReconnect?.();
           } catch {}
-          enqueueOutboundSend({
-            optimisticId,
-            roomJID: activeRoomJID,
-            enqueuedAt: Date.now(),
-            send: (c) =>
-              c.sendMessage(
-                activeRoomJID,
-                user.firstName,
-                user.lastName,
-                '',
-                user.walletAddress,
-                message,
-                '',
-                isReply || false,
-                isChecked || false,
-                mainMessage || '',
-                optimisticId
-              ),
-          });
           return;
         }
-        // Pass the optimistic id as the stanza id so the server echoes
-        // it back with the same value — the reducer's dedupe lookup
-        // matches and the bubble flips from pending → delivered in-place
-        // (instead of rendering two copies, which is what happens when
-        // ids don't match).
-        effectiveClient.sendMessage(
-          activeRoomJID,
-          user.firstName,
-          user.lastName,
-          '',
-          user.walletAddress,
-          message,
-          '',
-          isReply || false,
-          isChecked || false,
-          mainMessage || '',
-          optimisticId
-        );
+
+        replaySend(effectiveClient);
         await handleMessageSent({
           message,
           roomJID: activeRoomJID,
@@ -405,7 +434,7 @@ export const useSendMessage = (_configOverride?: IConfig) => {
             messageType: 'media',
           });
         }
-      }, PENDING_WATCHDOG_MS);
+      }, MEDIA_PENDING_WATCHDOG_MS);
 
       // Help RN's FormData polyfill build a proper multipart/file part
       // (instead of serialising the JS object as JSON). On iOS the
@@ -487,12 +516,14 @@ export const useSendMessage = (_configOverride?: IConfig) => {
           // Stanza id == placeholder id so the MUC echo's outer
           // <message id="..."> matches xmppId on the placeholder and
           // insertMessageWithDelimiter merges in place + flips pending.
-          const effectiveMediaClient: any =
-            client ||
-            [
-              getGlobalXmppClient(),
-              store.getState()?.chatSettingStore?.client,
-            ].find((c: any) => c && c.status === 'online');
+          // Same online-only guard as the text path: a surviving-but-offline
+          // client must NOT be used (the stanza would vanish into a dead
+          // socket) — fall through to enqueue so the reconnect flush replays.
+          const effectiveMediaClient: any = [
+            client,
+            getGlobalXmppClient(),
+            store.getState()?.chatSettingStore?.client,
+          ].find((c: any) => c && c.status === 'online');
           if (effectiveMediaClient) {
             effectiveMediaClient.setActiveRoomJid?.(activeRoomJID);
             await Promise.resolve(
@@ -515,6 +546,9 @@ export const useSendMessage = (_configOverride?: IConfig) => {
               optimisticId: id,
               roomJID: activeRoomJID,
               enqueuedAt: Date.now(),
+              // Match the media watchdog so a reconnect within the (longer)
+              // media window still auto-replays the buffered stanza.
+              ttlMs: MEDIA_PENDING_WATCHDOG_MS,
               send: (c) =>
                 c.sendMediaMessageStanza(activeRoomJID, messagePayload, id),
             });
@@ -605,7 +639,10 @@ export const useSendMessage = (_configOverride?: IConfig) => {
           payload.roomJID,
           payload.isReply,
           payload.isChecked,
-          payload.mainMessage
+          payload.mainMessage,
+          // Re-use the failed message's id so the retry resends in place
+          // instead of spawning a duplicate bubble.
+          failedId
         );
       } else {
         await sendMedia(

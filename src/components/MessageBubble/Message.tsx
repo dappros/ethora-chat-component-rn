@@ -425,6 +425,9 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
                   ! Failed — tap to retry
                 </Text>
               )}
+              {message?.isEdited && !message?.isDeleted && (
+                <Text style={styles.editedText}>edited</Text>
+              )}
               <Text style={styles.timestampText}>
                 {new Date(message.date).toLocaleTimeString([], {
                   hour: '2-digit',
@@ -522,6 +525,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     color: '#999',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  // Small muted "edited" marker shown before the timestamp (Slack/WhatsApp
+  // style). Italic + same muted grey so it reads as metadata, not content.
+  editedText: {
+    fontSize: 11,
+    lineHeight: 16,
+    color: '#999',
+    fontStyle: 'italic',
+    marginRight: 6,
     includeFontPadding: false,
     textAlignVertical: 'center',
   },

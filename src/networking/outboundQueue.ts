@@ -19,7 +19,7 @@
  * Each queued item carries a `send(client)` closure that captures the
  * original args (text or media), so flush is type-agnostic.
  *
- * TTL is deliberately aligned with the 30s pending-send watchdog in
+ * TTL is deliberately aligned with the pending-send watchdog in
  * useSendMessage (PENDING_WATCHDOG_MS): a queued item older than that has
  * already been — or is about to be — flipped to "Failed → tap to retry" by
  * the watchdog, so replaying it on a late reconnect would duplicate the
@@ -37,11 +37,20 @@ export interface QueuedSend {
   roomJID: string;
   /** Wall-clock ms when first queued; drives the TTL drop on flush. */
   enqueuedAt: number;
+  /**
+   * Per-item replay window. Kept in lockstep with the matching send
+   * watchdog so a reconnect inside the window replays the buffered send,
+   * while a longer drop lets the watchdog own the failure (no duplicate).
+   * Text uses 5s, media 30s (large uploads need longer). Falls back to
+   * OUTBOUND_QUEUE_TTL_MS when omitted.
+   */
+  ttlMs?: number;
   /** Replays the original send against a live, online client. */
   send: (client: OutboundQueueClient) => void;
 }
 
-// Kept in lockstep with PENDING_WATCHDOG_MS in useSendMessage.
+// Default replay window (text). Mirrors PENDING_WATCHDOG_MS in useSendMessage.
+// Media enqueues a longer per-item ttlMs (see QueuedSend.ttlMs).
 export const OUTBOUND_QUEUE_TTL_MS = 30_000;
 
 let queue: QueuedSend[] = [];
@@ -74,8 +83,8 @@ export function flushOutboundSends(
   const pending = queue;
   queue = [];
   for (const item of pending) {
-    if (now - item.enqueuedAt > OUTBOUND_QUEUE_TTL_MS) {
-      // Stale — the 30s watchdog owns the failure; don't duplicate.
+    if (now - item.enqueuedAt > (item.ttlMs ?? OUTBOUND_QUEUE_TTL_MS)) {
+      // Stale — the send watchdog owns the failure; don't duplicate.
       continue;
     }
     try {
@@ -85,6 +94,18 @@ export function flushOutboundSends(
       console.warn('flushOutboundSends: replay failed', item.optimisticId, err);
     }
   }
+}
+
+/**
+ * Drop a single buffered send by its optimistic/stanza id. Called when a
+ * server-confirmed copy of the message arrives (see newMessageMidlleware):
+ * the send went through, so the buffered replay is no longer needed and must
+ * not fire on a later reconnect. No-op if the id isn't queued.
+ */
+export function removeOutboundSend(optimisticId: string): void {
+  if (!optimisticId) {return;}
+  const idx = queue.findIndex((q) => q.optimisticId === optimisticId);
+  if (idx >= 0) {queue.splice(idx, 1);}
 }
 
 /** Drop everything — called on permanent teardown (logout / close). */

@@ -76,7 +76,17 @@ function mergeHistoryIntoCache(
   // the freshest server state (reactions / edits / deletions).
   const byId = new Map<string, IMessage>();
   for (const m of realExisting) {byId.set(String(m.id), m);}
-  for (const m of realFetched) {byId.set(String(m.id), m);}
+  for (const m of realFetched) {
+    // Fetched wins on body/reactions/etc., but MAM doesn't carry our
+    // client-side "edited" flag (the archived stanza just has the corrected
+    // body). Preserve `isEdited` from the cached copy so a message edited
+    // before reload keeps its marker instead of losing it on history sync.
+    const prev = byId.get(String(m.id));
+    byId.set(
+      String(m.id),
+      prev?.isEdited && !m.isEdited ? { ...m, isEdited: true } : m
+    );
+  }
   const merged = Array.from(byId.values()).sort(byMs);
   return [...capTail(merged), ...pending];
 }
@@ -307,6 +317,10 @@ const reducers = {
         state.rooms[roomJID].messages.map((message) => {
           if (message.id === messageId) {
             message.body = text;
+            // Flag the correction so the bubble can render an "edited" marker.
+            // Covers both the author's own edit and edits from other users —
+            // every <replace> echo flows through here.
+            message.isEdited = true;
           }
         });
       }

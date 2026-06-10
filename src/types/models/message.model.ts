@@ -33,6 +33,9 @@ export interface IMessage {
   xmppId?: string;
   xmppFrom?: string;
   deleted?: boolean;
+  // Set once a message has been corrected via XEP-0308 (<replace>), so the
+  // bubble can show a small "edited" marker (Slack/WhatsApp style).
+  isEdited?: boolean;
 }
 
 export interface ReactionMessage {
