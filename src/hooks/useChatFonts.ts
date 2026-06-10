@@ -86,7 +86,7 @@ let activeFamily: string | undefined;
 function wrapFactory(orig: any): any {
   if (typeof orig !== 'function') return orig;
   if (orig.__ethoraFontWrapped) return orig;
-  const wrapped = function (type: any, props: any, ...rest: any[]) {
+  const wrapped = function (this: any, type: any, props: any, ...rest: any[]) {
     if (
       activeFamily &&
       props &&
