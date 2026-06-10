@@ -96,6 +96,7 @@ export interface RoomMessagesState {
   editAction?: EditAction;
   isLoading: boolean;
   loadingText?: string;
+  isUnreadSyncing?: boolean;
   usersSet?: Record<string, any>;
   pendingNotificationJid?: string | null;
   // Server-side read markers fetched from the XMPP private store
@@ -111,6 +112,7 @@ const initialState: RoomMessagesState = {
   activeRoomJID: null,
   visibleRoomJID: null,
   isLoading: false,
+  isUnreadSyncing: false,
   editAction: {
     isEdit: false,
     roomJid: '',
@@ -362,6 +364,7 @@ const reducers = {
       state.rooms = {};
       state.visibleRoomJID = null;
       state.privateStoreMarkers = {};
+      state.isUnreadSyncing = false;
     },
     setComposing(
       state: WritableDraft<RoomMessagesState>,
@@ -385,6 +388,12 @@ const reducers = {
       }
       state.isLoading = loading;
       state.loadingText = loadingText;
+    },
+    setUnreadSyncing: (
+      state: WritableDraft<RoomMessagesState>,
+      action: PayloadAction<boolean>
+    ) => {
+      state.isUnreadSyncing = action.payload;
     },
     setLastViewedTimestamp: (
       state: WritableDraft<RoomMessagesState>,
@@ -538,6 +547,7 @@ const reducers = {
       state.activeRoomJID = null;
       state.visibleRoomJID = null;
       state.isLoading = false;
+      state.isUnreadSyncing = false;
       state.privateStoreMarkers = {};
     },
     setActiveMessage: (
@@ -729,6 +739,7 @@ export const {
   editRoomMessage,
   setComposing,
   setIsLoading,
+  setUnreadSyncing,
   setLastViewedTimestamp,
   applyPrivateStoreMarkers,
   setRoomNoMessages,

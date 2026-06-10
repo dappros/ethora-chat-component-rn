@@ -32,6 +32,8 @@ export { useChatRoomFocus } from './hooks/useChatRoomFocus';
 export { logoutService } from './hooks/useLogout';
 export { useQRCodeChat, handleQRChatId } from './hooks/useQRCodeChatHandler';
 export { resendMessage } from './utils/resendMessage';
+// Font loader — exposed so hosts can also load the font outside <Chat> if needed.
+export { useChatFonts } from './hooks/useChatFonts';
 
 // Public types — needed so consumers can type their `config` prop and
 // any event handlers they pass in.
@@ -43,4 +45,6 @@ export type {
   User,
   ConfigUser,
   MessageProps,
+  TypographyConfig,
+  RNFontSource,
 } from './types/types';

@@ -14,6 +14,7 @@
  */
 import React from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import AppLoginChatsRn from './AppLoginChatsRn';
 import AppUnreadRepro from './AppUnreadRepro';
 // import AppLoginChatsRn from './AppLoginChatsRn';
 
@@ -40,7 +41,8 @@ if (ErrorUtils && !(global as any).__claudeErrTrap) {
 function App(): React.JSX.Element {
   return (
     <SafeAreaProvider>
-      <AppUnreadRepro />
+      {/* <AppUnreadRepro /> */}
+      <AppLoginChatsRn/>
     </SafeAreaProvider>
   );
 }
