@@ -693,6 +693,9 @@ const ChatPane: React.FC<{ creds: Creds | null; isVisible: boolean }> = ({ creds
         conference: creds.conference,
       },
       colors: { primary: PRIMARY, secondary: SECONDARY },
+      typography: {
+        fontFamily: Platform.select({ ios: 'Snell Roundhand', default: 'cursive' }),
+      },
       refreshTokens: { enabled: true },
       initBeforeLoad: true,
       disableInteractions: false,

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Text, TextInput } from 'react-native';
 import type { TypographyConfig } from '../types/types';
 
@@ -24,6 +24,8 @@ import type { TypographyConfig } from '../types/types';
  */
 export function useChatFonts(typography?: TypographyConfig): boolean {
   const [ready, setReady] = useState(!typography?.fonts?.length);
+
+  applyDefaultFont(typography);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,37 +82,66 @@ export function useChatFonts(typography?: TypographyConfig): boolean {
  */
 let activeFamily: string | undefined;
 
-/**
- * Install the default-font mechanism ONCE on RN's Text / TextInput.
- *
- * Why not `Text.defaultProps`? React 19 (shipped with RN 0.81) ignores
- * `defaultProps` on function components, and RN's `Text` is a `forwardRef`
- * function component — so the old trick silently no-ops. Instead we wrap each
- * component's `render` and inject `{ fontFamily }` as the *lowest-priority*
- * style, so any explicit per-component style still wins. This is independent
- * of the React version. We patch the shared module objects once; since every
- * chat component imports the same `Text`/`TextInput` from 'react-native', the
- * default applies everywhere.
- */
-function ensurePatched(): void {
-  const targets: any[] = [Text, TextInput];
-  for (const Comp of targets) {
-    if (!Comp || Comp.__ethoraFontPatched) continue;
-    // forwardRef components expose a `render(props, ref)` function. Both RN
-    // Text and TextInput are forwardRef in RN 0.73+. Wrap render and inject
-    // the font as the lowest-priority style (explicit styles still win).
-    if (typeof Comp.render === 'function') {
-      const orig = Comp.render;
-      Comp.render = function patchedRender(props: any, ref: any) {
-        const el = orig.call(this, props, ref);
-        if (!activeFamily || !el) return el;
-        return React.cloneElement(el, {
-          style: [{ fontFamily: activeFamily }, el.props?.style],
-        });
-      };
-      Comp.__ethoraFontPatched = true;
+
+function wrapFactory(orig: any): any {
+  if (typeof orig !== 'function') return orig;
+  if (orig.__ethoraFontWrapped) return orig;
+  const wrapped = function (type: any, props: any, ...rest: any[]) {
+    if (
+      activeFamily &&
+      props &&
+      (type === Text || type === TextInput)
+    ) {
+      props = { ...props, style: [{ fontFamily: activeFamily }, props.style] };
     }
+    return orig.call(this, type, props, ...rest);
+  };
+  wrapped.__ethoraFontWrapped = true;
+  return wrapped;
+}
+
+let factoriesPatched = false;
+
+function ensurePatched(): void {
+  if (factoriesPatched) return;
+
+  let any = false;
+
+  const patchMod = (mod: any): void => {
+    if (!mod) return;
+    for (const fn of ['jsx', 'jsxs', 'jsxDEV']) {
+      if (typeof mod[fn] === 'function' && !mod[fn].__ethoraFontWrapped) {
+        mod[fn] = wrapFactory(mod[fn]);
+        any = true;
+      }
+    }
+  };
+
+  try {
+    patchMod(require('react/jsx-runtime'));
+  } catch {
+    /* ignore */
   }
+  try {
+    patchMod(require('react/jsx-dev-runtime'));
+  } catch {
+    /* ignore */
+  }
+
+  try {
+    const React = require('react');
+    if (
+      typeof React.createElement === 'function' &&
+      !React.createElement.__ethoraFontWrapped
+    ) {
+      React.createElement = wrapFactory(React.createElement);
+      any = true;
+    }
+  } catch {
+    /* ignore */
+  }
+
+  if (any) factoriesPatched = true;
 }
 
 /**
