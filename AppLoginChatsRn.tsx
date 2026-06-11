@@ -692,7 +692,7 @@ const ChatPane: React.FC<{ creds: Creds | null; isVisible: boolean }> = ({ creds
         host: creds.xmppHost,
         conference: creds.conference,
       },
-      colors: { primary: PRIMARY, secondary: SECONDARY },
+      colors: { primary: PRIMARY, secondary: SECONDARY, avatar: PRIMARY },
       // typography: {
       //   fontFamily: Platform.select({ ios: 'Snell Roundhand', default: 'cursive' }),
       // },

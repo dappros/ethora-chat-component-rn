@@ -10,6 +10,8 @@ import {
 import { TextareaInput } from '../../styled/StyledInputComponents/StyledInputComponents';
 import Button from '../../styled/Button';
 import { Modal, Text, TextInput, View, StyleSheet } from 'react-native';
+import { useChatSettingState } from '../../../hooks/useChatSettingState';
+import { getIconColor } from '../../../helpers/getIconColor';
 
 interface ModalWrapperProps {
   iconTitle?: any;
@@ -44,6 +46,7 @@ export const ModalWrapper: FC<ModalWrapperProps> = ({
   compact = false,
 }) => {
   const textareaRef = useRef<TextInput>(null);
+  const { config } = useChatSettingState();
 
   // const handleInput = () => {
   //   const textarea = textareaRef.current;
@@ -73,6 +76,9 @@ export const ModalWrapper: FC<ModalWrapperProps> = ({
           style={{ width: '100%' }}
           unstyled
           variant="outlined"
+          // Outlined Button draws its border from `backgroundColor`
+          // (defaults to the hardcoded blue) — feed it the themed color.
+          borderColor={getIconColor(config)}
         />
         {buttonText && (
           <Button

@@ -28,6 +28,7 @@ import MediaMessage from '../MainComponents/MediaMessage';
 import MessageTranslations from './MessageTranslations';
 import { useChatSettingState } from '../../hooks/useChatSettingState';
 import { parseMessageBody } from '../../helpers/parseMessageBody';
+import { getSenderNameColor } from '../../helpers/getSenderNameColor';
 import { useMessageHeapState } from '../../hooks/useMessageHeapState';
 import { DoubleTick } from '../../assets/icons';
 import { useXmppClient } from '../../context/xmppProvider';
@@ -367,7 +368,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
             backgroundMessage={config?.messageColor?.backgroundMessage}
           >
             {!isUser && (
-              <CustomUserName color={config?.colors?.primary} media={message?.isMediafile === 'true'}>
+              <CustomUserName color={getSenderNameColor(config)} media={message?.isMediafile === 'true'}>
                 {message.user.name}
               </CustomUserName>
             )}

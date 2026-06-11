@@ -11,7 +11,11 @@ import {
   RemoveButtonText,
   Wrapper,
 } from '../styled/StyledComponents';
-import { nameToColor } from '../../helpers/hashcolor';
+import { useChatSettingState } from '../../hooks/useChatSettingState';
+import {
+  getAvatarColor,
+  getAvatarTextColor,
+} from '../../helpers/getAvatarColor';
 
 interface ProfileImagePlaceholderProps {
   name?: string;
@@ -49,12 +53,13 @@ export const ProfileImagePlaceholder: React.FC<
   placeholderIcon,
   disableOverlay,
 }) => {
+  const { config } = useChatSettingState();
   const backgroundColor = useMemo(() => {
     if(!name) {
       return { backgroundColor: 'transparent' };
     }
-    return nameToColor(name);
-  }, [name]);
+    return { backgroundColor: getAvatarColor(name, config) };
+  }, [name, config]);
 
   const getTwoUppercaseLetters = (fullName: string) => {
     if (!fullName) {return '';}
@@ -120,10 +125,12 @@ export const ProfileImagePlaceholder: React.FC<
         ) : placeholderIcon ? (
           placeholderIcon
         ) : (
-          // Black initials on the pastel hash-color bg — white text
-          // on these light backgrounds is unreadable (matches web's
-          // default-color behavior).
-          <InitialsText size={size} color="#141414">
+          // Black initials on the light pastel hash-colors; a dark
+          // configured colors.avatar flips them to white.
+          <InitialsText
+            size={size}
+            color={getAvatarTextColor(backgroundColor?.backgroundColor)}
+          >
             {getInitials()}
           </InitialsText>
         )}

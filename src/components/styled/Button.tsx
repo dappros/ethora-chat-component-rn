@@ -15,11 +15,12 @@ import { getTintedColor } from '../../helpers/getTintedColor';
 const CustomButton = styled(TouchableOpacity)<{
   disabled: boolean;
   backgroundColor?: string;
+  borderColor?: string;
   unstyled?: boolean;
   variant?: 'default' | 'filled' | 'outlined';
 }>`
   border-width: ${({ variant }) => (variant === 'outlined' ? 1 : 0)}px;
-  border-color: ${({ backgroundColor }) => backgroundColor || '#0052CD'};
+  border-color: ${({ borderColor }) => borderColor || '#0052CD'};
   border-radius: 20px;
   background-color: ${({ variant, backgroundColor }) =>
     variant === 'filled' ? backgroundColor || '#0052CD' : 'transparent'};
@@ -52,6 +53,7 @@ export interface ButtonProps {
   unstyled?: boolean;
   variant?: 'default' | 'filled' | 'outlined';
   backgroundColor?: string;
+  borderColor?: string;
   color?: string;
   style?: ViewStyle;
   onPress?: () => void;
@@ -71,6 +73,7 @@ const Button: React.FC<ButtonProps> = ({
   unstyled = false,
   variant = 'default',
   backgroundColor,
+  borderColor,
   onPress,
   StartIcon,
   style: containerStyle,
@@ -90,6 +93,7 @@ const Button: React.FC<ButtonProps> = ({
       onPress={onPress}
       variant={variant}
       backgroundColor={backgroundColor}
+      borderColor={borderColor}
     >
       {loading && <Loader size={24} />}
       {!loading && StartIcon && <View style={styles.icon}>{StartIcon}</View>}

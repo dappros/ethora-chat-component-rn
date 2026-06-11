@@ -1,6 +1,10 @@
 import React, { useMemo } from 'react';
 import styled from 'styled-components/native';
-import { nameToColor } from '../../helpers/hashcolor';
+import { useChatSettingState } from '../../hooks/useChatSettingState';
+import {
+  getAvatarColor,
+  getAvatarTextColor,
+} from '../../helpers/getAvatarColor';
 
 interface AvatarProps {
   username?: string | null;
@@ -23,13 +27,13 @@ const AvatarCircle = styled.View<{ bgColor?: string }>`
   elevation: 4;
 `;
 
-const AvatarText = styled.Text`
+const AvatarText = styled.Text<{ color?: string }>`
   font-size: 16px;
   font-weight: bold;
-  // Pastel backgrounds from nameToColor() are all light (#E2F4FB,
-  // #EEE6F9, #F5F2BC, ...). White text on light = invisible — web
-  // uses default-black text on the same palette. Match it.
-  color: #141414;
+  // Pastel backgrounds from the hash palette are all light, so the
+  // default is dark text; a configured colors.avatar may be dark, in
+  // which case getAvatarTextColor flips this to white.
+  color: ${({ color }) => color || '#141414'};
 `;
 
 export const Avatar: React.FC<AvatarProps> = ({
@@ -38,12 +42,15 @@ export const Avatar: React.FC<AvatarProps> = ({
   lastName,
   style,
 }) => {
+  const { config } = useChatSettingState();
   const backgroundColor = useMemo(() => {
       if (!username && !firstName) {
         return { backgroundColor: 'transparent' };
       }
-      return nameToColor(username ? username : firstName || '');
-    }, [username, firstName]);
+      return {
+        backgroundColor: getAvatarColor(username || firstName, config),
+      };
+    }, [username, firstName, config]);
 
   const getInitials = () => {
     const isAlphabetic = (char: string) => /^[a-zA-Zа-яА-ЯёЁ]$/.test(char);
@@ -78,7 +85,9 @@ export const Avatar: React.FC<AvatarProps> = ({
 
   return (
     <AvatarCircle style={style} bgColor={backgroundColor?.backgroundColor}>
-      <AvatarText>{getInitials()}</AvatarText>
+      <AvatarText color={getAvatarTextColor(backgroundColor?.backgroundColor)}>
+        {getInitials()}
+      </AvatarText>
     </AvatarCircle>
   );
 };

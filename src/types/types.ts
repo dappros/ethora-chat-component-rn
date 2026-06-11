@@ -270,7 +270,20 @@ export interface IConfig {
   projectName?: string;
 
   // ----- theming -----
-  colors?: { primary: string; secondary: string; icon?: string };
+  colors?: {
+    primary: string;
+    secondary: string;
+    /** Tint for chrome icons (attach, mic/send, burger menu, edit banner,
+     * scroll-to-bottom FAB). Falls back to `primary`, then `#0052CD`. */
+    icon?: string;
+    /** Color of the sender's name above incoming message bubbles.
+     * Falls back to `primary`, then `#0052CD`. */
+    senderName?: string;
+    /** Background of initials avatars (message bubbles, chat header,
+     * profile modals). When omitted, each user keeps their per-name
+     * pastel color from the hash palette (current default). */
+    avatar?: string;
+  };
   /** Configurable font family / weights for the chat UI. See TypographyConfig. */
   typography?: TypographyConfig;
   messageColor?: {
