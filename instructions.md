@@ -248,6 +248,9 @@ Native push on RN uses FCM/APNs through Firebase. The host app owns the FCM/APNs
 | --- | --- | --- |
 | `colors.primary` | `string` | Brand color for active states, send button, badges. |
 | `colors.secondary` | `string` | Tint color for backgrounds and chips. |
+| `colors.icon` | `string` | Tint for chrome icons: attach paperclip, mic/send button, attach-sheet options, edit-message banner, burger menus, scroll-to-bottom FAB, outlined Cancel buttons in confirm modals. Falls back to `colors.primary`, then `#0052CD`. |
+| `colors.senderName` | `string` | Color of the sender's name above incoming message bubbles (incl. threads). Falls back to `colors.primary`, then `#0052CD`. |
+| `colors.avatar` | `string` | Single background for initials avatars (message bubbles, chat header, profile modals). Initials auto-switch between dark/white based on contrast. Omit to keep the default per-user pastel palette (hash of the name). |
 | `messageColor` | `{ backgroundMessage; backgroundMessageUser; colorUser; color }` | Bubble background and text colors for "them" and "me". |
 | `backgroundChat` | `{ color?: string; image?: string \| ImageSourcePropType }` | Chat-screen background. |
 | `bubleMessage` | `MessageBubble` | Bubble shape tokens — see `src/types/types.ts:MessageBubble`. |
