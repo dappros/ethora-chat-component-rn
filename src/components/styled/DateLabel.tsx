@@ -2,10 +2,11 @@ import React from 'react';
 import styled from 'styled-components/native';
 import { Line } from './StyledComponents';
 import { Text } from 'react-native';
+import { getDateLabelColor } from '../../helpers/getDateLabelColor';
 
 interface DateLabelProps {
   date: Date;
-  colors?: { primary?: string; secondary?: string };
+  colors?: { primary?: string; secondary?: string; dateLabel?: string };
 }
 
 const Container = styled.View`
@@ -19,7 +20,7 @@ const Container = styled.View`
 `;
 
 export const StyledDateLabel = styled.View<{
-  secondary?: string;
+  bgColor?: string;
 }>`
   margin: 0;
   border-radius: 118px;
@@ -27,11 +28,11 @@ export const StyledDateLabel = styled.View<{
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  background-color: ${(props) => '#e7edf9'};
+  background-color: ${({ bgColor }) => bgColor || '#e7edf9'};
 `;
 
-export const StyledDateText = styled.Text<{ primary?: string }>`
-  color: ${(props) => '#0052cd'};
+export const StyledDateText = styled.Text<{ color?: string }>`
+  color: ${({ color }) => color || '#0052cd'};
   font-size: 12px;
   font-weight: 400;
   line-height: 14px;
@@ -63,11 +64,13 @@ const DateLabel: React.FC<DateLabelProps> = ({ date, colors }) => {
     label = date.toLocaleDateString('en-US', options);
   }
 
+  const textColor = getDateLabelColor({ colors });
+
   return (
     <Container>
       <Line />
-      <StyledDateLabel secondary={colors?.secondary}>
-        <StyledDateText primary={colors?.primary}>{label}</StyledDateText>
+      <StyledDateLabel bgColor={colors?.secondary}>
+        <StyledDateText color={textColor}>{label}</StyledDateText>
       </StyledDateLabel>
       <Line />
     </Container>
