@@ -507,9 +507,12 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
     if (!client) {return;}
     const id = setInterval(() => {
       if (AppState.currentState !== 'active') {return;}
-      if (client.status !== 'online' && !client.suppressReconnect) {
+      if (client.suppressReconnect) {return;}
+      if (client.status !== 'online') {
         devPushLog('rn', `watchdog: client ${client.status} → forceReconnect`);
         client.forceReconnect();
+      } else {
+        client.ensureStreamAlive?.();
       }
     }, 30000);
     return () => clearInterval(id);
@@ -713,6 +716,8 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
       if (client.status === 'offline' || client.status === 'error') {
         devPushLog('rn', `NetInfo: reachable & client ${client.status} → forceReconnect`);
         client.forceReconnect();
+      } else if (client.status === 'online') {
+        client.ensureStreamAlive?.();
       }
     });
     return () => unsub();

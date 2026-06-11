@@ -261,6 +261,9 @@ export const useSendMessage = (_configOverride?: IConfig) => {
         }
 
         replaySend(effectiveClient);
+        try {
+          effectiveClient.ensureStreamAlive?.();
+        } catch {}
         await handleMessageSent({
           message,
           roomJID: activeRoomJID,
@@ -534,6 +537,9 @@ export const useSendMessage = (_configOverride?: IConfig) => {
               messagePayload,
               id
             );
+            try {
+              effectiveMediaClient.ensureStreamAlive?.();
+            } catch {}
           } else {
             const anyMediaClient: any =
               client ||

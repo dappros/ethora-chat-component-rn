@@ -695,8 +695,9 @@ const ChatPane: React.FC<{ creds: Creds | null; isVisible: boolean }> = ({ creds
       colors: {
         primary: PRIMARY,
         secondary: SECONDARY,
-        icon: PRIMARY,
         avatar: PRIMARY,
+        // icon: '#1fb0dcff',
+        // dateLabel: '#1fb0dcff',
       },
       // typography: {
       //   fontFamily: Platform.select({ ios: 'Snell Roundhand', default: 'cursive' }),

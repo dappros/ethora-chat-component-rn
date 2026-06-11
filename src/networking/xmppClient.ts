@@ -7,6 +7,7 @@ import { getChatsPrivateStoreRequest } from './xmpp/getChatsPrivateStoreRequest.
 import { actionSetTimestampToPrivateStore } from './xmpp/actionSetTimestampToPrivateStore.xmpp';
 import { flushLastViewedToPrivateStore } from './xmpp/flushLastViewedToPrivateStore';
 import { sendTypingRequest } from './xmpp/sendTypingRequest.xmpp';
+import { sendPing } from './xmpp/sendPing.xmpp';
 import { getHistory } from './xmpp/getHistory.xmpp';
 import { sendTextMessage } from './xmpp/sendTextMessage.xmpp';
 import { deleteMessage } from './xmpp/deleteMessage.xmpp';
@@ -612,6 +613,52 @@ export class XmppClient {
     }
     this.reconnectAttempts = 0;
     this.reconnect();
+  }
+
+  private streamAliveProbe: Promise<boolean> | null = null;
+
+  verifyStreamAlive(timeoutMs: number = 4000): Promise<boolean> {
+    if (this.status !== 'online' || !this.client) {
+      return Promise.resolve(false);
+    }
+    if (this.streamAliveProbe) {return this.streamAliveProbe;}
+    const underlying: any = this.client;
+    this.streamAliveProbe = new Promise<boolean>((resolve) => {
+      let settled = false;
+      const done = (alive: boolean) => {
+        if (settled) {return;}
+        settled = true;
+        clearTimeout(timer);
+        try {
+          underlying.removeListener?.('stanza', onStanza);
+        } catch {}
+        resolve(alive);
+      };
+      const onStanza = () => done(true);
+      const timer = setTimeout(() => done(false), timeoutMs);
+      try {
+        underlying.on('stanza', onStanza);
+        sendPing(underlying, this.host, `alive-${Date.now()}`);
+      } catch {
+        // Couldn't even write the probe — treat as dead.
+        done(false);
+      }
+    }).finally(() => {
+      this.streamAliveProbe = null;
+    }) as Promise<boolean>;
+    return this.streamAliveProbe;
+  }
+
+  async ensureStreamAlive(timeoutMs: number = 4000): Promise<void> {
+    if (this.suppressReconnect || this.status !== 'online') {return;}
+    const alive = await this.verifyStreamAlive(timeoutMs);
+    // Re-check state: a reconnect may have started meanwhile.
+    if (!alive && this.status === 'online' && !this.suppressReconnect) {
+      try {
+        devPushLog('xmpp', 'stream is zombie (ping unanswered) → forceReconnect');
+      } catch {}
+      this.forceReconnect();
+    }
   }
 
   async reconnect() {
