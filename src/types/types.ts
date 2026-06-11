@@ -270,7 +270,7 @@ export interface IConfig {
   projectName?: string;
 
   // ----- theming -----
-  colors?: { primary: string; secondary: string };
+  colors?: { primary: string; secondary: string; icon?: string };
   /** Configurable font family / weights for the chat UI. See TypographyConfig. */
   typography?: TypographyConfig;
   messageColor?: {

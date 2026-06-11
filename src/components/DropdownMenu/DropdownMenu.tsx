@@ -12,6 +12,7 @@ import {
 import { BurgerMenuIcon } from '../../assets/icons';
 import { IConfig } from '../../types/types';
 import Button from '../styled/Button';
+import { getIconColor } from '../../helpers/getIconColor';
 
 const positionMenu = {
   right: { top: 95, right: 10 },
@@ -104,7 +105,7 @@ const DropdownMenu: React.FC<DropdownMenuProps> = ({
           }}
           color="black"
           unstyled
-          EndIcon={<BurgerMenuIcon color={config?.colors?.primary} />}
+          EndIcon={<BurgerMenuIcon color={getIconColor(config)} />}
           onPress={toggleMenu}
         />
       )}

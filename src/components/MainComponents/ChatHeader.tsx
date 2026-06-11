@@ -27,6 +27,7 @@ import { RoomMenu } from '../MenuRoom/MenuRoom';
 import { useRoomState } from '../../hooks/useRoomState';
 import { useChatSettingState } from '../../hooks/useChatSettingState';
 import { View, StyleSheet, Text, Keyboard } from 'react-native';
+import { getIconColor } from '../../helpers/getIconColor';
 
 interface ChatHeaderProps {
   currentRoom: IRoom;
@@ -89,7 +90,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
               style={styles.menuButton}
               color="black"
               unstyled
-              EndIcon={<BurgerMenuIcon color={config?.colors?.primary} />}
+              EndIcon={<BurgerMenuIcon color={getIconColor(config)} />}
               onPress={handleHeaderChatMenu}
             />
           </View>

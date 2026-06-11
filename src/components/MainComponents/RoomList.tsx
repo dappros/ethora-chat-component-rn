@@ -24,6 +24,7 @@ import { useChatSettingState } from '../../hooks/useChatSettingState';
 import Button from '../styled/Button';
 import { HeaderRoomList } from '../Header/HeaderRoomList';
 import { HeaderRoomListMenu } from '../Menu/HeaderRoomListMenu';
+import { getIconColor } from '../../helpers/getIconColor';
 
 const LONG_PRESS_THRESHOLD = 200;
 
@@ -165,7 +166,7 @@ const RoomList: React.FC<RoomListProps> = ({
           }}
           color="black"
           unstyled
-          EndIcon={<BurgerMenuIcon color={config?.colors?.primary} />}
+          EndIcon={<BurgerMenuIcon color={getIconColor(config)} />}
           onPress={() => setOpen(!open)}
         />
       )}

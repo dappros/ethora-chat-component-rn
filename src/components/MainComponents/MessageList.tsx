@@ -27,6 +27,7 @@ import { useRoomState } from '../../hooks/useRoomState';
 import Loader from '../styled/Loader';
 import { ArowDownIcon } from '../../assets/icons';
 import CustomTypingIndicator from '../styled/StyledInputComponents/CustomTypingIndicator';
+import { getIconColor } from '../../helpers/getIconColor';
 
 interface MessageListProps<TMessage extends IMessage> {
   CustomMessage?: React.ComponentType<{
@@ -453,7 +454,7 @@ const MessageList = <TMessage extends IMessage>({
         <TouchableOpacity
           style={[
             styles.newMessageIndicator,
-            { backgroundColor: config?.colors?.primary || '#0052CD' },
+            { backgroundColor: getIconColor(config) },
           ]}
           onPress={handleNewMessageIndicatorPress}
         >

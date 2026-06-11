@@ -2,9 +2,11 @@ import React, { FC } from 'react';
 import { EditIcon } from '../../assets/icons';
 import { styled } from 'styled-components/native';
 import { Text, TouchableOpacity, View } from 'react-native';
+import { useChatSettingState } from '../../hooks/useChatSettingState';
+import { getIconColor } from '../../helpers/getIconColor';
 
-export const EditContainer = styled.View`
-  background-color: #0052cd0d;
+export const EditContainer = styled.View<{ accentColor?: string }>`
+  background-color: ${({ accentColor }) => (accentColor || '#0052cd') + '0d'};
   padding: 12px 24px;
   flex-direction: row;
   align-items: center;
@@ -36,9 +38,10 @@ interface EditWrapperProps {
 }
 
 export const EditWrapper: FC<EditWrapperProps> = ({ text, onClose }) => {
-  console.log('text', text);
+  const { config } = useChatSettingState();
+  const iconColor = getIconColor(config);
   return (
-    <EditContainer>
+    <EditContainer accentColor={iconColor}>
       <EditInfoBox>
         <View
           style={{
@@ -46,11 +49,11 @@ export const EditWrapper: FC<EditWrapperProps> = ({ text, onClose }) => {
             paddingRight: 20,
             paddingLeft: 0,
             borderRightWidth: 1,
-            borderRightColor: '#0052CD',
+            borderRightColor: iconColor,
             borderStyle: 'solid',
           }}
         >
-          <EditIcon color="#0052CD" />
+          <EditIcon color={iconColor} />
         </View>
         <View style={{ paddingLeft: 20 }}>
           <EditTitle>Edit Message</EditTitle>

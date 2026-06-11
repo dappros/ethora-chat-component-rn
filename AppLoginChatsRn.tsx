@@ -72,7 +72,7 @@ installAxiosCapture(axios);
 // ---------------------------------------------------------------------
 // Theme
 // ---------------------------------------------------------------------
-const PRIMARY = '#5E3FDE';
+const PRIMARY = '#3fde74ff';
 const SECONDARY = '#E1E4FE';
 const BORDER = '#E5E7EB';
 const MUTED = '#71717A';

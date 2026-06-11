@@ -12,6 +12,7 @@ import { SendIcon, AttachIcon, RecordIcon } from '../../assets/icons';
 import { KeyboardAvoidingView, Platform, View, Text, TouchableOpacity, Alert, Linking } from 'react-native';
 import AttachSheet from '../Modals/AttachSheet/AttachSheet';
 import { MediaFilePreview } from './MediaFilePreview';
+import { getIconColor } from '../../helpers/getIconColor';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -486,7 +487,7 @@ const SendInput: React.FC<SendInputProps> = ({
                   }}
                   activeOpacity={0.7}
                 >
-                  <AttachIcon color={config?.colors?.primary || '#0052CD'} />
+                  <AttachIcon color={getIconColor(config)} />
                 </TouchableOpacity>
               )}
               <MessageInput
@@ -615,7 +616,7 @@ const SendInput: React.FC<SendInputProps> = ({
                   marginLeft: 0,
                   marginRight: 0,
                   backgroundColor: filled
-                    ? config?.colors?.primary
+                    ? getIconColor(config)
                     : 'transparent',
                   opacity: filled ? 1 : 0.5,
                 }}
@@ -629,7 +630,7 @@ const SendInput: React.FC<SendInputProps> = ({
           onCamera={handleCameraSelection}
           onGallery={handleGallerySelection}
           onDocument={handleFileSelection}
-          primaryColor={config?.colors?.primary}
+          primaryColor={getIconColor(config)}
         />
       </InputContainer>
   );
