@@ -1,5 +1,7 @@
 import { styled } from 'styled-components/native';
-import { NoSelectedChatIcon } from '../../assets/icons';
+import { EmptyChatIllustration } from '../../assets/EmptyChatIllustration';
+import { useChatSettingState } from '../../hooks/useChatSettingState';
+import { getIconColor } from '../../helpers/getIconColor';
 
 export const ChooseChatMessageContainer = styled.View`
   height: 100%;
@@ -30,9 +32,10 @@ export const ChooseChatDescription = styled.Text`
 `;
 
 export const ChooseChatMessage = () => {
+  const { config } = useChatSettingState();
   return (
     <ChooseChatMessageContainer>
-      <NoSelectedChatIcon />
+      <EmptyChatIllustration color={getIconColor(config)} />
       <ChooseChatMessageContainerBoxText>
         <ChooseChatTitle>Start a Conversation</ChooseChatTitle>
         <ChooseChatDescription>

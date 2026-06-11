@@ -18,7 +18,8 @@ import ChatHeader from './ChatHeader';
 import NoMessagesPlaceholder from './NoMessagesPlaceholder';
 import NewChatModal from '../Modals/NewChatModal/NewChatModal';
 import { EditWrapper } from './EditWrapper';
-import { NoSelectedChatIcon } from '../../assets/icons';
+import { EmptyChatIllustration } from '../../assets/EmptyChatIllustration';
+import { getIconColor } from '../../helpers/getIconColor';
 import { ChooseChatMessage } from './ChooseChatMessage';
 import { useRoomUrl } from '../../hooks/useRoomUrl';
 import { useSendMessage } from '../../hooks/useSendMessage';
@@ -320,7 +321,9 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
                   alignItems: 'center',
                 }}
               >
-                <NoSelectedChatIcon />
+                <EmptyChatIllustration
+                  color={getIconColor(configWithEventHandlers)}
+                />
               </View>
             ) : !roomMessages || roomMessages.length === 0 ? (
               <View

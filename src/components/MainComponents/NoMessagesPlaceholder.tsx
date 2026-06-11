@@ -1,7 +1,10 @@
 import { Text, View } from 'react-native';
 import { NoMessages } from '../../assets/icons';
+import { useChatSettingState } from '../../hooks/useChatSettingState';
+import { getIconColor } from '../../helpers/getIconColor';
 
 const NoMessagesPlaceholder = () => {
+  const { config } = useChatSettingState();
   return (
     <View
       style={{
@@ -11,7 +14,7 @@ const NoMessagesPlaceholder = () => {
       }}
     >
       <View style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {/* <NoMessages /> */}
+        <NoMessages color={getIconColor(config)} />
         <View
           style={{
             flexDirection: 'column',
