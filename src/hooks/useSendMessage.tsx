@@ -22,21 +22,21 @@ import type { IConfig, IMessage } from '../types/types';
 // case (e.g. device offline before the message ever made it to the
 // XMPP socket) — bug #18.
 //
-// 5s window: a brief network blip that reconnects inside this window
+// 10s window: a brief network blip that reconnects inside this window
 // still resolves on its own — the offline send is buffered in the
 // outbound queue (OUTBOUND_QUEUE_TTL_MS, kept in lockstep) and replayed
 // the moment the stream comes back, so the server echo flips the bubble
-// to delivered. Only a drop that outlasts 5s flips it to "Failed → tap
+// to delivered. Only a drop that outlasts 10s flips it to "Failed → tap
 // to retry". If a slow send completes just after the window, the
 // delivery clears the failed flag (see newMessageMidlleware) so it
 // doesn't get stuck showing "Failed".
-const PENDING_WATCHDOG_MS = 30_000;
+const PENDING_WATCHDOG_MS = 10_000;
 
 // Media gets a longer window than text: the optimistic bubble appears before
 // the file upload even starts, and a large file (up to the 50MB cap) over a
-// slow link can legitimately take far longer than 5s to upload + send. Failing
-// it at 5s mid-upload would flash a wrong "Failed" and let the user kick off a
-// duplicate upload. The text watchdog stays at 5s per product spec.
+// slow link can legitimately take far longer than 10s to upload + send. Failing
+// it at 10s mid-upload would flash a wrong "Failed" and let the user kick off a
+// duplicate upload.
 const MEDIA_PENDING_WATCHDOG_MS = 30_000;
 
 // Monotonic counter for stanza ids. Bumped on each send within a single

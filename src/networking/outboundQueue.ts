@@ -41,7 +41,7 @@ export interface QueuedSend {
    * Per-item replay window. Kept in lockstep with the matching send
    * watchdog so a reconnect inside the window replays the buffered send,
    * while a longer drop lets the watchdog own the failure (no duplicate).
-   * Text uses 5s, media 30s (large uploads need longer). Falls back to
+   * Text uses 10s, media 30s (large uploads need longer). Falls back to
    * OUTBOUND_QUEUE_TTL_MS when omitted.
    */
   ttlMs?: number;
@@ -51,7 +51,7 @@ export interface QueuedSend {
 
 // Default replay window (text). Mirrors PENDING_WATCHDOG_MS in useSendMessage.
 // Media enqueues a longer per-item ttlMs (see QueuedSend.ttlMs).
-export const OUTBOUND_QUEUE_TTL_MS = 30_000;
+export const OUTBOUND_QUEUE_TTL_MS = 10_000;
 
 let queue: QueuedSend[] = [];
 
