@@ -29,6 +29,7 @@ import MessageTranslations from './MessageTranslations';
 import { useChatSettingState } from '../../hooks/useChatSettingState';
 import { parseMessageBody } from '../../helpers/parseMessageBody';
 import { getSenderNameColor } from '../../helpers/getSenderNameColor';
+import { getElementFont } from '../../helpers/getElementFont';
 import { useMessageHeapState } from '../../hooks/useMessageHeapState';
 import { DoubleTick } from '../../assets/icons';
 import { useXmppClient } from '../../context/xmppProvider';
@@ -368,7 +369,11 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
             backgroundMessage={config?.messageColor?.backgroundMessage}
           >
             {!isUser && (
-              <CustomUserName color={getSenderNameColor(config)} media={message?.isMediafile === 'true'}>
+              <CustomUserName
+                color={getSenderNameColor(config)}
+                media={message?.isMediafile === 'true'}
+                style={getElementFont(config, 'senderName')}
+              >
                 {message.user.name}
               </CustomUserName>
             )}
@@ -398,6 +403,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
                     isUser={isUser}
                     colorUser={config?.messageColor?.colorUser}
                     color={config?.messageColor?.color}
+                    style={getElementFont(config, 'messageText')}
                   >
                     <Text>{messageText}</Text>
                   </CustomMessageText>

@@ -13,6 +13,7 @@ import { KeyboardAvoidingView, Platform, View, Text, TouchableOpacity, Alert, Li
 import AttachSheet from '../Modals/AttachSheet/AttachSheet';
 import { MediaFilePreview } from './MediaFilePreview';
 import { getIconColor } from '../../helpers/getIconColor';
+import { getElementFont } from '../../helpers/getElementFont';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -518,11 +519,14 @@ const SendInput: React.FC<SendInputProps> = ({
                 // the text had dropped). minHeight keeps the 40px tap
                 // target; the row's align-items:center vertically centres
                 // the content-sized input.
-                style={{
-                  minHeight: 40,
-                  maxHeight: 120,
-                  flex: 1,
-                }}
+                style={[
+                  {
+                    minHeight: config?.inputLayout?.minHeight ?? 40,
+                    maxHeight: config?.inputLayout?.maxHeight ?? 120,
+                    flex: 1,
+                  },
+                  getElementFont(config, 'input'),
+                ]}
               />
             </>
           )}
@@ -594,6 +598,7 @@ const SendInput: React.FC<SendInputProps> = ({
                 : handleSendClick;
             const disabled = !isRecording && !showMic && !hasContent;
             const filled = isRecording || hasContent || showMic;
+            const sendSize = config?.inputLayout?.sendButtonSize ?? 40;
             return (
               <Button
                 testID={showMic ? 'chat-record-button' : 'chat-send-button'}
@@ -608,9 +613,9 @@ const SendInput: React.FC<SendInputProps> = ({
                   )
                 }
                 style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 50,
+                  width: sendSize,
+                  height: sendSize,
+                  borderRadius: sendSize / 2,
                   alignItems: 'center',
                   justifyContent: 'center',
                   marginLeft: 0,
@@ -631,6 +636,7 @@ const SendInput: React.FC<SendInputProps> = ({
           onGallery={handleGallerySelection}
           onDocument={handleFileSelection}
           primaryColor={getIconColor(config)}
+          config={config}
         />
       </InputContainer>
   );

@@ -12,6 +12,8 @@ import {
   View,
 } from 'react-native';
 import { CameraIcon, DocumentIcon, MediaIcon } from '../../../assets/icons';
+import { getElementFont } from '../../../helpers/getElementFont';
+import { IConfig } from '../../../types/types';
 
 interface AttachSheetProps {
   visible: boolean;
@@ -20,6 +22,8 @@ interface AttachSheetProps {
   onGallery: () => void;
   onDocument: () => void;
   primaryColor?: string;
+  /** For `typography.elements.attachSheet*` font overrides. */
+  config?: IConfig;
 }
 
 // Starting translateY for the sheet. Larger than any realistic sheet
@@ -34,6 +38,7 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
   onGallery,
   onDocument,
   primaryColor = '#0052CD',
+  config,
 }) => {
   // Pending handler captured on row tap — runs once the EXIT animation
   // finishes so iOS doesn't try to present an image picker over a
@@ -179,7 +184,9 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
         >
           <TouchableOpacity activeOpacity={1}>
             <View style={styles.grabber} />
-            <Text style={styles.title}>Attach</Text>
+            <Text style={[styles.title, getElementFont(config, 'attachSheetTitle')]}>
+              Attach
+            </Text>
             {rows.map(({ label, hint, Icon, handler }, idx) => (
               <TouchableOpacity
                 key={label}
@@ -199,8 +206,22 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
                   <Icon color={primaryColor} width={20} height={20} />
                 </View>
                 <View style={styles.rowText}>
-                  <Text style={styles.rowLabel}>{label}</Text>
-                  <Text style={styles.rowHint}>{hint}</Text>
+                  <Text
+                    style={[
+                      styles.rowLabel,
+                      getElementFont(config, 'attachSheetRowLabel'),
+                    ]}
+                  >
+                    {label}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.rowHint,
+                      getElementFont(config, 'attachSheetRowHint'),
+                    ]}
+                  >
+                    {hint}
+                  </Text>
                 </View>
               </TouchableOpacity>
             ))}
@@ -209,7 +230,14 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
               style={styles.cancelRow}
               onPress={onClose}
             >
-              <Text style={styles.cancelLabel}>Cancel</Text>
+              <Text
+                style={[
+                  styles.cancelLabel,
+                  getElementFont(config, 'attachSheetCancel'),
+                ]}
+              >
+                Cancel
+              </Text>
             </TouchableOpacity>
           </TouchableOpacity>
         </Animated.View>

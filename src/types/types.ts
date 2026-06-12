@@ -1,4 +1,4 @@
-import type { ViewStyle, ImageSourcePropType } from 'react-native';
+import type { ViewStyle, TextStyle, ImageSourcePropType } from 'react-native';
 import type { Iso639_1Codes } from './models/language.model';
 import type { IMessage, IReply } from './models/message.model';
 import type { RoomMember } from './models/room.model';
@@ -260,6 +260,52 @@ export interface TypographyConfig {
   };
   /** Fonts for the SDK to load with expo-font before applying `fontFamily`. */
   fonts?: RNFontSource[];
+  /** Per-element size / weight overrides. Each entry replaces only the
+   * properties it sets; everything else keeps the built-in style. */
+  elements?: {
+    /** Message body text inside bubbles (default 16). */
+    messageText?: ElementFontStyle;
+    /** Sender's name above incoming bubbles (default 14 / 500). */
+    senderName?: ElementFontStyle;
+    /** Room title in the chat header (default 16 / 600). */
+    chatHeaderTitle?: ElementFontStyle;
+    /** Typed text AND the "Type message" placeholder (default 16).
+     * Pair larger sizes with `inputLayout.minHeight` so glyphs aren't
+     * clipped vertically. */
+    input?: ElementFontStyle;
+    /** Room name on the chat-profile screen (default 24 / 400). */
+    chatProfileTitle?: ElementFontStyle;
+    /** Member names in the chat-profile list (default 16 / 600). */
+    chatProfileMemberName?: ElementFontStyle;
+    /** "ATTACH" caption of the attachment sheet (default 13 / 600). */
+    attachSheetTitle?: ElementFontStyle;
+    /** Row labels in the attachment sheet — "Take photo", "Photo or
+     * video", "Document" (default 16 / 500). */
+    attachSheetRowLabel?: ElementFontStyle;
+    /** Row hints under each label (default 12). */
+    attachSheetRowHint?: ElementFontStyle;
+    /** "Cancel" button of the attachment sheet (default 16 / 600). */
+    attachSheetCancel?: ElementFontStyle;
+  };
+}
+
+/** Size/weight override for one chat-UI text element. */
+export interface ElementFontStyle {
+  fontSize?: number;
+  fontWeight?: TextStyle['fontWeight'];
+}
+
+/**
+ * Geometry of the message-input row. Raise `minHeight` together with
+ * `typography.elements.input.fontSize` so larger text isn't clipped.
+ */
+export interface InputLayoutConfig {
+  /** Min height of the text field, also its single-line height (default 40). */
+  minHeight?: number;
+  /** Height at which the field stops growing and starts scrolling (default 120). */
+  maxHeight?: number;
+  /** Diameter of the round send / mic button (default 40). */
+  sendButtonSize?: number;
 }
 
 export interface IConfig {
@@ -290,6 +336,8 @@ export interface IConfig {
   };
   /** Configurable font family / weights for the chat UI. See TypographyConfig. */
   typography?: TypographyConfig;
+  /** Input-row geometry (field height, send-button size). See InputLayoutConfig. */
+  inputLayout?: InputLayoutConfig;
   messageColor?: {
     backgroundMessage: string;
     backgroundMessageUser: string;

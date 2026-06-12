@@ -33,6 +33,7 @@ import DropdownMenu, { MenuOption } from '../../DropdownMenu/DropdownMenu';
 import SelectUsersModal from '../SelectUsersModal/SelectUsersModal';
 import { useToast } from '../../../context/ToastContext';
 import DeleteChatModal from './DeleteChatModal';
+import { getElementFont } from '../../../helpers/getElementFont';
 
 
 interface ChatProfileModalProps {
@@ -313,7 +314,9 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
           size={128}
         />
         <UserInfo>
-          <UserName>{activeRoom.title || activeRoom.name}</UserName>
+          <UserName style={getElementFont(config, 'chatProfileTitle')}>
+            {activeRoom.title || activeRoom.name}
+          </UserName>
           <UserStatus>
             {activeRoom.usersCnt}{' '}
             {activeRoom.usersCnt > 1 ? 'members' : 'member'}
@@ -413,7 +416,12 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
                           justifyContent: 'center',
                         }}
                       >
-                        <Label style={{ fontSize: 16, fontWeight: 600 }}>
+                        <Label
+                          style={[
+                            { fontSize: 16, fontWeight: 600 },
+                            getElementFont(config, 'chatProfileMemberName'),
+                          ]}
+                        >
                           {user.firstName} {user.lastName}
                         </Label>
                         {user.last_active && (

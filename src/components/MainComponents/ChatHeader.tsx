@@ -28,6 +28,7 @@ import { useRoomState } from '../../hooks/useRoomState';
 import { useChatSettingState } from '../../hooks/useChatSettingState';
 import { View, StyleSheet, Text, Keyboard } from 'react-native';
 import { getIconColor } from '../../helpers/getIconColor';
+import { getElementFont } from '../../helpers/getElementFont';
 
 interface ChatHeaderProps {
   currentRoom: IRoom;
@@ -147,7 +148,11 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
               }
             />
             <ChatContainerHeaderInfo>
-              <ChatContainerHeaderLabel numberOfLines={1} ellipsizeMode="tail">
+              <ChatContainerHeaderLabel
+                numberOfLines={1}
+                ellipsizeMode="tail"
+                style={getElementFont(config, 'chatHeaderTitle')}
+              >
               {currentRoom?.title || currentRoom?.name}
               </ChatContainerHeaderLabel>
               <View>
