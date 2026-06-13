@@ -75,10 +75,13 @@ export const ChatContainerHeaderInfo = styled.View`
   gap: 2px;
 `;
 
-export const ChatContainerHeaderLabel = styled.Text`
+export const ChatContainerHeaderLabel = styled.Text<{
+  fontSize?: number;
+  fontWeight?: string;
+}>`
   color: #141414;
-  font-weight: 600;
-  font-size: 16px;
+  font-weight: ${({ fontWeight }) => fontWeight ?? 600};
+  font-size: ${({ fontSize }) => fontSize ?? 16}px;
   text-align: left;
   overflow: hidden;
   max-width: 100%;

@@ -8,6 +8,7 @@ import {
   ScrollView,
   StyleProp,
   ViewStyle,
+  TextStyle,
 } from 'react-native';
 
 let elementKeyCounter = 0;
@@ -292,7 +293,15 @@ const renderMarkdownTableRN = (
   );
 };
 
-export const parseMessageBody = (text: string): JSX.Element => {
+// `baseStyle` is applied to the normal body-text leaves (paragraphs, list
+// items, quotes) so a host can configure message font size / weight. Headings
+// and code blocks keep their own semantic sizes. Markdown wraps text in
+// <View>s, which break RN's Text-style inheritance — so the size has to be set
+// on the leaf <Text>s here rather than on the bubble wrapper.
+export const parseMessageBody = (
+  text: string,
+  baseStyle?: TextStyle
+): JSX.Element => {
   if (typeof text !== 'string') {
     return <View />;
   }
@@ -339,14 +348,14 @@ export const parseMessageBody = (text: string): JSX.Element => {
                 <View style={[styles.checkboxBox, item.checked && { backgroundColor: '#e8f3ff', borderColor: '#0a66c2' }]}>
                   {item.checked ? <Text style={styles.checkboxTick}>✓</Text> : null}
                 </View>
-                <Text style={{ flex: 1 }}>{parseInline(item.content)}</Text>
+                <Text style={[{ flex: 1 }, baseStyle]}>{parseInline(item.content)}</Text>
               </View>
             );
           } else {
             contentEl = (
               <View key={`ulitem-${elementKeyCounter++}`} style={styles.listItemRow}>
                 <Text style={styles.listMarker}>{'\u2022'}</Text>
-                <Text style={{ flex: 1 }}>{parseInline(item.content)}</Text>
+                <Text style={[{ flex: 1 }, baseStyle]}>{parseInline(item.content)}</Text>
               </View>
             );
           }
@@ -493,7 +502,7 @@ export const parseMessageBody = (text: string): JSX.Element => {
       flushList();
       elements.push(
         <View key={`p-${elementKeyCounter++}`} style={styles.paragraph}>
-          <Text>{parseInline(trimmedLine)}</Text>
+          <Text style={baseStyle}>{parseInline(trimmedLine)}</Text>
         </View>
       );
     } else {

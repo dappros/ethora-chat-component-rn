@@ -45,6 +45,8 @@ export const MessageInputContainer = styled.View`
 export const MessageInput = styled.TextInput<{
   isFocused?: boolean;
   color?: string;
+  fontSize?: number;
+  fontWeight?: string;
 }>`
   padding: 8px 14px;
   border-radius: 20px;
@@ -52,7 +54,8 @@ export const MessageInput = styled.TextInput<{
   border-color: ${(props) =>
     props.isFocused ? props.color || '#0052CD' : 'transparent'};
   color: #141414;
-  font-size: 16px;
+  font-size: ${({ fontSize }) => fontSize ?? 16}px;
+  ${({ fontWeight }) => (fontWeight ? `font-weight: ${fontWeight};` : '')}
   background-color: #f5f7f9;
   flex: 1;
   /* No explicit line-height: on iOS a line-height larger than the
