@@ -34,7 +34,6 @@ import DropdownMenu, { MenuOption } from '../../DropdownMenu/DropdownMenu';
 import SelectUsersModal from '../SelectUsersModal/SelectUsersModal';
 import { useToast } from '../../../context/ToastContext';
 import DeleteChatModal from './DeleteChatModal';
-import { getElementFont } from '../../../helpers/getElementFont';
 
 
 interface ChatProfileModalProps {

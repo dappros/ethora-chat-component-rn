@@ -28,7 +28,6 @@ import { useRoomState } from '../../hooks/useRoomState';
 import { useChatSettingState } from '../../hooks/useChatSettingState';
 import { View, StyleSheet, Text, Keyboard } from 'react-native';
 import { getIconColor } from '../../helpers/getIconColor';
-import { getElementFont } from '../../helpers/getElementFont';
 
 interface ChatHeaderProps {
   currentRoom: IRoom;
