@@ -151,7 +151,8 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
               <ChatContainerHeaderLabel
                 numberOfLines={1}
                 ellipsizeMode="tail"
-                style={getElementFont(config, 'chatHeaderTitle')}
+                fontSize={config?.typography?.headerTitle?.fontSize}
+                fontWeight={config?.typography?.headerTitle?.fontWeight as any}
               >
               {currentRoom?.title || currentRoom?.name}
               </ChatContainerHeaderLabel>

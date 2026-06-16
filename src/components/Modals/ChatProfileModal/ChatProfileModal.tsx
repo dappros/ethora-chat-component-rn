@@ -25,6 +25,7 @@ import Button from '../../styled/Button';
 import { DeleteIcon, MoreIcon, QrIcon } from '../../../assets/icons';
 import Switch from '../../MainComponents/Switch';
 import { useChatSettingState } from '../../../hooks/useChatSettingState';
+import { chatTextStyle } from '../../../helpers/typography';
 import { deleteRoomMember } from '../../../networking/api-requests/rooms.api';
 import { RoomMember } from '../../../types/models/room.model';
 import { setActiveModal, setSelectedUser } from '../../../roomStore/chatSettingsSlice';
@@ -314,7 +315,10 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
           size={128}
         />
         <UserInfo>
-          <UserName style={getElementFont(config, 'chatProfileTitle')}>
+          <UserName
+            fontSize={config?.typography?.profile?.title?.fontSize}
+            fontWeight={config?.typography?.profile?.title?.fontWeight as any}
+          >
             {activeRoom.title || activeRoom.name}
           </UserName>
           <UserStatus>
@@ -419,7 +423,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
                         <Label
                           style={[
                             { fontSize: 16, fontWeight: 600 },
-                            getElementFont(config, 'chatProfileMemberName'),
+                            chatTextStyle(config?.typography?.profile?.memberName),
                           ]}
                         >
                           {user.firstName} {user.lastName}

@@ -28,8 +28,7 @@ import MediaMessage from '../MainComponents/MediaMessage';
 import MessageTranslations from './MessageTranslations';
 import { useChatSettingState } from '../../hooks/useChatSettingState';
 import { parseMessageBody } from '../../helpers/parseMessageBody';
-import { getSenderNameColor } from '../../helpers/getSenderNameColor';
-import { getElementFont } from '../../helpers/getElementFont';
+import { chatTextStyle } from '../../helpers/typography';
 import { useMessageHeapState } from '../../hooks/useMessageHeapState';
 import { DoubleTick } from '../../assets/icons';
 import { useXmppClient } from '../../context/xmppProvider';
@@ -82,8 +81,11 @@ const CustomMessageText = styled.Text<{
   isUser: boolean;
   colorUser?: string;
   color?: string;
+  fontSize?: number;
+  fontWeight?: string;
 }>`
-  font-size: 16px;
+  font-size: ${({ fontSize }) => fontSize ?? 16}px;
+  ${({ fontWeight }) => (fontWeight ? `font-weight: ${fontWeight};` : '')}
   color: ${({ color, colorUser, isUser }) =>
     isUser ? colorUser || '#333' : color || '#333'};
 `;
@@ -98,9 +100,14 @@ const CustomMessagePhotoContainer = styled.TouchableOpacity`
   margin-right: 10px;
 `;
 
-const CustomUserName = styled.Text<{ color?: string; media: boolean }>`
-  font-size: 14px;
-  font-weight: 500;
+const CustomUserName = styled.Text<{
+  color?: string;
+  media: boolean;
+  fontSize?: number;
+  fontWeight?: string;
+}>`
+  font-size: ${({ fontSize }) => fontSize ?? 14}px;
+  font-weight: ${({ fontWeight }) => fontWeight ?? 500};
   padding-bottom: 8px;
   padding-left: ${({media}) => media ? '16px': 0};
   padding-top: ${({media}) => media ? '8px': 0};
@@ -278,9 +285,16 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
     setIsPressed(true);
   };
 
+  // Body text size/weight is set on the parser's leaf <Text>s — the markdown
+  // wraps content in <View>s which break Text-style inheritance, so the bubble
+  // wrapper's fontSize alone never reached the actual text.
+  const bodyTextStyle = chatTextStyle(config?.typography?.messageText);
   const messageText = config?.messageTextFilter?.enabled
-    ? parseMessageBody(config?.messageTextFilter.filterFunction(message.body))
-    : parseMessageBody(message.body);
+    ? parseMessageBody(
+        config?.messageTextFilter.filterFunction(message.body),
+        bodyTextStyle
+      )
+    : parseMessageBody(message.body, bodyTextStyle);
 
   const isFailed = failedIdSet.has(message.id);
   const isPending =
@@ -370,9 +384,10 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
           >
             {!isUser && (
               <CustomUserName
-                color={getSenderNameColor(config)}
+                color={config?.colors?.primary}
                 media={message?.isMediafile === 'true'}
-                style={getElementFont(config, 'senderName')}
+                fontSize={config?.typography?.senderName?.fontSize}
+                fontWeight={config?.typography?.senderName?.fontWeight as any}
               >
                 {message.user.name}
               </CustomUserName>
@@ -403,7 +418,8 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
                     isUser={isUser}
                     colorUser={config?.messageColor?.colorUser}
                     color={config?.messageColor?.color}
-                    style={getElementFont(config, 'messageText')}
+                    fontSize={config?.typography?.messageText?.fontSize}
+                    fontWeight={config?.typography?.messageText?.fontWeight as any}
                   >
                     <Text>{messageText}</Text>
                   </CustomMessageText>

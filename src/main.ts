@@ -47,4 +47,5 @@ export type {
   MessageProps,
   TypographyConfig,
   RNFontSource,
+  ChatTextStyle,
 } from './types/types';

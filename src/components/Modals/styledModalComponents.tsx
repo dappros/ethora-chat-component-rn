@@ -128,10 +128,13 @@ export const UserInfo = styled.View`
   align-items: center;
 `;
 
-export const UserName = styled.Text`
+export const UserName = styled.Text<{
+  fontSize?: number;
+  fontWeight?: string;
+}>`
   color: #141414;
-  font-size: 24px;
-  font-weight: 400;
+  font-size: ${({ fontSize }) => fontSize ?? 24}px;
+  font-weight: ${({ fontWeight }) => fontWeight ?? 400};
 `;
 
 export const UserStatus = styled.Text`

@@ -701,23 +701,21 @@ const ChatPane: React.FC<{ creds: Creds | null; isVisible: boolean }> = ({ creds
       },
       typography: {
         fontFamily: Platform.select({ ios: 'Snell Roundhand', default: 'cursive' }),
-        elements: {
-        messageText: { fontSize: 18 },
-        senderName: { fontSize: 16, fontWeight: '600' },
-        chatHeaderTitle: { fontSize: 18, fontWeight: '700' },
-        input: { fontSize: 18 },
-        chatProfileTitle: { fontSize: 26 },
-        chatProfileMemberName: { fontSize: 18, fontWeight: '600' },
-        attachSheetTitle: { fontSize: 14 },
-        attachSheetRowLabel: { fontSize: 18 },
-        attachSheetRowHint: { fontSize: 13 },
-        attachSheetCancel: { fontSize: 18, fontWeight: '600' },
+        // TEMP verification of per-element typography config — deliberately
+        // oversized so the effect is obvious. Remove after verifying.
+        messageText: { fontSize: 26, fontWeight: '700' },
+        senderName: { fontSize: 22, fontWeight: '700' },
+        headerTitle: { fontSize: 26, fontWeight: '700' },
+        input: { fontSize: 22, minHeight: 60, sendButtonSize: 56 },
+        profile: {
+          title: { fontSize: 34, fontWeight: '700' },
+          memberName: { fontSize: 22 },
         },
-      },
-      inputLayout: {
-        minHeight: 48,
-        maxHeight: 140,
-        sendButtonSize: 48,
+        attachSheet: {
+          title: { fontSize: 20 },
+          rowLabel: { fontSize: 22 },
+          cancelButton: { fontSize: 22 },
+        },
       },
       refreshTokens: { enabled: true },
       initBeforeLoad: true,

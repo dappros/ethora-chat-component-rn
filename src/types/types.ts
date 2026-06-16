@@ -1,4 +1,4 @@
-import type { ViewStyle, TextStyle, ImageSourcePropType } from 'react-native';
+import type { ViewStyle, ImageSourcePropType, TextStyle } from 'react-native';
 import type { Iso639_1Codes } from './models/language.model';
 import type { IMessage, IReply } from './models/message.model';
 import type { RoomMember } from './models/room.model';
@@ -248,10 +248,31 @@ export interface RNFontSource {
  * itself (e.g. via `@expo-google-fonts/*` or its own `useFonts`), pass only
  * `fontFamily` and leave `fonts` empty.
  */
+/**
+ * Per-element font size / weight override.
+ *
+ * `fontWeight` is honoured even with a custom `fontFamily`: when
+ * `weightFamilies` is configured, the chat maps the requested weight to the
+ * matching family variant at render time (a single font file can't synthesise
+ * 500/600 — only fake-bold ~700 — so the variant family is what actually
+ * renders medium/semibold). Omit a field to keep the component default.
+ */
+export interface ChatTextStyle {
+  /** Point size. */
+  fontSize?: number;
+  /** '400' | '500' | '600' | '700' | 'normal' | 'bold' | number. */
+  fontWeight?: TextStyle['fontWeight'];
+}
+
 export interface TypographyConfig {
   /** Family applied across the chat UI. Must be loaded (via `fonts` or by the host). */
   fontFamily?: string;
-  /** Optional per-weight families, used where the chat renders bolder text. */
+  /**
+   * Optional per-weight families. REQUIRED for `fontWeight` overrides to take
+   * visible effect when a custom `fontFamily` is set — RN can't synthesise
+   * intermediate weights from one font file, so each weight needs its own
+   * loaded family (and a matching entry in `fonts`).
+   */
   weightFamilies?: {
     regular?: string;
     medium?: string;
@@ -260,52 +281,39 @@ export interface TypographyConfig {
   };
   /** Fonts for the SDK to load with expo-font before applying `fontFamily`. */
   fonts?: RNFontSource[];
-  /** Per-element size / weight overrides. Each entry replaces only the
-   * properties it sets; everything else keeps the built-in style. */
-  elements?: {
-    /** Message body text inside bubbles (default 16). */
-    messageText?: ElementFontStyle;
-    /** Sender's name above incoming bubbles (default 14 / 500). */
-    senderName?: ElementFontStyle;
-    /** Room title in the chat header (default 16 / 600). */
-    chatHeaderTitle?: ElementFontStyle;
-    /** Typed text AND the "Type message" placeholder (default 16).
-     * Pair larger sizes with `inputLayout.minHeight` so glyphs aren't
-     * clipped vertically. */
-    input?: ElementFontStyle;
-    /** Room name on the chat-profile screen (default 24 / 400). */
-    chatProfileTitle?: ElementFontStyle;
-    /** Member names in the chat-profile list (default 16 / 600). */
-    chatProfileMemberName?: ElementFontStyle;
-    /** "ATTACH" caption of the attachment sheet (default 13 / 600). */
-    attachSheetTitle?: ElementFontStyle;
-    /** Row labels in the attachment sheet — "Take photo", "Photo or
-     * video", "Document" (default 16 / 500). */
-    attachSheetRowLabel?: ElementFontStyle;
-    /** Row hints under each label (default 12). */
-    attachSheetRowHint?: ElementFontStyle;
-    /** "Cancel" button of the attachment sheet (default 16 / 600). */
-    attachSheetCancel?: ElementFontStyle;
+
+  // ----- per-element size / weight overrides -----
+  /** Message body text inside chat bubbles. Default 16. */
+  messageText?: ChatTextStyle;
+  /** Sender name shown above incoming messages. Default 14 / "500". */
+  senderName?: ChatTextStyle;
+  /** Room title in the chat header. Default 16 / "600". */
+  headerTitle?: ChatTextStyle;
+  /** Message composer: the input/placeholder text plus its layout sizing. */
+  input?: ChatTextStyle & {
+    /** Min height of the input box in px. Default 40. */
+    minHeight?: number;
+    /** Max height before the input scrolls in px. Default 120. */
+    maxHeight?: number;
+    /** Width & height of the round send button in px. Default 40. */
+    sendButtonSize?: number;
   };
-}
-
-/** Size/weight override for one chat-UI text element. */
-export interface ElementFontStyle {
-  fontSize?: number;
-  fontWeight?: TextStyle['fontWeight'];
-}
-
-/**
- * Geometry of the message-input row. Raise `minHeight` together with
- * `typography.elements.input.fontSize` so larger text isn't clipped.
- */
-export interface InputLayoutConfig {
-  /** Min height of the text field, also its single-line height (default 40). */
-  minHeight?: number;
-  /** Height at which the field stops growing and starts scrolling (default 120). */
-  maxHeight?: number;
-  /** Diameter of the round send / mic button (default 40). */
-  sendButtonSize?: number;
+  /** Chat profile screen (opens when tapping the room name in the header). */
+  profile?: {
+    /** Big room-name title at the top of the profile screen. Default 24 / "400". */
+    title?: ChatTextStyle;
+    /** Member name rows. Default 16 / "600". */
+    memberName?: ChatTextStyle;
+  };
+  /** Attach (photo/document picker) bottom sheet. */
+  attachSheet?: {
+    /** "Attach" header label. Default 13 / "600". */
+    title?: ChatTextStyle;
+    /** Row labels (Camera / Gallery / Document). Default 16 / "500". */
+    rowLabel?: ChatTextStyle;
+    /** Cancel button. Default 16 / "600". */
+    cancelButton?: ChatTextStyle;
+  };
 }
 
 export interface IConfig {
@@ -336,8 +344,6 @@ export interface IConfig {
   };
   /** Configurable font family / weights for the chat UI. See TypographyConfig. */
   typography?: TypographyConfig;
-  /** Input-row geometry (field height, send-button size). See InputLayoutConfig. */
-  inputLayout?: InputLayoutConfig;
   messageColor?: {
     backgroundMessage: string;
     backgroundMessageUser: string;

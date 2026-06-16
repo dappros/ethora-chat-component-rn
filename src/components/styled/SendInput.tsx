@@ -496,6 +496,8 @@ const SendInput: React.FC<SendInputProps> = ({
                 accessibilityLabel="chat-message-input"
                 isFocused={isFocused}
                 color={config?.colors?.primary}
+                fontSize={config?.typography?.input?.fontSize}
+                fontWeight={config?.typography?.input?.fontWeight as any}
                 placeholder="Type message"
                 placeholderTextColor="#999"
                 value={message}
@@ -519,14 +521,11 @@ const SendInput: React.FC<SendInputProps> = ({
                 // the text had dropped). minHeight keeps the 40px tap
                 // target; the row's align-items:center vertically centres
                 // the content-sized input.
-                style={[
-                  {
-                    minHeight: config?.inputLayout?.minHeight ?? 40,
-                    maxHeight: config?.inputLayout?.maxHeight ?? 120,
-                    flex: 1,
-                  },
-                  getElementFont(config, 'input'),
-                ]}
+                style={{
+                  minHeight: config?.typography?.input?.minHeight ?? 40,
+                  maxHeight: config?.typography?.input?.maxHeight ?? 120,
+                  flex: 1,
+                }}
               />
             </>
           )}
@@ -613,9 +612,9 @@ const SendInput: React.FC<SendInputProps> = ({
                   )
                 }
                 style={{
-                  width: sendSize,
-                  height: sendSize,
-                  borderRadius: sendSize / 2,
+                  width: config?.typography?.input?.sendButtonSize ?? 40,
+                  height: config?.typography?.input?.sendButtonSize ?? 40,
+                  borderRadius: 50,
                   alignItems: 'center',
                   justifyContent: 'center',
                   marginLeft: 0,
