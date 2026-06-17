@@ -339,6 +339,10 @@ beforeEach(() => {
   sendMediaMessageStanzaMock.mockReset();
   (useXmppClient as jest.Mock).mockReturnValue({
     client: {
+      // useSendMessage now only sends through a client whose underlying
+      // stream reports `status: 'online'` (otherwise it buffers for the
+      // reconnect flush). A live mock client must say so.
+      status: 'online',
       sendMessage: sendMessageMock,
       editMessageStanza: editMessageStanzaMock,
       onCriticalSend: onCriticalSendMock,

@@ -12,7 +12,6 @@ import {
   View,
 } from 'react-native';
 import { CameraIcon, DocumentIcon, MediaIcon } from '../../../assets/icons';
-import { IConfig } from '../../../types/types';
 import { useChatSettingState } from '../../../hooks/useChatSettingState';
 import { chatTextStyle } from '../../../helpers/typography';
 
@@ -23,7 +22,6 @@ interface AttachSheetProps {
   onGallery: () => void;
   onDocument: () => void;
   primaryColor?: string;
-  /** For `typography.elements.attachSheet*` font overrides. */
 }
 
 // Starting translateY for the sheet. Larger than any realistic sheet
@@ -206,7 +204,7 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
                 </View>
                 <View style={styles.rowText}>
                   <Text style={[styles.rowLabel, chatTextStyle(ts?.rowLabel)]}>{label}</Text>
-                  <Text style={styles.rowHint}>{hint}</Text>
+                  <Text style={[styles.rowHint, chatTextStyle(ts?.rowHint)]}>{hint}</Text>
                 </View>
               </TouchableOpacity>
             ))}
