@@ -120,6 +120,13 @@ const SendInput: React.FC<SendInputProps> = ({
   // (versus duplicating the send with stale closure state).
   const sendingRef = useRef(false);
 
+  // Re-entry guard for the document picker. expo-document-picker keeps a
+  // single native `pickingContext`; invoking getDocumentAsync again while a
+  // pick is still in flight throws "Different document picking in progress"
+  // (iOS, bug #4). A double-fire happens on a fast double-tap of the
+  // "Document" row or a dev-mode double-run of the sheet's close callback.
+  const pickingDocRef = useRef(false);
+
   const handleFileSelect = (files: MediaFile[]) => {
     // Enforce the upload size cap before anything reaches the network.
     // The backend rejects oversized bodies with HTTP 413; catching it
@@ -237,7 +244,21 @@ const SendInput: React.FC<SendInputProps> = ({
   };
 
   const handleFileSelection = async () => {
+    // Drop overlapping invocations — a second getDocumentAsync while the
+    // first is still presented throws PickingInProgressException on iOS.
+    if (pickingDocRef.current) {return;}
+    pickingDocRef.current = true;
     try {
+      // Let the attach-sheet's modal finish its NATIVE dismissal before we
+      // present the picker. The sheet fires this handler right after its
+      // slide-out animation, but the underlying RN Modal view-controller
+      // dismissal is async — presenting the document picker over a still-
+      // dismissing modal makes iOS tear it down without a cancel callback,
+      // which strands expo-document-picker's pickingContext and makes every
+      // subsequent open throw "Different document picking in progress".
+      if (Platform.OS === 'ios') {
+        await new Promise((resolve) => setTimeout(resolve, 350));
+      }
       const result = await DocumentPicker.getDocumentAsync({
         type: '*/*',
         multiple: false,
@@ -255,6 +276,8 @@ const SendInput: React.FC<SendInputProps> = ({
       ]);
     } catch (err) {
       console.error('DocumentPicker error:', err);
+    } finally {
+      pickingDocRef.current = false;
     }
   };
 
@@ -520,11 +543,14 @@ const SendInput: React.FC<SendInputProps> = ({
                 // the text had dropped). minHeight keeps the 40px tap
                 // target; the row's align-items:center vertically centres
                 // the content-sized input.
-                style={{
-                  minHeight: config?.typography?.input?.minHeight ?? 40,
-                  maxHeight: config?.typography?.input?.maxHeight ?? 120,
-                  flex: 1,
-                }}
+                style={[
+                  {
+                    minHeight: config?.typography?.input?.minHeight ?? 40,
+                    maxHeight: config?.typography?.input?.maxHeight ?? 120,
+                    flex: 1,
+                  },
+                  getElementFont(config, 'inputText'),
+                ]}
               />
             </>
           )}

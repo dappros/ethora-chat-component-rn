@@ -300,6 +300,8 @@ export interface TypographyConfig {
   };
   /** Chat profile screen (opens when tapping the room name in the header). */
   profile?: {
+    /** The "Chat Profile" bar title at the very top of the profile screen. Default ~system (small). */
+    screenTitle?: ChatTextStyle;
     /** Big room-name title at the top of the profile screen. Default 24 / "400". */
     title?: ChatTextStyle;
     /** Member name rows. Default 16 / "600". */
@@ -311,9 +313,29 @@ export interface TypographyConfig {
     title?: ChatTextStyle;
     /** Row labels (Camera / Gallery / Document). Default 16 / "500". */
     rowLabel?: ChatTextStyle;
+    /** Grey hint under each row. Default 12. */
+    rowHint?: ChatTextStyle;
     /** Cancel button. Default 16 / "600". */
     cancelButton?: ChatTextStyle;
   };
+
+  /**
+   * Generic per-element font overrides addressed by key, applied via the
+   * `getElementFont` helper as the highest-priority style layer. These target
+   * smaller text elements that don't have a dedicated key above:
+   *   - `headerSubtitle`      — the "N users" / typing line in the chat header
+   *   - `inputText`           — the message composer input (overrides `input`)
+   *   - `profileStatus`       — the "N members" line on the profile screen
+   *   - `profileSectionLabel` — profile field labels ("Description", "Chat
+   *                             type") and the member last-active line
+   * When both this and a dedicated key target the same element, this wins.
+   */
+  elements?: Partial<
+    Record<
+      'headerSubtitle' | 'inputText' | 'profileStatus' | 'profileSectionLabel',
+      ChatTextStyle
+    >
+  >;
 }
 
 export interface IConfig {
@@ -358,6 +380,20 @@ export interface IConfig {
   headerLogo?: string | React.ReactElement;
 
   // ----- header / nav -----
+  /**
+   * Sizing for BOTH headers (the in-chat header and the full-screen modal
+   * headers like Chat Profile), kept in sync so they render at the same
+   * visible height.
+   */
+  headerLayout?: {
+    /**
+     * Height in px of the header bar (the band below the status bar).
+     * Default 64. Acts as a floor too: values at or below the default are
+     * ignored so a too-small number can't collapse the bar — only a larger
+     * value takes effect.
+     */
+    height?: number;
+  };
   disableHeader?: boolean;
   disableMedia?: boolean;
   /**

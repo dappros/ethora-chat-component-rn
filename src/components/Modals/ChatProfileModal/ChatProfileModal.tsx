@@ -26,6 +26,7 @@ import { DeleteIcon, MoreIcon, QrIcon } from '../../../assets/icons';
 import Switch from '../../MainComponents/Switch';
 import { useChatSettingState } from '../../../hooks/useChatSettingState';
 import { chatTextStyle } from '../../../helpers/typography';
+import { getElementFont } from '../../../helpers/getElementFont';
 import { deleteRoomMember } from '../../../networking/api-requests/rooms.api';
 import { RoomMember } from '../../../types/models/room.model';
 import { setActiveModal, setSelectedUser } from '../../../roomStore/chatSettingsSlice';
@@ -268,6 +269,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
       <ModalHeaderComponent
         handleCloseModal={handleCloseModal}
         headerTitle={'Chat Profile'}
+        titleStyle={chatTextStyle(config?.typography?.profile?.screenTitle)}
         rightMenu={
           <>
             {activeRoom?.type === 'public' && (
@@ -320,7 +322,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
           >
             {activeRoom.title || activeRoom.name}
           </UserName>
-          <UserStatus>
+          <UserStatus style={getElementFont(config, 'profileStatus')}>
             {activeRoom.usersCnt}{' '}
             {activeRoom.usersCnt > 1 ? 'members' : 'member'}
           </UserStatus>
@@ -333,13 +335,17 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
         )}
         {!config?.disableChatInfo?.disableDescription && (
           <BorderedContainer>
-            <LabelData>Description</LabelData>
+            <LabelData style={getElementFont(config, 'profileSectionLabel')}>
+              Description
+            </LabelData>
             <Label>{activeRoom?.description || '—'}</Label>
           </BorderedContainer>
         )}
         {!config?.disableChatInfo?.disableType && (
           <BorderedContainer>
-            <LabelData>Chat type</LabelData>
+            <LabelData style={getElementFont(config, 'profileSectionLabel')}>
+              Chat type
+            </LabelData>
             <Label>{activeRoom.type || '—'}</Label>
           </BorderedContainer>
         )}
@@ -428,7 +434,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
                           {user.firstName} {user.lastName}
                         </Label>
                         {user.last_active && (
-                          <LabelData>
+                          <LabelData style={getElementFont(config, 'profileSectionLabel')}>
                             {new Date(user.last_active * 1000).toLocaleString()}
                           </LabelData>
                         )}

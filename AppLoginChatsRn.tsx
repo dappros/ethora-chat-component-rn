@@ -709,9 +709,11 @@ const ChatPane: React.FC<{ creds: Creds | null; isVisible: boolean }> = ({ creds
         input: { fontSize: 22, minHeight: 60, sendButtonSize: 56 },
         profile: {
           title: { fontSize: 34, fontWeight: '700' },
+          screenTitle: { fontSize: 20, fontWeight: '700' },
           memberName: { fontSize: 22 },
         },
         attachSheet: {
+          rowHint: { fontSize: 26, fontWeight: '700' },
           title: { fontSize: 20 },
           rowLabel: { fontSize: 22 },
           cancelButton: { fontSize: 22 },
