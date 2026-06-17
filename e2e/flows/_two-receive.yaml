@@ -1,0 +1,30 @@
+# Two-device cross-messaging — RECEIVER side.
+# The OTHER user's app (seeded autoStart into the same room) boots straight
+# into the thread; assert the peer's message arrives — live if already
+# connected, otherwise via MAM history on join. Driven by e2e-two-device.mjs
+# with -e NONCE=.
+
+appId: com.ethora.chatcomponentrn
+---
+- launchApp:
+    clearState: false
+# autoStart → room mounts. Generous wait: Android bundle reload + connect.
+- extendedWaitUntil:
+    visible:
+      id: "chat-message-input"
+    timeout: 120000
+# The actual cross-device assertion: the peer's text shows up in this
+# device's thread. The newest message sits at the BOTTOM of the list and the
+# thread doesn't always auto-scroll there after a MAM load, so scroll down
+# until the nonce is on screen (this also keeps retrying while a live message
+# is still arriving). A plain assertVisible then confirms it.
+- scrollUntilVisible:
+    element:
+      text: "${NONCE}"
+    direction: DOWN
+    # Accept partial visibility — the newest bubble can sit partly behind the
+    # input row, and the default 100% then never matches even when it's there.
+    visibilityPercentage: 30
+    timeout: 90000
+- assertVisible:
+    text: "${NONCE}"

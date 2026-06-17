@@ -74,6 +74,7 @@ const CustomMessageVideo: React.FC<CustomMessageVideoProps> = ({
         </View>
       </View>
       <Pressable
+        testID="message-media-video"
         onPress={handleOpen}
         // Sits ON TOP of VideoView + the play-button overlay; transparent
         // so the poster + play icon show through. Captures the tap and

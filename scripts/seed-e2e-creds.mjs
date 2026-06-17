@@ -26,12 +26,7 @@
  */
 
 import fs from 'node:fs';
-import path from 'node:path';
-import crypto from 'node:crypto';
-import { execSync } from 'node:child_process';
-
-const CREDS_KEY = '@apploginchatsrn/creds';
-const PKG = 'com.ethora.chatcomponentrn';
+import { writeCredsToDevice } from './lib/seed-creds.mjs';
 
 const profileName = process.env.PROFILE_NAME;
 const platform = process.env.PLATFORM;
@@ -119,38 +114,16 @@ const creds = {
   singleRoom: !!roomJid,
   singleRoomJid: roomJid || '',
 };
-const credsJson = JSON.stringify(creds);
-
-// Stop the app first so the write isn't overwritten by background save.
-if (platform === 'ios') {
-  if (!iosUdid) { console.error('seed: ios requires IOS_UDID'); process.exit(7); }
-  try { execSync(`xcrun simctl terminate ${iosUdid} ${PKG}`, { stdio: 'ignore' }); } catch {}
-  // iOS RCTAsyncLocalStorage hashes the key with MD5 (NOT SHA1 — the
-  // RCTMD5Hash usage in node_modules/@react-native-async-storage/
-  // async-storage/ios/RNCAsyncStorage.mm). The manifest entry is
-  // null when the value lives in a side-file.
-  const dataDir = execSync(`xcrun simctl get_app_container ${iosUdid} ${PKG} data`).toString().trim();
-  const dir = path.join(dataDir, 'Library/Application Support', PKG, 'RCTAsyncLocalStorage_V1');
-  fs.mkdirSync(dir, { recursive: true });
-  const hash = crypto.createHash('md5').update(CREDS_KEY).digest('hex');
-  fs.writeFileSync(path.join(dir, hash), credsJson);
-  fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify({ [CREDS_KEY]: null }));
-  console.log(`seed: iOS wrote ${credsJson.length} bytes (singleRoom=${creds.singleRoom})`);
-} else {
-  // Android: @react-native-async-storage/async-storage uses SQLite at
-  // /data/data/<pkg>/databases/RKStorage; schema is
-  //   catalystLocalStorage(key TEXT PRIMARY KEY, value TEXT NOT NULL).
-  try { execSync(`adb -s emulator-5554 shell am force-stop ${PKG}`, { stdio: 'ignore' }); } catch {}
-  const sql = [
-    `CREATE TABLE IF NOT EXISTS catalystLocalStorage(key TEXT PRIMARY KEY, value TEXT NOT NULL);`,
-    `INSERT OR REPLACE INTO catalystLocalStorage(key, value) VALUES('${CREDS_KEY}', '${credsJson.replace(/'/g, "''")}');`,
-  ].join('\n');
-  const tmpSql = '/tmp/maestro-seed.sql';
-  fs.writeFileSync(tmpSql, sql);
-  execSync(`adb -s emulator-5554 push ${tmpSql} /data/local/tmp/maestro-seed.sql`, { stdio: 'ignore' });
-  execSync(`adb -s emulator-5554 shell "run-as ${PKG} sqlite3 /data/data/${PKG}/databases/RKStorage < /data/local/tmp/maestro-seed.sql"`);
-  console.log(`seed: Android upserted ${credsJson.length}-byte creds row (singleRoom=${creds.singleRoom})`);
+// Stop the app and write the Creds into AsyncStorage (shared helper handles
+// the iOS MD5 side-file / Android SQLite specifics for both platforms).
+if (platform === 'ios' && !iosUdid) {
+  console.error('seed: ios requires IOS_UDID');
+  process.exit(7);
 }
+const bytes = writeCredsToDevice({ platform, iosUdid, creds });
+console.log(
+  `seed: ${platform} wrote ${bytes} bytes (singleRoom=${creds.singleRoom})`
+);
 
 // Emit ROOM_JID on a final line for the runner script to pick up.
 if (roomJid) {

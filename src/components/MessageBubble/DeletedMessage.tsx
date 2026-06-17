@@ -24,7 +24,7 @@ const IconContainer = styled.View`
 
 export const DeletedMessage = () => {
   return (
-    <ReplyContainer>
+    <ReplyContainer testID="message-deleted" accessibilityLabel="message-deleted">
       <IconContainer>
         <DeleteIcon width={18} height={18} fill="#8C8C8C" />
       </IconContainer>

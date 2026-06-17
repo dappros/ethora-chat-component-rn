@@ -82,6 +82,8 @@ export const ModalWrapper: FC<ModalWrapperProps> = ({
         />
         {buttonText && (
           <Button
+            testID="modal-confirm-button"
+            accessibilityLabel="modal-confirm-button"
             onPress={handleClick}
             text={buttonText}
             // White label on the filled (e.g. red Delete) button. Button

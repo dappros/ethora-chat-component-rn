@@ -74,6 +74,7 @@ const ModalVideo: React.FC<{ uri: string }> = ({ uri }) => {
   return (
     <View style={{ flex: 1, width: '100%' }}>
       <VideoView
+        testID="media-viewer-video"
         player={player}
         style={{ flex: 1, backgroundColor: 'transparent' }}
         contentFit="contain"
@@ -85,6 +86,7 @@ const ModalVideo: React.FC<{ uri: string }> = ({ uri }) => {
           playback and the native controls take over. */}
       {showPlay && (
         <TouchableOpacity
+          testID="media-viewer-play"
           activeOpacity={0.8}
           onPress={handlePlay}
           style={StyleSheet.absoluteFillObject}
@@ -251,6 +253,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
       case activeFile.mimetype.startsWith('image/'):
         return (
           <FullScreenImage
+            testID="media-viewer-image"
             source={{
               uri:
                 activeFile.fileURL ||

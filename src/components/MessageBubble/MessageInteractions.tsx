@@ -183,7 +183,10 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
           style={[styles.contextMenu, localPosition]}
           onLayout={handleMenuLayout}
         >
-          <MenuItem onPress={() => handleCopyMessage(message.body!)}>
+          <MenuItem
+            testID="msg-action-copy"
+            onPress={() => handleCopyMessage(message.body!)}
+          >
             <Text style={styles.menuText}>{MESSAGE_INTERACTIONS.COPY}</Text>
             <MESSAGE_INTERACTIONS_ICONS.COPY />
           </MenuItem>
@@ -194,7 +197,7 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
               {message?.isMediafile !== 'true' && (
                 <>
                   <Delimeter />
-                  <MenuItem onPress={handleEditMessage}>
+                  <MenuItem testID="msg-action-edit" onPress={handleEditMessage}>
                     <Text style={styles.menuText}>
                       {MESSAGE_INTERACTIONS.EDIT}
                     </Text>
@@ -203,7 +206,7 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
                 </>
               )}
               <Delimeter />
-              <MenuItem onPress={handleDeleteMessage}>
+              <MenuItem testID="msg-action-delete" onPress={handleDeleteMessage}>
                 <Text style={styles.menuText}>{MESSAGE_INTERACTIONS.DELETE}</Text>
                 <MESSAGE_INTERACTIONS_ICONS.DELETE />
               </MenuItem>

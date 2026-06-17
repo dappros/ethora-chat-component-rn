@@ -120,7 +120,10 @@
     "prepack": "npm run clean && npm run build",
     "e2e": "scripts/run-e2e.sh",
     "e2e:ios": "scripts/run-e2e.sh ios",
-    "e2e:android": "scripts/run-e2e.sh android"
+    "e2e:android": "scripts/run-e2e.sh android",
+    "e2e:ui": "node scripts/e2e-interactive.mjs",
+    "e2e:two": "node scripts/e2e-two-device.mjs",
+    "test:e2e": "jest --config jest.e2e.config.js"
   },
   "dependencies": {
     "@reduxjs/toolkit": "^2.5.0",

@@ -1,0 +1,21 @@
+# Two-device cross-messaging — SENDER side (iOS; Android types via adb in the
+# orchestrator). The app is seeded with autoStart creds, so it boots straight
+# into the room. Type the unique nonce and send it. No sender-side assert —
+# the RECEIVER flow asserting delivery is the real cross-device proof, and a
+# self-assert here only adds flakiness (keyboard/scroll quirks).
+
+appId: com.ethora.chatcomponentrn
+---
+- launchApp:
+    clearState: false
+# autoStart waits for XMPP online then opens the room. Generous wait: Android
+# re-fetches the JS bundle from Metro each launch (~30-40s) before connecting.
+- extendedWaitUntil:
+    visible:
+      id: "chat-message-input"
+    timeout: 120000
+- tapOn:
+    id: "chat-message-input"
+- inputText: "${NONCE}"
+- tapOn:
+    id: "chat-send-button"

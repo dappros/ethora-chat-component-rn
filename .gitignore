@@ -33,7 +33,6 @@ local.properties
 .cxx/
 *.keystore
 !debug.keystore
-scripts/
 
 # node.js
 #
@@ -94,3 +93,8 @@ dist/
 # Local credential/config overrides
 api.config.local.ts
 scripts/seed-jwt-creds.local.json
+
+# Interactive e2e runner caches (entered creds incl. tokens) + env
+e2e/.e2e-creds.json
+e2e/.e2e-two-creds.json
+e2e/live/.env

@@ -114,6 +114,10 @@ interface Creds {
   // Room mode
   singleRoom: boolean;
   singleRoomJid: string;
+  // e2e: when seeded with this flag, the app applies the restored creds and
+  // jumps straight to the Chat tab on boot (skips the manual Save). Never set
+  // by the Setup UI — only by the e2e seeder.
+  autoStart?: boolean;
 }
 
 // Intentionally blank. Keep runtime credentials out of tracked source;
@@ -166,6 +170,8 @@ const TabBar: React.FC<{ active: Tab; onChange: (t: Tab) => void }> = ({
       {(['setup', 'chat', 'logs'] as const).map((t) => (
         <Pressable
           key={t}
+          testID={`tab-${t}`}
+          accessibilityLabel={`tab-${t}`}
           onPress={() => onChange(t)}
           style={[styles.tabBtn, active === t && styles.tabBtnActive]}
         >
@@ -357,7 +363,9 @@ const SetupTab: React.FC<{
         setTestResult({ ok: false, text: 'JWT required.' });
         return;
       }
-    } else {
+    } else if (!c.resolvedUser) {
+      // No resolved user yet → need credentials to resolve one via "Test
+      // connection" first.
       if (!c.appToken || !c.email || !c.password) {
         setTestResult({
           ok: false,
@@ -365,14 +373,16 @@ const SetupTab: React.FC<{
         });
         return;
       }
-      if (!c.resolvedUser) {
-        setTestResult({
-          ok: false,
-          text: 'Hit "Test connection" first to resolve the user.',
-        });
-        return;
-      }
+      setTestResult({
+        ok: false,
+        text: 'Hit "Test connection" first to resolve the user.',
+      });
+      return;
     }
+    // A resolvedUser is already present (e.g. seeded for e2e, or just
+    // resolved via "Test connection") — it carries the user token + XMPP
+    // creds, so Save & use can proceed without re-supplying app token /
+    // password for a fresh login.
     onSave(c);
   };
 
@@ -975,11 +985,43 @@ const AppLoginChatsRn: React.FC = () => {
         if (raw) {
           const parsed = { ...DEFAULT_CREDS, ...JSON.parse(raw) };
           setCreds(parsed);
-          pushLog('rn', 'Restored creds from AsyncStorage (staying on Setup)');
-          // Intentionally DO NOT auto-jump to Chat on startup — the app
-          // always opens on the Setup tab, even when creds are already
-          // saved, so you can review/edit them first. (Pressing Save in
-          // Setup still navigates to Chat; see handleSave.)
+          if (parsed.autoStart) {
+            // e2e seed → apply creds and open the Chat tab automatically.
+            // BUT only AFTER XMPP is online: the Chat pane is always mounted
+            // (it connects while hidden on the Setup tab), and opening the
+            // room before the socket is live leaves MAM history spinning
+            // forever. So poll the shared client's online state and switch
+            // once connected (with a 30s fallback so we never hang).
+            let switched = false;
+            const started = Date.now();
+            const go = (why: string) => {
+              if (switched) {return;}
+              switched = true;
+              setTab('chat');
+              pushLog('rn', `autoStart → Chat (${why})`);
+            };
+            const iv = setInterval(() => {
+              const client: any =
+                chatStore.getState().chatSettingStore?.client;
+              const online =
+                !!client &&
+                typeof client.checkOnline === 'function' &&
+                client.checkOnline();
+              if (online) {
+                clearInterval(iv);
+                go('xmpp online');
+              } else if (Date.now() - started > 30000) {
+                clearInterval(iv);
+                go('timeout fallback');
+              }
+            }, 500);
+          } else {
+            pushLog('rn', 'Restored creds from AsyncStorage (staying on Setup)');
+            // Intentionally DO NOT auto-jump to Chat on startup — the app
+            // always opens on the Setup tab, even when creds are already
+            // saved, so you can review/edit them first. (Pressing Save in
+            // Setup still navigates to Chat; see handleSave.)
+          }
         }
       } catch (err) {
         pushLog('error', 'Failed to read creds', err);

@@ -1,0 +1,71 @@
+# Comprehensive UI e2e flow — drives the real app on a booted
+# simulator/emulator through the full messaging surface:
+#
+#   text:   send → assert → edit → assert → delete → assert deleted
+#   photo:  attach → pick → send → open → close → delete
+#   video:  attach → pick → send → open → play → close → delete
+#   file:   attach → pick → send → open → close → delete
+#
+# Driven by scripts/e2e-interactive.mjs, which seeds the testbed creds
+# (boots straight into the single room) + the gallery fixtures, then runs
+# this flow with:
+#   -e ROOM_JID=<jid>  -e RUN_ID=<unique>  -e PLATFORM=ios|android
+#
+# Sub-flows live alongside this file. The text leg is fully deterministic;
+# the media legs include a best-effort NATIVE PICKER tap (_media.yaml) that
+# may need per-OS-version tuning on first real run (see plan Risk 3).
+
+appId: com.ethora.chatcomponentrn
+---
+- launchApp:
+    # Do NOT clearState — that wipes the seeded AsyncStorage creds and we'd
+    # land back on Setup with empty fields.
+    clearState: false
+
+# The app is seeded with autoStart creds, so it boots straight into the room.
+# chat-message-input only renders inside a joined room, so this single wait
+# proves auth + REST /chats/my + XMPP MUC join + MAM history all done.
+# Generous timeout: Android re-fetches the JS bundle from Metro each launch
+# (~30-40s) before connecting.
+- extendedWaitUntil:
+    visible:
+      id: "chat-message-input"
+    timeout: 120000
+- assertVisible:
+    id: "chat-send-button"
+
+# ── Text: send / edit / delete ─────────────────────────────────────────────
+- runFlow:
+    file: _text.yaml
+
+# ── Photo ──────────────────────────────────────────────────────────────────
+- runFlow:
+    file: _media.yaml
+    env:
+      ATTACH: "attach-gallery"
+      TAP: "message-media-image"
+      VIEWER: "media-viewer-image"
+      PICK_KIND: "photo"
+
+# ── Video ──────────────────────────────────────────────────────────────────
+- runFlow:
+    file: _media.yaml
+    env:
+      ATTACH: "attach-gallery"
+      TAP: "message-media-video"
+      VIEWER: "media-viewer-video"
+      PICK_KIND: "video"
+
+# ── File (PDF) ─────────────────────────────────────────────────────────────
+# Best-effort: PDF via the native document picker is the flakiest leg
+# (iOS Files app especially — see plan Risk 2). If it can't be driven on a
+# given OS, cover PDF via the headless suite (npm run test:e2e) instead.
+- runFlow:
+    file: _media.yaml
+    env:
+      ATTACH: "attach-document"
+      TAP: "message-media-file"
+      # PdfViewer has no media-specific id; the viewer header back button
+      # is the reliable "fullscreen viewer opened" signal for any file type.
+      VIEWER: "modal-back-button"
+      PICK_KIND: "document"

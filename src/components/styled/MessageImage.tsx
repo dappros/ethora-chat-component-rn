@@ -62,7 +62,12 @@ const CustomMessageImage: React.FC<CustomMessageImageProps> = ({
 
   return (
     <Container style={{ width: dims.width }}>
-      <TouchableOpacity onPress={handleOpen} activeOpacity={0.9}>
+      <TouchableOpacity
+        testID="message-media-image"
+        accessibilityLabel="message-media-image"
+        onPress={handleOpen}
+        activeOpacity={0.9}
+      >
         {loading && (
           <View
             style={{

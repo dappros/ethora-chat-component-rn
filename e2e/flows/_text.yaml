@@ -1,0 +1,49 @@
+# Text message: send → assert → edit → assert → delete → assert deleted.
+# Fully deterministic (no native pickers). The unique RUN_ID nonce in the
+# body guarantees assertions never match a stale message from a prior run.
+#
+# Risk-1 self-check: if Maestro's inputText fails to populate React's
+# `message` state (the documented iOS multiline-TextInput quirk), the send
+# button stays disabled, nothing is sent, and the very next assertVisible
+# of the sent text FAILS LOUD — surfacing the problem instead of passing
+# silently.
+
+appId: com.ethora.chatcomponentrn
+---
+# ── Send ───────────────────────────────────────────────────────────────────
+- tapOn:
+    id: "chat-message-input"
+- inputText: "e2e ${RUN_ID}"
+- tapOn:
+    id: "chat-send-button"
+- extendedWaitUntil:
+    visible:
+      text: "e2e ${RUN_ID}"
+    timeout: 20000
+
+# ── Edit ───────────────────────────────────────────────────────────────────
+- longPressOn:
+    text: "e2e ${RUN_ID}"
+- tapOn:
+    id: "msg-action-edit"
+# The input is now pre-filled with the original text; clear it and retype.
+- tapOn:
+    id: "chat-message-input"
+- eraseText: 50
+- inputText: "e2e ${RUN_ID} edited"
+- tapOn:
+    id: "chat-send-button"
+- extendedWaitUntil:
+    visible:
+      text: "e2e ${RUN_ID} edited"
+    timeout: 20000
+
+# ── Delete ─────────────────────────────────────────────────────────────────
+- longPressOn:
+    text: "e2e ${RUN_ID} edited"
+- tapOn:
+    id: "msg-action-delete"
+- tapOn:
+    id: "modal-confirm-button"
+- assertVisible:
+    id: "message-deleted"

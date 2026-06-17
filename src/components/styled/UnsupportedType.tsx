@@ -110,6 +110,8 @@ const FileDownload: React.FC<FileDownloadProps> = ({
 
   return (
     <UnsupportedContainer
+      testID="message-media-file"
+      accessibilityLabel="message-media-file"
       isUser={isUser}
       onPress={handleOpen}
       activeOpacity={pending ? 1 : 0.7}

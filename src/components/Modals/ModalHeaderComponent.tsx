@@ -35,7 +35,12 @@ const ModalHeaderComponent: React.FC<ModalHeaderComponentProps> = ({
           leftMenu
         ) : (
           <>
-            <Button EndIcon={<BackIcon />} onPress={handleCloseModal} />
+            <Button
+              testID="modal-back-button"
+              accessibilityLabel="modal-back-button"
+              EndIcon={<BackIcon />}
+              onPress={handleCloseModal}
+            />
             <Text>{headerTitle ?? 'Go back'}</Text>
           </>
         )}

@@ -1,0 +1,27 @@
+# Android SENDER, part 1 of 2 — open the room (history loaded) and focus input.
+# Maestro's `inputText` hangs on this Android emulator (gRPC DEADLINE), so the
+# orchestrator types + taps send via adb after this flow.
+#
+# Re-open trick: even with the autoStart online-gate, the sender's room can
+# come up with history still spinning (a reconnect races the first MAM query).
+# Toggling Setup→Chat once — now that XMPP is definitely connected — forces a
+# clean room open so the message list (and the input row) are fully rendered.
+
+appId: com.ethora.chatcomponentrn
+---
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "chat-message-input"
+    timeout: 120000
+- tapOn:
+    id: "tab-setup"
+- tapOn:
+    id: "tab-chat"
+- extendedWaitUntil:
+    visible:
+      id: "chat-message-input"
+    timeout: 60000
+- tapOn:
+    id: "chat-message-input"

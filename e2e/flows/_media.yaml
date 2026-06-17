@@ -1,0 +1,81 @@
+# One media leg: attach → pick (native picker) → send → open → [play] →
+# close → delete. Parameterised by the parent via env:
+#   ATTACH  — attach-sheet row testID  (attach-gallery | attach-document)
+#   TAP     — sent-bubble testID        (message-media-image|video|file)
+#   VIEWER  — fullscreen "opened" id    (media-viewer-image|video | modal-back-button)
+#   PICK_KIND — photo | video | document (informational)
+#
+# ⚠️  NATIVE PICKER (the one non-deterministic step): the OS photo/document
+# picker is not part of the RN tree, so its selectors vary by OS version.
+# The taps below are best-effort and the most likely thing to need tuning
+# on a new simulator image (plan Risk 3). Everything else is testID-driven
+# and stable.
+
+appId: com.ethora.chatcomponentrn
+---
+- tapOn:
+    id: "chat-attach-button"
+- tapOn:
+    id: "${ATTACH}"
+
+# ── Native picker selection (best-effort, auto-routed by what's on screen) ──
+# Document picker (SAF / Files): the seeded file shows by name.
+- runFlow:
+    when:
+      visible: "e2e-document.pdf"
+    commands:
+      - tapOn: "e2e-document.pdf"
+# Photo/video picker: no filename shown — tap the first item in the grid.
+- runFlow:
+    when:
+      notVisible: "e2e-document.pdf"
+    commands:
+      - tapOn:
+          point: "22%,28%"
+
+# ── Send ───────────────────────────────────────────────────────────────────
+# Upload + send the attached media. Generous wait — media goes through the
+# real /files/ upload + (for video) on-device compression before the bubble
+# renders.
+- tapOn:
+    id: "chat-send-button"
+- extendedWaitUntil:
+    visible:
+      id: "${TAP}"
+    timeout: 90000
+
+# ── Open fullscreen ────────────────────────────────────────────────────────
+- tapOn:
+    id: "${TAP}"
+- extendedWaitUntil:
+    visible:
+      id: "${VIEWER}"
+    timeout: 20000
+
+# Video only: a play affordance is shown on open — tap it to start playback.
+# (Image/file viewers have no such control, so this block no-ops for them.)
+- runFlow:
+    when:
+      visible:
+        id: "media-viewer-play"
+    commands:
+      - tapOn:
+          id: "media-viewer-play"
+
+# ── Close ──────────────────────────────────────────────────────────────────
+- tapOn:
+    id: "modal-back-button"
+- extendedWaitUntil:
+    visible:
+      id: "${TAP}"
+    timeout: 10000
+
+# ── Delete (media messages expose only Delete in the menu, no Edit) ─────────
+- longPressOn:
+    id: "${TAP}"
+- tapOn:
+    id: "msg-action-delete"
+- tapOn:
+    id: "modal-confirm-button"
+- assertVisible:
+    id: "message-deleted"

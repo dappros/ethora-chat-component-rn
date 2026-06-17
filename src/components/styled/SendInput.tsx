@@ -477,6 +477,8 @@ const SendInput: React.FC<SendInputProps> = ({
               {/* Media selection button - always visible on the left, unless disabled in config */}
               {!config?.disableMedia && (
                 <TouchableOpacity
+                  testID="chat-attach-button"
+                  accessibilityLabel="chat-attach-button"
                   onPress={handleAttachPress}
                   style={{
                     width: 40,

@@ -136,24 +136,28 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
     hint: string;
     Icon: React.ComponentType<any>;
     handler: () => void;
+    testID: string;
   }[] = [
     {
       label: 'Take photo',
       hint: 'Capture with the camera',
       Icon: CameraIcon,
       handler: onCamera,
+      testID: 'attach-camera',
     },
     {
       label: 'Photo or video',
       hint: 'Pick from your library',
       Icon: MediaIcon,
       handler: onGallery,
+      testID: 'attach-gallery',
     },
     {
       label: 'Document',
       hint: 'Choose a file',
       Icon: DocumentIcon,
       handler: onDocument,
+      testID: 'attach-document',
     },
   ];
 
@@ -186,9 +190,11 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
           <TouchableOpacity activeOpacity={1}>
             <View style={styles.grabber} />
             <Text style={[styles.title, chatTextStyle(ts?.title)]}>Attach</Text>
-            {rows.map(({ label, hint, Icon, handler }, idx) => (
+            {rows.map(({ label, hint, Icon, handler, testID }, idx) => (
               <TouchableOpacity
                 key={label}
+                testID={testID}
+                accessibilityLabel={testID}
                 activeOpacity={0.6}
                 style={[
                   styles.row,

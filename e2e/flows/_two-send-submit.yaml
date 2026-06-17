@@ -1,0 +1,18 @@
+# Android SENDER, part 2 of 2 — text already typed (via adb) into the focused
+# input by the orchestrator; just send and confirm it rendered in our thread.
+# NOTE: no launchApp — that would restart the app and lose the typed text.
+# This attaches to the already-foreground app left running by _two-send-open.
+
+appId: com.ethora.chatcomponentrn
+---
+- tapOn:
+    id: "chat-send-button"
+# Confirm the message left the input and is in our own thread (newest sits at
+# the bottom, so scroll down to it).
+- scrollUntilVisible:
+    element:
+      text: "${NONCE}"
+    direction: DOWN
+    timeout: 30000
+- assertVisible:
+    text: "${NONCE}"
