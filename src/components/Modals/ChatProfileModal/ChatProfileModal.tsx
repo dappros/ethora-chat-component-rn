@@ -26,6 +26,7 @@ import { DeleteIcon, MoreIcon, QrIcon } from '../../../assets/icons';
 import Switch from '../../MainComponents/Switch';
 import { useChatSettingState } from '../../../hooks/useChatSettingState';
 import { chatTextStyle } from '../../../helpers/typography';
+import { getElementFont } from '../../../helpers/getElementFont';
 import { deleteRoomMember } from '../../../networking/api-requests/rooms.api';
 import { RoomMember } from '../../../types/models/room.model';
 import { setActiveModal, setSelectedUser } from '../../../roomStore/chatSettingsSlice';

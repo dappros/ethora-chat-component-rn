@@ -13,6 +13,7 @@ import { KeyboardAvoidingView, Platform, View, Text, TouchableOpacity, Alert, Li
 import AttachSheet from '../Modals/AttachSheet/AttachSheet';
 import { MediaFilePreview } from './MediaFilePreview';
 import { getIconColor } from '../../helpers/getIconColor';
+import { getElementFont } from '../../helpers/getElementFont';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImageManipulator from 'expo-image-manipulator';

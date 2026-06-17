@@ -18,6 +18,7 @@ React Native chat UI + chat core for iOS and Android, powered by the Ethora plat
 - [Unread tracking in tab-based hosts](#unread-tracking-in-tab-based-hosts)
 - [Logging out](#logging-out)
 - [Customization flags worth knowing](#customization-flags-worth-knowing)
+- [Header height & font sizing](#header-height--font-sizing)
 - [Quality & test coverage](#quality--test-coverage)
 - [Local development](#local-development)
 - [Changelog](CHANGELOG.md)
@@ -288,6 +289,45 @@ Why awaitable: the persistence layer debounces writes by 200 ms, and the chat sl
 | `hideMemberCopyIdAction` | Hides only the "Copy User Id" button, keeps everything else. |
 | `disableConnectionErrorOverlay` | Replaces the full-screen "Connection error" overlay with a small, non-blocking `ConnectionBanner`. Set this when a transient reconnect shouldn't take over the whole screen. |
 | `eventHandlers.onMessageRetry` | `(event) => void` fired when the user taps the "Failed — tap to retry" indicator on a stuck send. Use for telemetry / surfacing a retry banner. |
+
+## Header height & font sizing
+
+### Header height (`headerLayout.height`)
+
+The in-chat header and the full-screen modal headers (Chat Profile, Settings, etc.) share **one** height so they line up. Default is `64` px (the bar itself, measured below the status-bar safe-area inset — the notch/Dynamic Island is added on top automatically).
+
+```tsx
+<Chat config={{ headerLayout: { height: 72 } }} />
+```
+
+`height` acts as a **floor as well as a default**: it can only make the header _taller_. A value at or below `64` (or a non-number) is ignored and the default is used — so a too-small value can't collapse the bar and clip the avatar / back button. Only a value strictly greater than `64` takes effect.
+
+### Per-element font size & weight (`typography`)
+
+Individual labels accept a `{ fontSize?, fontWeight? }` override. Each only sets the fields you provide, so it layers on top of the component default. (With a custom `fontFamily`, `fontWeight` overrides need matching `typography.weightFamilies` entries — RN can't synthesise weights from one font file.)
+
+```tsx
+<Chat
+  config={{
+    typography: {
+      headerTitle: { fontSize: 18, fontWeight: '600' }, // room title in the chat header
+      profile: {
+        screenTitle: { fontSize: 20, fontWeight: '700' }, // "Chat Profile" title in the modal header bar
+        title: { fontSize: 24 },                          // big room-name title on the profile screen
+        memberName: { fontSize: 16, fontWeight: '600' },
+      },
+      attachSheet: {
+        title: { fontSize: 13, fontWeight: '600' },       // "Attach" header label
+        rowLabel: { fontSize: 16, fontWeight: '500' },    // row labels (Take photo / Photo or video / Document)
+        rowHint: { fontSize: 13 },                        // the small grey subtitle under each row
+        cancelButton: { fontSize: 16, fontWeight: '600' },
+      },
+    },
+  }}
+/>
+```
+
+See the [`TypographyConfig`](src/types/types.ts) JSDoc for the full list of overridable elements and their defaults.
 
 ## Quality & test coverage
 

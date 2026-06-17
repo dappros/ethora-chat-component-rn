@@ -380,6 +380,20 @@ export interface IConfig {
   headerLogo?: string | React.ReactElement;
 
   // ----- header / nav -----
+  /**
+   * Sizing for BOTH headers (the in-chat header and the full-screen modal
+   * headers like Chat Profile), kept in sync so they render at the same
+   * visible height.
+   */
+  headerLayout?: {
+    /**
+     * Height in px of the header bar (the band below the status bar).
+     * Default 64. Acts as a floor too: values at or below the default are
+     * ignored so a too-small number can't collapse the bar — only a larger
+     * value takes effect.
+     */
+    height?: number;
+  };
   disableHeader?: boolean;
   disableMedia?: boolean;
   /**
