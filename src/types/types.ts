@@ -300,6 +300,8 @@ export interface TypographyConfig {
   };
   /** Chat profile screen (opens when tapping the room name in the header). */
   profile?: {
+    /** The "Chat Profile" bar title at the very top of the profile screen. Default ~system (small). */
+    screenTitle?: ChatTextStyle;
     /** Big room-name title at the top of the profile screen. Default 24 / "400". */
     title?: ChatTextStyle;
     /** Member name rows. Default 16 / "600". */
@@ -311,9 +313,29 @@ export interface TypographyConfig {
     title?: ChatTextStyle;
     /** Row labels (Camera / Gallery / Document). Default 16 / "500". */
     rowLabel?: ChatTextStyle;
+    /** Grey hint under each row. Default 12. */
+    rowHint?: ChatTextStyle;
     /** Cancel button. Default 16 / "600". */
     cancelButton?: ChatTextStyle;
   };
+
+  /**
+   * Generic per-element font overrides addressed by key, applied via the
+   * `getElementFont` helper as the highest-priority style layer. These target
+   * smaller text elements that don't have a dedicated key above:
+   *   - `headerSubtitle`      — the "N users" / typing line in the chat header
+   *   - `inputText`           — the message composer input (overrides `input`)
+   *   - `profileStatus`       — the "N members" line on the profile screen
+   *   - `profileSectionLabel` — profile field labels ("Description", "Chat
+   *                             type") and the member last-active line
+   * When both this and a dedicated key target the same element, this wins.
+   */
+  elements?: Partial<
+    Record<
+      'headerSubtitle' | 'inputText' | 'profileStatus' | 'profileSectionLabel',
+      ChatTextStyle
+    >
+  >;
 }
 
 export interface IConfig {

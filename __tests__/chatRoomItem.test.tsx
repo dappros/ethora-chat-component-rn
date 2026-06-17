@@ -17,7 +17,9 @@
 import React from 'react';
 import renderer, { act } from 'react-test-renderer';
 import { View, Text } from 'react-native';
+import { Provider } from 'react-redux';
 import ChatRoomItem from '../src/components/RoomComponents/ChatRoomItem';
+import { store } from '../src/roomStore';
 import type { IRoom } from '../src/types/types';
 
 const renderItem = async (
@@ -27,8 +29,14 @@ const renderItem = async (
   let tree: renderer.ReactTestRenderer | undefined;
   // Match the async-act pattern other suites use to silence
   // setState-during-render warnings from styled-components.
+  // ChatRoomItem renders ProfileImagePlaceholder, which reads config from
+  // redux via useChatSettingState — so it needs a Provider to render.
   await act(async () => {
-    tree = renderer.create(<ChatRoomItem chat={chat} config={config} />);
+    tree = renderer.create(
+      <Provider store={store}>
+        <ChatRoomItem chat={chat} config={config} />
+      </Provider>
+    );
   });
   return tree!;
 };

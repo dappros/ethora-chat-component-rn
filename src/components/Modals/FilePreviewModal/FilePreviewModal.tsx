@@ -18,6 +18,7 @@ import {
   Platform,
   TouchableOpacity,
   StyleSheet,
+  Share,
 } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { PlayIcon } from '../../../assets/icons';
@@ -206,13 +207,25 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
         await FileSystem.writeAsStringAsync(destUri, base64, {
           encoding: FileSystem.EncodingType.Base64,
         });
+
+        showToast({
+          id: Date.now().toString(),
+          title: 'Success',
+          message: 'Save successful',
+          type: 'success',
+        });
+        return;
       }
 
-      showToast({
-        id: Date.now().toString(),
-        title: 'Success',
-        message: 'Save successful',
-        type: 'success',
+      // iOS (and any non-Android): there is no app-writable "Downloads"
+      // folder, and MediaLibrary only accepts images/videos — which is why
+      // documents previously hit the success toast without ever being
+      // saved. Present the system share sheet so the user can "Save to
+      // Files", AirDrop, etc. The sheet itself is the confirmation (the
+      // user may cancel), so we don't show a "Save successful" toast here.
+      await Share.share({
+        url: download.uri,
+        title: fileName,
       });
     } catch (err) {
       console.error('Error saving file:', err);

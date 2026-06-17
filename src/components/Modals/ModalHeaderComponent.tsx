@@ -6,12 +6,14 @@ import {
 } from './styledModalComponents';
 import { BackIcon, MoreIcon, QrIcon } from '../../assets/icons';
 import Button from '../styled/Button';
-import { Text } from 'react-native';
+import { Text, StyleProp, TextStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface ModalHeaderComponentProps {
   handleCloseModal?: any;
   headerTitle?: string;
+  /** Optional size/weight override for the header title text. */
+  titleStyle?: StyleProp<TextStyle>;
   rightMenu?: React.ReactNode;
   leftMenu?: React.ReactNode;
 }
@@ -19,6 +21,7 @@ interface ModalHeaderComponentProps {
 const ModalHeaderComponent: React.FC<ModalHeaderComponentProps> = ({
   handleCloseModal,
   headerTitle,
+  titleStyle,
   rightMenu,
   leftMenu,
 }) => {
@@ -41,7 +44,7 @@ const ModalHeaderComponent: React.FC<ModalHeaderComponentProps> = ({
               EndIcon={<BackIcon />}
               onPress={handleCloseModal}
             />
-            <Text>{headerTitle ?? 'Go back'}</Text>
+            <Text style={titleStyle}>{headerTitle ?? 'Go back'}</Text>
           </>
         )}
       </HeaderLeft>

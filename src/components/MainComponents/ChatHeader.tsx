@@ -159,7 +159,9 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                 {composing ? (
                   <Composing usersTyping={currentRoom?.composingList} />
                 ) : config?.disableUserCount ? undefined : (
-                  <ChatContainerHeaderLabel style={styles.subLabel}>
+                  <ChatContainerHeaderLabel
+                    style={[styles.subLabel, getElementFont(config, 'headerSubtitle')]}
+                  >
                     <Text>{`${currentRoom?.usersCnt} users`}</Text>
                   </ChatContainerHeaderLabel>
                 )}
