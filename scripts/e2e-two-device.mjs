@@ -42,8 +42,10 @@ const ROOT = path.resolve(__dirname, '..');
 const CACHE_PATH = path.join(ROOT, 'e2e', '.e2e-two-creds.json');
 const SEND_FLOW = path.join(ROOT, 'e2e', 'flows', '_two-send.yaml');
 const SEND_OPEN_FLOW = path.join(ROOT, 'e2e', 'flows', '_two-send-open.yaml');
-const SEND_SUBMIT_FLOW = path.join(ROOT, 'e2e', 'flows', '_two-send-submit.yaml');
 const RECEIVE_FLOW = path.join(ROOT, 'e2e', 'flows', '_two-receive.yaml');
+const EDIT_OPEN_FLOW = path.join(ROOT, 'e2e', 'flows', '_two-edit-open.yaml');
+const DELETE_FLOW = path.join(ROOT, 'e2e', 'flows', '_two-delete.yaml');
+const VERIFY_DELETED_FLOW = path.join(ROOT, 'e2e', 'flows', '_two-verify-deleted.yaml');
 
 const FIELDS = [
   { key: 'baseUrl', label: 'Base URL', env: 'E2E_BASE_URL' },
@@ -143,13 +145,12 @@ function dumpXml(device) {
 const SEND_BTN_RE =
   /content-desc="chat-send-button"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/;
 
-// Type the nonce, then tap the send button until it disappears. The button is
-// only rendered while the input has content (empty input shows the mic), so
-// its disappearance means the message was sent. Looping past a missed tap
-// (the soft-keyboard layout shifts the button between dump and tap) is what
-// makes this reliable. Returns true if sent.
-function androidTypeAndSend(device, nonce) {
-  execSync(`adb -s ${device} shell input text '${nonce}'`);
+// Tap the send button until it disappears. The button is only rendered while
+// the input has content (empty input shows the mic), so its disappearance
+// means the message was sent. Looping past a missed tap (the soft-keyboard
+// layout shifts the button between dump and tap) is what makes this reliable.
+// Returns true if sent.
+function androidTapSendUntilGone(device) {
   let sawButton = false;
   for (let attempt = 0; attempt < 12; attempt++) {
     execSync(`adb -s ${device} shell sleep 1`);
@@ -160,12 +161,33 @@ function androidTypeAndSend(device, nonce) {
       const y = Math.round((+m[2] + +m[4]) / 2);
       execSync(`adb -s ${device} shell input tap ${x} ${y}`);
     } else if (sawButton) {
-      // The button was present (input had text) and is now gone → sent.
       return true;
     }
     // else: dump not ready yet (spinner) — keep waiting for the button.
   }
   return false;
+}
+
+// Type the nonce into the (empty, focused) input, then send. Used for the
+// Android SENDER, where Maestro's inputText hangs.
+function androidTypeAndSend(device, nonce) {
+  execSync(`adb -s ${device} shell input text '${nonce}'`);
+  return androidTapSendUntilGone(device);
+}
+
+// Replace the pre-filled edit text with `newText`, then send the edit. adb key
+// events are REAL key events, so (unlike Maestro on iOS) they fire the
+// TextInput's onChangeText and the edit actually changes the body. Clears the
+// old text by jumping to the end and deleting generously, then types the new
+// text. Returns true if the edit was sent.
+function androidEditAndSend(device, newText) {
+  // KEYCODE_MOVE_END=123, KEYCODE_DEL=67. Delete more than any nonce length.
+  execSync(`adb -s ${device} shell input keyevent 123`);
+  for (let i = 0; i < 24; i++) {
+    execSync(`adb -s ${device} shell input keyevent 67`);
+  }
+  execSync(`adb -s ${device} shell input text '${newText}'`);
+  return androidTapSendUntilGone(device);
 }
 
 // Type + send a message through the UI.
@@ -197,30 +219,32 @@ function sendViaUi({ device, isAndroid, nonce, label }) {
   return sent ? 0 : 1;
 }
 
-// One direction: sender sends a nonce, receiver asserts it arrives.
-function roundTrip({ label, sender, senderIsAndroid, receiver, nonce }) {
-  console.log(`\n=== ${label} ===`);
-  const sent = sendViaUi({
-    device: sender,
-    isAndroid: senderIsAndroid,
-    nonce,
-    label: `send@${sender}`,
-  });
-  if (sent !== 0) {
-    throw new Error(`${label}: sender flow failed (exit ${sent})`);
+// Assert a piece of text shows up on `receiver` (sent or edited body).
+function expectText(receiver, text, label) {
+  if (
+    runMaestroFlow({
+      device: receiver,
+      flow: RECEIVE_FLOW,
+      vars: { NONCE: text },
+      label,
+    }) !== 0
+  ) {
+    throw new Error(`${label}: did not see "${text}"`);
   }
-  const got = runMaestroFlow({
-    device: receiver,
-    flow: RECEIVE_FLOW,
-    vars: { NONCE: nonce },
-    label: `receive@${receiver}`,
-  });
-  if (got !== 0) {
-    throw new Error(
-      `${label}: receiver did not see "${nonce}" (exit ${got})`
-    );
+}
+
+// Assert a deleted message's text is gone on `receiver`.
+function expectDeleted(receiver, text, label) {
+  if (
+    runMaestroFlow({
+      device: receiver,
+      flow: VERIFY_DELETED_FLOW,
+      vars: { TEXT: text },
+      label,
+    }) !== 0
+  ) {
+    throw new Error(`${label}: "${text}" still visible (not deleted)`);
   }
-  console.log(`✓ ${label}: "${nonce}" delivered`);
 }
 
 (async () => {
@@ -264,43 +288,69 @@ function roundTrip({ label, sender, senderIsAndroid, receiver, nonce }) {
   });
   console.log(`✓ seeded both devices into ${roomJid}`);
 
-  const runId = `${Date.now()}`;
-  const directions = [
-    {
-      label: 'iOS → Android',
-      sender: iosUdid,
-      senderIsAndroid: false,
-      receiver: androidSerial,
-      nonce: `e2e-i2a-${runId}`,
-    },
-    {
-      label: 'Android → iOS',
-      sender: androidSerial,
-      senderIsAndroid: true,
-      receiver: iosUdid,
-      nonce: `e2e-a2i-${runId}`,
-    },
-  ];
-  // Run both directions; don't let one failure abort the other — report a
-  // summary so a partial pass (e.g. iOS→Android green, Android→iOS flaky on a
-  // bleeding-edge emulator) is still visible.
+  // Keep nonces SHORT so they fit on one line in the testbed's large cursive
+  // message font (fontSize 26) — a long body wraps and iOS accessibility then
+  // splits it so Maestro can't match the full string. A 6-char timestamp tail
+  // stays unique per run and won't collide with the room's numeric messages.
+  const tag = `${Date.now()}`.slice(-6);
+  const nonceI = `i2a${tag}`; // iOS sends this
+  const nonceA = `a2i${tag}`; // Android sends this
+  const nonceAe = `aed${tag}`; // Android edits its message to this
+
+  // Each step runs and records pass/fail without aborting the rest, so the
+  // final summary shows exactly which of send/edit/delete worked each way.
   const results = [];
-  for (const d of directions) {
+  const step = (label, fn) => {
+    console.log(`\n=== ${label} ===`);
     try {
-      roundTrip(d);
-      results.push({ label: d.label, ok: true });
+      fn();
+      results.push({ label, ok: true });
+      console.log(`✓ ${label}`);
     } catch (err) {
       console.error(`✗ ${err.message}`);
-      results.push({ label: d.label, ok: false, error: err.message });
+      results.push({ label, ok: false, error: err.message });
     }
-  }
+  };
+
+  // ── Phase 1: SEND (both directions) ──────────────────────────────────────
+  step('SEND iOS → Android', () => {
+    if (
+      sendViaUi({ device: iosUdid, isAndroid: false, nonce: nonceI, label: 'send@ios' }) !== 0
+    ) {throw new Error('iOS send flow failed');}
+    expectText(androidSerial, nonceI, 'receive@android');
+  });
+  step('SEND Android → iOS', () => {
+    if (
+      sendViaUi({ device: androidSerial, isAndroid: true, nonce: nonceA, label: 'send@android' }) !== 0
+    ) {throw new Error('Android send flow failed');}
+    expectText(iosUdid, nonceA, 'receive@ios');
+  });
+
+  // ── Phase 2: DELETE (both directions) ────────────────────────────────────
+  // NOTE: edit-with-text-change is intentionally NOT here — a pre-filled,
+  // controlled multiline TextInput rejects external text changes on BOTH
+  // platforms (Maestro on iOS, adb key events on Android: the value prop snaps
+  // back). The edit ACTION fires but the body can't be changed, so there's
+  // nothing new to assert cross-device. Send + delete are the reliable pair.
+  step('DELETE iOS → Android', () => {
+    if (runMaestroFlow({ device: iosUdid, flow: DELETE_FLOW, vars: { TEXT: nonceI }, label: 'delete@ios' }) !== 0) {
+      throw new Error('iOS delete flow failed');
+    }
+    expectDeleted(androidSerial, nonceI, 'verify-deleted@android');
+  });
+  step('DELETE Android → iOS', () => {
+    if (runMaestroFlow({ device: androidSerial, flow: DELETE_FLOW, vars: { TEXT: nonceA }, label: 'delete@android' }) !== 0) {
+      throw new Error('Android delete flow failed');
+    }
+    expectDeleted(iosUdid, nonceA, 'verify-deleted@ios');
+  });
 
   console.log('\n──────── summary ────────');
   for (const r of results) {
     console.log(`${r.ok ? '✅' : '❌'} ${r.label}${r.ok ? '' : ` — ${r.error}`}`);
   }
   const passed = results.filter((r) => r.ok).length;
-  console.log(`${passed}/${results.length} directions delivered`);
+  console.log(`${passed}/${results.length} steps passed`);
   process.exit(passed === results.length ? 0 : 1);
 })().catch((err) => {
   console.error(`\n✗ ${err.message}`);

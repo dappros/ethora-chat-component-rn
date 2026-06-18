@@ -350,6 +350,11 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
           // Stable per-message testID so e2e drivers (Maestro / Detox)
           // can target the exact message to long-press it for edit/delete.
           testID={`message-${message.id}`}
+          // iOS groups an accessible Pressable's children into ONE element,
+          // so the inner message <Text> isn't individually matchable by an
+          // e2e driver. Expose the raw body string as this element's label so
+          // flows can assert on the message text (media bodies are empty).
+          accessibilityLabel={message.body || undefined}
           // The Pressable fills the row's content area, so the bubble
           // inside must be aligned to the sender's side — otherwise it
           // hugs the left and own media bubbles sit with a right-side

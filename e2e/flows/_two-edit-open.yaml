@@ -1,0 +1,26 @@
+# Android EDIT, Maestro part — open the room, long-press own message, tap Edit,
+# and focus the input. The orchestrator then clears the pre-filled text and
+# types the new text via adb (Maestro's Android inputText hangs; iOS can't
+# edit a controlled multiline field at all — so edit is Android-initiated).
+# Driven with -e OLD=<existing message text>.
+
+appId: com.ethora.chatcomponentrn
+---
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "chat-message-input"
+    timeout: 120000
+# Long-press OUR message → the interactions menu → Edit (own text messages
+# expose Edit). The input is then pre-filled with the old text; focus it for
+# the adb clear+type that follows.
+# NOTE: do NOT re-open the room here (tab toggle) — it leaves the message list
+# in a state where long-press no longer opens the menu. autoStart's
+# XMPP-online gate already loads history before this runs.
+- longPressOn:
+    text: "${OLD}"
+- tapOn:
+    id: "msg-action-edit"
+- tapOn:
+    id: "chat-message-input"

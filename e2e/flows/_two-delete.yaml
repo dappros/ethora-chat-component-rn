@@ -1,0 +1,20 @@
+# DELETE (works on BOTH platforms — pure taps, no text input).
+# Open the room, long-press OUR message, tap Delete, confirm. Driven with
+# -e TEXT=<message text to delete>.
+
+appId: com.ethora.chatcomponentrn
+---
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "chat-message-input"
+    timeout: 120000
+# NOTE: no room re-open (tab toggle) — it breaks long-press → menu. autoStart's
+# XMPP-online gate already loads history before this runs.
+- longPressOn:
+    text: "${TEXT}"
+- tapOn:
+    id: "msg-action-delete"
+- tapOn:
+    id: "modal-confirm-button"

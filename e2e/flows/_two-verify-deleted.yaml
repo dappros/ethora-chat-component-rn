@@ -1,0 +1,17 @@
+# Cross-device DELETE verification — on the OTHER device, the deleted
+# message's text must no longer be present (it renders as "This message was
+# deleted"). Driven with -e TEXT=<the deleted message text>.
+
+appId: com.ethora.chatcomponentrn
+---
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible:
+      id: "chat-message-input"
+    timeout: 120000
+# The peer's delete propagates via the server; on (re)load the body is gone.
+- extendedWaitUntil:
+    notVisible:
+      text: "${TEXT}"
+    timeout: 30000
