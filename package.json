@@ -1,6 +1,6 @@
 {
   "name": "@ethora/chat-component-rn",
-  "version": "26.5.21",
+  "version": "26.6.3",
   "description": "Drop-in XMPP chat component for React Native / Expo. <Chat config={...}/> and you're done.",
   "main": "index.js",
   "module": "lib/module/main.js",
@@ -43,6 +43,8 @@
     ]
   },
   "peerDependencies": {
+    "@livekit/react-native": ">=2.7.0",
+    "@livekit/react-native-webrtc": ">=125.0.0",
     "@react-native-async-storage/async-storage": ">=1.21.0",
     "@react-native-community/netinfo": ">=11.0.0",
     "expo-av": ">=15.0.0",
@@ -56,12 +58,22 @@
     "expo-video": ">=2.0.0",
     "react": ">=18.0.0",
     "react-native": ">=0.73.0",
+    "react-native-callkeep": ">=4.3.0",
     "react-native-gesture-handler": ">=2.0.0",
     "react-native-get-random-values": ">=1.10.0",
     "react-native-reanimated": ">=3.0.0",
     "react-native-svg": ">=14.0.0"
   },
   "peerDependenciesMeta": {
+    "@livekit/react-native": {
+      "optional": true
+    },
+    "@livekit/react-native-webrtc": {
+      "optional": true
+    },
+    "react-native-callkeep": {
+      "optional": true
+    },
     "react-native-svg": {
       "optional": false
     },
@@ -134,6 +146,8 @@
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
+    "@livekit/react-native": "^2.7.6",
+    "@livekit/react-native-webrtc": "^125.0.11",
     "@babel/preset-env": "^7.25.3",
     "@babel/runtime": "^7.25.0",
     "@react-native-async-storage/async-storage": "2.2.0",

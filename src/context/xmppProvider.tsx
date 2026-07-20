@@ -10,6 +10,7 @@ import React, {
 } from 'react';
 import { AppState, DeviceEventEmitter } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
+import { VideoCallOverlay } from '../components/VideoCalls/VideoCallOverlay';
 import XmppClient, {
   XmppCredentialsProvider,
 } from '../networking/xmppClient';
@@ -770,6 +771,12 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
       }}
     >
       {children}
+      {/* Lives here, not inside <Chat>: an incoming call-token can arrive
+          (and must still ring) while the user is on a different screen of
+          the host app, as long as the socket is up. VideoCallOverlay reads
+          config and call state from Redux itself, so it needs nothing
+          passed in, and renders null whenever no call is in flight. */}
+      <VideoCallOverlay />
     </XmppContext.Provider>
   );
 };
