@@ -49,10 +49,99 @@ const sanitizeUser = (user?: User): User | null => {
   } as User;
 };
 
+// What a persisted message is FOR: instantly painting a recent transcript
+// on reload before MAM catches up. That needs the fields the bubbles and
+// room-list previews actually read, nothing else. Everything outside this
+// list is either re-derived on render or re-fetched from the server.
+const PERSISTED_MESSAGE_FIELDS: (keyof IMessage)[] = [
+  'id',
+  'xmppId',
+  'xmppFrom',
+  'body',
+  'date',
+  'timestamp',
+  'roomJid',
+  'isSystemMessage',
+  'isMediafile',
+  'isDeleted',
+  'isEdited',
+  'isReply',
+  'showInChannel',
+  'mainMessage',
+  'mimetype',
+  'location',
+  'locationPreview',
+  'fileName',
+  'originalName',
+  'size',
+  'langSource',
+  'callLog',
+];
+
+// The sender identity that rides along on every message over the wire
+// (senderFirstName / senderLastName / photo, which createMessageFromXml
+// folds into message.user) is NOT what the UI reads back, and is not ours
+// to cache: `usersSet` is the canonical store for names and avatars, and
+// the renderers resolve through it, re-deriving the name every time
+// usersSet updates. That is what keeps a renamed user from staying stale.
+//
+// Persisting a copy per message duplicated the same handful of identities
+// across every message of every room, and optimistic sends spread the
+// ENTIRE logged-in user into message.user (see useSendMessage), auth
+// material included.
+//
+// Keep `id` (the key usersSet is looked up by) and `name`, nothing else.
+// `name` earns its ~15 chars: broadcast/system senders ("Ethora") never
+// enter usersSet at all, so for those the message is the only place the
+// name exists.
+const PERSISTED_MESSAGE_USER_FIELDS = ['id', 'name'] as const;
+
+// Room fields that are pure server state, re-fetched on every load, and so
+// must never sit in the message cache, let alone compete with messages for
+// AsyncStorage space.
+//
+// `members` is the one that matters. A 3.5k-member room serializes to
+// roughly 840k chars, several hundred times the rest of the room object
+// put together. A handful of such rooms is megabytes of roster written on
+// every debounce tick, and on Android AsyncStorage that means blown
+// cursor-window limits and multi-second writes, for data createRoomFromApi
+// repopulates from /chats/my on the very next load. `usersCnt`, which the
+// header actually reads, is its own scalar field and is preserved below.
+const REFETCHED_ROOM_FIELDS = ['members'] as const;
+
+const pickDefined = <T extends object>(
+  source: T,
+  keys: readonly (keyof T)[]
+): Partial<T> => {
+  const out: Partial<T> = {};
+  for (const key of keys) {
+    const value = source?.[key];
+    if (value !== undefined) {
+      out[key] = value;
+    }
+  }
+  return out;
+};
+
+const compactMessageForPersist = (message: IMessage): IMessage => {
+  const compact = pickDefined(message, PERSISTED_MESSAGE_FIELDS) as IMessage;
+  const user = message?.user as Record<string, any> | undefined;
+  if (user) {
+    compact.user = pickDefined(
+      user,
+      PERSISTED_MESSAGE_USER_FIELDS as unknown as readonly string[]
+    ) as IMessage['user'];
+  }
+  return compact;
+};
+
 const sanitizeMessages = (messages: IMessage[]): IMessage[] => {
   if (!Array.isArray(messages)) {return [];}
-  if (messages.length <= MESSAGE_LIMIT) {return messages;}
-  return messages.slice(-MESSAGE_LIMIT);
+  const capped =
+    messages.length > MESSAGE_LIMIT
+      ? messages.slice(-MESSAGE_LIMIT)
+      : messages;
+  return capped.map(compactMessageForPersist);
 };
 
 const sanitizeRooms = (
@@ -63,8 +152,19 @@ const sanitizeRooms = (
   for (const [jid, room] of Object.entries(rooms)) {
     if (!jid || typeof jid !== 'string' || !jid.includes('@')) {continue;}
     if (!room || typeof room !== 'object' || Array.isArray(room)) {continue;}
+
+    const compactRoom = { ...room } as Record<string, any>;
+    // Preserve the count the header reads before dropping the roster it
+    // would otherwise be derived from.
+    if (compactRoom.usersCnt === undefined && Array.isArray(room.members)) {
+      compactRoom.usersCnt = room.members.length;
+    }
+    for (const field of REFETCHED_ROOM_FIELDS) {
+      delete compactRoom[field];
+    }
+
     out[jid] = {
-      ...room,
+      ...(compactRoom as IRoom),
       messages: sanitizeMessages(room?.messages || []),
       composing: false,
       composingList: [],
