@@ -10,7 +10,8 @@ import { pushSubscriptionService } from '../services/pushSubscriptionService';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../roomStore';
 import { useLocalStorage } from './useLocalStorage';
-import { setCurrentRoom, setPendingNotificationJid } from '../roomStore/roomsSlice';
+import { setPendingNotificationJid } from '../roomStore/roomsSlice';
+import { handleCallPush } from '../helpers/incomingCallFromPush';
 
 export function usePushNotifications() {
   const [fcmToken, setFcmToken] = useState<string | null>(null);
@@ -22,7 +23,11 @@ export function usePushNotifications() {
   const { set, get } = useLocalStorage('fcmToken');
 
   const handleNotificationPress = (remoteMessage: any) => {
-    console.log('[usePushNotifications] Notification pressed:', JSON.stringify(remoteMessage, null, 2));
+    // Tapping a call notification (or launching the app from one) should
+    // land on the ring screen, not on the chat room.
+    if (handleCallPush(remoteMessage?.data)) {
+      return;
+    }
 
     const jid = remoteMessage?.data?.jid || remoteMessage?.data?.chatJid || remoteMessage?.jid;
 
@@ -60,9 +65,16 @@ export function usePushNotifications() {
     );
 
     const unsubscribeForeground = onForegroundMessage((message) => {
+      // Calls first: a call push must open the ring screen, never an
+      // "OK / Open" alert. handleCallPush returns true for anything
+      // call-shaped, so we bail before the chat-notification path.
+      if (handleCallPush(message?.data)) {
+        return;
+      }
+
       setNotification(message);
 
-      const { notification: notif, data } = message;
+      const { notification: notif } = message;
       if (notif) {
         Alert.alert(
           notif.title || 'Notification',
