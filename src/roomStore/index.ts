@@ -2,6 +2,7 @@ import { configureStore, combineReducers } from '@reduxjs/toolkit';
 import chatSettingsReducer, { setUser } from './chatSettingsSlice';
 import roomsSlice, { addRoom } from './roomsSlice';
 import { roomHeapSlice } from './roomHeapSlice';
+import callReducer from './callSlice';
 import { IRoom } from '../types/types';
 import { unreadMiddleware } from './Middleware/unreadMidlleware';
 import { logoutMiddleware } from './Middleware/logoutMiddleware';
@@ -13,6 +14,10 @@ const rootReducer = combineReducers({
   chatSettingStore: chatSettingsReducer,
   rooms: roomsSlice,
   roomHeapSlice: roomHeapSlice.reducer,
+  // Live call state. Deliberately NOT persisted: a call that was ringing
+  // when the app was killed is over by the time it reopens, and restoring
+  // it would put the user straight into a dead LiveKit room.
+  call: callReducer,
 });
 
 export type RootState = ReturnType<typeof rootReducer>;

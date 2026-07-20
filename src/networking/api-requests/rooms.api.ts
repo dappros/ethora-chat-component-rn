@@ -273,6 +273,34 @@ export async function deleteRoom(name: string) {
   }
 }
 
+// POST /v1/chats/call/create/{chatName}
+// Swagger documents the body as `additionalProperties: true`, we forward
+// `kind: 'audio' | 'video'` so the server can stamp it on the broadcast
+// call-token stanza for the callee. When the server doesn't recognize the
+// field both sides still fall through to a video call (the default), which
+// matches the prior single-mode behavior.
+export async function createChatCall(
+  chatName: string,
+  options?: { kind?: 'audio' | 'video' }
+): Promise<void> {
+  const token = store.getState().chatSettingStore.user.token || '';
+  const kind = options?.kind || 'video';
+
+  try {
+    await http.post(
+      `/chats/call/create/${chatName}`,
+      { kind },
+      {
+        headers: {
+          Authorization: token,
+        },
+      }
+    );
+  } catch (error) {
+    throw new Error('Error creating chat call');
+  }
+}
+
 export function clearRoomsRestCache() {
   lastGetRoomsResponse = null;
   lastGetRoomsResponseAt = 0;

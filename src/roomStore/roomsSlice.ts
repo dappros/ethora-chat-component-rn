@@ -15,6 +15,97 @@ import type XmppClient from '../networking/xmppClient';
 // just fetched. After cap eviction we drop from the head (oldest).
 const RUNTIME_MESSAGE_LIMIT = 100;
 
+// Body strings the server uses for call signaling broadcasts (call-token,
+// call-state ringing/ended, etc). These should never reach the chat
+// transcript or the room-list "last message" preview, they're control
+// frames, not user-visible content. The XMPP handler (onCallTokenMessage)
+// already swallows them in the live stream, but they can still arrive via
+// MAM history, mucsub catchup, or be present in persisted state from
+// before that filter existed. Drop them at the reducer boundary so the
+// transcript stays clean regardless of source.
+const CALL_SIGNAL_BODIES = new Set([
+  'call-token',
+  'call-state',
+  'call-ringing',
+  'call-ended',
+  'call-declined',
+  'call-cancelled',
+  'call-canceled',
+  'call-timeout',
+  'call-rejected',
+  'call-invite',
+]);
+
+const isCallSignalMessage = (message: IMessage | undefined | null): boolean => {
+  if (!message) {return false;}
+  const body = String(message.body || '').trim().toLowerCase();
+  return CALL_SIGNAL_BODIES.has(body);
+};
+
+const stripCallSignals = (messages: IMessage[] | undefined): IMessage[] =>
+  Array.isArray(messages)
+    ? messages.filter((message) => !isCallSignalMessage(message))
+    : [];
+
+// True for the client-side call-log fallback written at hangup: it exists
+// only in this client's store (id "calllog-<callId>"), never on the server.
+const isLocalCallLogEntry = (message: IMessage | undefined | null): boolean =>
+  String(message?.id || '').startsWith('calllog-');
+
+// Merge two log entries for the SAME callId into one. Identity (id/date/
+// xmppId) comes from the server copy when one side is the local fallback,
+// the server archive id is what MAM pages and the catch-up anchor will
+// match against later. Display (body/callLog) comes from whichever copy
+// saw the larger duration, so partial per-participant call-states don't
+// shrink it.
+const mergeCallLogEntries = (a: IMessage, b: IMessage): IMessage => {
+  const aLocal = isLocalCallLogEntry(a);
+  const bLocal = isLocalCallLogEntry(b);
+  const identity = aLocal === bLocal ? a : aLocal ? b : a;
+  const display =
+    (a.callLog?.durationMs || 0) >= (b.callLog?.durationMs || 0) ? a : b;
+  if (identity === display) {return identity;}
+  return {
+    ...display,
+    id: identity.id,
+    xmppId: identity.xmppId ?? display.xmppId,
+    date: identity.date ?? display.date,
+  };
+};
+
+// Collapse call-log duplicates for the same callId inside a merged history
+// list (the live path dedups in addRoomMessage, but a MAM page merged over
+// a persisted local fallback entry would otherwise show the call twice).
+const collapseCallLogDuplicates = (messages: IMessage[]): IMessage[] => {
+  const byCallId = new Map<string, IMessage>();
+  let hasDuplicates = false;
+  for (const message of messages) {
+    const callId = message?.callLog?.callId;
+    if (!callId) {continue;}
+    const existing = byCallId.get(callId);
+    if (existing) {
+      hasDuplicates = true;
+      byCallId.set(callId, mergeCallLogEntries(existing, message));
+    } else {
+      byCallId.set(callId, message);
+    }
+  }
+  if (!hasDuplicates) {return messages;}
+  const emitted = new Set<string>();
+  return messages
+    .filter((message) => {
+      const callId = message?.callLog?.callId;
+      if (!callId) {return true;}
+      if (emitted.has(callId)) {return false;}
+      emitted.add(callId);
+      return true;
+    })
+    .map((message) => {
+      const callId = message?.callLog?.callId;
+      return callId ? byCallId.get(callId) || message : message;
+    });
+};
+
 const enforceMessageCap = (messages: IMessage[]): void => {
   // Trim oldest until we're at/under the limit. Mutates in place
   // (immer-compatible inside reducers).
@@ -45,8 +136,11 @@ function mergeHistoryIntoCache(
   existing: IMessage[] | undefined,
   fetched: IMessage[] | undefined
 ): IMessage[] {
-  const ex = Array.isArray(existing) ? existing : [];
-  const fe = Array.isArray(fetched) ? fetched : [];
+  // Strip call control frames on BOTH sides before merging: they can be
+  // in the cache (persisted from before this filter existed) and in the
+  // fetched MAM page (the live-stream swallow doesn't cover history).
+  const ex = stripCallSignals(existing);
+  const fe = stripCallSignals(fetched);
 
   const pending = ex.filter((m) => m?.pending);
   const realExisting = ex.filter(
@@ -69,7 +163,10 @@ function mergeHistoryIntoCache(
 
   // Cold room, or a gap (no shared id) → can't merge → use the fresh page.
   if (realExisting.length === 0 || !overlaps) {
-    return [...capTail(realFetched.slice().sort(byMs)), ...pending];
+    return [
+      ...capTail(collapseCallLogDuplicates(realFetched.slice().sort(byMs))),
+      ...pending,
+    ];
   }
 
   // Overlap → union + dedupe by id. Fetched wins on collision: it carries
@@ -87,7 +184,9 @@ function mergeHistoryIntoCache(
       prev?.isEdited && !m.isEdited ? { ...m, isEdited: true } : m
     );
   }
-  const merged = Array.from(byId.values()).sort(byMs);
+  const merged = collapseCallLogDuplicates(
+    Array.from(byId.values()).sort(byMs)
+  );
   return [...capTail(merged), ...pending];
 }
 
@@ -335,6 +434,14 @@ const reducers = {
     ) {
       const { roomJID, message, start } = action.payload;
 
+      // Call signaling broadcasts ("call-token", "call-state", etc.)
+      // sometimes slip past the live XMPP filter (MAM history, mucsub
+      // catch-up), drop them here so they never land in the transcript
+      // or the room-list "last message" preview.
+      if (isCallSignalMessage(message)) {
+        return;
+      }
+
       // Guard against the "stanza arrived before /chats/my completed"
       // race — without this, the optional-chain `?.messages` falls
       // back to undefined, and the assignment below tries to set
@@ -350,6 +457,33 @@ const reducers = {
       }
 
       const roomMessages = state.rooms[roomJID].messages;
+
+      // Collapse multiple call-state events for the same call into a single
+      // log entry. Sources: the client-side fallback written at hangup (id
+      // "calllog-<callId>", exists only locally) and the server broadcast(s),
+      // which can fire once per participant leaving (earlier ones carry a
+      // partial durationMs). Rules:
+      //  - the SERVER copy is canonical for identity (id/date/xmppId): its
+      //    archive id is what MAM and the catch-up anchor return later, so
+      //    keeping a local "calllog-" id around breaks anchor matching and
+      //    duplicates the entry on the next history merge;
+      //  - the LARGEST duration wins for display, so a 2-minute call doesn't
+      //    render as "2 sec".
+      const incomingCallLog = message.callLog;
+      if (incomingCallLog?.callId) {
+        const existingCallIdx = roomMessages.findIndex(
+          (msg) => msg.callLog?.callId === incomingCallLog.callId
+        );
+        if (existingCallIdx !== -1) {
+          const existing = roomMessages[existingCallIdx];
+          const merged = mergeCallLogEntries(existing as IMessage, message);
+          if (merged !== (existing as IMessage)) {
+            roomMessages[existingCallIdx] = merged;
+          }
+          return;
+        }
+      }
+
       const lengthBefore = roomMessages.length;
 
       if (roomMessages.length === 0 || start) {

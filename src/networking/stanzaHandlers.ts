@@ -15,6 +15,7 @@ import { createMessageFromXml } from '../helpers/createMessageFromXml';
 import { getDataFromXml } from '../helpers/getDataFromXml';
 import { setDeleteModal } from '../roomStore/chatSettingsSlice';
 import { messageNotificationManager } from '../utils/messageNotificationManager';
+import { transformCallLogMessage } from '../helpers/callLogMessage';
 
 // TO DO: we are thinking to refactor this code in the following way:
 // each stanza will be parsed for 'type'
@@ -69,13 +70,23 @@ const onRealtimeMessage = async (stanza: Element) => {
     // Cast at the call site: createMessageFromXml accepts the merged
     // wrapped/positional shape; IUser type drift between models prevents
     // a narrower type here without a wider refactor.
-    const message = await createMessageFromXml({
+    const rawMessage = await createMessageFromXml({
       data: pData || data.attrs,
       id: pId || id,
       body: pBody ?? '',
       ...pRest,
       isDeleted: !!deleted || !!pRest?.deleted,
     } as Parameters<typeof createMessageFromXml>[0]);
+
+    // Turn server call-state stanzas into a friendly call-log entry
+    // ("Outgoing call · 12 sec" / "Missed call"). Non-call messages pass
+    // through unchanged. Without this the raw message keeps body
+    // "call-state" and gets dropped by the call-signal filter in
+    // roomsSlice, so call history silently disappears.
+    const message = transformCallLogMessage(
+      rawMessage,
+      store.getState().chatSettingStore.user?.xmppUsername || ''
+    );
 
     const roomJID = stanza.attrs.from.split('/')[0];
     store.dispatch(
@@ -205,12 +216,19 @@ const onMessageHistory = async (stanza: any) => {
       // );
       return;
     }
-    const message = await createMessageFromXml(
+    const rawMessage = await createMessageFromXml(
       data.attrs,
       body,
       id,
       stanza.attrs.from,
       !!deleted
+    );
+
+    // Same call-log transform as the realtime path, applied to archived
+    // history so calls received while offline still render as log entries.
+    const message = transformCallLogMessage(
+      rawMessage,
+      store.getState().chatSettingStore.user?.xmppUsername || ''
     );
     store.dispatch(
       addRoomMessage({
