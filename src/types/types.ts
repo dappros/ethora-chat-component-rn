@@ -580,13 +580,96 @@ export interface IConfig {
   customSystemMessage?: React.ComponentType<MessageProps>;
 
   // ----- translations -----
-  translates?: { enabled: boolean; translations?: Iso639_1Codes };
+  translates?: {
+    enabled: boolean;
+    translations?: Iso639_1Codes;
+    /**
+     * 'auto' shows the translation inline automatically. 'manual' shows a
+     * "Translate" link the reader taps (LinkedIn-style), then renders the
+     * result inline with a "Show original" toggle. Default 'auto'.
+     *
+     * Neither mode calls any translation service, both only ever display
+     * `message.translations`, whatever arrived attached to the stanza (see
+     * `readerLocale` below for how a message gets translated in the first
+     * place). This is purely a display choice: show it immediately, or let
+     * the reader ask for it.
+     */
+    mode?: 'auto' | 'manual';
+    /**
+     * Pins `mode` as fixed host policy. When true, the language-selector
+     * modal's auto/manual switcher does not render at all, and the reader
+     * has no way to override `mode`, it's always whatever the host set.
+     * Defaults to false: the reader can flip between auto and manual
+     * themselves via the switcher, which then wins over `mode` (the host's
+     * declared default, used until the reader touches it).
+     */
+    forceType?: boolean;
+    /**
+     * Reader's full locale (BCP-47, e.g. "fr-CA"). Falls back to
+     * `config.i18n.locale`. The region is passed through to `onTranslate` so
+     * the service can distinguish fr-CA vs fr-FR; the Translate button
+     * visibility comparison ignores the region (en-US vs en-CA => no button).
+     *
+     * This is also how a host drives the reader's language from OUTSIDE the
+     * chat component: set it (e.g. from your own app's language switcher)
+     * and pass the updated config down as a normal prop.
+     */
+    readerLocale?: string;
+    /**
+     * Shows/hides the globe-icon language picker in the chat header.
+     * Defaults to true whenever `enabled` is true. Set to false when the
+     * host manages the reader's language itself (via `readerLocale`) and
+     * an in-chat picker would just be a second, redundant control.
+     */
+    showLanguageSelector?: boolean;
+    /**
+     * Shows/hides the list of selectable languages INSIDE the picker
+     * (English/Espanol/...). Defaults to true. Set to false to keep only
+     * the enable/disable-translates toggle.
+     */
+    showLanguageList?: boolean;
+    /**
+     * Host-provided translation function. When set, the manual Translate
+     * action calls this, wire it to your own service, instead of reading
+     * `message.translations`. Optional; omit to use only what already
+     * arrived over XMPP.
+     */
+    onTranslate?: (
+      text: string,
+      ctx: { sourceLocale?: string; targetLocale: string; message: IMessage }
+    ) => Promise<string>;
+    /**
+     * Host predicate deciding whether to show the Translate action for a
+     * given message. When omitted, the component compares base languages
+     * (message source vs reader, region ignored) and shows the action when
+     * they differ.
+     */
+    showTranslateForMessage?: (message: IMessage) => boolean;
+  };
+  /**
+   * Static UI i18n (interface captions like "Search...", "Type message").
+   * `locale` is a BCP-47 tag the host passes from the device/user (e.g. "en",
+   * "fr-CA", "es-US"); captions resolve to its base language. `strings`
+   * overrides or extends any built-in caption by key (see src/i18n/strings.ts).
+   * Built-in languages: en, fr, es, pt, ht, zh. Independent from `translates`
+   * (dynamic per-message translation).
+   */
+  i18n?: {
+    locale?: string;
+    strings?: Record<string, string>;
+  };
   enableTranslates?: boolean;
 
   // ----- notifications -----
   inAppNotifications?: InAppNotificationConfig;
   pushNotifications?: {
     enabled?: boolean;
+    /**
+     * Base URL of the push subscription service, including the version
+     * segment (e.g. "https://push.chat.ethora.com/api/v1"). Set this for
+     * self-hosted or enterprise deployments; omit to use Ethora's.
+     */
+    apiUrl?: string;
     iconPath?: string;
     badgePath?: string;
     onClick?: (params: {
@@ -626,6 +709,63 @@ export interface IConfig {
       messageType: 'text' | 'media';
     }) => void;
   };
+
+  // ----- audio / video calls -----
+  /**
+   * LiveKit-backed 1:1 audio and video calls. Off unless `enabled` is
+   * explicitly `true`. Requires the native peer dependencies
+   * `@livekit/react-native` and `@livekit/react-native-webrtc`, plus
+   * microphone/camera permissions and the background audio modes listed
+   * in the README. Expo Go cannot run these, the host app needs a dev
+   * build or a prebuilt binary.
+   */
+  videoCalls?: VideoCallsConfig;
+}
+
+/**
+ * Override the icons used by the in-call control bar and the incoming-call
+ * ring screen. Each value is any React node. When omitted, the chat's
+ * built-in icon is used. The mic/camera/screen-share toggles take separate
+ * on/off icons so the host can express active vs muted however they like.
+ */
+export interface VideoCallIcons {
+  micOn?: React.ReactNode;
+  micOff?: React.ReactNode;
+  cameraOn?: React.ReactNode;
+  cameraOff?: React.ReactNode;
+  screenShareOn?: React.ReactNode;
+  screenShareOff?: React.ReactNode;
+  hangup?: React.ReactNode;
+  accept?: React.ReactNode;
+  decline?: React.ReactNode;
+}
+
+export interface VideoCallsConfig {
+  enabled: boolean;
+  livekitUrl: string;
+  allowedRoomTypes?: Array<'private'>;
+  /**
+   * Show the audio-only call button next to the video-call button. Off by
+   * default: it's a separate opt-in feature. An audio call uses the same
+   * call backend as video (no server changes needed); the client just
+   * starts the session with `kind: 'audio'` so no camera track is
+   * published, and the callee learns the kind from the direct
+   * `call-invite` signal. Requires `enabled` and a `livekitUrl` like
+   * video calls.
+   */
+  enableAudioCalls?: boolean;
+  /** Start a video call with the camera already on. Default true. */
+  startWithCameraOn?: boolean;
+  /** Start a call with the microphone already on. Default true. */
+  startWithMicOn?: boolean;
+  /**
+   * Show the screen-share control. Default false on React Native: screen
+   * capture needs a foreground service on Android and a Broadcast Upload
+   * Extension on iOS, neither of which the SDK can add to a host app.
+   */
+  showScreenShare?: boolean;
+  /** Custom icons for the call control bar / ring screen. */
+  icons?: VideoCallIcons;
 }
 
 interface ConfigRoom {
