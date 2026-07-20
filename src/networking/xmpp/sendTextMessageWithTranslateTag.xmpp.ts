@@ -18,10 +18,15 @@ export const sendTextMessageWithTranslateTag = (
   },
   source: Iso639_1Codes,
   customId?: string
-) => {
+): boolean => {
   const id = customId || `get-translate-messsage:${Date.now().toString()}`;
 
   try {
+    // `<translate source>` only DECLARES what language this text is in,
+    // it costs nothing to send and is what lets each reader translate the
+    // message into their own language on their side. The message is never
+    // pre-translated here: that put an HTTP round trip in front of every
+    // send (see sendTextMessageWithTranslateTagStanza).
     const message = xml(
       'message',
       {
@@ -38,7 +43,9 @@ export const sendTextMessageWithTranslateTag = (
     );
 
     client.send(message);
+    return true;
   } catch (error) {
     console.error('An error occurred while sending message:', error);
+    return false;
   }
 };

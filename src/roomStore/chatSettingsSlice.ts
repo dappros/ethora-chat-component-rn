@@ -10,6 +10,7 @@ import {
   User,
 } from '../types/types';
 import { Iso639_1Codes } from '../types/models/language.model';
+import type { TranslateMode } from '../utils/translateModePolicy';
 import { localStorageConstants } from '../helpers/constants/LOCAL_STORAGE';
 import { asyncLocalStorage } from '../hooks/useLocalStorage';
 
@@ -22,6 +23,13 @@ export interface ChatState {
   activeFile?: ModalFile;
   client?: any;
   langSource?: Iso639_1Codes;
+  /**
+   * The reader's own auto/manual pick from the language modal's switcher.
+   * Undefined until they touch it, at which point it wins over the host's
+   * `config.translates.mode` default (unless the host pinned `forceType`).
+   * See utils/translateModePolicy.
+   */
+  translateMode?: TranslateMode;
 }
 
 export const unpackAndTransform = (input?: User): User => {
@@ -152,6 +160,7 @@ const reducers = {
     state.config = undefined;
     state.client = undefined;
     state.langSource = undefined;
+    state.translateMode = undefined;
     asyncLocalStorage(localStorageConstants.ETHORA_USER).remove();
   },
   setLangSource: (
@@ -159,6 +168,12 @@ const reducers = {
     action: PayloadAction<Iso639_1Codes | undefined>
   ) => {
     state.langSource = action.payload;
+  },
+  setTranslateMode: (
+    state: WritableDraft<ChatState>,
+    action: PayloadAction<TranslateMode | undefined>
+  ) => {
+    state.translateMode = action.payload;
   },
 };
 
@@ -180,6 +195,7 @@ export const {
   setActiveFile,
   setStoreClient,
   setLangSource,
+  setTranslateMode,
 } = chatSlice.actions;
 
 export default chatSlice.reducer;

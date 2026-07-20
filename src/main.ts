@@ -32,8 +32,21 @@ export { useChatRoomFocus } from './hooks/useChatRoomFocus';
 export { logoutService } from './hooks/useLogout';
 export { useQRCodeChat, handleQRChatId } from './hooks/useQRCodeChatHandler';
 export { resendMessage } from './utils/resendMessage';
-// Font loader — exposed so hosts can also load the font outside <Chat> if needed.
+// Font loader, exposed so hosts can also load the font outside <Chat> if needed.
 export { useChatFonts } from './hooks/useChatFonts';
+
+// Static UI i18n. `useT` is the in-component hook; `translateKey` is the
+// one-shot for helpers outside React. Hosts extend or override any caption
+// through `config.i18n.strings`, keyed by the same keys BUILTIN_STRINGS uses.
+export { useT, useUiLocale } from './i18n/useT';
+export {
+  BUILTIN_STRINGS,
+  DEFAULT_UI_LANGUAGE,
+  resolveStringTable,
+  toBaseLanguage,
+  translateKey,
+} from './i18n/strings';
+export type { UiStringTable } from './i18n/strings';
 
 // Public types — needed so consumers can type their `config` prop and
 // any event handlers they pass in.
@@ -48,4 +61,8 @@ export type {
   TypographyConfig,
   RNFontSource,
   ChatTextStyle,
+  VideoCallsConfig,
+  VideoCallIcons,
 } from './types/types';
+export type { Iso639_1Codes } from './types/models/language.model';
+export type { TranslateMode } from './utils/translateModePolicy';

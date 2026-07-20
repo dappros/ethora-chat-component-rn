@@ -13,6 +13,8 @@ import { IRoom } from '../../types/types';
 import { ProfileImagePlaceholder } from './ProfileImagePlaceholder';
 import Button from '../styled/Button';
 import { BackIcon, BurgerMenuIcon } from '../../assets/icons';
+import { CallButtons } from '../VideoCalls/CallButtons';
+import { LanguageSelectorButton } from './LanguageSelectorButton';
 import { useDispatch } from 'react-redux';
 import Composing from '../styled/StyledInputComponents/Composing';
 import {
@@ -29,6 +31,7 @@ import { useChatSettingState } from '../../hooks/useChatSettingState';
 import { View, StyleSheet, Text, Keyboard } from 'react-native';
 import { getIconColor } from '../../helpers/getIconColor';
 import { getElementFont } from '../../helpers/getElementFont';
+import { useT } from '../../i18n/useT';
 
 interface ChatHeaderProps {
   currentRoom: IRoom;
@@ -46,6 +49,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   const roomState = useRoomState(currentRoom.jid).room;
   const composing = roomState?.composing;
   const { config } = useChatSettingState();
+  const t = useT();
 
   const handleChangeChat = (chat: IRoom) => {
     dispatch(setCurrentRoom({ roomJID: chat.jid }));
@@ -163,7 +167,14 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                   <ChatContainerHeaderLabel
                     style={[styles.subLabel, getElementFont(config, 'headerSubtitle')]}
                   >
-                    <Text>{`${currentRoom?.usersCnt} users`}</Text>
+                    <Text>
+                      {t(
+                        Number(currentRoom?.usersCnt) === 1
+                          ? 'header.userCountSingular'
+                          : 'header.userCountPlural',
+                        { count: Number(currentRoom?.usersCnt) || 0 }
+                      )}
+                    </Text>
                   </ChatContainerHeaderLabel>
                 )}
               </View>
@@ -171,13 +182,15 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
           </ChatContainerHeaderBoxInfo>
         </CenterContainer>
 
-        {!config?.disableChatInfo?.disableRoomMenu ? (
-          <View style={styles.rightContainer}>
+        <View style={styles.rightContainer}>
+          {/* Renders nothing unless config.videoCalls is on and this is a
+              1:1 room, so it costs non-call hosts nothing. */}
+          <LanguageSelectorButton />
+          <CallButtons />
+          {!config?.disableChatInfo?.disableRoomMenu && (
             <RoomMenu handleLeaveClick={handleLeaveClick} />
-          </View>
-        ) : (
-          <View style={styles.rightContainer} />
-        )}
+          )}
+        </View>
       </ChatContainerHeader>
       {config?.chatHeaderAdditional?.enabled &&
           config.chatHeaderAdditional.element()}
@@ -200,8 +213,13 @@ const styles = StyleSheet.create({
     width: '15%',
   },
   rightContainer: {
-    alignItems: 'flex-end',
-    width: '15%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 4,
+    // Call buttons need more room than the lone burger did. Still a
+    // percentage so the centre title keeps shrinking rather than pushing.
+    width: '25%',
   },
 });
 

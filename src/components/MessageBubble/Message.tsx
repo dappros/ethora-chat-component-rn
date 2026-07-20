@@ -26,6 +26,8 @@ import styled from 'styled-components/native';
 import { IUser, MessageProps } from '../../types/types';
 import MediaMessage from '../MainComponents/MediaMessage';
 import MessageTranslations from './MessageTranslations';
+import MessageTranslate from './MessageTranslate';
+import { resolveTranslateMode } from '../../utils/translateModePolicy';
 import { useChatSettingState } from '../../hooks/useChatSettingState';
 import { parseMessageBody } from '../../helpers/parseMessageBody';
 import { chatTextStyle } from '../../helpers/typography';
@@ -139,7 +141,40 @@ const CustomTimestampRow = styled.View<{media: boolean}>`
 const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   const dispatch = useDispatch();
   const { client } = useXmppClient();
-  const { config, langSource, user} = useChatSettingState();
+  const { config, langSource, user, translateMode } = useChatSettingState();
+
+  // `enableTranslates` predates the `translates` config block; keep it
+  // working so existing hosts don't lose translations on upgrade.
+  const isTranslatesEnabled = Boolean(
+    config?.translates?.enabled || config?.enableTranslates
+  );
+  const effectiveTranslateMode = resolveTranslateMode(
+    config?.translates,
+    translateMode
+  );
+
+  // `usersSet` is the canonical, continuously-updated identity store; the
+  // copy riding on a message is a snapshot of whoever sent it, whenever
+  // they sent it. Resolve both the avatar and the display name through
+  // usersSet first, falling back to the message for senders usersSet has
+  // never seen (broadcast/system accounts).
+  //
+  // This matters more since the persist layer stopped caching per-message
+  // avatars: a cache-restored message carries no profileImage at all (see
+  // PERSISTED_MESSAGE_USER_FIELDS), so reading only the message-level copy
+  // leaves a blank initials circle for senders whose name resolved fine.
+  const usersSet = useSelector(
+    (state: RootState) => state.rooms.usersSet
+  ) as Record<string, any> | undefined;
+  const senderRawId = String(message.user?.id || '');
+  const senderLocal = senderRawId.split('@')[0];
+  const senderEntry = usersSet?.[senderLocal] || usersSet?.[senderRawId];
+  const senderDisplayName = senderEntry
+    ? `${senderEntry.firstName ?? ''} ${senderEntry.lastName ?? ''}`.trim() ||
+      senderLocal
+    : message.user?.name || senderLocal || 'Unknown';
+  const senderProfileImage =
+    senderEntry?.profileImage || message.user?.profileImage || '';
   const { idSet, failedIdSet } = useMessageHeapState();
   const { retryMessage } = useSendMessage();
 
@@ -339,10 +374,10 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
             disabled={!!config?.disableProfilesInteractions}
             accessible={!config?.disableProfilesInteractions}
           >
-            {message.user?.profileImage ? (
-              <CustomMessagePhoto source={{ uri: message.user.profileImage }} />
+            {senderProfileImage ? (
+              <CustomMessagePhoto source={{ uri: senderProfileImage }} />
             ) : (
-              <Avatar username={message.user.name} />
+              <Avatar username={senderDisplayName} />
             )}
           </CustomMessagePhotoContainer>
         )}
@@ -389,7 +424,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
                 fontSize={config?.typography?.senderName?.fontSize}
                 fontWeight={config?.typography?.senderName?.fontWeight as any}
               >
-                {message.user.name}
+                {senderDisplayName}
               </CustomUserName>
             )}
             {!isReply && message.mainMessage && (
@@ -426,13 +461,29 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
                 )}
               </>
             )}
-            {config?.enableTranslates && (
+            {/* Two display modes for the same data. 'auto' renders the
+                translation inline as soon as it exists; 'manual' shows a
+                Translate link the reader taps (see MessageTranslate).
+                Neither calls a translation service from here: the client
+                -side translate API was dropped, translations arrive
+                attached to the stanza or through the host's onTranslate.
+                `enableTranslates` is the legacy flag, still honoured. */}
+            {isTranslatesEnabled && effectiveTranslateMode !== 'manual' && (
               <MessageTranslations
                 message={message}
                 config={config}
                 langSource={langSource}
               />
             )}
+            {!isUser &&
+              isTranslatesEnabled &&
+              effectiveTranslateMode === 'manual' && (
+                <MessageTranslate
+                  message={message}
+                  config={config}
+                  isUser={isUser}
+                />
+              )}
             {/* <View style={styles.timestampRow}> */}
             <CustomTimestampRow media={message?.isMediafile === 'true'}>
               {!config?.disableSentLogic && isUser && isPending && (
