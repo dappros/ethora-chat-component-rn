@@ -257,3 +257,46 @@ describe('translate mode policy', () => {
     ).toBe('manual');
   });
 });
+
+describe('loadCallKeep — optional native module', () => {
+  beforeEach(() => {
+    jest.resetModules();
+  });
+
+  it('returns null when the JS package is installed but the native module is not linked', () => {
+    // Regression: node_modules can carry react-native-callkeep over from a
+    // branch whose build linked it (or a host can skip `pod install`). The
+    // package then builds `new NativeEventEmitter(null)` at module scope,
+    // which throws an invariant RN surfaces as an uncaught redbox on every
+    // render of the call overlay — bricking the app over a feature that was
+    // never enabled. Probing NativeModules keeps the dep truly optional.
+    jest.doMock('react-native', () => ({
+      Platform: { OS: 'ios', select: (o: any) => o.ios },
+      NativeModules: {}, // no RNCallKeep => native side absent
+    }));
+    jest.doMock(
+      'react-native-callkeep',
+      () => {
+        throw new Error(
+          '`new NativeEventEmitter()` requires a non-null argument.'
+        );
+      },
+      { virtual: true }
+    );
+
+    const { loadCallKeep } = require('../src/components/VideoCalls/useCallKeep');
+    expect(loadCallKeep()).toBeNull();
+  });
+
+  it('returns the module when the native side IS linked', () => {
+    jest.doMock('react-native', () => ({
+      Platform: { OS: 'ios', select: (o: any) => o.ios },
+      NativeModules: { RNCallKeep: {} },
+    }));
+    const fake = { setup: jest.fn() };
+    jest.doMock('react-native-callkeep', () => fake, { virtual: true });
+
+    const { loadCallKeep } = require('../src/components/VideoCalls/useCallKeep');
+    expect(loadCallKeep()).toBe(fake);
+  });
+});

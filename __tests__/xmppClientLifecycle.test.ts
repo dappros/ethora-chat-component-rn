@@ -344,6 +344,34 @@ describe('XmppClient — reconnect', () => {
     errSpy.mockRestore();
   });
 
+  it('a hanging stop() does not wedge the single-flight guard forever', async () => {
+    // Regression: reconnect() awaited the old client's stop() unbounded. On
+    // a half-dead socket that promise never settles, so reconnect() parked
+    // before its `finally`, `reconnecting` stayed true, and EVERY later
+    // reconnect (watchdog / NetInfo / AppState) hit the single-flight guard
+    // and returned. The client never came back and new messages just
+    // stopped arriving until the app was killed.
+    jest.useFakeTimers();
+    const c = new XmppClient('u', 'p', { devServer: 'h' });
+    c.initializeClient();
+    // A stop() that never resolves — exactly the dead-socket case.
+    (c.client as any).stop = jest.fn(() => new Promise(() => {}));
+
+    const first = c.reconnect();
+    // Let the timeout fire, then flush the microtask queue so the
+    // `finally` actually runs before we assert.
+    await jest.advanceTimersByTimeAsync(3000);
+    await first;
+
+    expect((c as any).reconnecting).toBe(false);
+
+    // The guard is clear, so a subsequent reconnect really re-initializes
+    // instead of silently returning at the guard.
+    const initSpy = jest.spyOn(c, 'initializeClient');
+    await c.reconnect();
+    expect(initSpy).toHaveBeenCalled();
+  });
+
   it('suppressReconnect short-circuits scheduleReconnect', () => {
     jest.useFakeTimers();
     const c = new XmppClient('u', 'p', { devServer: 'h' });

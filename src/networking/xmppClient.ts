@@ -36,6 +36,31 @@ import {
 // Canonical production XMPP WSS endpoint (standard wss/443, no port suffix).
 const DEFAULT_DEV_SERVER = 'xmpp.chat.ethora.com';
 
+// How long to wait for the old client's stop() during a reconnect before
+// giving up on it. Short on purpose: we are already tearing this client
+// down, and a socket that hasn't closed in 3s is exactly the dead one we
+// must not block on. See the call site in reconnect().
+const STOP_TIMEOUT_MS = 3000;
+
+/**
+ * Resolve when `promise` settles or when `ms` elapses, whichever is first.
+ * Never rejects: a teardown that fails or hangs must not break the caller's
+ * control flow (that is the whole point of using it around stop()).
+ */
+function withTimeout(promise: Promise<unknown>, ms: number): Promise<void> {
+  return new Promise<void>((resolve) => {
+    let settled = false;
+    const done = () => {
+      if (settled) {return;}
+      settled = true;
+      clearTimeout(timer);
+      resolve();
+    };
+    const timer = setTimeout(done, ms);
+    Promise.resolve(promise).then(done, done);
+  });
+}
+
 // @xmpp/client surfaces SASL/stream errors in a few shapes depending on
 // where it fails — XMPPError on stream:error, SASLError on SASL bind, or
 // a generic Error whose message contains "not-authorized". Match all of
@@ -698,9 +723,17 @@ export class XmppClient {
       const old = this.client;
       if (old) {
         this.detachEventListeners();
-        try {
-          await old.stop();
-        } catch {}
+        // NEVER await a bare stop(): on a half-dead socket (the exact case
+        // we're reconnecting for) @xmpp/client's stop() can hang forever
+        // waiting on a close handshake that never lands. That leaves this
+        // function parked before `finally`, so `reconnecting` stays true and
+        // EVERY later reconnect — watchdog, NetInfo, AppState — silently
+        // returns at the single-flight guard. The client then never comes
+        // back until the app is killed, which reads as "new messages just
+        // stop arriving". Cap the teardown and move on: initializeClient()
+        // replaces `this.client` anyway, and the old one's listeners are
+        // already detached above, so a late-settling stop() is harmless.
+        await withTimeout(old.stop(), STOP_TIMEOUT_MS);
       }
       this.initializeClient();
     } finally {
@@ -756,12 +789,17 @@ export class XmppClient {
       // handshake can't re-enter handleStanza and dispatch into a store
       // that's being wiped (or, on re-login, the new session's store).
       this.detachEventListeners();
-      try {
-        await this.client.stop();
-        console.log('XMPP client connection closed.');
-      } catch (error) {
-        console.error('Error closing the xmpp client:', error);
-      }
+      // Bounded like the reconnect teardown: a stop() that never settles on
+      // a dead socket would otherwise hang logout (the LOGOUT_EVENT handler
+      // awaits this) and leave the app wedged on the sign-out screen. The
+      // rejection is still logged — only the *waiting* is capped.
+      await withTimeout(
+        Promise.resolve(this.client.stop()).catch((error: unknown) => {
+          console.error('Error closing the xmpp client:', error);
+        }),
+        STOP_TIMEOUT_MS
+      );
+      console.log('XMPP client connection closed.');
     }
     this.status = 'offline';
     this.presencesReady = false;

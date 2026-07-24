@@ -507,7 +507,13 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
   useEffect(() => {
     if (!client) {return;}
     const id = setInterval(() => {
-      if (AppState.currentState !== 'active') {return;}
+      // Only skip while genuinely backgrounded. iOS also reports 'inactive'
+      // for transient states the user still sees the chat through (control
+      // centre, an incoming-call banner, app-switcher preview, and — on the
+      // simulator — whenever the window is not focused). Gating on
+      // `!== 'active'` meant the watchdog silently stopped running in all of
+      // those, so a socket that dropped during one never got revived.
+      if (AppState.currentState === 'background') {return;}
       if (client.suppressReconnect) {return;}
       if (client.status !== 'online') {
         devPushLog('rn', `watchdog: client ${client.status} → forceReconnect`);

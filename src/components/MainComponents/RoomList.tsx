@@ -25,6 +25,7 @@ import Button from '../styled/Button';
 import { HeaderRoomList } from '../Header/HeaderRoomList';
 import { HeaderRoomListMenu } from '../Menu/HeaderRoomListMenu';
 import { getIconColor } from '../../helpers/getIconColor';
+import { useT } from '../../i18n/useT';
 
 const LONG_PRESS_THRESHOLD = 200;
 
@@ -40,6 +41,7 @@ const RoomList: React.FC<RoomListProps> = ({
   onRoomClick,
 }) => {
   const { config } = useChatSettingState();
+  const t = useT();
 
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -200,7 +202,7 @@ const RoomList: React.FC<RoomListProps> = ({
                     icon={<SearchIcon height={20} />}
                     value={searchTerm}
                     onChangeText={handleSearchChange}
-                    placeholder="Search..."
+                    placeholder={t('search.placeholder')}
                   />
                 }
                 style={styles.chatList}
