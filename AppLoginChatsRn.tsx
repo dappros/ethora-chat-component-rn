@@ -707,6 +707,16 @@ const ChatPane: React.FC<{ creds: Creds | null; isVisible: boolean }> = ({ creds
       translates: {
         enabled: true,
       },
+      // Audio + video calls (LiveKit). Only render in 1:1 (private) rooms.
+      // Requires the optional native deps (@livekit/react-native,
+      // @livekit/react-native-webrtc, react-native-callkeep) + a dev build.
+      // livekitUrl mirrors the web testbed's QA LiveKit server.
+      videoCalls: {
+        enabled: true,
+        livekitUrl: 'https://livekit.ethora-qa.com',
+        allowedRoomTypes: ['private'],
+        enableAudioCalls: true,
+      },
       refreshTokens: { enabled: true },
       initBeforeLoad: true,
       disableInteractions: false,
