@@ -320,6 +320,10 @@ describe('useMessageLoaderQueue', () => {
 // ---- useSendMessage -------------------------------------------------
 
 const sendMessageMock = jest.fn();
+// useSendMessage sends every text message through the translate-tag path now
+// (mirrors the web SDK: outgoing messages declare their source language so
+// the backend can translate them). This is the method the hook actually calls.
+const sendTranslateMock = jest.fn();
 const editMessageStanzaMock = jest.fn();
 const onCriticalSendMock = jest.fn();
 const sendMediaMessageStanzaMock = jest.fn(() => 'media-id');
@@ -334,6 +338,7 @@ const SendProbe: React.FC<{
 
 beforeEach(() => {
   sendMessageMock.mockReset();
+  sendTranslateMock.mockReset();
   editMessageStanzaMock.mockReset();
   onCriticalSendMock.mockReset();
   sendMediaMessageStanzaMock.mockReset();
@@ -344,6 +349,7 @@ beforeEach(() => {
       // reconnect flush). A live mock client must say so.
       status: 'online',
       sendMessage: sendMessageMock,
+      sendTextMessageWithTranslateTagStanza: sendTranslateMock,
       editMessageStanza: editMessageStanzaMock,
       onCriticalSend: onCriticalSendMock,
       sendMediaMessageStanza: sendMediaMessageStanzaMock,
@@ -403,14 +409,18 @@ describe('useSendMessage', () => {
     // QoS critical-send hint fires.
     expect(onCriticalSendMock).toHaveBeenCalledWith('r@h');
 
-    // The send id from the optimistic bubble flows through as the
-    // 11th arg of sendMessage (the correlation id).
-    const args = sendMessageMock.mock.calls[0];
+    // The send id from the optimistic bubble flows through as the LAST arg
+    // (the correlation id / customId) of the translate-tag send. The plain
+    // sendMessage is no longer used for text sends.
+    expect(sendMessageMock).not.toHaveBeenCalled();
+    const args = sendTranslateMock.mock.calls[0];
     expect(args[0]).toBe('r@h');
     expect(args[1]).toBe('Alice');
     expect(args[2]).toBe('Anderson');
     expect(args[4]).toBe('0xabc');
     expect(args[5]).toBe('hello');
+    // langSource defaults to 'en' when the reader hasn't picked a language.
+    expect(args[10]).toBe('en');
     expect(args[args.length - 1]).toBe((msgs[0] as any).id);
   });
 
@@ -523,6 +533,6 @@ describe('useSendMessage', () => {
     });
 
     expect(store.getState().rooms.rooms['r@h'].messages).toHaveLength(0);
-    expect(sendMessageMock).toHaveBeenCalled();
+    expect(sendTranslateMock).toHaveBeenCalled();
   });
 });

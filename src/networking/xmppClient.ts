@@ -10,6 +10,7 @@ import { sendTypingRequest } from './xmpp/sendTypingRequest.xmpp';
 import { sendPing } from './xmpp/sendPing.xmpp';
 import { getHistory } from './xmpp/getHistory.xmpp';
 import { sendTextMessage } from './xmpp/sendTextMessage.xmpp';
+import { sendTextMessageWithTranslateTag } from './xmpp/sendTextMessageWithTranslateTag.xmpp';
 import { deleteMessage } from './xmpp/deleteMessage.xmpp';
 import { presenceInRoom } from './xmpp/presenceInRoom.xmpp';
 import { getLastMessage } from './xmpp/getLastMessageArchive.xmpp';
@@ -1031,6 +1032,13 @@ export class XmppClient {
     console.warn('sendMessageReactionStanza: not implemented in RN xmpp client');
   }
 
+  // Sends a groupchat message carrying a `<translate source="xx"/>` tag so
+  // the backend knows the message's source language and can translate it
+  // for each reader (mirrors the web SDK's send path). `langSource` is the
+  // sender's own language; it only DECLARES the source, no pre-translation
+  // happens client-side. Structure mirrors `sendMessage`: buffer + replay
+  // when the stream isn't ready so a reconnect flush re-sends it, and
+  // forward `customId` so the optimistic bubble reconciles with the echo.
   sendTextMessageWithTranslateTagStanza(
     roomJID: string,
     firstName: string,
@@ -1042,26 +1050,49 @@ export class XmppClient {
     isReply?: boolean,
     showInChannel?: boolean,
     mainMessage?: string,
-    _langSource?: string,
+    langSource?: string,
     customId?: string
-  ) {
-    // No translate tag support yet — fall back to a regular text send.
-    // Forward the caller's customId so the optimistic message (heap/redux)
-    // reconciles with the server echo. Without it, translated sends went
-    // out with no client id → the echo carried a server-assigned id and
-    // surfaced as a stuck-pending message PLUS a duplicate (affected both
-    // the live translated-send path and resend).
-    this.sendMessage(
-      roomJID,
-      firstName,
-      lastName,
-      photo,
-      walletAddress,
-      userMessage,
-      notDisplayedValue,
-      isReply,
-      showInChannel,
-      mainMessage,
+  ): boolean {
+    const source = (langSource || 'en') as any;
+    if (!this.isStreamReady()) {
+      enqueueOutboundSend({
+        optimisticId: customId || `send-text-message-${Date.now()}`,
+        roomJID,
+        enqueuedAt: Date.now(),
+        send: (c) =>
+          c.sendTextMessageWithTranslateTagStanza(
+            roomJID,
+            firstName,
+            lastName,
+            photo,
+            walletAddress,
+            userMessage,
+            notDisplayedValue,
+            isReply,
+            showInChannel,
+            mainMessage,
+            langSource,
+            customId
+          ),
+      });
+      return false;
+    }
+    return sendTextMessageWithTranslateTag(
+      this.client,
+      {
+        roomJID,
+        firstName,
+        lastName,
+        photo,
+        walletAddress,
+        userMessage,
+        notDisplayedValue,
+        isReply,
+        showInChannel,
+        mainMessage,
+        devServer: this.devServer || DEFAULT_DEV_SERVER,
+      },
+      source,
       customId
     );
   }

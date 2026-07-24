@@ -800,6 +800,16 @@ const reducers = {
         }
       }
     },
+    // Merges resolved room members into the identity cache Message.tsx /
+    // resolveSenderDisplayName read from. Keyed by BOTH the bare local
+    // part and the full jid so either lookup style hits — a message's
+    // `user.id` can be either depending on how it was parsed.
+    mergeUsersSet(
+      state: WritableDraft<RoomMessagesState>,
+      action: PayloadAction<{ members: Record<string, any> }>
+    ) {
+      state.usersSet = { ...(state.usersSet || {}), ...action.payload.members };
+    },
 };
 
 export const roomsStore: Slice<RoomMessagesState, typeof reducers, 'roomMessages'> = createSlice({
@@ -904,6 +914,7 @@ export const {
   setPendingNotificationJid,
   clearPendingNotificationJid,
   setReactions,
+  mergeUsersSet,
 } = roomsStore.actions;
 
 export default roomsStore.reducer;

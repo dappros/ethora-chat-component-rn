@@ -25,8 +25,9 @@ import { setActiveMessage, setEditAction } from '../../roomStore/roomsSlice';
 import styled from 'styled-components/native';
 import { IUser, MessageProps } from '../../types/types';
 import MediaMessage from '../MainComponents/MediaMessage';
-import MessageTranslations from './MessageTranslations';
 import MessageTranslate from './MessageTranslate';
+import TranslatedMessageBody from './TranslatedMessageBody';
+import { useMessageTranslation } from '../../hooks/useMessageTranslation';
 import { resolveTranslateMode } from '../../utils/translateModePolicy';
 import { useChatSettingState } from '../../hooks/useChatSettingState';
 import { parseMessageBody } from '../../helpers/parseMessageBody';
@@ -153,6 +154,21 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
     translateMode
   );
 
+  // Auto mode (the default): show the translation inline as the primary body,
+  // with the original quoted above. Own messages are never translated — the
+  // sender already knows what they wrote (TranslatedMessageBody skips the
+  // quote for isUser, and we simply render the original for them). Mirrors
+  // the web SDK's Message.tsx.
+  const isAutoTranslate =
+    isTranslatesEnabled && effectiveTranslateMode !== 'manual';
+  const readerLocale =
+    config?.translates?.readerLocale || config?.i18n?.locale || langSource;
+  const translationDisplay = useMessageTranslation(
+    message,
+    readerLocale,
+    isAutoTranslate
+  );
+
   // `usersSet` is the canonical, continuously-updated identity store; the
   // copy riding on a message is a snapshot of whoever sent it, whenever
   // they sent it. Resolve both the avatar and the display name through
@@ -169,8 +185,17 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   const senderRawId = String(message.user?.id || '');
   const senderLocal = senderRawId.split('@')[0];
   const senderEntry = usersSet?.[senderLocal] || usersSet?.[senderRawId];
+  // usersSet FIRST (mirrors the web SDK's Message.tsx): a message stored
+  // before usersSet hydrated carries the raw JID localpart as its
+  // `user.name`, so preferring `message.user.name` (as resolveSenderDisplayName
+  // does) would pin that JID on screen forever even after the real name is
+  // known. Reading usersSet first lets the name self-heal the moment the
+  // REST roster populates the cache. Falls back to the message's own name
+  // (which may carry senderFirstName/senderLastName from the wire) only when
+  // usersSet has never seen this sender.
   const senderDisplayName = senderEntry
     ? `${senderEntry.firstName ?? ''} ${senderEntry.lastName ?? ''}`.trim() ||
+      senderEntry.name ||
       senderLocal
     : message.user?.name || senderLocal || 'Unknown';
   const senderProfileImage =
@@ -324,12 +349,19 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   // wraps content in <View>s which break Text-style inheritance, so the bubble
   // wrapper's fontSize alone never reached the actual text.
   const bodyTextStyle = chatTextStyle(config?.typography?.messageText);
+  // In auto mode, render the translation as the primary body — but NEVER for
+  // the reader's own messages (they wrote it; no point translating it back).
+  const showInlineTranslation =
+    isAutoTranslate && translationDisplay.hasTranslation && !isUser;
+  const bodyToRender = showInlineTranslation
+    ? translationDisplay.displayText
+    : message.body;
   const messageText = config?.messageTextFilter?.enabled
     ? parseMessageBody(
-        config?.messageTextFilter.filterFunction(message.body),
+        config?.messageTextFilter.filterFunction(bodyToRender),
         bodyTextStyle
       )
-    : parseMessageBody(message.body, bodyTextStyle);
+    : parseMessageBody(bodyToRender, bodyTextStyle);
 
   const isFailed = failedIdSet.has(message.id);
   const isPending =
@@ -456,25 +488,27 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
                     fontSize={config?.typography?.messageText?.fontSize}
                     fontWeight={config?.typography?.messageText?.fontWeight as any}
                   >
-                    <Text>{messageText}</Text>
+                    {/* Auto mode: the parsed body IS the translation; wrap it
+                        so the original shows as a dimmed accent-bar quote
+                        above it. Plain body otherwise. */}
+                    {showInlineTranslation ? (
+                      <TranslatedMessageBody
+                        isUser={isUser}
+                        originalText={translationDisplay.originalText}
+                        accentColor={config?.colors?.primary}
+                      >
+                        <Text>{messageText}</Text>
+                      </TranslatedMessageBody>
+                    ) : (
+                      <Text>{messageText}</Text>
+                    )}
                   </CustomMessageText>
                 )}
               </>
             )}
-            {/* Two display modes for the same data. 'auto' renders the
-                translation inline as soon as it exists; 'manual' shows a
-                Translate link the reader taps (see MessageTranslate).
-                Neither calls a translation service from here: the client
-                -side translate API was dropped, translations arrive
-                attached to the stanza or through the host's onTranslate.
-                `enableTranslates` is the legacy flag, still honoured. */}
-            {isTranslatesEnabled && effectiveTranslateMode !== 'manual' && (
-              <MessageTranslations
-                message={message}
-                config={config}
-                langSource={langSource}
-              />
-            )}
+            {/* Manual mode: a "Translate" link the reader taps (auto mode
+                renders the translation inline in the body above). Never on
+                the reader's own messages. */}
             {!isUser &&
               isTranslatesEnabled &&
               effectiveTranslateMode === 'manual' && (

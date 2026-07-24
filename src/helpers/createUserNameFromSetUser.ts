@@ -16,8 +16,12 @@ export const createUserNameFromSetUser = (
 
   const firstName = user.firstName?.trim() || '';
   const lastName = user.lastName?.trim() || '';
+  // REST-loaded members carry firstName/lastName; XMPP-roster-only
+  // members (no REST match yet) carry just the roster `name` attr —
+  // fall back to that before giving up and returning the raw id.
+  const bareName = user.name?.trim() || '';
 
-  return `${firstName} ${lastName}`.trim() || userId;
+  return `${firstName} ${lastName}`.trim() || bareName || userId;
 };
 
 /**

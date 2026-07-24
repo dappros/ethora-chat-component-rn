@@ -40,12 +40,15 @@ export const CenterContainer = styled.View<{
 }>`
   align-items: center;
   justify-content: center;
-  width: ${({ rightSpace, leftSpace }) =>
-    rightSpace && !leftSpace
-      ? '100%'
-      : rightSpace || !leftSpace
-        ? '90%'
-        : '70%'};
+  /* flex:1 so the title fills the space BETWEEN the left (back/avatar) and
+   * right (globe / call / menu) clusters and shrinks to make room for them.
+   * The previous fixed 90% width overflowed the row (15% left + 90% center
+   * + 25% right = 130%), pushing the right cluster — the translate globe,
+   * call and room-menu icons — off-screen where it rendered but was clipped
+   * by the device edge. min-width:0 lets the title ellipsize instead of
+   * forcing the row wider. Mirrors the web header's flexbox layout. */
+  flex: 1;
+  min-width: 0;
   padding-right: ${({ rightSpace }) => (rightSpace ? '16' : '0')}px;
   padding-left: ${({ leftSpace }) => (leftSpace ? '16' : '0')}px;
 `;

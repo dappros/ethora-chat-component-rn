@@ -12,7 +12,7 @@ let _sendTextSeq = 0;
  *
  * Mirrors web's `SERVICE` derivation (utils/runtimeHostConfig.ts).
  */
-const toServiceXmlns = (devServer: string | undefined, client: Client): string => {
+export const toServiceXmlns = (devServer: string | undefined, client: Client): string => {
   // Prefer the URL the client is actually connected to — guaranteed to
   // be the one the server expects.
   const clientService = (client as any)?.options?.service as string | undefined;

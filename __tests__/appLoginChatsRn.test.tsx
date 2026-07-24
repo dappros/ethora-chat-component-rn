@@ -127,7 +127,16 @@ test('Setup → Test → Save → Chat tab mounts ReduxWrapper with the entered 
   });
   expect(tabLabels.length).toBe(3);
 
-  // Locate inputs: JWT is the first multiline; baseUrl is the 2nd.
+  // DEFAULT_CREDS now starts in Email mode (prefilled QA test account), so
+  // switch to JWT mode before exercising the JWT (`/users/client`) flow.
+  const jwtModeBtn = tree.root.findByProps({ testID: 'mode-jwt' });
+  await act(async () => {
+    jwtModeBtn.props.onPress();
+    await flush();
+  });
+
+  // Locate inputs: in JWT mode the JWT field is the first multiline; baseUrl
+  // is the 2nd.
   const inputs = tree.root.findAllByType(require('react-native').TextInput);
   expect(inputs.length).toBeGreaterThanOrEqual(2);
   const jwtInput = inputs[0];

@@ -1,8 +1,65 @@
 import { ApiRoom, DeleteRoomMember, PostAddRoomMember, PostReportRoom, PostRoom, RoomMember } from '../../types/models/room.model';
 import { store } from '../../roomStore';
-import { addRoom } from '../../roomStore/roomsSlice';
+import { addRoom, mergeUsersSet } from '../../roomStore/roomsSlice';
 import { IRoom } from '../../types/types';
 import http from '../apiClient';
+
+/**
+ * Populate `state.rooms.usersSet` (the identity cache Message.tsx resolves
+ * sender display names from) from the `members` arrays the REST `/chats/my`
+ * response carries. This is how the web SDK hydrates usersSet — it does NOT
+ * depend on the XMPP `getRoomMembers` IQ, which errors (`type=error`) on the
+ * current backend and left every sender showing a raw JID instead of a name.
+ *
+ * Keying: a message sender's `user.id` localpart is `<appId>_<userId>`, but
+ * a REST member only carries its Mongo `_id` (= `<userId>`). We derive the
+ * appId from the logged-in user's own xmppUsername (also `<appId>_<userId>`)
+ * and index each member under every id form a lookup might use:
+ *   - `<appId>_<_id>`  (matches the message sender localpart — the key case)
+ *   - `_id`            (fallback)
+ *   - `xmppUsername`   (raw + localpart) when the API does return one
+ */
+function dispatchUsersSetFromRestItems(items: ApiRoom[]): void {
+  if (!items?.length) {return;}
+  const ownXmpp = String(
+    store.getState().chatSettingStore?.user?.xmppUsername || ''
+  );
+  const appId = ownXmpp.includes('_') ? ownXmpp.split('_')[0] : '';
+
+  const members: Record<string, RoomMember> = {};
+  for (const item of items) {
+    const list = Array.isArray((item as any)?.members) ? (item as any).members : [];
+    for (const m of list) {
+      if (!m) {continue;}
+      const entry: RoomMember = {
+        firstName: m.firstName || '',
+        lastName: m.lastName || '',
+        xmppUsername: m.xmppUsername || (appId && m._id ? `${appId}_${m._id}` : m._id || ''),
+        _id: m._id || '',
+        role: m.role,
+        ban_status: m.ban_status,
+        last_active: m.last_active,
+        jid: m.jid,
+        name: m.name,
+      } as RoomMember;
+
+      const keys = new Set<string>();
+      if (appId && m._id) {keys.add(`${appId}_${m._id}`);}
+      if (m._id) {keys.add(m._id);}
+      if (m.xmppUsername) {
+        keys.add(m.xmppUsername);
+        keys.add(String(m.xmppUsername).split('@')[0]);
+      }
+      keys.forEach((k) => {
+        if (k) {members[k] = entry;}
+      });
+    }
+  }
+
+  if (Object.keys(members).length > 0) {
+    store.dispatch(mergeUsersSet({ members }));
+  }
+}
 
 interface ApiRoomMember {
   _id: string;
@@ -90,6 +147,8 @@ function dispatchRoomsFromRestItems(items: ApiRoom[]): void {
     };
     store.dispatch(addRoom({ roomData: room }));
   }
+  // Hydrate the sender-name identity cache from the same REST payload.
+  dispatchUsersSetFromRestItems(items);
 }
 
 const GET_ROOMS_CACHE_MS = 60_000;

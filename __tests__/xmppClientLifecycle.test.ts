@@ -75,6 +75,9 @@ jest.mock('../src/networking/xmpp/getRooms.xmpp', () => ({
 jest.mock('../src/networking/xmpp/sendTextMessage.xmpp', () => ({
   sendTextMessage: jest.fn(),
 }));
+jest.mock('../src/networking/xmpp/sendTextMessageWithTranslateTag.xmpp', () => ({
+  sendTextMessageWithTranslateTag: jest.fn(() => true),
+}));
 jest.mock('../src/networking/xmpp/getHistory.xmpp', () => ({
   getHistory: jest.fn(async () => []),
 }));
@@ -127,6 +130,7 @@ jest.mock('../src/networking/xmpp/inviteRoomRequest.xmpp', () => ({
 import XmppClient from '../src/networking/xmppClient';
 import { getRooms } from '../src/networking/xmpp/getRooms.xmpp';
 import { sendTextMessage } from '../src/networking/xmpp/sendTextMessage.xmpp';
+import { sendTextMessageWithTranslateTag } from '../src/networking/xmpp/sendTextMessageWithTranslateTag.xmpp';
 import { getHistory } from '../src/networking/xmpp/getHistory.xmpp';
 import { createRoom } from '../src/networking/xmpp/createRoom.xmpp';
 import { presenceInRoom } from '../src/networking/xmpp/presenceInRoom.xmpp';
@@ -646,7 +650,7 @@ describe('XmppClient — not-implemented stubs', () => {
     warn.mockRestore();
   });
 
-  it('sendTextMessageWithTranslateTagStanza falls back to sendMessage', () => {
+  it('sendTextMessageWithTranslateTagStanza emits a translate-tagged stanza with the source language', () => {
     const c = new XmppClient('u', 'p', { devServer: 'h' });
     last().triggerEvent('online');
     c.sendTextMessageWithTranslateTagStanza(
@@ -660,14 +664,22 @@ describe('XmppClient — not-implemented stubs', () => {
       false,
       false,
       '',
-      'en'
+      'fr',
+      'custom-id-1'
     );
-    // The translate path delegates to sendMessage, which itself routes
-    // through the mocked sendTextMessage. Final call should include the
-    // devServer string.
-    expect(sendTextMessage).toHaveBeenCalled();
-    const args = (sendTextMessage as jest.Mock).mock.calls[0];
-    expect(args[1]).toBe('r@h');
-    expect(args[6]).toBe('hi');
+    // Real behavior (parity with the web SDK): it builds the message via
+    // sendTextMessageWithTranslateTag, passing the room payload, the source
+    // language ('fr') and the caller's customId so the optimistic bubble
+    // reconciles with the server echo. It does NOT fall through to the plain
+    // sendMessage path.
+    expect(sendTextMessageWithTranslateTag).toHaveBeenCalled();
+    const [, payload, source, customId] = (
+      sendTextMessageWithTranslateTag as jest.Mock
+    ).mock.calls[0];
+    expect(payload.roomJID).toBe('r@h');
+    expect(payload.userMessage).toBe('hi');
+    expect(source).toBe('fr');
+    expect(customId).toBe('custom-id-1');
+    expect(sendTextMessage).not.toHaveBeenCalled();
   });
 });

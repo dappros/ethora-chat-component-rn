@@ -28,6 +28,7 @@
 
 export interface OutboundQueueClient {
   sendMessage: (...args: any[]) => any;
+  sendTextMessageWithTranslateTagStanza: (...args: any[]) => any;
   sendMediaMessageStanza: (...args: any[]) => any;
 }
 

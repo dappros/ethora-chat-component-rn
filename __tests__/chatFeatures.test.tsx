@@ -121,6 +121,9 @@ jest.mock('../src/networking/xmpp/getHistory.xmpp', () => ({
 // test via `Object.assign(mockSpyClient, {...})` if needed.
 const mockSpyClient: any = {
   sendMessage: jest.fn(),
+  // Text sends now go through the translate-tag path (declares the source
+  // language so the backend can translate the message for other readers).
+  sendTextMessageWithTranslateTagStanza: jest.fn(),
   sendMediaMessageStanza: jest.fn(),
   prioritizeRoomPresence: jest.fn().mockResolvedValue(true),
   setActiveRoomJid: jest.fn(),
@@ -136,6 +139,7 @@ const mockSpyClient: any = {
 };
 function mockResetSpyClient() {
   mockSpyClient.sendMessage.mockClear();
+  mockSpyClient.sendTextMessageWithTranslateTagStanza.mockClear();
   mockSpyClient.sendMediaMessageStanza.mockClear();
   mockSpyClient.prioritizeRoomPresence.mockClear();
   mockSpyClient.setActiveRoomJid.mockClear();
@@ -307,11 +311,11 @@ describe('useSendMessage — text', () => {
     });
 
     expect(mockSpyClient.onCriticalSend).toHaveBeenCalledWith(ROOM);
-    // Trailing correlation id (`send-text-message-<timestamp>`) was
-    // added in commit b1204d7 (optimistic pending bubble that flips
-    // to delivered on server echo). Asserted with a regex so the
-    // timestamp doesn't make the test time-dependent.
-    expect(mockSpyClient.sendMessage).toHaveBeenCalledWith(
+    // Text sends go through the translate-tag path: same args as the old
+    // sendMessage plus the source language ('en' by default) before the
+    // trailing correlation id (`send-text-message-<timestamp>`). Asserted
+    // with a regex so the timestamp doesn't make the test time-dependent.
+    expect(mockSpyClient.sendTextMessageWithTranslateTagStanza).toHaveBeenCalledWith(
       ROOM,
       LIVE_USER.firstName,
       '',
@@ -322,6 +326,7 @@ describe('useSendMessage — text', () => {
       false,
       false,
       '',
+      'en',
       expect.stringMatching(/^send-text-message-\d+-\d+$/)
     );
     expect(onMessageSent).toHaveBeenCalledWith(

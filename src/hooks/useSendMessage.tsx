@@ -70,6 +70,14 @@ export const useSendMessage = (_configOverride?: IConfig) => {
   const config = useSelector(
     (state: RootState) => state.chatSettingStore.config
   );
+  // The sender's own language, driven by the header globe picker (or the
+  // host via config.translates.readerLocale). Declared on every outgoing
+  // message as `<translate source>` so the backend can translate it for
+  // readers in other languages (see sendTextMessageWithTranslateTagStanza).
+  // Mirrors the web SDK, which always sends through the translate-tag path.
+  const langSource = useSelector(
+    (state: RootState) => state.chatSettingStore.langSource
+  );
   const editAction = useSelector((state: RootState) => state.rooms.editAction);
   const rooms = useSelector((state: RootState) => state.rooms.rooms);
 
@@ -150,6 +158,10 @@ export const useSendMessage = (_configOverride?: IConfig) => {
         date: optimisticDate,
         pending: true,
         isDeleted: false,
+        // Declare the sender's language on their own optimistic bubble so
+        // manual-mode readers see the Translate link on it too (parity with
+        // the web SDK, which stamps langSource on the optimistic message).
+        langSource: (langSource as any) || 'en',
         user: {
           ...(user as any),
           id: selfId,
@@ -208,7 +220,7 @@ export const useSendMessage = (_configOverride?: IConfig) => {
         // reducer's dedupe matches and the bubble flips pending → delivered
         // in-place (rather than rendering a second copy).
         const replaySend = (c: any) =>
-          c.sendMessage(
+          c.sendTextMessageWithTranslateTagStanza(
             activeRoomJID,
             user.firstName,
             user.lastName,
@@ -219,6 +231,7 @@ export const useSendMessage = (_configOverride?: IConfig) => {
             isReply || false,
             isChecked || false,
             mainMessage || '',
+            (langSource as any) || 'en',
             optimisticId
           );
 
@@ -291,7 +304,7 @@ export const useSendMessage = (_configOverride?: IConfig) => {
         });
       }
     },
-    [editAction, client, user, dispatch, handleMessageSent, handleMessageEdited, handleMessageFailed, reduxStore]
+    [editAction, client, user, langSource, dispatch, handleMessageSent, handleMessageEdited, handleMessageFailed, reduxStore]
   );
 
   const sendMedia = useCallback(

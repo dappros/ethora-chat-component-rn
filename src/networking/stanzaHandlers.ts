@@ -9,6 +9,7 @@ import {
   setCurrentRoom,
   setRoomRole,
   updateRoom,
+  mergeUsersSet,
 } from '../roomStore/roomsSlice';
 import { IRoom, RoomMember } from '../types/types';
 import { createMessageFromXml } from '../helpers/createMessageFromXml';
@@ -367,6 +368,21 @@ const onGetMembers = (stanza: Element) => {
     });
 
     store.dispatch(updateRoom({ jid, updates: { roomMembers } }));
+
+    // Also feed the identity cache Message.tsx reads sender names from
+    // (state.rooms.usersSet). Keyed by both the bare local part and the
+    // full jid since a message's `user.id` can be either depending on
+    // how it was parsed (see createUserNameFromSetUser).
+    const usersSetUpdates: Record<string, RoomMember> = {};
+    for (const member of roomMembers) {
+      if (!member.jid) {continue;}
+      const local = member.jid.split('@')[0];
+      usersSetUpdates[local] = member;
+      usersSetUpdates[member.jid] = member;
+    }
+    if (Object.keys(usersSetUpdates).length > 0) {
+      store.dispatch(mergeUsersSet({ members: usersSetUpdates }));
+    }
   } catch (err) {
     console.warn('onGetMembers parse failed', err);
   }

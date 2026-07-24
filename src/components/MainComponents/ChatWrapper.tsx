@@ -129,6 +129,21 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
     client.setActiveRoomJid?.(activeRoomJID || null);
   }, [client, activeRoomJID]);
 
+  // Pull the MUC roster as soon as a room opens (not just when the
+  // profile modal is opened — see ChatProfileModal). Message sender
+  // names fall back to the raw jid when a message doesn't carry its
+  // own senderFirstName/senderLastName, and that fallback depends on
+  // usersSet being populated; without this, any room the reader hasn't
+  // separately opened the profile modal for shows jids instead of names.
+  useEffect(() => {
+    if (!client || !activeRoomJID) {return;}
+    try {
+      client.getRoomMembersStanza?.(activeRoomJID);
+    } catch {
+      /* non-fatal */
+    }
+  }, [client, activeRoomJID]);
+
   const seededRoomJID = useMemo(
     () =>
       roomJID

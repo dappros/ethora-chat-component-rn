@@ -220,9 +220,23 @@ describe('sendTextMessageWithTranslateTag', () => {
     expect(stanza.name).toBe('message');
     expect(stanza.attrs.to).toBe('r@h');
     expect(stanza.attrs.type).toBe('groupchat');
-    expect(stanza.attrs.id).toMatch(/^get-translate-messsage:\d+$/);
+    // Default id uses the same `send-text-message-` prefix as the plain
+    // send so the server echo correlates with the optimistic bubble.
+    expect(stanza.attrs.id).toMatch(/^send-text-message-\d+$/);
     expect(stanza.getChild('body')?.getText()).toBe('hola');
     expect(stanza.getChild('translate')?.attrs?.source).toBe('es');
+
+    // The <data> element MUST mirror the plain sendTextMessage: the service
+    // `xmlns` and the `senderFirstName` / `senderJID` / `roomJid` attr names
+    // the server + parser expect. Without these the server silently drops
+    // the stanza (no echo) and the message stays stuck in "pending".
+    const data = stanza.getChild('data');
+    expect(data?.attrs?.xmlns).toBe('wss://xmpp.test/ws');
+    expect(data?.attrs?.senderFirstName).toBe('Alice');
+    expect(data?.attrs?.senderLastName).toBe('A');
+    expect(data?.attrs?.senderJID).toBe('0xabc@xmpp.test/web-1234');
+    expect(data?.attrs?.roomJid).toBe('r@h');
+    expect(data?.attrs?.push).toBe('true');
   });
 
   it('honours an explicit customId', () => {

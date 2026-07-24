@@ -116,19 +116,21 @@ interface Creds {
   singleRoomJid: string;
 }
 
-// Intentionally blank. Keep runtime credentials out of tracked source;
-// fill these locally via the Setup tab or an ignored helper payload.
+// Server fields default to the QA environment (chat-qa.ethora.com) so a
+// fresh checkout points somewhere real. appToken/email/password default
+// to a QA test account for the same reason.
 const DEFAULT_CREDS: Creds = {
-  mode: 'jwt',
+  mode: 'email',
   jwt: '',
-  appToken: '',
-  email: '',
-  password: '',
+  appToken:
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjp7ImlzVXNlckRhdGFFbmNyeXB0ZWQiOmZhbHNlLCJwYXJlbnRBcHBJZCI6bnVsbCwiaXNBbGxvd2VkTmV3QXBwQ3JlYXRlIjp0cnVlLCJpc0Jhc2VBcHAiOnRydWUsIl9pZCI6IjY0NmNjOGRjOTZkNGE0ZGM4ZjdiMmYyZCIsImRpc3BsYXlOYW1lIjoiRXRob3JhIiwiZG9tYWluTmFtZSI6ImV0aG9yYSIsImNyZWF0b3JJZCI6IjY0NmNjOGQzOTZkNGE0ZGM4ZjdiMmYyNSIsInVzZXJzQ2FuRnJlZSI6dHJ1ZSwiZGVmYXVsdEFjY2Vzc0Fzc2V0c09wZW4iOnRydWUsImRlZmF1bHRBY2Nlc3NQcm9maWxlT3BlbiI6dHJ1ZSwiYnVuZGxlSWQiOiJjb20uZXRob3JhIiwicHJpbWFyeUNvbG9yIjoiIzAwM0U5QyIsInNlY29uZGFyeUNvbG9yIjoiIzI3NzVFQSIsImNvaW5TeW1ib2wiOiJFVE8iLCJjb2luTmFtZSI6IkV0aG9yYSBDb2luIiwiUkVBQ1RfQVBQX0ZJUkVCQVNFX0FQSV9LRVkiOiJBSXphU3lEUWRrdnZ4S0t4NC1XcmpMUW9ZZjA4R0ZBUmdpX3FPNGciLCJSRUFDVF9BUFBfRklSRUJBU0VfQVVUSF9ET01BSU4iOiJldGhvcmEtNjY4ZTkuZmlyZWJhc2VhcHAuY29tIiwiUkVBQ1RfQVBQX0ZJUkVCQVNFX1BST0pFQ1RfSUQiOiJldGhvcmEtNjY4ZTkiLCJSRUFDVF9BUFBfRklSRUJBU0VfU1RPUkFHRV9CVUNLRVQiOiJldGhvcmEtNjY4ZTkuYXBwc3BvdC5jb20iLCJSRUFDVF9BUFBfRklSRUJBU0VfTUVTU0FHSU5HX1NFTkRFUl9JRCI6Ijk3MjkzMzQ3MDA1NCIsIlJFQUNUX0FQUF9GSVJFQkFTRV9BUFBfSUQiOiIxOjk3MjkzMzQ3MDA1NDp3ZWI6ZDQ2ODJlNzZlZjAyZmQ5YjljZGFhNyIsIlJFQUNUX0FQUF9GSVJFQkFTRV9NRUFTVVJNRU5UX0lEIjoiRy1XSE03WFJaNEM4IiwiUkVBQ1RfQVBQX1NUUklQRV9QVUJMSVNIQUJMRV9LRVkiOiIiLCJSRUFDVF9BUFBfU1RSSVBFX1NFQ1JFVF9LRVkiOiIiLCJjcmVhdGVkQXQiOiIyMDIzLTA1LTIzVDE0OjA4OjI4LjEzNloiLCJ1cGRhdGVkQXQiOiIyMDIzLTA1LTIzVDE0OjA4OjI4LjEzNloiLCJfX3YiOjB9LCJpYXQiOjE2ODQ4NTA5MjV9.-IqNVMsf8GyS9Z-_yuNW7hpSmejajjAy-W0J8TadRIM',
+  email: 'randomroman@gmail.com',
+  password: '12345678',
   resolvedUser: null,
-  baseUrl: '',
-  xmppHost: '',
-  xmppDevServer: '',
-  conference: '',
+  baseUrl: 'https://api.chat-qa.ethora.com/v1',
+  xmppHost: 'xmpp.chat-qa.ethora.com',
+  xmppDevServer: 'xmpp.chat-qa.ethora.com',
+  conference: 'conference.xmpp.chat-qa.ethora.com',
   singleRoom: false,
   singleRoomJid: '',
 };
@@ -699,23 +701,11 @@ const ChatPane: React.FC<{ creds: Creds | null; isVisible: boolean }> = ({ creds
         // icon: '#1fb0dcff',
         // dateLabel: '#1fb0dcff',
       },
-      typography: {
-        fontFamily: Platform.select({ ios: 'Snell Roundhand', default: 'cursive' }),
-        // TEMP verification of per-element typography config — deliberately
-        // oversized so the effect is obvious. Remove after verifying.
-        messageText: { fontSize: 26, fontWeight: '700' },
-        senderName: { fontSize: 22, fontWeight: '700' },
-        headerTitle: { fontSize: 26, fontWeight: '700' },
-        input: { fontSize: 22, minHeight: 60, sendButtonSize: 56 },
-        profile: {
-          title: { fontSize: 34, fontWeight: '700' },
-          memberName: { fontSize: 22 },
-        },
-        attachSheet: {
-          title: { fontSize: 20 },
-          rowLabel: { fontSize: 22 },
-          cancelButton: { fontSize: 22 },
-        },
+      // `mode` omitted → defaults to 'auto': the translation renders inline
+      // as the message body (original quoted above), no tap needed. The
+      // reader can still switch to manual via the globe-icon language picker.
+      translates: {
+        enabled: true,
       },
       refreshTokens: { enabled: true },
       initBeforeLoad: true,
@@ -974,6 +964,15 @@ const AppLoginChatsRn: React.FC = () => {
         const raw = await AsyncStorage.getItem(CREDS_KEY);
         if (raw) {
           const parsed = { ...DEFAULT_CREDS, ...JSON.parse(raw) };
+          // Server fields fall back to the current defaults when the
+          // persisted value is blank, so bumping DEFAULT_CREDS (e.g. to
+          // point the testbed at a different environment) takes effect
+          // for anyone who hasn't customized these fields themselves.
+          parsed.baseUrl = parsed.baseUrl || DEFAULT_CREDS.baseUrl;
+          parsed.xmppHost = parsed.xmppHost || DEFAULT_CREDS.xmppHost;
+          parsed.xmppDevServer =
+            parsed.xmppDevServer || DEFAULT_CREDS.xmppDevServer;
+          parsed.conference = parsed.conference || DEFAULT_CREDS.conference;
           setCreds(parsed);
           pushLog('rn', 'Restored creds from AsyncStorage (staying on Setup)');
           // Intentionally DO NOT auto-jump to Chat on startup — the app

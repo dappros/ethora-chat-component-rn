@@ -487,6 +487,24 @@ const SendInput: React.FC<SendInputProps> = ({
     setMessage(next);
   }, [editMessage]);
 
+  // iOS's multiline TextInput always top-aligns its content (UITextView
+  // has no vertical-centering API RN can hook into — `textAlignVertical`
+  // is Android-only), so a `minHeight` taller than one text line leaves
+  // the placeholder/cursor pinned near the top instead of centered. Fix:
+  // derive vertical padding from the actual line height so the box's
+  // resting height already equals its content height — nothing is left
+  // to look top-aligned.
+  const inputFontSize =
+    config?.typography?.input?.fontSize ??
+    config?.typography?.elements?.inputText?.fontSize ??
+    16;
+  const inputMinHeight = config?.typography?.input?.minHeight ?? 40;
+  const estimatedLineHeight = inputFontSize * 1.2;
+  const inputVerticalPadding = Math.max(
+    4,
+    (inputMinHeight - estimatedLineHeight) / 2
+  );
+
   return (
     <InputContainer isText={!!message}>
         {filePreviews.length > 0 && (
@@ -541,13 +559,16 @@ const SendInput: React.FC<SendInputProps> = ({
                 // No fixed height: a multiline TextInput auto-grows to fit
                 // its content between min/max. Locking `height` made iOS
                 // top-align the text inside the taller box (it looked like
-                // the text had dropped). minHeight keeps the 40px tap
-                // target; the row's align-items:center vertically centres
-                // the content-sized input.
+                // the text had dropped). paddingVertical (computed above)
+                // makes the resting box height equal minHeight without
+                // leaving slack above the text, which is what actually
+                // centers it on iOS.
                 style={[
                   {
-                    minHeight: config?.typography?.input?.minHeight ?? 40,
+                    minHeight: inputMinHeight,
                     maxHeight: config?.typography?.input?.maxHeight ?? 120,
+                    paddingTop: inputVerticalPadding,
+                    paddingBottom: inputVerticalPadding,
                     flex: 1,
                   },
                   getElementFont(config, 'inputText'),
