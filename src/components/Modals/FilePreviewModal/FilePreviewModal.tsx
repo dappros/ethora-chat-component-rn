@@ -6,6 +6,8 @@ import {
 } from '../styledModalComponents';
 import { SaveIcon } from '../../../assets/icons';
 import ModalHeaderComponent from '../ModalHeaderComponent';
+import { useChatSettingState } from '../../../hooks/useChatSettingState';
+import { chatTextStyle } from '../../../helpers/typography';
 import { useDispatch, useSelector } from 'react-redux';
 import Button from '../../styled/Button';
 import { RootState } from '../../../roomStore';
@@ -110,6 +112,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
 }) => {
   const dispatch = useDispatch();
   const { showToast } = useToast();
+  const { config } = useChatSettingState();
 
   // Cache the SAF directory the user granted so saving several documents
   // in a row doesn't re-prompt for a folder every time (Android only).
@@ -390,6 +393,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
       <ModalHeaderComponent
         handleCloseModal={closeModal}
         headerTitle={'File preview'}
+        titleStyle={chatTextStyle(config?.typography?.profile?.screenTitle)}
         rightMenu={
           <>
             <Button onPress={saveClick}>

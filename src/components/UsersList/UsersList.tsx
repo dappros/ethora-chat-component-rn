@@ -19,6 +19,7 @@ import { debounce } from '../../helpers/debounce';
 import { StyledInput } from '../styled/StyledInputComponents/StyledInputComponents';
 import { useRoomState } from '../../hooks/useRoomState';
 import { Text, View } from 'react-native';
+import { useT } from '../../i18n/useT';
 
 interface UsersListProps {
   selectedUsers: RoomMember[];
@@ -36,6 +37,7 @@ const UsersList: React.FC<UsersListProps> = ({
   filter,
 }) => {
   const { usersSet } = useRoomState();
+  const t = useT();
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredUsers, setFilteredUsers] = useState<RoomMember[]>([]);
 
@@ -80,7 +82,7 @@ const UsersList: React.FC<UsersListProps> = ({
       )}
 
       <StyledInput
-        placeholder="Search users..."
+        placeholder={t('modal.selectUsers.searchPlaceholder')}
         value={searchTerm}
         onChangeText={setSearchTerm}
         style={{ width: '100%' }}

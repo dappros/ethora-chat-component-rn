@@ -48,6 +48,22 @@ export const loadCallKeep = (): CallKeepModule | null => {
     return cachedCallKeep;
   }
   try {
+    // The JS package being installed does NOT mean the native side is
+    // linked: a host can `npm i react-native-callkeep` and skip
+    // `pod install`, or (very common in this repo) node_modules can carry
+    // it over from another branch whose build did link it. In that state
+    // requiring the package builds a `new NativeEventEmitter(null)` at
+    // module scope, which throws an invariant that RN surfaces as an
+    // uncaught redbox on every render of the call overlay — the whole app
+    // becomes unusable over a feature the host never switched on.
+    // Probing NativeModules first keeps the optional dependency genuinely
+    // optional: no native module => behave exactly as if it isn't installed.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { NativeModules } = require('react-native');
+    if (!NativeModules?.RNCallKeep) {
+      cachedCallKeep = null;
+      return cachedCallKeep;
+    }
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const mod = require('react-native-callkeep');
     cachedCallKeep = (mod?.default || mod) as CallKeepModule;

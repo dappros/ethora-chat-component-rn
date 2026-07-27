@@ -14,6 +14,7 @@ import AttachSheet from '../Modals/AttachSheet/AttachSheet';
 import { MediaFilePreview } from './MediaFilePreview';
 import { getIconColor } from '../../helpers/getIconColor';
 import { getElementFont } from '../../helpers/getElementFont';
+import { useT } from '../../i18n/useT';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -88,6 +89,7 @@ const SendInput: React.FC<SendInputProps> = ({
   isLoading,
   isMessageProcessing,
 }) => {
+  const t = useT();
   const [message, setMessage] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   // Live counter (seconds) for the recording overlay. Updated by a
@@ -539,7 +541,7 @@ const SendInput: React.FC<SendInputProps> = ({
                 color={config?.colors?.primary}
                 fontSize={config?.typography?.input?.fontSize}
                 fontWeight={config?.typography?.input?.fontWeight as any}
-                placeholder="Type message"
+                placeholder={t('input.placeholder')}
                 placeholderTextColor="#999"
                 value={message}
                 onChangeText={(text) => {

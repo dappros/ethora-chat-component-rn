@@ -124,4 +124,43 @@ describe('handleStanza — dispatch table', () => {
     });
     log.mockRestore();
   });
+
+  // Regression: every room is mucsub-subscribed
+  // (urn:xmpp:mucsub:nodes:messages), so ejabberd delivers live room
+  // traffic wrapped in a pubsub <event> envelope, not as a bare <message>.
+  // Reading `<data>`/`<body>` off the OUTER envelope finds nothing —
+  // onRealtimeMessage logged "Missing data elements" and silently dropped
+  // every live message, which only ever showed up later via MAM history
+  // (i.e. after restarting the app). handleStanza must unwrap to the real
+  // inner <message> before handing it to any handler.
+  it('<message> wrapped in a mucsub pubsub <event> unwraps to the inner message before dispatch', () => {
+    const innerAttrs = { from: 'room@conference.h/nick', id: 'abc123' };
+    const inner = { name: 'message', attrs: innerAttrs } as any;
+    const item = { getChild: (n: string) => (n === 'message' ? inner : undefined) } as any;
+    const items = { getChild: (n: string) => (n === 'item' ? item : undefined) } as any;
+    const event = { getChild: (n: string) => (n === 'items' ? items : undefined) } as any;
+    const outer = {
+      name: 'message',
+      attrs: { from: 'room@conference.h', id: 'mucsub-push-1' },
+      getChild: (n: string, xmlns?: string) =>
+        n === 'event' && xmlns === 'http://jabber.org/protocol/pubsub#event'
+          ? event
+          : undefined,
+    } as any;
+
+    handleStanza(outer, fakeXmpp);
+
+    expect(handlers.onRealtimeMessage).toHaveBeenCalledWith(inner);
+    expect(handlers.onMessageHistory).toHaveBeenCalledWith(inner);
+    expect(handlers.onDeleteMessage).toHaveBeenCalledWith(inner);
+    expect(handlers.onEditMessage).toHaveBeenCalledWith(inner);
+    // Never the outer envelope — that's the exact bug being guarded against.
+    expect(handlers.onRealtimeMessage).not.toHaveBeenCalledWith(outer);
+  });
+
+  it('a plain (non-mucsub) <message> passes through unchanged', () => {
+    const s = stanza('message');
+    handleStanza(s, fakeXmpp);
+    expect(handlers.onRealtimeMessage).toHaveBeenCalledWith(s);
+  });
 });
