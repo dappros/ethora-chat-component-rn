@@ -38,6 +38,27 @@ const TEXT_MUTED = '#9AA4B2';
 const DANGER = '#E53935';
 const CONTROL_IDLE = 'rgba(255, 255, 255, 0.16)';
 
+// A device (camera/mic) permission/availability problem during enable —
+// distinct from a connect failure. Mirrors the web SDK's humanizeDeviceError:
+// this must never fail the whole call (the user can still talk/hear once
+// they re-allow or plug in a device), only surface a dismissible hint. Most
+// relevant on the iOS Simulator, which has no real camera at all — every
+// video call would otherwise die at setCameraEnabled before ever connecting.
+const humanizeDeviceError = (error: unknown, t: (key: string) => string): string => {
+  const name = (error as { name?: string })?.name || '';
+  const text = String((error as Error)?.message || '').toLowerCase();
+  if (name === 'NotAllowedError' || text.includes('permission') || text.includes('denied')) {
+    return t('call.error.deviceBlocked');
+  }
+  if (name === 'NotFoundError' || text.includes('not found')) {
+    return t('call.error.deviceNotFound');
+  }
+  if (name === 'NotReadableError' || text.includes('in use')) {
+    return t('call.error.deviceInUse');
+  }
+  return t('call.error.deviceGeneric');
+};
+
 export interface VideoCallSessionProps {
   token: string;
   livekitUrl: string;
@@ -92,6 +113,7 @@ export const VideoCallSession: FC<VideoCallSessionProps> = ({
 
   const roomRef = useRef<any>(null);
   const [connected, setConnected] = useState(false);
+  const [deviceError, setDeviceError] = useState<string | null>(null);
   const [micOn, setMicOn] = useState(startWithMicOn);
   const [cameraOn, setCameraOn] = useState(kind === 'video' && startWithCameraOn);
   const [speakerOn, setSpeakerOn] = useState(kind === 'video');
@@ -173,6 +195,10 @@ export const VideoCallSession: FC<VideoCallSessionProps> = ({
       .on(RoomEvent.TrackMuted, onStateChange)
       .on(RoomEvent.TrackUnmuted, onStateChange)
       .on(RoomEvent.ParticipantConnected, onStateChange)
+      .on(RoomEvent.MediaDevicesError, (error: unknown) => {
+        if (disposed) {return;}
+        setDeviceError(humanizeDeviceError(error, t));
+      })
       .on(RoomEvent.ParticipantDisconnected, () => {
         if (disposed) {return;}
         resyncTracks();
@@ -188,41 +214,59 @@ export const VideoCallSession: FC<VideoCallSessionProps> = ({
       });
 
     (async () => {
+      // Joining the LiveKit room is the only step whose failure should fail
+      // the call (bad token, network, server down). Everything after this
+      // is best-effort device setup — see the separate try/catches below.
       try {
         // Claims audio focus and sets the right native audio mode. Must
         // start BEFORE connecting or the first seconds route to the
         // earpiece on Android even for a video call.
         await AudioSession.startAudioSession();
-
         await room.connect(livekitUrl, token);
-        if (disposed) {return;}
-
-        await room.localParticipant.setMicrophoneEnabled(startWithMicOn);
-        if (kind === 'video') {
-          await room.localParticipant.setCameraEnabled(startWithCameraOn);
-        }
-        if (disposed) {return;}
-
-        // Video calls belong on the loudspeaker, audio calls on the
-        // earpiece, matching what every native dialer does.
-        try {
-          await AudioSession.setAppleAudioConfiguration?.({
-            audioCategory: 'playAndRecord',
-            audioMode: kind === 'video' ? 'videoChat' : 'voiceChat',
-          });
-        } catch {
-          // iOS-only helper, absent on Android builds of the SDK.
-        }
-
-        setConnected(true);
-        resyncTracks();
-        callbacksRef.current.onConnected?.();
       } catch (error: any) {
         if (disposed) {return;}
         callbacksRef.current.onError?.(
           String(error?.message || '') || t('call.error.connectFailed')
         );
+        return;
       }
+      if (disposed) {return;}
+
+      // Devices are best-effort: if the mic/camera prompt is blocked, or —
+      // notably — this is the iOS Simulator (no real camera hardware at
+      // all), the call still connects. The user can hear/be heard on
+      // audio and re-enable the camera later; failing the whole call here
+      // (as an earlier version did, sharing one try/catch with `connect`)
+      // meant every video call died before ever reaching the ring-answered
+      // screen — indistinguishable from "Accept doesn't work".
+      try {
+        await room.localParticipant.setMicrophoneEnabled(startWithMicOn);
+      } catch (error) {
+        if (!disposed) {setDeviceError(humanizeDeviceError(error, t));}
+      }
+      if (kind === 'video') {
+        try {
+          await room.localParticipant.setCameraEnabled(startWithCameraOn);
+        } catch (error) {
+          if (!disposed) {setDeviceError(humanizeDeviceError(error, t));}
+        }
+      }
+      if (disposed) {return;}
+
+      // Video calls belong on the loudspeaker, audio calls on the
+      // earpiece, matching what every native dialer does.
+      try {
+        await AudioSession.setAppleAudioConfiguration?.({
+          audioCategory: 'playAndRecord',
+          audioMode: kind === 'video' ? 'videoChat' : 'voiceChat',
+        });
+      } catch {
+        // iOS-only helper, absent on Android builds of the SDK.
+      }
+
+      setConnected(true);
+      resyncTracks();
+      callbacksRef.current.onConnected?.();
     })();
 
     return () => {
@@ -368,6 +412,17 @@ export const VideoCallSession: FC<VideoCallSessionProps> = ({
 
   return (
     <View style={styles.canvas}>
+      {!!deviceError && (
+        <TouchableOpacity
+          style={styles.deviceErrorBanner}
+          onPress={() => setDeviceError(null)}
+          accessibilityRole="button"
+        >
+          <Text style={styles.deviceErrorText} numberOfLines={2}>
+            {deviceError}
+          </Text>
+        </TouchableOpacity>
+      )}
       {/* Stage */}
       <View style={styles.stage}>
         {showRemoteVideo ? (
@@ -568,6 +623,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     paddingHorizontal: 24,
+  },
+  // Dismissible, non-blocking — the call is still connecting/connected
+  // underneath; this only flags that camera/mic didn't come up.
+  deviceErrorBanner: {
+    position: 'absolute',
+    top: 16,
+    left: 16,
+    right: 16,
+    zIndex: 10,
+    backgroundColor: 'rgba(229, 57, 53, 0.92)',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  deviceErrorText: {
+    color: TEXT_ON_DARK,
+    fontSize: 13,
+    textAlign: 'center',
   },
   miniBar: {
     flexDirection: 'row',
