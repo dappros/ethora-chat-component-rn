@@ -53,10 +53,21 @@ const onRealtimeMessage = async (stanza: Element) => {
       return;
     }
 
-    if (!data.attrs.senderJID) {
+    // Not every sender stamps `senderJID` onto `<data>` — the web SDK's
+    // translate-tagged send path in particular builds `<data>` from a
+    // differently-named attr bag (roomJID/firstName/userMessage/…) that
+    // has no senderJID at all. This used to hard-drop the message here —
+    // live AND, via the identical check in onMessageHistory, in the MAM
+    // backfill too — so anything sent through that path just never
+    // appeared, on this device or after a restart. The stanza's own
+    // `from` is always the full MUC occupant jid (`room@conference/nick`,
+    // exactly what senderJID would have held), so fall back to it instead
+    // of dropping the message. Web's own onRealtimeMessage only requires
+    // `<data>` to exist at all — no senderJID check — so this brings RN
+    // to the same tolerance.
+    const senderJID = data.attrs.senderJID || stanza.attrs.from;
+    if (!senderJID) {
       console.log(stanza.toString());
-      console.log(data.attrs.senderJID);
-
       console.log('Missing sender information in real-time message.');
       return;
     }
@@ -68,11 +79,13 @@ const onRealtimeMessage = async (stanza: Element) => {
     const parsed = await getDataFromXml(stanza);
     const { data: pData, id: pId, body: pBody, ...pRest } =
       parsed ?? ({} as Partial<NonNullable<typeof parsed>>);
+    const mergedData: Record<string, unknown> = { ...(pData || data.attrs) };
+    if (!mergedData.senderJID) {mergedData.senderJID = senderJID;}
     // Cast at the call site: createMessageFromXml accepts the merged
     // wrapped/positional shape; IUser type drift between models prevents
     // a narrower type here without a wider refactor.
     const rawMessage = await createMessageFromXml({
-      data: pData || data.attrs,
+      data: mergedData,
       id: pId || id,
       body: pBody ?? '',
       ...pRest,
@@ -102,8 +115,8 @@ const onRealtimeMessage = async (stanza: Element) => {
     try {
       const state = store.getState();
       const currentUserWallet = (state.chatSettingStore.user?.walletAddress || '').toLowerCase();
-      const senderJID = String(data.attrs.senderJID || '').toLowerCase();
-      if (currentUserWallet && senderJID.includes(currentUserWallet)) {
+      const senderJIDLower = String(senderJID || '').toLowerCase();
+      if (currentUserWallet && senderJIDLower.includes(currentUserWallet)) {
         return message; // own message, skip toast
       }
       const room = state.rooms.rooms[roomJID];
@@ -205,20 +218,32 @@ const onMessageHistory = async (stanza: any) => {
     }
     // console.log(stanza.attrs.from);
 
-    if (
-      !data?.attrs ||
-      !data.attrs.senderFirstName ||
-      !data.attrs.senderLastName ||
-      !data.attrs.senderJID
-    ) {
+    // Mirror the realtime path's tolerance: don't hard-require
+    // senderFirstName/senderLastName/senderJID on <data> — the web SDK's
+    // translate-tagged send path doesn't stamp any of them, and this used
+    // to drop those messages out of MAM backfill entirely (so they never
+    // appeared even after a restart). The inner forwarded <message>'s own
+    // `from` is the full MUC occupant jid (room@conference/nick), exactly
+    // what senderJID would have held — fall back to it. createMessageFromXml
+    // already derives a display name from the jid when senderFirstName/
+    // senderLastName are absent.
+    const innerFrom =
+      stanza
+        .getChild('result')
+        ?.getChild('forwarded')
+        ?.getChild('message')?.attrs?.from || stanza.attrs.from;
+    const senderJID = data?.attrs?.senderJID || innerFrom;
+    if (!data?.attrs || !senderJID) {
       // console.log(
       //   "Missing sender information in message history.",
       //   stanza.toString()
       // );
       return;
     }
+    const mergedAttrs = { ...data.attrs };
+    if (!mergedAttrs.senderJID) {mergedAttrs.senderJID = senderJID;}
     const rawMessage = await createMessageFromXml(
-      data.attrs,
+      mergedAttrs,
       body,
       id,
       stanza.attrs.from,
