@@ -30,6 +30,7 @@ import { useRoomState } from '../../hooks/useRoomState';
 import { useChatSettingState } from '../../hooks/useChatSettingState';
 import { View, StyleSheet, Text, Keyboard } from 'react-native';
 import { getIconColor } from '../../helpers/getIconColor';
+import { resolveHeaderHeight } from '../../helpers/headerLayout';
 import { getElementFont } from '../../helpers/getElementFont';
 import { useT } from '../../i18n/useT';
 
@@ -79,9 +80,17 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
     [dispatch]
   );
 
+  // Fixed band height shared with the modal headers. Zero vertical padding
+  // here so `height` defines the band exactly (content centers via the
+  // styled `align-items: center`); the styled 12px vertical padding would
+  // otherwise add on top of it.
+  const headerHeight = resolveHeaderHeight(config?.headerLayout?.height);
+
   return (
     <>
-      <ChatContainerHeader>
+      <ChatContainerHeader
+        style={{ height: headerHeight, paddingTop: 0, paddingBottom: 0 }}
+      >
         {handleBackClick && !config?.headerChatMenu ? (
           <View style={styles.leftContainer}>
             <Button
