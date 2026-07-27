@@ -338,6 +338,19 @@ export async function deleteRoom(name: string) {
 // call-token stanza for the callee. When the server doesn't recognize the
 // field both sides still fall through to a video call (the default), which
 // matches the prior single-mode behavior.
+// No timeout is set on the shared `http` client (matches web — neither SDK
+// configures one anywhere), so a stalled connection leaves this request
+// hanging indefinitely with nothing surfaced to the caller. Observed live
+// on the iOS Simulator: the same call the backend answers in ~0.6s from a
+// plain curl sat unresolved for 75+ seconds through the Simulator's network
+// stack. The UI's own 30s "no answer" ring timeout (VideoCallOverlay)
+// doesn't touch this request at all — it just gives up and shows an error
+// while the POST keeps sitting there, so a request that DOES eventually
+// resolve races a call the user already dismissed. Bound just this
+// request, not the shared client: file uploads on the same client
+// legitimately take longer than any call-placement call should ever need.
+const CALL_CREATE_TIMEOUT_MS = 15000;
+
 export async function createChatCall(
   chatName: string,
   options?: { kind?: 'audio' | 'video' }
@@ -353,9 +366,17 @@ export async function createChatCall(
         headers: {
           Authorization: token,
         },
+        timeout: CALL_CREATE_TIMEOUT_MS,
       }
     );
-  } catch (error) {
+  } catch (error: any) {
+    // Distinguish a timeout from a real server rejection — the caller
+    // (CallButtons) surfaces this string directly on the ring/error
+    // screen, and "the network is being slow" is a very different thing
+    // to tell the user than "the server said no".
+    if (error?.code === 'ECONNABORTED' || /timeout/i.test(String(error?.message))) {
+      throw new Error('Call request timed out — check your connection and try again');
+    }
     throw new Error('Error creating chat call');
   }
 }
