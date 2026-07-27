@@ -20,6 +20,34 @@ import {
 import XmppClient from '../xmppClient';
 import { onCallTokenMessage } from '../callTokenStanza';
 
+/**
+ * Unwrap a mucsub event wrapper so the chat handlers see the real inner
+ * `<message>` (the one carrying `<data senderJID=…>` and `<body>`).
+ *
+ * We subscribe every room to `urn:xmpp:mucsub:nodes:messages` (see
+ * subscribeToRoomMessages / pushSubscriptionService), so ejabberd pushes
+ * room traffic as:
+ *
+ *   <message from="room@conference/…">
+ *     <event xmlns="http://jabber.org/protocol/pubsub#event">
+ *       <items node="urn:xmpp:mucsub:nodes:messages">
+ *         <item><message …><data senderJID=…/><body>…</body></message></item>
+ *
+ * Without unwrapping, onRealtimeMessage reads `<data>` off the OUTER
+ * wrapper, finds nothing, logs "Missing data elements in real-time
+ * message" and drops the stanza — so live messages never render and only
+ * surface later through the MAM history fetch (i.e. after an app restart
+ * or re-opening the room). Mirrors the web SDK's handleStanza.
+ */
+const unwrapMucsubMessage = (stanza: Element): Element => {
+  const inner = (stanza as any)
+    ?.getChild?.('event', 'http://jabber.org/protocol/pubsub#event')
+    ?.getChild?.('items')
+    ?.getChild?.('item')
+    ?.getChild?.('message');
+  return (inner as Element) || stanza;
+};
+
 export function handleStanza(stanza: Element, xmppWs: XmppClient) {
   if (stanza?.attrs?.type === 'headline') {return;}
 
@@ -33,18 +61,20 @@ export function handleStanza(stanza: Element, xmppWs: XmppClient) {
   }
 
   switch (stanza.name) {
-    case 'message':
-      onMessageError(stanza, xmppWs);
-      onReactionMessage(stanza);
-      onReactionHistory(stanza);
-      onDeleteMessage(stanza);
-      onEditMessage(stanza);
-      onChatInvite(stanza, xmppWs);
-      onRealtimeMessage(stanza);
-      onMessageHistory(stanza);
-      handleComposing(stanza, xmppWs.username);
-      onPresenceInRoom(stanza);
+    case 'message': {
+      const unwrapped = unwrapMucsubMessage(stanza);
+      onMessageError(unwrapped, xmppWs);
+      onReactionMessage(unwrapped);
+      onReactionHistory(unwrapped);
+      onDeleteMessage(unwrapped);
+      onEditMessage(unwrapped);
+      onChatInvite(unwrapped, xmppWs);
+      onRealtimeMessage(unwrapped);
+      onMessageHistory(unwrapped);
+      handleComposing(unwrapped, xmppWs.username);
+      onPresenceInRoom(unwrapped);
       break;
+    }
     case 'presence':
       onRoomKicked(stanza);
       onPresenceInRoom(stanza);
