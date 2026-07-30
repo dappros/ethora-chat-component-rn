@@ -1,6 +1,6 @@
 /**
  * Testbed-only LogBox configuration. Imported FIRST from index.js — before
- * `App` and therefore before expo-av / styled-components evaluate — so the
+ * `App` and therefore before expo-audio / styled-components evaluate — so the
  * known-benign warnings those emit at IMPORT time are suppressed before
  * they can flash the "Open debugger to view warnings" toast. (Registering
  * these inside a component module ran after that module's own imports, too

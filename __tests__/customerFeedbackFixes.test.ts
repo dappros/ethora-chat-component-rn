@@ -365,18 +365,34 @@ describe('customer feedback round — locked behaviour', () => {
     });
   });
 
-  // ── Items 9a / 9b: AudioMessage uses expo-av, VideoMessage uses expo-video ──
-  describe('Audio uses expo-av / Video uses expo-video', () => {
-    it('AudioMessage uses Audio.Sound from expo-av', () => {
+  // ── Items 9a / 9b: AudioMessage uses expo-audio, VideoMessage expo-video ──
+  describe('Audio uses expo-audio / Video uses expo-video', () => {
+    it('AudioMessage plays through expo-audio, not the discontinued expo-av', () => {
       const fs = require('fs');
       const src = fs.readFileSync(
         require.resolve('../src/components/styled/AudioMessage'),
         'utf-8'
       );
-      expect(src).toMatch(/from 'expo-av'/);
-      expect(src).toMatch(/Audio\.Sound/);
+      expect(src).toMatch(/from 'expo-audio'/);
+      expect(src).toMatch(/createAudioPlayer/);
+      // expo-av is discontinued and breaks on RN 0.86 / New Architecture:
+      // no import of it may come back (comments referencing it are fine).
+      expect(src).not.toMatch(/from 'expo-av'/);
+      expect(src).not.toMatch(/Audio\.Sound/);
       // Old broken stub had `amplitudes` state and commented-out fetch.
       expect(src).not.toMatch(/const \[amplitudes/);
+    });
+
+    it('SendInput records through expo-audio, not the discontinued expo-av', () => {
+      const fs = require('fs');
+      const src = fs.readFileSync(
+        require.resolve('../src/components/styled/SendInput'),
+        'utf-8'
+      );
+      expect(src).toMatch(/from 'expo-audio'/);
+      expect(src).toMatch(/useAudioRecorder/);
+      expect(src).not.toMatch(/from 'expo-av'/);
+      expect(src).not.toMatch(/new Audio\.Recording/);
     });
 
     it('VideoMessage shows a tappable poster that opens the preview (no onBuffer loop)', () => {
@@ -388,7 +404,7 @@ describe('customer feedback round — locked behaviour', () => {
       // Inline bubble now renders the first frame as a poster behind a
       // play affordance; tapping anywhere opens the full-screen player.
       // Inline native controls are off (they swallowed the tap and looked
-      // cramped). Migrated expo-av → expo-video (useVideoPlayer/VideoView).
+      // cramped). Migrated to expo-video (useVideoPlayer/VideoView).
       expect(src).toMatch(/from 'expo-video'/);
       expect(src).toMatch(/useVideoPlayer|VideoView/);
       expect(src).toMatch(/onPress=\{handleOpen\}/);
@@ -411,10 +427,10 @@ describe('customer feedback round — locked behaviour', () => {
 
   // ── 26.5.3: expo packages moved to peerDependencies ───────────────────
   describe('expo media packages are peer deps, not runtime deps', () => {
-    it('expo-av / expo-image-picker etc. live under peerDependencies only', () => {
+    it('expo-audio / expo-image-picker etc. live under peerDependencies only', () => {
       const pkg = require('../package.json');
       const expoPeers = [
-        'expo-av',
+        'expo-audio',
         'expo-clipboard',
         'expo-document-picker',
         'expo-image-manipulator',

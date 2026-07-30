@@ -7,7 +7,12 @@ import {
   ActivityIndicator,
   Platform,
 } from 'react-native';
-import { Audio, AVPlaybackStatus } from 'expo-av';
+import {
+  createAudioPlayer,
+  setAudioModeAsync,
+  type AudioPlayer,
+  type AudioStatus,
+} from 'expo-audio';
 import * as FileSystem from 'expo-file-system/legacy';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import { PauseIcon, PlayIcon } from '../../assets/icons';
@@ -196,11 +201,11 @@ const getContainerExtension = (container: AudioContainer) => {
   }
 };
 
-// AVFoundation (expo-av) and the iOS WKWebView <audio> element cannot
+// AVFoundation (expo-audio) and the iOS WKWebView <audio> element cannot
 // demux/decode WebM or Ogg Opus — only `AudioContext.decodeAudioData` can
 // on iOS. So on iOS those two containers go through the WebView decoder.
 // Everything else (mp3/m4a/aac/wav), and ALL of Android (ExoPlayer handles
-// Opus natively), plays straight through expo-av.
+// Opus natively), plays straight through expo-audio.
 const requiresWebAudioDecode = (container: AudioContainer) =>
   Platform.OS === 'ios' && (container === 'webm' || container === 'ogg');
 
@@ -213,7 +218,7 @@ const requiresWebAudioDecode = (container: AudioContainer) =>
 //     cannot supply, so both hang silently.
 // Therefore the page decodes Opus → PCM, re-encodes to a WAV blob, and ships
 // the bytes back to RN as base64. RN writes the WAV to cache and plays it
-// through expo-av (native, no gesture limits, real play/pause/seek).
+// through expo-audio (native, no gesture limits, real play/pause/seek).
 const WEB_DECODER_HTML = `<!doctype html>
 <html>
   <head>
@@ -314,7 +319,11 @@ const AudioMessage = ({
   originalName,
 }: AudioMessageProps) => {
   const { config } = useChatSettingState();
-  const soundRef = useRef<Audio.Sound | null>(null);
+  const soundRef = useRef<AudioPlayer | null>(null);
+  // expo-audio delivers progress through an event subscription instead of
+  // expo-av's `onPlaybackStatusUpdate` callback argument, so the handle has
+  // to be held and removed alongside the player itself.
+  const statusSubRef = useRef<{ remove: () => void } | null>(null);
   const webViewRef = useRef<WebView | null>(null);
   const preparedRef = useRef<PreparedSource | null>(null);
   const bridgeReadyRef = useRef(false);
@@ -335,6 +344,29 @@ const AudioMessage = ({
     if (loadingTimerRef.current) {
       clearTimeout(loadingTimerRef.current);
       loadingTimerRef.current = null;
+    }
+  };
+
+  // expo-audio players are native shared objects: they are NOT garbage
+  // collected with the component, so every one we create has to be
+  // explicitly `remove()`d (expo-av's `unloadAsync` equivalent) and its
+  // status subscription torn down first.
+  const releasePlayer = () => {
+    statusSubRef.current?.remove();
+    statusSubRef.current = null;
+    const player = soundRef.current;
+    soundRef.current = null;
+    if (player) {
+      try {
+        player.pause();
+      } catch {
+        /* already released */
+      }
+      try {
+        player.remove();
+      } catch {
+        /* already released */
+      }
     }
   };
 
@@ -360,7 +392,7 @@ const AudioMessage = ({
   };
 
   // Hard ceiling on the loading spinner — whatever stalls (a hung network
-  // request, a WebView that never decodes, expo-av wedging on a bad file)
+  // request, a WebView that never decodes, a player that never loads)
   // the control resolves to an error state instead of spinning forever
   // (the customer-reported "stuck spinner").
   const armLoadingGuard = () => {
@@ -480,50 +512,70 @@ const AudioMessage = ({
     }
   };
 
-  const onPlaybackStatusUpdate = (status: AVPlaybackStatus) => {
+  // expo-audio reports times in SECONDS (expo-av used milliseconds); the
+  // whole UI below is millisecond-based, so convert at this boundary and
+  // nowhere else.
+  const onPlaybackStatusUpdate = (status: AudioStatus) => {
     if (!status.isLoaded) {
-      if (status.error) {
-        logAudioDebug('playback status error', { src, error: status.error });
-      }
       return;
     }
-    setPosition(status.positionMillis);
-    setDuration(status.durationMillis ?? 0);
-    setIsPlaying(status.isPlaying);
+    setPosition(Math.max(0, status.currentTime * 1000));
+    setDuration(status.duration > 0 ? status.duration * 1000 : 0);
+    setIsPlaying(status.playing);
     if (status.didJustFinish) {
       didFinishRef.current = true;
       setIsPlaying(false);
       setPosition(0);
-      void soundRef.current?.setStatusAsync({
-        shouldPlay: false,
-        positionMillis: 0,
-      });
+      const player = soundRef.current;
+      if (player) {
+        player.pause();
+        void player.seekTo(0);
+      }
     }
   };
 
   const startNativePlayback = async (localUri: string) => {
     try {
-      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+      await setAudioModeAsync({ playsInSilentMode: true });
     } catch {
       /* non-fatal — still plays through the ringer channel */
     }
-    const { sound } = await withTimeout<{
-      sound: Audio.Sound;
-      status: AVPlaybackStatus;
-    }>(
-      Audio.Sound.createAsync(
-        { uri: localUri },
-        { shouldPlay: true },
-        onPlaybackStatusUpdate
-      ),
-      12000,
-      'audio_create_timeout'
+    // expo-audio has no awaitable `createAsync`: the player is constructed
+    // synchronously and loads in the background, reporting `isLoaded` via
+    // the status event. Wait for that first loaded status (same 12s budget
+    // expo-av's createAsync had) so the spinner still resolves to either
+    // real playback or the error state, never to a silent dead button.
+    const player = createAudioPlayer({ uri: localUri }, { updateInterval: 250 });
+    let settleLoaded: (() => void) | null = null;
+    const loaded = new Promise<void>((resolve) => {
+      settleLoaded = resolve;
+    });
+    const subscription = player.addListener(
+      'playbackStatusUpdate',
+      (status: AudioStatus) => {
+        if (status.isLoaded && settleLoaded) {
+          settleLoaded();
+          settleLoaded = null;
+        }
+        onPlaybackStatusUpdate(status);
+      }
     );
+
+    try {
+      await withTimeout(loaded, 12000, 'audio_create_timeout');
+    } catch (error) {
+      subscription.remove();
+      player.remove();
+      throw error;
+    }
     if (unmountedRef.current) {
-      void sound.unloadAsync();
+      subscription.remove();
+      player.remove();
       return;
     }
-    soundRef.current = sound;
+    soundRef.current = player;
+    statusSubRef.current = subscription;
+    player.play();
     clearLoadingGuard();
     setIsLoading(false);
     setPlaybackError(false);
@@ -595,14 +647,21 @@ const AudioMessage = ({
     // decoded-WAV from the WebView path) → plain toggle.
     if (soundRef.current) {
       try {
+        // `play()` / `pause()` emit NO status event of their own (expo-av's
+        // playAsync/pauseAsync resolved with one). Playing state only ever
+        // reaches us through the periodic time observer, and that observer
+        // stops while paused — so without setting this here the button
+        // would latch on "pause" forever and never resume.
         if (isPlaying) {
-          await soundRef.current.pauseAsync();
+          soundRef.current.pause();
+          setIsPlaying(false);
         } else {
           if (didFinishRef.current) {
-            await soundRef.current.setPositionAsync(0);
+            await soundRef.current.seekTo(0);
             didFinishRef.current = false;
           }
-          await soundRef.current.playAsync();
+          soundRef.current.play();
+          setIsPlaying(true);
         }
       } catch (error) {
         fail(error);
@@ -643,7 +702,7 @@ const AudioMessage = ({
     return () => {
       unmountedRef.current = true;
       clearLoadingGuard();
-      soundRef.current?.unloadAsync();
+      releasePlayer();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -651,8 +710,7 @@ const AudioMessage = ({
   // Full reset whenever the source changes (component reused for a new
   // message / re-render with a different src).
   useEffect(() => {
-    soundRef.current?.unloadAsync();
-    soundRef.current = null;
+    releasePlayer();
     preparedRef.current = null;
     bridgeReadyRef.current = false;
     injectedRef.current = false;
@@ -693,6 +751,8 @@ const AudioMessage = ({
       ) : null}
       <View style={styles.container}>
         <TouchableOpacity
+          testID="audio-play-button"
+          accessibilityLabel="audio-play-button"
           style={[styles.playButton, { backgroundColor: primaryColor }]}
           onPress={togglePlayback}
           disabled={isLoading}

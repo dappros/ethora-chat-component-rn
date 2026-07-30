@@ -38,7 +38,7 @@ import {
   View,
 } from 'react-native';
 // LogBox dev-warning filtering lives in ./setupLogBox (imported first from
-// index.js, before expo-av/styled-components warn at import time).
+// index.js, before expo-audio/styled-components warn at import time).
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 // `SafeAreaView` from `react-native` is deprecated and crucially does

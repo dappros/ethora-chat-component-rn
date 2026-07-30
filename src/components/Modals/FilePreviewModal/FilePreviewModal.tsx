@@ -50,8 +50,8 @@ const isGviewPreviewable = (mime: string | undefined | null) => {
   return GVIEW_PREVIEWABLE.has(mime.toLowerCase().split(';')[0]!.trim());
 };
 
-// Full-screen video preview on expo-video (expo-av <Video> is deprecated
-// and rendered blank on Android). `contentFit: contain` fits the clip to
+// Full-screen video preview on expo-video (the discontinued expo-av
+// <Video> rendered blank on Android). `contentFit: contain` fits the clip to
 // the area with the surrounding letterbox painted as the view's own
 // (transparent → theme) background, NOT black. `textureView` so the play
 // overlay composites on top and nothing is clipped on Android.
@@ -409,7 +409,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           flex: 1,
           justifyContent: 'center',
           // NOTE: do NOT set overflow:'hidden' here — on Android it clips
-          // hardware-accelerated children (expo-av Video TextureView and
+          // hardware-accelerated children (expo-video TextureView and
           // react-native-webview) to nothing, so video/PDF/doc previews
           // render blank while plain <Image> survives.
           overflow: 'visible',
