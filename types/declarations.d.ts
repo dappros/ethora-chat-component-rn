@@ -69,20 +69,24 @@ declare module "@xmpp/xml" {
   }
 }
 
-// expo-av is deprecated upstream (use expo-audio/expo-video for new code);
-// kept here as an ambient shim so the SDK type-checks cleanly whether the
-// consumer installs expo-av or not. Real types win when the package is
-// actually installed.
-declare module "expo-av" {
-  // Declared as a namespace so `Audio.Sound` resolves as a type.
-  namespace Audio {
-    type Sound = any;
-  }
-  const Audio: any;
-  const Video: any;
-  const ResizeMode: any;
-  type AVPlaybackStatus = any;
-  export { Audio, Video, ResizeMode, AVPlaybackStatus };
+// expo-audio is an OPTIONAL peer dep (audio messages are opt-in), so this
+// ambient shim keeps the SDK type-checking cleanly whether the consumer
+// installs it or not. Real types win when the package is present.
+declare module "expo-audio" {
+  export type AudioPlayer = any;
+  export type AudioStatus = any;
+  export type AudioRecorder = any;
+  export type RecorderState = any;
+  export type RecordingStatus = any;
+  export const RecordingPresets: any;
+  export function createAudioPlayer(...args: any[]): any;
+  export function useAudioPlayer(...args: any[]): any;
+  export function useAudioRecorder(...args: any[]): any;
+  export function useAudioRecorderState(...args: any[]): any;
+  export function setAudioModeAsync(...args: any[]): Promise<void>;
+  export function setIsAudioActiveAsync(...args: any[]): Promise<void>;
+  export function requestRecordingPermissionsAsync(...args: any[]): Promise<any>;
+  export function getRecordingPermissionsAsync(...args: any[]): Promise<any>;
   const content: any;
   export default content;
 }

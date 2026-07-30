@@ -18,9 +18,16 @@ import { useT } from '../../i18n/useT';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
-// `Audio` namespace gives us permissions, audio mode, presets, and the
-// Recording class — same pattern AudioMessage uses for Audio.Sound.
-import { Audio } from 'expo-av';
+// expo-audio replaces the discontinued expo-av: `useAudioRecorder` owns a
+// single reusable recorder for this input's lifetime (prepare → record →
+// stop → prepare again), and the module-level helpers cover permissions
+// and the iOS audio session.
+import {
+  useAudioRecorder,
+  setAudioModeAsync,
+  requestRecordingPermissionsAsync,
+  RecordingPresets,
+} from 'expo-audio';
 
 // iOS photos default to HEIC; many web backends (incl. ours) 500 on
 // HEIC uploads because they can't decode it. Convert to JPEG before
@@ -99,14 +106,20 @@ const SendInput: React.FC<SendInputProps> = ({
   const [filePreviews, setFilePreviews] = useState<MediaFile[]>([]);
   const [showMediaMenu, setShowMediaMenu] = useState(false);
 
-  // expo-av's Audio.Recording instance for the in-progress recording.
-  // Kept in a ref (not state) because handlers fire synchronously and we
-  // need the latest instance without waiting for a re-render.
-  // Typed via InstanceType<typeof Audio.Recording> because direct
-  // `Audio.Recording` as a type-position lookup fails under bundler
-  // resolution even though the class is in the Audio namespace at
-  // runtime. InstanceType resolves through the typeof of the value.
-  const recordingRef = useRef<InstanceType<typeof Audio.Recording> | null>(null);
+  // expo-audio's recorder is a long-lived native object owned by the hook
+  // (released automatically on unmount) and reused across recordings, so
+  // unlike expo-av's one-shot `Audio.Recording` there is no per-recording
+  // instance to hold. The hook has to run unconditionally, but the
+  // constructor is inert on both platforms — iOS allocates a bare
+  // AVAudioRecorder (no file), Android leaves its MediaRecorder null.
+  // Nothing claims the mic, writes a file, or switches the iOS session to
+  // playAndRecord until `prepareToRecordAsync`, so consumers with
+  // `enableAudio` off carry an idle object and nothing more.
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  // Tracks whether a recording is actually in flight, so cancel/stop and
+  // the unmount teardown can tell "never started" from "needs stopping"
+  // without reading native state.
+  const isRecordingRef = useRef(false);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Refs shadow `message` and `filePreviews` so handleSendClick can:
@@ -292,7 +305,7 @@ const SendInput: React.FC<SendInputProps> = ({
   //
   // Mirrors the web experience: tap mic → start recording → either tap
   // X to discard, or tap send to stop + immediately upload + post the
-  // voice message. Uses expo-av's Audio.Recording (already a peer dep
+  // voice message. Uses expo-audio's AudioRecorder (already a peer dep
   // for AudioMessage playback). Filename is `voice-<timestamp>.m4a` with
   // mimetype `audio/m4a` so the receiver routes through the audio
   // branch in MediaMessage directly, no octet-stream sniffing needed.
@@ -308,9 +321,9 @@ const SendInput: React.FC<SendInputProps> = ({
   // playback elsewhere in the app isn't routed to the earpiece.
   const restoreAudioMode = async () => {
     try {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
       });
     } catch {
       /* non-fatal */
@@ -318,27 +331,30 @@ const SendInput: React.FC<SendInputProps> = ({
   };
 
   const handleStartRecording = async () => {
-    if (isRecording || recordingRef.current) {return;}
+    if (isRecording || isRecordingRef.current) {return;}
     try {
-      const perm = await Audio.requestPermissionsAsync();
+      const perm = await requestRecordingPermissionsAsync();
       if (!perm.granted) {
         promptOpenSettings(
           'Microphone permission is needed to record voice messages.'
         );
         return;
       }
-      // iOS: recording requires `allowsRecordingIOS:true`; we'll
-      // flip it back in restoreAudioMode after stop/cancel.
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
+      // `allowsRecording` is not just an iOS session flag: expo-audio's
+      // recorder throws RecordingDisabledException from record() when the
+      // audio mode has it off. Flipped back in restoreAudioMode after
+      // stop/cancel so playback elsewhere isn't stuck on the earpiece.
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
       });
-      const rec = new Audio.Recording();
-      await rec.prepareToRecordAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      await rec.startAsync();
-      recordingRef.current = rec;
+      // Passing the preset (rather than preparing bare) makes the native
+      // side allocate a FRESH output file for this take. Without it the
+      // recorder reuses the previous URL, so a second voice message would
+      // overwrite the first while its upload is still in flight.
+      await audioRecorder.prepareToRecordAsync(RecordingPresets.HIGH_QUALITY);
+      audioRecorder.record();
+      isRecordingRef.current = true;
       setIsRecording(true);
       setRecordingDuration(0);
       const startedAt = Date.now();
@@ -348,7 +364,7 @@ const SendInput: React.FC<SendInputProps> = ({
       }, 250);
     } catch (err) {
       console.warn('startRecording failed', err);
-      recordingRef.current = null;
+      isRecordingRef.current = false;
       setIsRecording(false);
       setRecordingDuration(0);
       await restoreAudioMode();
@@ -357,15 +373,15 @@ const SendInput: React.FC<SendInputProps> = ({
 
   const handleCancelRecording = async () => {
     stopRecordingTimer();
-    const rec = recordingRef.current;
-    recordingRef.current = null;
+    const wasRecording = isRecordingRef.current;
+    isRecordingRef.current = false;
     setIsRecording(false);
     setRecordingDuration(0);
-    if (rec) {
+    if (wasRecording) {
       try {
-        await rec.stopAndUnloadAsync();
+        await audioRecorder.stop();
       } catch {
-        /* already stopped / unloaded — fine */
+        /* already stopped — fine */
       }
     }
     await restoreAudioMode();
@@ -373,12 +389,12 @@ const SendInput: React.FC<SendInputProps> = ({
 
   const handleStopAndSendRecording = async () => {
     stopRecordingTimer();
-    const rec = recordingRef.current;
-    recordingRef.current = null;
+    const wasRecording = isRecordingRef.current;
+    isRecordingRef.current = false;
     setIsRecording(false);
     const seconds = recordingDuration;
     setRecordingDuration(0);
-    if (!rec) {
+    if (!wasRecording) {
       await restoreAudioMode();
       return;
     }
@@ -386,18 +402,20 @@ const SendInput: React.FC<SendInputProps> = ({
     // within the same tick there's nothing audible to send.
     if (seconds < 1) {
       try {
-        await rec.stopAndUnloadAsync();
+        await audioRecorder.stop();
       } catch {}
       await restoreAudioMode();
       return;
     }
     try {
-      await rec.stopAndUnloadAsync();
+      await audioRecorder.stop();
     } catch (err) {
-      console.warn('stopAndUnloadAsync failed', err);
+      console.warn('recorder.stop failed', err);
     }
+    // Read the URI while it still points at THIS take — the next
+    // prepareToRecordAsync() swaps in a new output file.
+    const uri = audioRecorder.uri;
     await restoreAudioMode();
-    const uri = rec.getURI();
     if (!uri) {return;}
     // HIGH_QUALITY preset writes AAC in an M4A container on both iOS
     // and Android, so a single mimetype works. `voice-<ts>.m4a`
@@ -421,14 +439,16 @@ const SendInput: React.FC<SendInputProps> = ({
   useEffect(() => {
     return () => {
       stopRecordingTimer();
-      const rec = recordingRef.current;
-      recordingRef.current = null;
-      if (rec) {
-        rec.stopAndUnloadAsync().catch(() => {});
+      if (isRecordingRef.current) {
+        isRecordingRef.current = false;
+        audioRecorder.stop().catch(() => {});
       }
       restoreAudioMode();
     };
-  }, []);
+    // The hook's recorder identity is stable (its options never change),
+    // so this teardown runs on unmount only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [audioRecorder]);
 
   const handleRemoveImage = (index: number) => {
     const next = filePreviewsRef.current.filter((_, i) => i !== index);

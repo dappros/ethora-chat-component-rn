@@ -401,7 +401,7 @@ export interface IConfig {
    * When `true`, an idle input (no text, no attachments) shows a
    * microphone in the send-button slot; tap → start recording → stop &
    * send. iOS apps need `NSMicrophoneUsageDescription` in Info.plist
-   * (add via `expo-av`'s plugin block in `app.json`). Receiving voice
+   * (add via `expo-audio`'s plugin block in `app.json`). Receiving voice
    * messages from other clients (incl. legacy web `.bin` voicemails) is
    * independent of this flag — incoming audio plays regardless.
    */

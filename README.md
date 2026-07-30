@@ -70,11 +70,11 @@ Image / video / document / audio send & receive, HEIC→JPEG conversion, profile
 
 ```bash
 npx expo install \
-  expo-av expo-video expo-clipboard expo-document-picker \
+  expo-audio expo-video expo-clipboard expo-document-picker \
   expo-image-manipulator expo-image-picker expo-media-library
 ```
 
-> Video playback uses **`expo-video`** (`useVideoPlayer` / `VideoView`); `expo-av` is still used for audio. Install both.
+> Video playback uses **`expo-video`** (`useVideoPlayer` / `VideoView`) and audio uses **`expo-audio`** (`createAudioPlayer` / `useAudioRecorder`). Install both. The discontinued `expo-av` is no longer used anywhere in the SDK, so consumers on Expo SDK 57 / RN 0.86 with the New Architecture can drop it.
 
 > No `metro.config.js` shim is required. As of `26.5.5` the SDK no longer statically imports any legacy `react-native-*` native modules; the bundled `withEthoraShims` helper is preserved as a no-op for backward compat with older setups.
 
@@ -282,7 +282,7 @@ Why awaitable: the persistence layer debounces writes by 200 ms, and the chat sl
 | `disableChatInfo.disableRoomMenu` | Hides the **three-dots overflow menu on the right of the chat-room header** (the `RoomMenu` with "Leave", etc.). The center panel (avatar + chat name) stays fully visible. **Not** to be confused with the top-level `disableRoomMenu`, which hides the context menu in the **room list**, not the open-chat header. |
 | `disableChatInfo.disableIconEdit` | Makes the chat icon read-only in the chat-info modal — hides the press-to-pick picker AND the remove affordance regardless of the user's role. The icon still renders. |
 | `disableChatHeaderBurgerMenuIcon` | Hides the burger icon in the chat header (the icon that opens the room-list dropdown). `chatHeaderBurgerMenu` controls only the dropdown — set this when you want neither rendered. |
-| `enableAudio` | Opt-in voice messages. **Off by default.** When `true`, an idle input (no text, no attachments) shows a mic icon in the send-button slot — tap → start recording → stop & send. iOS apps need `NSMicrophoneUsageDescription` in Info.plist (add via `expo-av`'s plugin block in `app.json`). Receiving voice messages from other clients (incl. legacy web `.bin` voicemails) is **independent of this flag** — incoming audio plays regardless. |
+| `enableAudio` | Opt-in voice messages. **Off by default.** When `true`, an idle input (no text, no attachments) shows a mic icon in the send-button slot — tap → start recording → stop & send. iOS apps need `NSMicrophoneUsageDescription` in Info.plist (add via `expo-audio`'s plugin block in `app.json`). Receiving voice messages from other clients (incl. legacy web `.bin` voicemails) is **independent of this flag** — incoming audio plays regardless. |
 | `disableMemberProfileActions` | Hides the whole "Message / Copy User Id" action block **inside** the chat-info member-profile popup. The popup itself still opens — to block the tap entirely, use `disableChatInfo.disableMemberTap`. |
 | `disableChatInfo.disableMemberTap` | Disables the tap on a member row in the chat-info list — the user-profile popup never opens. Set when no per-member interaction is appropriate (e.g. patient-facing apps). |
 | `hideMemberSendMessageAction` | Hides only the "Message" button, keeps everything else. |

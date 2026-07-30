@@ -3,6 +3,86 @@
 All notable changes to `@ethora/chat-component-rn` are listed here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project doesn't follow strict semver yet — version corresponds to the `package.json` field.
 
+## [26.6.3]
+
+Three releases' worth of work landing together: **audio/video calling**, a **translation architecture** mirroring the web SDK, and the **`expo-av` → `expo-audio`** migration that unblocks Expo SDK 57. Alongside them, four delivery bugs that all presented as "messages just stop arriving", and a persistence fix that was writing megabytes of member roster on every debounce tick. Verified with typecheck clean and 644 jest tests green, plus live on-device runs against a real QA backend for calls, translation and voice messages.
+
+### Added
+
+#### Audio and video calls (opt-in via `config.videoCalls`)
+
+- **Call state machine and XMPP signalling ported from web**, behaviour unchanged: `callSlice` (phase/direction/kind, with `connectedAt` anchored once so a mid-call reconnect blip cannot shrink the logged duration), `call-token` / `call-invite` / `call-state` stanza handling, and the kind-hint stash that works around the backend dropping `kind` on its broadcast token.
+- **Call UI built on `livekit-client`'s imperative Room API.** The web session uses `@livekit/components-react`, which assumes a DOM; here the Room is driven directly and derived state (subscribed tracks, mute flags, connection state) is re-synced on `RoomEvent`. Only the video surface comes from `@livekit/react-native`.
+- **Both LiveKit packages and `react-native-callkeep` are OPTIONAL peer dependencies**, required lazily through `livekitRuntime.ts` / `useCallKeep.ts`. A top-level import would break the bundle for every chat-only host over a feature they never switched on. Hosts without them get a clear "calls unavailable" message, not a redbox.
+- **Push is the primary path for incoming calls, not a fallback.** On mobile the XMPP socket dies whenever the OS backgrounds the app, taking the call-token stanza with it. `handleCallPush` claims anything call-shaped before the chat-notification path so a call can never surface as an "OK / Open" alert, and reports back even when it decides not to ring (calls disabled, already ringing this call, no token to accept with).
+- **Call-state stanzas render as call-log entries** ("Outgoing call, 12 sec"). Control frames are dropped at the reducer boundary so they never appear as "Deleted User: call-state" bubbles, and the local hangup fallback dedupes against the server copy by `callId`.
+
+#### Translation / i18n
+
+- **Static UI captions and per-message translation are now two separate mechanisms**, matching web. Static captions come from a built-in flat string table per language (en, fr, es, pt, ht, zh) with no external i18n dependency, overridable per key via `config.i18n.strings`.
+- **`useT` resolves the locale from `config.i18n.locale`, falling back to the reader's `langSource`**, so picking a language in the chat switches the interface and the message translations together. A reader who picks Français expects the whole chat in French, not French messages inside an English UI.
+- **Auto-translate is the default rendering.** The translation is the message body with the original quoted above it (`TranslatedMessageBody` + `useMessageTranslation`, ported from web). The reader's own messages are never translated.
+
+### Breaking
+
+- **`expo-av` is replaced by `expo-audio` in `peerDependencies`.** Consumers using voice messages must install `expo-audio` and may drop `expo-av`:
+
+  ```bash
+  npx expo install expo-audio
+  npm uninstall expo-av
+  ```
+
+  Apps that set the microphone permission through `expo-av`'s config-plugin block in `app.json` must move it to `expo-audio` (same `microphonePermission` option). No change is needed to `IConfig` or any component prop — `enableAudio` and the message surfaces are unchanged.
+
+### Changed
+
+- **Voice messages moved off the discontinued `expo-av` and onto `expo-audio`**, which is what unblocks consumers upgrading to **Expo SDK 57 (RN 0.86, React 19.2, New Architecture)**. `expo-video` already handled video, so audio was the last `expo-av` surface in the SDK.
+- **`AudioMessage` plays through `createAudioPlayer`** instead of `Audio.Sound.createAsync`. The WebView Opus→WAV decoder path for iOS WebM/Ogg is untouched; only the native playback engine underneath it changed.
+- **`SendInput` records through `useAudioRecorder`** instead of a per-take `Audio.Recording`. Each take still prepares with `RecordingPresets.HIGH_QUALITY`, which allocates a fresh output file so a second voice message cannot overwrite one whose upload is still in flight.
+- **Peer ranges verified against Expo SDK 57.** Every existing range already accepts the SDK 57 versions (`react@19.2`, `react-native@0.86`, `expo-*@57.x`), so no other peer needed widening. `expo-audio` is declared as `>=1.0.0`, which spans both SDK 54 (`1.x`) and SDK 57 (`57.x`), and every call site type-checks against `expo-audio@57`.
+- **LiveKit native deps pinned exactly in `devDependencies`** (`@livekit/react-native` 2.7.6, `@livekit/react-native-webrtc` 125.0.11, `livekit-client` 2.9.0, `react-native-callkeep` 4.3.16). The `^` ranges resolved `@livekit/react-native@2.12`, which peer-requires webrtc `^144` and conflicts with the 125.x line. The published peer ranges stay flexible and optional.
+
+### Fixed
+
+#### Message delivery — four separate causes of "new messages just stop arriving"
+
+- **The mucsub event envelope was never unwrapped.** Every room is mucsub-subscribed, so ejabberd delivers live room traffic wrapped in a pubsub `<event><items><item><message>` envelope. `handleStanza` read `<data>` / `<body>` off the OUTER envelope, found nothing, and dropped every live message — they only reappeared later through MAM history or an app restart.
+- **Messages whose `<data>` carries no `senderJID` were dropped.** A real wire capture from the shared QA server showed the web SDK's translate-tagged send path builds `<data>` from a completely different attribute bag (`roomJID`, `firstName`, `userMessage`, no `senderJID` at all). Both `onRealtimeMessage` and `onMessageHistory` hard-required `senderJID`; they now fall back to the stanza's `from`, matching web's leniency.
+- **Reconnect could wedge permanently.** `reconnect()` awaited the old client's `stop()` unbounded, and on the half-dead socket we are reconnecting *for*, `@xmpp/client`'s `stop()` can hang forever on a close handshake that never lands. The single-flight `reconnecting` flag stayed `true`, so every later trigger (watchdog, NetInfo, AppState) short-circuited and the client never came back until the app was killed. Teardown is now bounded by `withTimeout()`.
+- **The foreground watchdog was gated too tightly.** It skipped whenever `AppState.currentState !== 'active'`, but iOS reports `'inactive'` for many transient non-backgrounded states (Control Center, app switcher, an unfocused Simulator window), silently disabling it. It now only skips on a genuine `'background'`.
+
+#### Identity, avatars and the send path
+
+- **Sender identity resolves through `usersSet`, not the message.** `Message.tsx` read `message.user.name` / `message.user.profileImage` directly — a snapshot of whoever sent the message whenever they sent it — while `usersSet` is the store that keeps updating. `usersSet` itself was never populated anywhere in the RN codebase despite being read; it is now hydrated from the `/chats/my` members payload. The avatar case was a correctness bug and not just a staleness one: once the persist layer stopped caching per-message avatars, a cache-restored message carried no `profileImage` at all and rendered a blank initials circle.
+- **Translate-tagged sends no longer stick on "pending".** The builder produced a malformed `<data>` element (no `xmlns`, wrong attribute names) that the server silently dropped, so no echo ever came back. It is now built identically to `sendTextMessage`, plus the `<translate source>` tag.
+- **Hardcoded UI strings now go through `t()`** in `SendInput`, `RoomList` and `UsersList` — the keys already existed in all six languages but the components used raw literals.
+
+#### Push
+
+- **Devices are no longer registered against the development environment.** `push.api.ts` hardcoded `push.ethoradev.com` and qualified every JID with `@xmpp.ethoradev.com` — shipped inside the SDK, so every host app including production ones registered against dev infrastructure and then quietly received no pushes. Both now resolve from the host's own config with the production cluster as fallback, and an already-qualified JID is no longer double-qualified. Also drops a `console.log` that printed the whole subscription payload, FCM token included, on every subscribe.
+
+#### Calls
+
+- **A camera or mic failure no longer kills the whole call.** `VideoCallSession` shared one try/catch across `room.connect()` and `setMicrophoneEnabled()` / `setCameraEnabled()`, so any device failure — permission denied, or simply no camera hardware, which is every iOS Simulator — was treated as a fatal connect failure. From the ring screen this read as "tapped Accept, nothing happens". Only `room.connect()` is fatal now; device failures surface as a dismissible hint while the call proceeds, matching web.
+- **`createChatCall` is bounded by a 15s timeout.** Reproduced live: the request hung for 75+ seconds through the iOS Simulator's network stack, while the identical request via `curl` returned in 0.65s. Neither SDK set a timeout anywhere on its axios client, so nothing bounded the wait and the UI's separate 30s ring timeout was uncoordinated with it.
+- **`react-native-callkeep` is genuinely optional.** `loadCallKeep()` now probes `NativeModules.RNCallKeep` before requiring the package, so a build where the JS package is present but the native side is not linked no longer crashes in `new NativeEventEmitter(null)`.
+
+#### Voice message playback (from the `expo-av` → `expo-audio` migration)
+
+- **Playback times are converted from seconds to milliseconds at the status boundary.** `expo-audio` reports `currentTime` / `duration` in seconds where `expo-av` used milliseconds; passing them through unconverted would render every voice message as `0:00 / 0:00` with a dead progress bar and no error.
+- **Pause/resume works.** `expo-audio`'s `play()` and `pause()` emit no status event of their own (`playAsync` / `pauseAsync` resolved with one), and the periodic time observer that reports `playing` stops while paused — so the playing flag is now set locally at the tap. Caught on-device: without it the button latched on "pause" after the first tap and the clip could never be paused or resumed.
+- **Native audio players are explicitly released.** `expo-audio` players are native shared objects that are not collected with the component, so they are `remove()`d (with their status subscription) on unmount and whenever `src` changes.
+
+### Performance
+
+- **Member rosters no longer crowd out the message cache.** `sanitizeRooms` spread the whole room object into AsyncStorage, roster included. Measured against a real account, one room serialized to 839,228 chars of which 838,473 were its 3,478 members — roughly 750x the rest of the room object combined, rewritten on every debounce tick, for data that `/chats/my` refetches on the very next load anyway. On Android that meant blown AsyncStorage cursor-window limits and multi-second writes. Members are now dropped before writing, preserving `usersCnt`.
+
+### Internal
+
+- **`__tests__/expoAudioMigration.test.tsx`** renders both audio components against a fake `expo-audio` and pins each silent-failure mode: the seconds→milliseconds conversion, the now-required explicit `play()`, pause/resume without a status event, the renamed audio-mode keys (`playsInSilentMode` / `allowsRecording`), player release on unmount, and the record → stop → upload → restore-audio-mode sequence. Every one was confirmed to fail the suite when the fix is reverted.
+- **19 call tests** over the parts that carry real risk and need no native modules: push payloads that must and must not be read as calls, the reducer guards (stale token for another room, accept on a non-incoming call, `connectedAt` anchoring, `kind` patched after the token wins the race), call-log direction and dedupe, and the translate-mode policy.
+- **XMPP regression tests** pinning the exact captured wire formats: the mucsub envelope, a plain non-mucsub message passing through untouched, and `<data>` with no `senderJID` on both the realtime and history paths.
+
 ## [26.5.11]
 
 Single-room and host-app hardening on top of 26.5.10: unread state no longer overloads `lastViewedTimestamp`, room JIDs are normalized before XMPP join paths, iOS keyboard spacing is normalized across devices, tracked default credentials are removed from source, and tenant-specific docs/testbed defaults are scrubbed. Verified with targeted Jest regression suites plus `npm run build`.
