@@ -3,6 +3,37 @@
 All notable changes to `@ethora/chat-component-rn` are listed here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project doesn't follow strict semver yet — version corresponds to the `package.json` field.
 
+## [26.6.1]
+
+Voice messages moved off the discontinued `expo-av` and onto `expo-audio`, which unblocks consumers upgrading to **Expo SDK 57 (RN 0.86, React 19.2, New Architecture)**. `expo-video` already handled video, so audio was the last `expo-av` surface in the SDK. Verified with a new behavioural regression suite (typecheck clean, 615 jest tests green) and end-to-end on an iOS device: record → upload → play → pause → resume → rewind, against the `ExpoAudio` pod.
+
+### Breaking
+
+- **`expo-av` is replaced by `expo-audio` in `peerDependencies`.** Consumers using voice messages must install `expo-audio` and may drop `expo-av`:
+
+  ```bash
+  npx expo install expo-audio
+  npm uninstall expo-av
+  ```
+
+  Apps that set the microphone permission through `expo-av`'s config-plugin block in `app.json` must move it to `expo-audio` (same `microphonePermission` option). No change is needed to `IConfig` or any component prop — `enableAudio` and the message surfaces are unchanged.
+
+### Changed
+
+- **`AudioMessage` plays through `createAudioPlayer`** instead of `Audio.Sound.createAsync`. The WebView Opus→WAV decoder path for iOS WebM/Ogg is untouched; only the native playback engine underneath it changed.
+- **`SendInput` records through `useAudioRecorder`** instead of a per-take `Audio.Recording`. Each take still prepares with `RecordingPresets.HIGH_QUALITY`, which allocates a fresh output file so a second voice message cannot overwrite one whose upload is still in flight.
+- **Peer ranges verified against Expo SDK 57.** Every existing range already accepts the SDK 57 versions (`react@19.2`, `react-native@0.86`, `expo-*@57.x`), so no other peer needed widening. `expo-audio` is declared as `>=1.0.0`, which spans both SDK 54 (`1.x`) and SDK 57 (`57.x`).
+
+### Fixed
+
+- **Playback times are converted from seconds to milliseconds at the status boundary.** `expo-audio` reports `currentTime` / `duration` in seconds where `expo-av` used milliseconds; passing them through unconverted would have rendered every voice message as `0:00 / 0:00` with a dead progress bar and no error.
+- **Pause/resume on a voice message works.** `expo-audio`'s `play()` and `pause()` emit no status event of their own (expo-av's `playAsync` / `pauseAsync` resolved with one), and the periodic time observer that reports `playing` stops while paused — so the playing flag is now set locally at the tap. Caught on-device: without it the button latched on "pause" after the first tap and the clip could never be paused or resumed.
+- **Native audio players are explicitly released.** `expo-audio` players are native shared objects that are not collected with the component, so they are `remove()`d (with their status subscription) on unmount and whenever `src` changes.
+
+### Internal
+
+- **New `__tests__/expoAudioMigration.test.tsx`** renders both components against a fake `expo-audio` and pins the silent-failure modes: the seconds→milliseconds conversion, the now-required explicit `play()` call, the renamed audio-mode keys (`playsInSilentMode` / `allowsRecording`), player release on unmount, and the record → stop → upload → restore-audio-mode sequence.
+
 ## [26.5.11]
 
 Single-room and host-app hardening on top of 26.5.10: unread state no longer overloads `lastViewedTimestamp`, room JIDs are normalized before XMPP join paths, iOS keyboard spacing is normalized across devices, tracked default credentials are removed from source, and tenant-specific docs/testbed defaults are scrubbed. Verified with targeted Jest regression suites plus `npm run build`.

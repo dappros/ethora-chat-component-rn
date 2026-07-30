@@ -47,7 +47,7 @@
       ],
       "expo-video",
       [
-        "expo-av",
+        "expo-audio",
         {
           "microphonePermission": "$(PRODUCT_NAME) needs access to your microphone so you can record voice messages."
         }
