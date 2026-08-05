@@ -1,6 +1,13 @@
 import { Element } from 'ltx';
 import { Iso639_1Codes, IUser } from '../types/types';
 import { transformArrayToObject } from './transformTranslatations';
+import { normalizeXmppUsername } from './xmppUsername';
+
+const getLocalpartFromJid = (jid?: string): string | undefined => {
+  const value = String(jid || '').trim();
+  if (!value) {return undefined;}
+  return value.split('@')[0] || undefined;
+};
 
 // Tolerant JSON parse: a malformed `translations` attr must not reject the
 // whole stanza (which would silently drop the message). Mirrors the web
@@ -64,7 +71,7 @@ export const getDataFromXml = async (stanza: Element): Promise<DataXml | undefin
 
   const xmppId = fullData?.attrs.id;
   const xmppFrom = fullData?.attrs?.from;
-  const [roomJid, userWallet] = (xmppFrom || '').split('/');
+  const [roomJid, userWalletFromResource] = (xmppFrom || '').split('/');
   let id =
     stanza.getChild('result')?.attrs.id ||
     extractTimestamp(stanza?.getChild('stanza-id')?.attrs?.id, stanza);
@@ -92,6 +99,23 @@ export const getDataFromXml = async (stanza: Element): Promise<DataXml | undefin
 
   const data = fullData?.getChild('data') || stanza?.getChild('data');
   const photoURL = data?.attrs?.photo;
+
+  // Sender identity, resolved the way the web SDK does it: the occupant
+  // RESOURCE of `from` first, then the localpart of `<data senderJID>`.
+  //
+  // RN only had the first. The translate-tagged send path arrives with no
+  // occupant resource and no senderJID either, so `user.id` came out
+  // undefined and every downstream fallback landed on the bare room jid's
+  // localpart — which for a 1:1 room is `<appId>_<userA>-<appId>_<userB>`.
+  // That composite id is what got rendered as the sender's name.
+  //
+  // normalizeXmppUsername collapses a doubled `<appId>_` prefix so the key
+  // matches what usersSet is indexed by.
+  const rawUserWallet =
+    userWalletFromResource ||
+    getLocalpartFromJid(data?.attrs?.senderJID) ||
+    undefined;
+  const userWallet = normalizeXmppUsername(rawUserWallet) || rawUserWallet;
 
   const user = {
     id: userWallet,
