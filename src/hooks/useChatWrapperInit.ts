@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { IConfig } from '../types/types';
+import { resolveLegacyTranslatesLangSource } from '../helpers/resolveLangSource';
 import XmppClient from '../networking/xmppClient';
 import { AppDispatch, RootState } from '../roomStore';
 import { useXmppClient } from '../context/xmppProvider';
@@ -111,8 +112,11 @@ const useChatWrapperInit = ({
     let retryTimeout: NodeJS.Timeout;
 
     const initXmmpClient = async () => {
-      if (config?.translates?.enabled && !config?.translates?.translations) {
-        dispatch(setLangSource(config?.translates?.translations));
+      const legacyLangSource = resolveLegacyTranslatesLangSource(
+        config?.translates
+      );
+      if (legacyLangSource) {
+        dispatch(setLangSource(legacyLangSource));
       }
 
       dispatch(setConfig(config));
