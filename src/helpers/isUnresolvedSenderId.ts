@@ -14,7 +14,15 @@
  * matches. A raw objectId on its own is matched too, since some senders
  * carry only that half.
  */
-const ETHORA_ID = /^[0-9a-f]{24}(_[0-9a-f]{24})?$/i;
+const ETHORA_ID_PART = '[0-9a-f]{24}(?:_[0-9a-f]{24})?';
+// A private (1:1) room's own id is two of those joined by a hyphen —
+// `<appId>_<userA>-<appId>_<userB>` — and that is what a message whose
+// `from` carries no occupant resource resolves to. Matched as well, so a
+// bubble is never captioned with a room id.
+const ETHORA_ID = new RegExp(
+  `^${ETHORA_ID_PART}(?:-${ETHORA_ID_PART})?$`,
+  'i'
+);
 
 export const isUnresolvedSenderId = (name?: string): boolean => {
   const trimmed = String(name || '').trim();
