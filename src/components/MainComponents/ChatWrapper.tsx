@@ -5,8 +5,13 @@ import {
   setActiveModal,
   setConfig,
   setDeleteModal,
+  setLangSource,
   setStoreClient,
 } from '../../roomStore/chatSettingsSlice';
+import {
+  resolveExternalReaderLocaleLangSource,
+  resolveLegacyTranslatesLangSource,
+} from '../../helpers/resolveLangSource';
 import {ChatWrapperBox} from '../styled/ChatWrapperBox';
 import {Overlay, StyledModal} from '../styled/MediaModal';
 import ConnectionBanner from './ConnectionBanner';
@@ -112,6 +117,26 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
     dispatch(setDeleteModal({isDeleteModal: false}));
   };
 
+  // A host drives the reader's language from OUTSIDE the component through
+  // `config.translates.readerLocale` (their own switcher, or the testbed's
+  // Setup tab). Nothing was syncing it into `langSource`, so pinning it only
+  // redirected the incoming-translation lookup while the UI captions and the
+  // `<translate source>` on outgoing messages kept following the unset
+  // langSource — which is why picking a language appeared to do nothing.
+  //
+  // Its own effect, not part of init: it has to re-fire whenever the host
+  // changes the value mid-session. And it dispatches only when the value is
+  // actually set, so a host that leaves it unset never clobbers what the
+  // reader picked from the globe.
+  useEffect(() => {
+    const resolved = resolveExternalReaderLocaleLangSource(
+      config?.translates?.readerLocale
+    );
+    if (resolved) {
+      dispatch(setLangSource(resolved));
+    }
+  }, [config?.translates?.readerLocale, dispatch]);
+
   useEffect(() => {
     return () => {
       if (client && user.xmppPassword === '') {
@@ -174,6 +199,14 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
       // Only sync config to redux if we have one — passing `undefined`
       // wipes whatever XmppProvider already set up.
       if (config) {dispatch(setConfig(config));}
+      // Seeds only when the host actually set the legacy single-locale
+      // field, never on mere `enabled` — see resolveLangSource.
+      const legacyLangSource = resolveLegacyTranslatesLangSource(
+        config?.translates
+      );
+      if (legacyLangSource) {
+        dispatch(setLangSource(legacyLangSource));
+      }
       try {
         const hasUser =
           !!user?.defaultWallet?.walletAddress &&

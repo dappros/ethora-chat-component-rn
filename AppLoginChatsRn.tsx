@@ -30,6 +30,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  TouchableOpacity,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -82,6 +83,23 @@ const MUTED = '#71717A';
 // Settings model — Setup tab persists both auth modes in one bag.
 // ---------------------------------------------------------------------
 const CREDS_KEY = '@apploginchatsrn/creds';
+// Feature toggles live under their own key because logout deliberately
+// wipes CREDS_KEY (otherwise the next reload auto-logs-in again). These are
+// dev-tool preferences, not session state — losing the reader language and
+// the call/translate switches on every logout is just friction. "Clear
+// AsyncStorage" still takes them, which is the point of a sledgehammer.
+const PREFS_KEY = '@apploginchatsrn/prefs';
+const PREF_FIELDS = [
+  'videoCalls',
+  'audioCalls',
+  'translates',
+  'translateMode',
+  'readerLocale',
+  'showGlobe',
+] as const;
+
+const pickPrefs = (c: Creds) =>
+  Object.fromEntries(PREF_FIELDS.map((k) => [k, c[k]]));
 
 type LoginMode = 'jwt' | 'email';
 
@@ -689,10 +707,12 @@ const SetupTab: React.FC<{
             <Field label="Translate mode">
               <View style={styles.modeRow}>
                 {(['auto', 'manual'] as const).map((tm) => (
-                  <Pressable
+                  <TouchableOpacity
                     key={tm}
                     testID={`translate-mode-${tm}`}
                     onPress={() => setTranslateMode(tm)}
+                    activeOpacity={0.7}
+                    hitSlop={8}
                     style={[styles.modeBtn, translateMode === tm && styles.modeBtnActive]}
                   >
                     <Text
@@ -703,7 +723,7 @@ const SetupTab: React.FC<{
                     >
                       {tm === 'auto' ? 'Auto' : 'Manual'}
                     </Text>
-                  </Pressable>
+                  </TouchableOpacity>
                 ))}
               </View>
               <Text style={styles.toggleHint}>
@@ -718,10 +738,12 @@ const SetupTab: React.FC<{
                   id: string;
                   name: string;
                 }[]).map((opt) => (
-                  <Pressable
+                  <TouchableOpacity
                     key={opt.id || 'inapp'}
                     testID={`reader-locale-${opt.id || 'inapp'}`}
                     onPress={() => setReaderLocale(opt.id)}
+                    activeOpacity={0.7}
+                    hitSlop={8}
                     style={[
                       styles.modeBtn,
                       readerLocale === opt.id && styles.modeBtnActive,
@@ -736,7 +758,7 @@ const SetupTab: React.FC<{
                     >
                       {opt.name}
                     </Text>
-                  </Pressable>
+                  </TouchableOpacity>
                 ))}
               </View>
               <Text style={styles.toggleHint}>
@@ -1168,6 +1190,9 @@ const LogRow: React.FC<{
 const AppLoginChatsRn: React.FC = () => {
   const [tab, setTab] = useState<Tab>('setup');
   const [creds, setCreds] = useState<Creds | null>(null);
+  // Feature toggles that outlive a logout; folded into the Setup form's
+  // initial values so it reopens with what the user last chose.
+  const [restoredPrefs, setRestoredPrefs] = useState<Partial<Creds>>({});
   const [loading, setLoading] = useState(true);
   // Chat-tab visibility is signalled to <Chat> via its public `isVisible`
   // prop (see render below). The library clears/restores room visibility
@@ -1179,9 +1204,15 @@ const AppLoginChatsRn: React.FC = () => {
   useEffect(() => {
     (async () => {
       try {
-        const raw = await AsyncStorage.getItem(CREDS_KEY);
+        const [[, raw], [, prefsRaw]] = await AsyncStorage.multiGet([
+          CREDS_KEY,
+          PREFS_KEY,
+        ]);
+        // Prefs survive logout, so they are layered on whether or not there
+        // are creds to restore.
+        const prefs = prefsRaw ? JSON.parse(prefsRaw) : {};
         if (raw) {
-          const parsed = { ...DEFAULT_CREDS, ...JSON.parse(raw) };
+          const parsed = { ...DEFAULT_CREDS, ...prefs, ...JSON.parse(raw) };
           // Server fields fall back to the current defaults when the
           // persisted value is blank, so bumping DEFAULT_CREDS (e.g. to
           // point the testbed at a different environment) takes effect
@@ -1197,9 +1228,14 @@ const AppLoginChatsRn: React.FC = () => {
           // always opens on the Setup tab, even when creds are already
           // saved, so you can review/edit them first. (Pressing Save in
           // Setup still navigates to Chat; see handleSave.)
+        } else if (prefsRaw) {
+          // No creds (fresh install, or straight after logout) — keep the
+          // feature toggles the user last chose so Setup doesn't reset
+          // itself every time.
+          setRestoredPrefs(prefs);
         }
       } catch (err) {
-        pushLog('error', 'Failed to read creds', err);
+        pushLog('error', 'Failed to read creds/prefs', err);
       } finally {
         setLoading(false);
       }
@@ -1209,8 +1245,11 @@ const AppLoginChatsRn: React.FC = () => {
   const handleSave = useCallback(async (c: Creds) => {
     setCreds(c);
     try {
-      await AsyncStorage.setItem(CREDS_KEY, JSON.stringify(c));
-      pushLog('rn', 'Saved creds; switching to Chat tab');
+      await AsyncStorage.multiSet([
+        [CREDS_KEY, JSON.stringify(c)],
+        [PREFS_KEY, JSON.stringify(pickPrefs(c))],
+      ]);
+      pushLog('rn', 'Saved creds + prefs; switching to Chat tab');
     } catch (err) {
       pushLog('error', 'Failed to persist creds', err);
     }
@@ -1228,7 +1267,12 @@ const AppLoginChatsRn: React.FC = () => {
     //    "ready" — and on next reload, the persisted CREDS_KEY would
     //    auto-login again.
     try {
+      // CREDS_KEY only — PREFS_KEY deliberately survives, so the reader
+      // language and the call/translate switches don't reset on every
+      // logout. "Clear AsyncStorage" is the button that takes those.
       await AsyncStorage.removeItem(CREDS_KEY);
+      const prefsRaw = await AsyncStorage.getItem(PREFS_KEY);
+      setRestoredPrefs(prefsRaw ? JSON.parse(prefsRaw) : {});
     } catch (err) {
       pushLog('error', 'Failed to remove testbed creds', err);
     }
@@ -1262,7 +1306,7 @@ const AppLoginChatsRn: React.FC = () => {
           pointerEvents={tab === 'setup' ? 'auto' : 'none'}
         >
           <SetupTab
-            initial={creds || DEFAULT_CREDS}
+            initial={creds || { ...DEFAULT_CREDS, ...restoredPrefs }}
             onSave={handleSave}
             onLogout={handleLogout}
           />
