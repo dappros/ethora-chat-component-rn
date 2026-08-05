@@ -26,6 +26,7 @@ import styled from 'styled-components/native';
 import { IUser, MessageProps } from '../../types/types';
 import MediaMessage from '../MainComponents/MediaMessage';
 import MessageTranslate from './MessageTranslate';
+import { isUnresolvedSenderId } from '../../helpers/isUnresolvedSenderId';
 import TranslatedMessageBody from './TranslatedMessageBody';
 import { useMessageTranslation } from '../../hooks/useMessageTranslation';
 import { resolveTranslateMode } from '../../utils/translateModePolicy';
@@ -198,6 +199,11 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
       senderEntry.name ||
       senderLocal
     : message.user?.name || senderLocal || 'Unknown';
+  // A broadcast posted by the app itself arrives with the ROOM's own id as
+  // its occupant resource, so no roster ever resolves it and the name chain
+  // ends at 50 characters of hex. Captioning a bubble with that tells the
+  // reader strictly less than showing nothing.
+  const hasRealSenderName = !isUnresolvedSenderId(senderDisplayName);
   const senderProfileImage =
     senderEntry?.profileImage || message.user?.profileImage || '';
   const { idSet, failedIdSet } = useMessageHeapState();
@@ -449,7 +455,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
             backgroundMessageUser={config?.messageColor?.backgroundMessageUser}
             backgroundMessage={config?.messageColor?.backgroundMessage}
           >
-            {!isUser && (
+            {!isUser && hasRealSenderName && (
               <CustomUserName
                 color={config?.colors?.primary}
                 media={message?.isMediafile === 'true'}
@@ -516,6 +522,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
                   message={message}
                   config={config}
                   isUser={isUser}
+                  readerLocale={readerLocale}
                 />
               )}
             {/* <View style={styles.timestampRow}> */}

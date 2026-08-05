@@ -68,12 +68,19 @@ export const ChatInfo = ({ children }: { children: React.ReactNode }) => (
 );
 
 // Chat name and last message display
+// One line, ellipsised. Without this a long room title (or a display name
+// that happens to be an email) wrapped to three or four lines and pushed
+// the whole row's height around.
 export const ChatName = ({ text }: { text: string }) => (
-  <Text style={styles.chatName}>{text}</Text>
+  <Text style={styles.chatName} numberOfLines={1} ellipsizeMode="tail">
+    {text}
+  </Text>
 );
 
 export const LastMessage = ({ children }: { children: React.ReactNode }) => (
-  <Text style={styles.lastMessage}>{children}</Text>
+  <Text style={styles.lastMessage} numberOfLines={1} ellipsizeMode="tail">
+    {children}
+  </Text>
 );
 
 // User count display for the chat
@@ -145,7 +152,12 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
   },
   chatInfo: {
-    maxWidth: '60%',
+    // `flexShrink` + `minWidth: 0` is what actually lets the child Text
+    // ellipsise: without them the row keeps its intrinsic width and the
+    // text wraps instead of truncating, whatever numberOfLines says.
+    flexShrink: 1,
+    minWidth: 0,
+    maxWidth: '80%',
   },
   chatName: {
     fontWeight: 'bold',

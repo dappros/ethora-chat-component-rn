@@ -52,6 +52,7 @@ import { ReduxWrapper as Chat } from './src/components/MainComponents/ReduxWrapp
 import { store as chatStore } from './src/roomStore';
 import { logoutService } from './src/hooks/useLogout';
 import type { IConfig, IRoom } from './src/types/types';
+import { LANGUAGE_OPTIONS } from './src/helpers/constants/LANGUAGE_OPTIONS';
 import {
   clearLogs,
   getLogs,
@@ -114,6 +115,15 @@ interface Creds {
   // Room mode
   singleRoom: boolean;
   singleRoomJid: string;
+  // Calls
+  videoCalls: boolean;
+  audioCalls: boolean;
+  // Translation
+  translates: boolean;
+  translateMode: 'auto' | 'manual';
+  /** Reader language. Empty = follow whatever the reader picks in-app. */
+  readerLocale: string;
+  showGlobe: boolean;
 }
 
 // Server fields default to the QA environment (chat-qa.ethora.com) so a
@@ -136,6 +146,16 @@ const DEFAULT_CREDS: Creds = {
   conference: 'conference.xmpp.chat-qa.ethora.com',
   singleRoom: false,
   singleRoomJid: '',
+  videoCalls: true,
+  audioCalls: true,
+  translates: true,
+  // 'auto' renders the translation inline as the body (original quoted
+  // above); 'manual' hides the same translation behind a Translate link.
+  translateMode: 'auto',
+  // Blank on purpose: the reader picks their language via the globe. Set
+  // one here to pin it through config.translates.readerLocale instead.
+  readerLocale: '',
+  showGlobe: true,
 };
 
 // ---------------------------------------------------------------------
@@ -233,6 +253,14 @@ const SetupTab: React.FC<{
   // Room mode
   const [singleRoom, setSingleRoom] = useState<boolean>(initial.singleRoom);
   const [singleRoomJid, setSingleRoomJid] = useState<string>(initial.singleRoomJid);
+  const [videoCalls, setVideoCalls] = useState<boolean>(initial.videoCalls);
+  const [audioCalls, setAudioCalls] = useState<boolean>(initial.audioCalls);
+  const [translates, setTranslates] = useState<boolean>(initial.translates);
+  const [translateMode, setTranslateMode] = useState<'auto' | 'manual'>(
+    initial.translateMode
+  );
+  const [readerLocale, setReaderLocale] = useState<string>(initial.readerLocale);
+  const [showGlobe, setShowGlobe] = useState<boolean>(initial.showGlobe);
 
   const [busy, setBusy] = useState(false);
   const [testResult, setTestResult] = useState<{
@@ -256,6 +284,12 @@ const SetupTab: React.FC<{
     setXmppDevServer(initial.xmppDevServer);
     setConference(initial.conference || '');
     setSingleRoom(initial.singleRoom);
+    setVideoCalls(initial.videoCalls);
+    setAudioCalls(initial.audioCalls);
+    setTranslates(initial.translates);
+    setTranslateMode(initial.translateMode);
+    setReaderLocale(initial.readerLocale);
+    setShowGlobe(initial.showGlobe);
     setSingleRoomJid(initial.singleRoomJid);
     setTestResult(null);
   }, [
@@ -286,6 +320,12 @@ const SetupTab: React.FC<{
     conference: conference.trim() || `conference.${xmppHost.trim()}`,
     singleRoom,
     singleRoomJid: singleRoomJid.trim(),
+    videoCalls,
+    audioCalls,
+    translates,
+    translateMode,
+    readerLocale: readerLocale.trim(),
+    showGlobe,
     ...overrides,
   });
 
@@ -560,6 +600,154 @@ const SetupTab: React.FC<{
           </Pressable>
         </View>
 
+        {/* ---- Calls -------------------------------------------------- */}
+        <View style={styles.mb12}>
+          <Pressable
+            testID="toggle-video-calls"
+            onPress={() => setVideoCalls((v) => !v)}
+            style={styles.toggleRow}
+          >
+            <View style={[styles.toggleTrack, videoCalls && styles.toggleTrackOn]}>
+              <View style={[styles.toggleThumb, videoCalls && styles.toggleThumbOn]} />
+            </View>
+            <View style={styles.toggleLabelBox}>
+              <Text style={styles.toggleLabel}>Video calls</Text>
+              <Text style={styles.toggleHint}>
+                {videoCalls
+                  ? 'Call buttons show in 1:1 rooms (needs the LiveKit native deps).'
+                  : 'config.videoCalls omitted — no call buttons at all.'}
+              </Text>
+            </View>
+          </Pressable>
+        </View>
+
+        {videoCalls ? (
+          <View style={styles.mb12}>
+            <Pressable
+              testID="toggle-audio-calls"
+              onPress={() => setAudioCalls((v) => !v)}
+              style={styles.toggleRow}
+            >
+              <View style={[styles.toggleTrack, audioCalls && styles.toggleTrackOn]}>
+                <View style={[styles.toggleThumb, audioCalls && styles.toggleThumbOn]} />
+              </View>
+              <View style={styles.toggleLabelBox}>
+                <Text style={styles.toggleLabel}>Audio calls</Text>
+                <Text style={styles.toggleHint}>
+                  {audioCalls
+                    ? 'Phone icon alongside the video one.'
+                    : 'Video only.'}
+                </Text>
+              </View>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {/* ---- Translation --------------------------------------------- */}
+        <View style={styles.mb12}>
+          <Pressable
+            testID="toggle-translates"
+            onPress={() => setTranslates((v) => !v)}
+            style={styles.toggleRow}
+          >
+            <View style={[styles.toggleTrack, translates && styles.toggleTrackOn]}>
+              <View style={[styles.toggleThumb, translates && styles.toggleThumbOn]} />
+            </View>
+            <View style={styles.toggleLabelBox}>
+              <Text style={styles.toggleLabel}>Translations</Text>
+              <Text style={styles.toggleHint}>
+                {translates
+                  ? 'Outgoing messages declare their language; incoming ones show their translation.'
+                  : 'config.translates omitted — no globe, no translation UI.'}
+              </Text>
+            </View>
+          </Pressable>
+        </View>
+
+        {translates ? (
+          <>
+            <View style={styles.mb12}>
+              <Pressable
+                testID="toggle-globe"
+                onPress={() => setShowGlobe((v) => !v)}
+                style={styles.toggleRow}
+              >
+                <View style={[styles.toggleTrack, showGlobe && styles.toggleTrackOn]}>
+                  <View style={[styles.toggleThumb, showGlobe && styles.toggleThumbOn]} />
+                </View>
+                <View style={styles.toggleLabelBox}>
+                  <Text style={styles.toggleLabel}>Globe in chat header</Text>
+                  <Text style={styles.toggleHint}>
+                    {showGlobe
+                      ? 'Reader picks their language from the chat header.'
+                      : 'showLanguageSelector:false — for hosts driving the language themselves.'}
+                  </Text>
+                </View>
+              </Pressable>
+            </View>
+
+            <Field label="Translate mode">
+              <View style={styles.modeRow}>
+                {(['auto', 'manual'] as const).map((tm) => (
+                  <Pressable
+                    key={tm}
+                    testID={`translate-mode-${tm}`}
+                    onPress={() => setTranslateMode(tm)}
+                    style={[styles.modeBtn, translateMode === tm && styles.modeBtnActive]}
+                  >
+                    <Text
+                      style={[
+                        styles.modeBtnText,
+                        translateMode === tm && styles.modeBtnTextActive,
+                      ]}
+                    >
+                      {tm === 'auto' ? 'Auto' : 'Manual'}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              <Text style={styles.toggleHint}>
+                Both reveal the SAME translation the stanza carries — manual
+                just puts it behind a Translate link.
+              </Text>
+            </Field>
+
+            <Field label="Reader language">
+              <View style={styles.modeRow}>
+                {([{ id: '', name: 'In-app' }, ...LANGUAGE_OPTIONS] as {
+                  id: string;
+                  name: string;
+                }[]).map((opt) => (
+                  <Pressable
+                    key={opt.id || 'inapp'}
+                    testID={`reader-locale-${opt.id || 'inapp'}`}
+                    onPress={() => setReaderLocale(opt.id)}
+                    style={[
+                      styles.modeBtn,
+                      readerLocale === opt.id && styles.modeBtnActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.modeBtnText,
+                        readerLocale === opt.id && styles.modeBtnTextActive,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {opt.name}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              <Text style={styles.toggleHint}>
+                {readerLocale
+                  ? 'Pinned via config.translates.readerLocale — the globe picker is ignored.'
+                  : "Follows whatever the reader picks from the globe (the SDK's own behaviour)."}
+              </Text>
+            </Field>
+          </>
+        ) : null}
+
         {singleRoom ? (
           <Field label="Single room JID">
             <TextInput
@@ -707,19 +895,36 @@ const ChatPane: React.FC<{ creds: Creds | null; isVisible: boolean }> = ({ creds
       // `mode` omitted → defaults to 'auto': the translation renders inline
       // as the message body (original quoted above), no tap needed. The
       // reader can still switch to manual via the globe-icon language picker.
-      translates: {
-        enabled: true,
-      },
+      // Driven from the Setup tab so every combination can be exercised
+      // without an edit-rebuild cycle. Omitting the block entirely (rather
+      // than passing enabled:false) is what a host that never wanted the
+      // feature looks like, so that is what the toggles reproduce.
+      ...(creds.translates
+        ? {
+            translates: {
+              enabled: true as const,
+              mode: creds.translateMode,
+              showLanguageSelector: creds.showGlobe,
+              ...(creds.readerLocale
+                ? { readerLocale: creds.readerLocale as any }
+                : {}),
+            },
+          }
+        : {}),
       // Audio + video calls (LiveKit). Only render in 1:1 (private) rooms.
       // Requires the optional native deps (@livekit/react-native,
       // @livekit/react-native-webrtc, react-native-callkeep) + a dev build.
       // livekitUrl mirrors the web testbed's QA LiveKit server.
-      videoCalls: {
-        enabled: true,
-        livekitUrl: 'https://livekit.ethora-qa.com',
-        allowedRoomTypes: ['private'],
-        enableAudioCalls: true,
-      },
+      ...(creds.videoCalls
+        ? {
+            videoCalls: {
+              enabled: true as const,
+              livekitUrl: 'https://livekit.ethora-qa.com',
+              allowedRoomTypes: ['private' as const],
+              enableAudioCalls: creds.audioCalls,
+            },
+          }
+        : {}),
       refreshTokens: { enabled: true },
       initBeforeLoad: true,
       disableInteractions: false,

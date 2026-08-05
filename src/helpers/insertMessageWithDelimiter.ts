@@ -71,20 +71,38 @@ export function insertMessageWithDelimiter(
         isDateAfter(msg.date?.toString() ?? '', lastViewedTimestamp.toString())
       );
 
-        if (delimiterIndex !== -1) {
-          roomMessages.splice(delimiterIndex, 0, {
-            id: 'delimiter-new',
-            user: {
+      if (delimiterIndex !== -1) {
+        // The divider's date is what ORDERS it: roomsSlice re-sorts every
+        // merged page by timestamp (see `byMs`), so a divider stamped with
+        // `new Date()` — i.e. now — sorted past every real message and
+        // rendered at the very bottom, BELOW the new messages it is
+        // supposed to introduce. Anchor it a hair before the first unread
+        // instead, which is where it belongs and where any later sort keeps
+        // it. Derived from that message rather than from
+        // lastViewedTimestamp so it works whatever format the caller passes.
+        const firstUnreadMs = Date.parse(
+          String(roomMessages[delimiterIndex]?.date ?? '')
+        );
+        const rawLastViewed = lastViewedTimestamp.toString();
+        const lastViewedMs =
+          Date.parse(rawLastViewed) || Number(rawLastViewed) || Date.now();
+        const anchorMs = Number.isFinite(firstUnreadMs)
+          ? firstUnreadMs - 1
+          : lastViewedMs;
+
+        roomMessages.splice(delimiterIndex, 0, {
+          id: 'delimiter-new',
+          user: {
             id: 'system',
             name: undefined,
             token: '',
             refreshToken: '',
           },
-          date: new Date().toString(),
-            body: 'New Messages',
-            roomJid: '',
-          });
-        }
+          date: new Date(anchorMs).toISOString(),
+          body: 'New Messages',
+          roomJid: '',
+        });
+      }
       }
   } else if (
     isDateBefore(newMessageDate.toString(), firstMessage?.date?.toString() ?? '')

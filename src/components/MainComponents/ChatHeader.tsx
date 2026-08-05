@@ -226,9 +226,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-end',
     gap: 4,
-    // Call buttons need more room than the lone burger did. Still a
-    // percentage so the centre title keeps shrinking rather than pushing.
-    width: '25%',
+    // Sized to its icons rather than a fixed 25%: the cluster is 1 to 4
+    // icons depending on config (globe, audio call, video call, room menu),
+    // and a fixed share either cramped them together or reserved dead space
+    // that the title could have used. `flexShrink: 0` keeps them intact
+    // while CenterContainer (flex:1, min-width:0) absorbs the difference.
+    flexShrink: 0,
   },
 });
 

@@ -29,16 +29,25 @@ const TEXT_PRIMARY = '#141414';
 const TEXT_MUTED = '#8C8C8C';
 const DIVIDER = '#F0F0F0';
 
+/**
+ * Ported verbatim from the web SDK's GlobeIcon (src/assets/icons.tsx) so
+ * both platforms draw the same mark. The previous RN shape was hand-rolled
+ * on a 24-box with two mirrored beziers whose meridian bulged only ~21% of
+ * the radius, which collapsed into a thin lens rather than reading as a
+ * sphere.
+ */
 export const GlobeIcon: FC<{ color?: string; size?: number }> = ({
-  color = '#0052CD',
-  size = 22,
+  color = '#8C8C8C',
+  size = 20,
 }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Circle cx="12" cy="12" r="9" stroke={color} strokeWidth={1.8} />
+  <Svg width={size} height={size} viewBox="0 0 20 20" fill="none">
+    <Circle cx="10" cy="10" r="7.5" stroke={color} strokeWidth={1.5} />
     <Path
-      d="M3 12h18M12 3c2.5 2.7 2.5 15.3 0 18M12 3c-2.5 2.7-2.5 15.3 0 18"
+      d="M2.5 10h15M10 2.5c2 2.1 3 4.7 3 7.5s-1 5.4-3 7.5c-2-2.1-3-4.7-3-7.5s1-5.4 3-7.5Z"
       stroke={color}
-      strokeWidth={1.8}
+      strokeWidth={1.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
       fill="none"
     />
   </Svg>

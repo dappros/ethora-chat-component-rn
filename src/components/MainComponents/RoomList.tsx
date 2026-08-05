@@ -180,6 +180,20 @@ const RoomList: React.FC<RoomListProps> = ({
           <>
             <View style={styles.scrollContainer}>
               <HeaderRoomList setDrawerOpen={toggleDrawer} />
+              {/* Search sits ABOVE the list rather than in its
+                  ListHeaderComponent. As a list header it was simply the
+                  first scrolling row, so the moment you scrolled the rooms
+                  it slid up and disappeared behind the opaque header band.
+                  Fixed here it stays reachable, which is the entire point
+                  of a search field over a long list. */}
+              <View style={styles.searchBar}>
+                <SearchInput
+                  icon={<SearchIcon height={20} />}
+                  value={searchTerm}
+                  onChangeText={handleSearchChange}
+                  placeholder={t('search.placeholder')}
+                />
+              </View>
               <FlatList
                 data={filteredChats}
                 keyExtractor={(item) => item.jid}
@@ -197,14 +211,6 @@ const RoomList: React.FC<RoomListProps> = ({
                     <ChatRoomItem chat={item} config={config} />
                   </Pressable>
                 )}
-                ListHeaderComponent={
-                  <SearchInput
-                    icon={<SearchIcon height={20} />}
-                    value={searchTerm}
-                    onChangeText={handleSearchChange}
-                    placeholder={t('search.placeholder')}
-                  />
-                }
                 style={styles.chatList}
               />
 
@@ -243,9 +249,19 @@ const styles = StyleSheet.create({
     padding: 16,
     justifyContent: 'space-between',
   },
+  searchBar: {
+    // `row` matters: SearchInputWrapper is `flex: 1` plus a fixed 44px
+    // height. In a column parent that flex resolves VERTICALLY against a
+    // parent with no height of its own and collapses the field to nothing
+    // but its magnifier. As a row it resolves to width, which is what it
+    // meant back when the field was a list-header child.
+    flexDirection: 'row',
+    paddingTop: 8,
+    paddingHorizontal: 16,
+    backgroundColor: '#FAFAFA',
+  },
   chatList: {
     flex: 1,
-    paddingTop: 8,
     paddingHorizontal: 16,
     backgroundColor: '#FAFAFA',
   },

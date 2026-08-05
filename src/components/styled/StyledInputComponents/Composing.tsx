@@ -51,7 +51,13 @@ const Composing: FC<ComposingProps> = ({ usersTyping = ['User'], style }) => {
   return (
     <View style={[styles.wrapper, style]}>
       {typingText ? (
-        <Text style={styles.typingText}>{typingText}</Text>
+        <Text
+          style={styles.typingText}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+        >
+          {typingText}
+        </Text>
       ) : (
         <View />
       )}

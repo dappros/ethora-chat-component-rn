@@ -33,7 +33,7 @@ export const LanguageSelectorButton: FC = () => {
         style={styles.button}
         hitSlop={8}
       >
-        <GlobeIcon color={getIconColor(config)} size={22} />
+        <GlobeIcon color={getIconColor(config)} size={20} />
       </TouchableOpacity>
       <LanguageSelectorModal visible={open} onClose={() => setOpen(false)} />
     </>
