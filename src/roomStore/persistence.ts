@@ -101,6 +101,12 @@ const PERSISTED_MESSAGE_FIELDS: (keyof IMessage)[] = [
   'originalName',
   'size',
   'langSource',
+  // `translations` is deliberately NOT here — same as the web SDK's
+  // persist list (web src/roomStore/index.ts PERSISTED_MESSAGE_FIELDS):
+  // MAM re-hydration restores it on the next history page, now that the
+  // history parser reads the <translations> element at all (see
+  // onMessageHistory). Cached messages therefore show their translation
+  // again after the first MAM sync, exactly like web.
   'callLog',
   // bug #39: without this, a message that was still in flight (no
   // server echo yet) at kill time comes back from disk indistinguishable
