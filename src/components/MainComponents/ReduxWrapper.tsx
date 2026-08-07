@@ -1,8 +1,9 @@
 import React, {useMemo} from 'react';
-import {Provider} from 'react-redux';
+import {Provider, useDispatch} from 'react-redux';
 import {KeyboardProvider} from 'react-native-keyboard-controller';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {store} from '../../roomStore';
+import {setConfig} from '../../roomStore/chatSettingsSlice';
 import {ConfigUser, IConfig, MessageProps} from '../../types/types';
 import {XmppProvider} from '../../context/xmppProvider';
 import {MessageNotificationProvider} from '../../context/MessageNotificationContext';
@@ -27,6 +28,21 @@ interface ChatWrapperProps {
   config?: IConfig;
   isVisible?: boolean;
 }
+
+// Mirrors the web SDK's ConfigEnabler (ReduxWrapper.tsx): keeps redux's
+// copy of the config in step with the prop. Without it setConfig is only
+// dispatched during XMPP init, so a host changing config mid-session (the
+// testbed's Setup toggles, a host flipping translates.readerLocale) kept
+// serving a STALE config to everything that reads it from the store —
+// which is why picking a reader language changed nothing.
+const ConfigEnabler: React.FC<{config?: IConfig}> = ({config}) => {
+  const dispatch = useDispatch();
+  React.useEffect(() => {
+    if (!config) {return;}
+    dispatch(setConfig(config));
+  }, [config, dispatch]);
+  return null;
+};
 
 export const ReduxWrapper: React.FC<ChatWrapperProps> = React.memo(
   ({...props}) => {
@@ -57,6 +73,7 @@ export const ReduxWrapper: React.FC<ChatWrapperProps> = React.memo(
 
     return (
       <Provider store={store}>
+        <ConfigEnabler config={memoizedConfig} />
         <SafeAreaProvider>
           {ownKeyboardHandling ? (
             <KeyboardProvider>{tree}</KeyboardProvider>

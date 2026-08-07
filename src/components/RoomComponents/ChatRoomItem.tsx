@@ -1,4 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
+import { useSelector } from 'react-redux';
+import { RootState } from '../../roomStore';
+import { IMessage } from '../../types/types';
 import { IConfig, IRoom } from '../../types/types';
 import { ProfileImagePlaceholder } from '../MainComponents/ProfileImagePlaceholder';
 import {
@@ -28,17 +31,58 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
 }) => {
   const displayName = String(chat?.title || chat?.name || '').trim();
 
+  // usersSet is the canonical name store — the same one Message.tsx
+  // resolves sender names through. The preview must go through it too
+  // (mirrors web's ChatRoomItem.withAuthorFallback): a message restored
+  // from the persist cache carries only a compacted user, so reading
+  // `user.name` alone left this line showing a raw JID after a refresh.
+  const usersSet = useSelector((state: RootState) => state.rooms.usersSet) as
+    | Record<string, any>
+    | undefined;
+
+  const withAuthorFallback = useCallback(
+    (message?: IMessage): IMessage | undefined => {
+      if (!message) {return message;}
+      const rawUserId = String(message?.user?.id || '');
+      const localId = rawUserId.split('@')[0];
+      const entry = usersSet?.[localId] ?? usersSet?.[rawUserId];
+      const fromUsersSet = entry
+        ? `${entry.firstName ?? ''} ${entry.lastName ?? ''}`.trim()
+        : '';
+
+      // usersSet first, exactly like Message.tsx: it's the live store, so
+      // a renamed user updates here too. The message's own `name` is the
+      // fallback that carries broadcast/system senders ("Ethora"), which
+      // never appear in usersSet.
+      const safeName =
+        fromUsersSet ||
+        String(message?.user?.name || '').trim() ||
+        localId ||
+        rawUserId ||
+        'Unknown';
+
+      return {
+        ...message,
+        user: {
+          ...message.user,
+          name: safeName,
+        },
+      };
+    },
+    [usersSet]
+  );
+
   const lastMessage = useMemo(() => {
     if (!chat?.messages || chat.messages.length === 0) {return undefined;}
 
     for (let i = chat.messages.length - 1; i >= 0; i--) {
       const msg = chat.messages[i];
       if (!msg.deleted && !msg.isDeleted) {
-        return msg;
+        return withAuthorFallback(msg);
       }
     }
     return undefined;
-  }, [chat?.messages]);
+  }, [chat?.messages, withAuthorFallback]);
 
   // Mirrors web's formatter: tolerates undefined/garbage inputs (returns
   // undefined instead of "NaN:NaN"), and uses HH:MM today / MM/DD this
