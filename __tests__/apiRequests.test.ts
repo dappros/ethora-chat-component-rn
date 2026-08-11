@@ -60,6 +60,7 @@ import {
   loginViaJwt,
   checkEmailExist,
   uploadFile,
+  uploadFileMultipart,
 } from '../src/networking/api-requests/auth.api';
 import {
   getRooms,
@@ -215,6 +216,119 @@ describe('auth.api', () => {
     const headers = mockHttp.post.mock.calls[0]![2]!.headers;
     expect(typeof headers['Content-Type']).not.toBe('string');
     expect(typeof headers['content-type']).not.toBe('string');
+  });
+});
+
+// ---- uploadFileMultipart (the media-send path) ----------------------
+//
+// Expo SDK 57 installs Expo's WinterCG fetch as the GLOBAL fetch, and it
+// rejects React Native's `{ uri, type, name }` FormData part with
+// "Unsupported FormDataPart implementation" → ERR_NETWORK. Expo does not
+// replace XMLHttpRequest, so the upload rides RN's native networking
+// module instead. These guard that it stays that way.
+
+describe('auth.api.uploadFileMultipart', () => {
+  class FakeXHR {
+    static last: FakeXHR;
+    status = 200;
+    statusText = 'OK';
+    responseText = '{"results":[{"location":"https://files.test/a.jpg"}]}';
+    method = '';
+    url = '';
+    headers: Record<string, string> = {};
+    body: any = null;
+    onload: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+    ontimeout: (() => void) | null = null;
+    onabort: (() => void) | null = null;
+
+    constructor() {
+      FakeXHR.last = this;
+    }
+    open(method: string, url: string) {
+      this.method = method;
+      this.url = url;
+    }
+    setRequestHeader(k: string, v: string) {
+      this.headers[k] = v;
+    }
+    send(body: any) {
+      this.body = body;
+      // Mimic the async completion the real XHR gives us.
+      setTimeout(() => this.onload?.(), 0);
+    }
+  }
+
+  const originalXHR = (global as any).XMLHttpRequest;
+
+  beforeEach(() => {
+    (global as any).XMLHttpRequest = FakeXHR;
+    store.dispatch(setUser({ token: 'user-tok' } as any));
+  });
+
+  afterEach(() => {
+    (global as any).XMLHttpRequest = originalXHR;
+  });
+
+  it('POSTs the multipart body over XHR, never over global fetch', async () => {
+    // A global fetch that fails the test if the upload reaches it — that
+    // is the entire point of the XHR transport on Expo SDK 57.
+    const originalFetch = (global as any).fetch;
+    (global as any).fetch = jest.fn(() => {
+      throw new Error('upload must not use global fetch');
+    });
+
+    const fd = { fake: 'fd' } as any;
+    const out = await uploadFileMultipart(fd);
+
+    expect((global as any).fetch).not.toHaveBeenCalled();
+    (global as any).fetch = originalFetch;
+
+    const xhr = FakeXHR.last;
+    expect(xhr.method).toBe('POST');
+    expect(xhr.url).toBe('https://api.test/v1/files/');
+    expect(xhr.headers.Authorization).toBe('user-tok');
+    expect(xhr.body).toBe(fd);
+    expect(out).toEqual({
+      data: { results: [{ location: 'https://files.test/a.jpg' }] },
+    });
+  });
+
+  it('does not set Content-Type, so RN supplies the multipart boundary', async () => {
+    await uploadFileMultipart({ fake: 'fd' } as any);
+    // Setting it ourselves would strip the boundary RN generates and the
+    // server would mis-parse one file as many (413 TOO_MANY_FILES —
+    // bug #10 in sdk-bug-tracker.md).
+    const headerNames = Object.keys(FakeXHR.last.headers).map((h) =>
+      h.toLowerCase()
+    );
+    expect(headerNames).not.toContain('content-type');
+  });
+
+  it('rejects with an axios-shaped error so the 500 retry still fires', async () => {
+    const pending = uploadFileMultipart({ fake: 'fd' } as any);
+    // send() already scheduled onload; flip the status before it runs.
+    FakeXHR.last.status = 500;
+    FakeXHR.last.statusText = 'Internal Server Error';
+    FakeXHR.last.responseText = '{"error":"boom"}';
+
+    await expect(pending).rejects.toMatchObject({
+      response: { status: 500, data: { error: 'boom' } },
+      config: { url: '/files/' },
+    });
+  });
+
+  it('surfaces a transport failure as ERR_NETWORK', async () => {
+    class FailingXHR extends FakeXHR {
+      send() {
+        setTimeout(() => this.onerror?.(), 0);
+      }
+    }
+    (global as any).XMLHttpRequest = FailingXHR;
+
+    await expect(
+      uploadFileMultipart({ fake: 'fd' } as any)
+    ).rejects.toMatchObject({ code: 'ERR_NETWORK' });
   });
 });
 

@@ -183,6 +183,11 @@ const MediaMessage: React.FC<MediaMessageProps> = ({
           <CustomMessageVideo
             fileName={displayName}
             fileURL={location || ''}
+            // `messageText` is the message's locationPreview — the poster
+            // frame the backend generated for this video. Handing it over
+            // lets the bubble render as a still + play badge instead of
+            // mounting a video surface per row (see VideoMessage).
+            previewURL={messageText}
             mimetype={mimeType}
           />
         );

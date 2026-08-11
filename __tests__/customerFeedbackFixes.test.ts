@@ -401,13 +401,23 @@ describe('customer feedback round — locked behaviour', () => {
         require.resolve('../src/components/styled/VideoMessage'),
         'utf-8'
       );
-      // Inline bubble now renders the first frame as a poster behind a
-      // play affordance; tapping anywhere opens the full-screen player.
-      // Inline native controls are off (they swallowed the tap and looked
-      // cramped). Migrated to expo-video (useVideoPlayer/VideoView).
+      // Inline bubble renders a still behind a play affordance; tapping
+      // anywhere opens the full-screen player. Inline native controls are
+      // off (they swallowed the tap and looked cramped). The still comes
+      // from the message's locationPreview when there is one — a plain
+      // <Image>, so the play badge is guaranteed to composite above it —
+      // and falls back to an expo-video first frame when there isn't.
       expect(src).toMatch(/from 'expo-video'/);
       expect(src).toMatch(/useVideoPlayer|VideoView/);
-      expect(src).toMatch(/onPress=\{handleOpen\}/);
+      // Poster branch: an <Image> still, gated on previewURL.
+      expect(src).toMatch(/previewURL/);
+      expect(src).toMatch(/<Image/);
+      // Both branches route the tap to the open-preview callback.
+      expect(src).toMatch(/onPress=\{onOpen\}/);
+      expect(src).toMatch(/const handleOpen = \(\) => \{/);
+      // The play badge must never be conditional — a video that renders
+      // as a bare still is indistinguishable from a photo.
+      expect(src).toMatch(/<PlayBadge \/>/);
       // The original bug: onBuffer={handleOpen} re-opened the modal in a
       // loop. Guard that it never comes back on any handler.
       expect(src).not.toMatch(/onBuffer=\{handleOpen\}/);

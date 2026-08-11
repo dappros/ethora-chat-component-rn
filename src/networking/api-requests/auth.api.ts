@@ -144,55 +144,90 @@ export function uploadFile(formData: FormData) {
   });
 }
 
-export async function uploadFileViaFetch(formData: FormData): Promise<{ data: any }> {
+const UPLOAD_PATH = '/files/';
+
+/**
+ * Multipart upload of a picked file, sent over `XMLHttpRequest`.
+ *
+ * The transport matters here, and both obvious alternatives are wrong:
+ *
+ *   - `fetch`. Expo SDK 54 shipped a WinterCG-compliant fetch and SDK 57
+ *     installs it as the GLOBAL fetch. It accepts only `Blob` / `File` /
+ *     string form parts, so React Native's own `{ uri, type, name }` part
+ *     — which is exactly what an image/document picker hands us — is
+ *     rejected with "Unsupported FormDataPart implementation", surfacing
+ *     to the caller as ERR_NETWORK. A host can set
+ *     `EXPO_PUBLIC_USE_RN_FETCH=1`, but that opts their whole app out of
+ *     Expo's fetch just to satisfy this SDK; not a cost we get to impose
+ *     on a consumer.
+ *   - axios. It forces its own `Content-Type: multipart/form-data`
+ *     WITHOUT a boundary, so the server mis-parses one file as many and
+ *     answers HTTP 413 TOO_MANY_FILES (bug #10 — this is why the upload
+ *     was moved off axios in the first place).
+ *
+ * `XMLHttpRequest` avoids both. Expo replaces `fetch`, not `XHR`, so the
+ * request still goes through React Native's native networking module,
+ * which understands the `{ uri, type, name }` part, streams the file
+ * straight from disk (a 50MB video never lands in JS memory) and writes
+ * its own `Content-Type` with a valid boundary — which is precisely why
+ * we must NOT set that header ourselves below.
+ */
+export function uploadFileMultipart(formData: FormData): Promise<{ data: any }> {
   const token = store.getState().chatSettingStore?.user?.token ?? '';
   const baseUrl = getCurrentBaseURL();
-  const url = `${baseUrl.replace(/\/$/, '')}/files/`;
+  const url = `${baseUrl.replace(/\/$/, '')}${UPLOAD_PATH}`;
 
-  pushLog('http', `→ POST ${url} (fetch)`, {
+  pushLog('http', `→ POST ${url} (xhr)`, {
     headers: { Authorization: token ? token.slice(0, 16) + '…' : '[empty]', Accept: '*/*' },
   });
 
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: token,
-        Accept: '*/*',
-      },
-      body: formData as any,
-    });
-  } catch (e: any) {
-    pushLog('http', `← ERR fetch /files/`, {
-      name: e?.name,
-      message: e?.message,
-      stack: e?.stack,
-    });
-    const err: any = new Error(e?.message || 'Network request failed');
-    err.code = 'ERR_NETWORK';
-    err.cause = e;
-    err.config = { url: '/files/' };
-    throw err;
-  }
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
 
-  if (!res.ok) {
-    let body: any = null;
-    try {
-      body = await res.json();
-    } catch {
-      try { body = await res.text(); } catch { body = null; }
-    }
-    pushLog('http', `← ${res.status} POST /files/ (fetch)`, body);
-    const err: any = new Error(`Upload failed: ${res.status}`);
-    err.response = { status: res.status, statusText: res.statusText, data: body };
-    err.config = { url: '/files/' };
-    throw err;
-  }
+    const failNetwork = (reason: string) => {
+      pushLog('http', `← ERR xhr ${UPLOAD_PATH}`, { reason });
+      const err: any = new Error(reason);
+      err.code = 'ERR_NETWORK';
+      err.config = { url: UPLOAD_PATH };
+      reject(err);
+    };
 
-  const data = await res.json();
-  pushLog('http', `← ${res.status} POST /files/ (fetch)`, {
-    resultsCount: Array.isArray(data?.results) ? data.results.length : 'n/a',
+    xhr.onload = () => {
+      const status = xhr.status;
+      let body: any = null;
+      try {
+        body = JSON.parse(xhr.responseText);
+      } catch {
+        body = xhr.responseText || null;
+      }
+
+      if (status < 200 || status >= 300) {
+        pushLog('http', `← ${status} POST ${UPLOAD_PATH} (xhr)`, body);
+        const err: any = new Error(`Upload failed: ${status}`);
+        // Shaped like an axios error so callers' `err.response.status`
+        // checks keep working — notably useSendMessage's retry with the
+        // singular "file" field on 500.
+        err.response = { status, statusText: xhr.statusText, data: body };
+        err.config = { url: UPLOAD_PATH };
+        reject(err);
+        return;
+      }
+
+      pushLog('http', `← ${status} POST ${UPLOAD_PATH} (xhr)`, {
+        resultsCount: Array.isArray(body?.results) ? body.results.length : 'n/a',
+      });
+      resolve({ data: body });
+    };
+
+    xhr.onerror = () => failNetwork('Network request failed');
+    xhr.ontimeout = () => failNetwork('Upload timed out');
+    xhr.onabort = () => failNetwork('Upload aborted');
+
+    xhr.open('POST', url);
+    xhr.setRequestHeader('Authorization', token);
+    xhr.setRequestHeader('Accept', '*/*');
+    // Deliberately no Content-Type — see the note above: RN fills it in
+    // along with the multipart boundary it generated.
+    xhr.send(formData as any);
   });
-  return { data };
 }

@@ -9,7 +9,7 @@ import {
   clearMessageFailure,
   markMessageFailed,
 } from '../roomStore/roomHeapSlice';
-import { uploadFileViaFetch } from '../networking/api-requests/auth.api';
+import { uploadFileMultipart } from '../networking/api-requests/auth.api';
 import { enqueueOutboundSend } from '../networking/outboundQueue';
 import { RootState, store } from '../roomStore';
 import { getGlobalXmppClient } from '../utils/clientRegistry';
@@ -479,7 +479,7 @@ export const useSendMessage = (_configOverride?: IConfig) => {
         const fd = new FormData();
         fd.append('files', fileBlob as any);
         try {
-          return await uploadFileViaFetch(fd);
+          return await uploadFileMultipart(fd);
         } catch (err: any) {
           if (err?.response?.status === 500) {
             console.warn(
@@ -488,7 +488,7 @@ export const useSendMessage = (_configOverride?: IConfig) => {
             );
             const fd2 = new FormData();
             fd2.append('file', fileBlob as any);
-            return await uploadFileViaFetch(fd2);
+            return await uploadFileMultipart(fd2);
           }
           throw err;
         }
