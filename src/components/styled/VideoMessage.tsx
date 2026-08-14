@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
-import { useVideoPlayer, VideoView } from 'expo-video';
 import { useDispatch } from 'react-redux';
 import {
   setActiveFile,
@@ -37,12 +36,6 @@ const PlayBadge: React.FC = () => (
  * playback happens in the full-screen preview. Drawing that still with a
  * plain <Image> keeps the whole bubble inside the RN view hierarchy, so
  * the play badge is guaranteed to composite on top of it.
- *
- * The VideoView path below cannot make that promise: expo-video draws
- * into a native surface, and depending on platform, expo-video version
- * and surfaceType that surface can end up above its sibling RN views —
- * swallowing the badge and leaving the video looking like a plain photo.
- * It is also cheaper: no video player instance per row in a long list.
  */
 const PosterVideo: React.FC<{
   previewURL: string;
@@ -85,8 +78,8 @@ const PosterVideo: React.FC<{
         resizeMode="cover"
         // Not every backend returns a real still — some set
         // locationPreview to the video URL itself, which decodes to
-        // nothing. Rather than show an empty box, hand the row back to
-        // the player so it can paint a first frame.
+        // nothing. Rather than show an empty box, fall back to the
+        // static placeholder branch.
         onError={onPosterError}
       />
       <PlayBadge />
@@ -95,61 +88,35 @@ const PosterVideo: React.FC<{
 };
 
 /**
- * Fallback for messages with no usable poster frame: mount the player
- * purely to paint its first frame.
+ * Fallback for messages with no usable poster frame: a static dark
+ * placeholder behind the play badge.
+ *
+ * This branch used to mount an expo-video player purely to paint the
+ * first frame (`VideoView` + `surfaceType="textureView"`). That never
+ * composited reliably: on Android (Pixel, Android 16, New Architecture)
+ * the native video surface draws ABOVE sibling RN views, swallowing the
+ * play badge — the video looked like a plain photo. There is no
+ * surfaceType/zIndex combination that guarantees ordering across SDK 54
+ * and 57, so we don't fight it: no live surface in the bubble at all.
+ * The badge is plain RN views over a plain RN background, which cannot
+ * be occluded, and we drop the per-row player instance as a bonus.
+ * Actual playback (and the real first frame) happens in the full-screen
+ * preview modal.
  */
-const VideoSurfaceVideo: React.FC<{
-  fileURL: string;
+const PlaceholderVideo: React.FC<{
   onOpen: () => void;
-}> = ({ fileURL, onOpen }) => {
-  const [dims, setDims] = useState<MediaDims>(defaultMediaDims());
-
-  const player = useVideoPlayer(fileURL, (p) => {
-    p.muted = true;
-  });
-
-  useEffect(() => {
-    const sub = player.addListener('statusChange', () => {
-      const size = player.videoTrack?.size;
-      if (size?.width && size?.height) {
-        setDims(fitMediaDimensions(size.width, size.height));
-      }
-    });
-    return () => sub.remove();
-  }, [player]);
+}> = ({ onOpen }) => {
+  const dims = defaultMediaDims();
 
   return (
-    // Capture-overlay pattern: VideoView sits underneath without ANY
-    // touch participation; a transparent absolute-fill <Pressable> on
-    // top owns the tap. Previously we wrapped VideoView in a
-    // TouchableOpacity and set `pointerEvents="none"` on the inner
-    // VideoView — but on some expo-video versions / iOS the native
-    // VideoView still intercepted gestures despite that hint, so
-    // tapping the poster did nothing. Customer-reported #9 (video
-    // preview unresponsive). The Pressable now guarantees the tap
-    // reaches `onOpen`.
-    <View
+    <Pressable
+      onPress={onOpen}
       style={[styles.wrapper, { width: dims.width, height: dims.height }]}
+      accessibilityRole="button"
+      accessibilityLabel="Play video"
     >
-      <VideoView
-        player={player}
-        style={styles.video}
-        contentFit="cover"
-        nativeControls={false}
-        surfaceType="textureView"
-        pointerEvents="none"
-      />
       <PlayBadge />
-      <Pressable
-        onPress={onOpen}
-        // Sits ON TOP of VideoView + the play-button overlay; transparent
-        // so the poster + play icon show through. Captures the tap and
-        // routes to onOpen → setActiveModal(FILE_PREVIEW).
-        style={StyleSheet.absoluteFill}
-        accessibilityRole="button"
-        accessibilityLabel="Play video"
-      />
-    </View>
+    </Pressable>
   );
 };
 
@@ -177,7 +144,7 @@ const CustomMessageVideo: React.FC<CustomMessageVideoProps> = ({
     );
   }
 
-  return <VideoSurfaceVideo fileURL={fileURL} onOpen={handleOpen} />;
+  return <PlaceholderVideo onOpen={handleOpen} />;
 };
 
 export default CustomMessageVideo;
@@ -193,7 +160,7 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: 'center',
     alignItems: 'center',
   },

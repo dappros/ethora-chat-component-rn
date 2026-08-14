@@ -115,7 +115,7 @@ export const InteractionsOverlayProvider: React.FC<{
 
 const styles = StyleSheet.create({
   host: { flex: 1 },
-  overlay: { ...StyleSheet.absoluteFillObject, zIndex: 9999, elevation: 9999 },
+  overlay: { ...StyleSheet.absoluteFill, zIndex: 9999, elevation: 9999 },
 });
 
 export default InteractionsOverlayProvider;

@@ -1304,7 +1304,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: 'white' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   muted: { color: MUTED },
-  pane: { ...StyleSheet.absoluteFillObject },
+  pane: { ...StyleSheet.absoluteFill },
   paneShown: { display: 'flex' },
   paneHidden: { display: 'none' },
   // tab bar

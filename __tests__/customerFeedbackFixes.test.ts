@@ -402,13 +402,15 @@ describe('customer feedback round — locked behaviour', () => {
         'utf-8'
       );
       // Inline bubble renders a still behind a play affordance; tapping
-      // anywhere opens the full-screen player. Inline native controls are
-      // off (they swallowed the tap and looked cramped). The still comes
-      // from the message's locationPreview when there is one — a plain
-      // <Image>, so the play badge is guaranteed to composite above it —
-      // and falls back to an expo-video first frame when there isn't.
-      expect(src).toMatch(/from 'expo-video'/);
-      expect(src).toMatch(/useVideoPlayer|VideoView/);
+      // anywhere opens the full-screen player. The still comes from the
+      // message's locationPreview when there is one — a plain <Image> —
+      // and a static dark placeholder when there isn't. Crucially the
+      // bubble must NOT mount a live expo-video surface: on Android
+      // (New Arch) the native surface composites above sibling RN views
+      // and swallows the play badge. Playback lives only in the
+      // full-screen preview modal.
+      expect(src).not.toMatch(/from 'expo-video'/);
+      expect(src).not.toMatch(/<VideoView|useVideoPlayer\(/);
       // Poster branch: an <Image> still, gated on previewURL.
       expect(src).toMatch(/previewURL/);
       expect(src).toMatch(/<Image/);

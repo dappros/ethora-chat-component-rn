@@ -345,9 +345,14 @@ export const VideoCallSession: FC<VideoCallSessionProps> = ({
     if (!runtime) {return;}
     try {
       if (Platform.OS === 'android') {
-        await runtime.AudioSession.setAndroidAudioConfiguration?.({
-          preferredOutputList: next ? ['speaker'] : ['earpiece'],
-        });
+        // NB: not `setAndroidAudioConfiguration` — that method has never
+        // existed on AudioSession (the old `?.` call silently no-oped, so
+        // the speaker icon toggled while audio stayed on the earpiece).
+        // `selectAudioOutput` routes directly; on Android its device ids
+        // are the literal strings 'speaker' / 'earpiece'.
+        await runtime.AudioSession.selectAudioOutput(
+          next ? 'speaker' : 'earpiece'
+        );
       } else {
         await runtime.AudioSession.setAppleAudioConfiguration?.({
           audioCategory: 'playAndRecord',

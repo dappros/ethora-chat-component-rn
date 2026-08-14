@@ -3,6 +3,25 @@
 All notable changes to `@ethora/chat-component-rn` are listed here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project doesn't follow strict semver yet — version corresponds to the `package.json` field.
 
+## [Unreleased]
+
+The repo itself now lives on **Expo SDK 57 (RN 0.86.2, React 19.2.8, New Architecture)** — until now the SDK was only *compatible* with 57 (peer ranges verified in 26.6.3) while developing and testing against 54. Published peer ranges are unchanged, so SDK 54 consumers are unaffected; both lines are now proven by the CI consumer-smoke matrix.
+
+### Changed
+
+- **Dev/test toolchain moved SDK 54 → 57**: `expo ~57`, `react-native 0.86.2`, `react 19.2.8`, `jest-expo ~57`, all `expo-*` dev pins to `57.x`, `reanimated ~4.5`, `worklets ~0.10`, `gesture-handler ~2.32`, `screens ~4.26`, `safe-area-context ~5.7`, `svg 15.15.4`, `netinfo 12`. LiveKit dev pins moved to the RN 0.86 line: `@livekit/react-native 2.12.0`, `@livekit/react-native-webrtc 144.1.2`, `livekit-client 2.21.0`.
+- **iOS `deploymentTarget` 15.1 → 16.4** in `app.json` — the minimum `expo-modules-core@57` accepts.
+- **`StyleSheet.absoluteFillObject` → `StyleSheet.absoluteFill`** across 9 files: RN 0.86 removed `absoluteFillObject` entirely; `absoluteFill` is the same plain object on every RN version our peer range spans, so spreads keep working for SDK 54 consumers.
+- **`VideoView`'s `allowsFullscreen` prop dropped** in `FilePreviewModal`: expo-video 57 renamed it to `fullscreenOptions.enable`. Both old and new props default to fullscreen-enabled, so passing neither keeps the file compiling against both expo-video lines with identical behaviour.
+- **CI switched from yarn to npm** (`npm ci`): `yarn.lock` was deliberately deleted long ago, which left the yarn-based workflow unable to run at all. **Consumer-smoke is now a matrix** — the packed tarball is installed and type-checked against both an SDK 54 (RN 0.81) and an SDK 57 (RN 0.86) consumer fixture.
+- **`react-native-keyboard-controller` `^1.18.5` → `^1.22.3`**: 1.18's Kotlin does not compile against RN 0.86 (`:react-native-keyboard-controller:compileDebugKotlin` fails), 1.22.3 builds cleanly on both lines.
+
+### Fixed
+
+- **Video play badge could vanish on Android (Pixel, Android 16, New Arch) for messages without a poster.** The no-poster fallback mounted a live expo-video `VideoView` just to paint a first frame, and on New Architecture the native video surface composites above sibling RN views — hiding the play badge so the video looked like a photo (`surfaceType="textureView"` does not prevent this). The inline bubble no longer mounts any video surface: the no-poster branch renders a static dark placeholder behind the badge, which plain RN views cannot occlude, and behaves identically on SDK 54 and 57. Playback (and the real first frame) stays in the full-screen preview modal; long lists also stop paying for a muted player instance per video row.
+- **Android speaker toggle in calls was a silent no-op.** `toggleSpeaker` called `AudioSession.setAndroidAudioConfiguration?.()` — a method that has never existed on any `@livekit/react-native` version, so the optional call quietly did nothing: the icon toggled while audio stayed on the earpiece. Replaced with `AudioSession.selectAudioOutput('speaker' | 'earpiece')` (present on 2.7.6 through 2.12), without `?.` so a real failure hits the `catch` and rolls the icon back. Pre-existing bug, not an SDK 57 regression.
+- **`messageListNewMessages` suite died on expo 57's lazy `fetch` global.** The suite fully mocks `react-native` without `Platform`; expo 57's winter runtime requires `expo-modules-core` on first `fetch` touch, which reads `Platform.select` at import time. The mock now provides `Platform`.
+
 ## [26.6.3]
 
 Three releases' worth of work landing together: **audio/video calling**, a **translation architecture** mirroring the web SDK, and the **`expo-av` → `expo-audio`** migration that unblocks Expo SDK 57. Alongside them, four delivery bugs that all presented as "messages just stop arriving", and a persistence fix that was writing megabytes of member roster on every debounce tick. Verified with typecheck clean and 644 jest tests green, plus live on-device runs against a real QA backend for calls, translation and voice messages.

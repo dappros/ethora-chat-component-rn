@@ -268,7 +268,7 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   pendingImageOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
