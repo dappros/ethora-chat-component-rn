@@ -10,7 +10,7 @@ import { chatAutoEnterer } from '../helpers/chatAutoEnterer';
 import { initRoomsPresence } from '../helpers/initRoomsPresence';
 import { updatedChatLastTimestamps } from '../helpers/updatedChatLastTimestamps';
 import { updateMessagesTillLast } from '../helpers/updateMessagesTillLast';
-import { refresh } from '../networking/apiClient';
+import { refreshAuthTokensQuietly } from '../networking/authRefresh';
 import { setLangSource, setConfig } from '../roomStore/chatSettingsSlice';
 import { setIsLoading } from '../roomStore/roomsSlice';
 import { useRoomState } from './useRoomState';
@@ -179,7 +179,7 @@ const useChatWrapperInit = ({
               }
 
               {
-                config?.refreshTokens?.enabled && refresh();
+                config?.refreshTokens?.enabled && refreshAuthTokensQuietly();
               }
             } catch (error) {
               console.error(' Error during initialization', error);
@@ -233,7 +233,7 @@ const useChatWrapperInit = ({
               setConnectionLost(false);
             }
             {
-              config?.refreshTokens?.enabled && refresh();
+              config?.refreshTokens?.enabled && refreshAuthTokensQuietly();
             }
           }
         }

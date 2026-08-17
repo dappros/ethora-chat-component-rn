@@ -1,4 +1,5 @@
-import http, { setBaseURL } from '../networking/apiClient';
+import { setBaseURL } from '../networking/apiClient';
+import { refreshAuthTokens, isRefreshFatalError } from '../networking/authRefresh';
 import { loginViaJwt } from '../networking/api-requests/auth.api';
 import { getMyUser } from '../networking/api-requests/user.api';
 import { IConfig, User } from '../types/types';
@@ -46,15 +47,26 @@ const normalizeUserForXmpp = (user?: User | null): User | null => {
   return { ...user, xmppUsername: normalizedXmppUsername };
 };
 
+/**
+ * Bootstrap rotation.
+ *
+ * Was a second, independent `/users/login/refresh` caller that bypassed
+ * every lock in the SDK — and, worse, only wrote the rotated token to
+ * the store on the happy path, so several of the early-return branches
+ * below used to drop it. Under the backend's reuse detection a dropped
+ * rotation means the next launch presents a burned token and the
+ * session is killed.
+ *
+ * `refreshAuthTokens` persists the new pair before it resolves, so by
+ * the time this returns the rotation is safe no matter which branch the
+ * caller takes afterwards. The explicit token is required here: during
+ * bootstrap the candidate session isn't in the store yet.
+ */
 const refreshWithToken = async (refreshToken: string) => {
-  const response = await http.post(
-    '/users/login/refresh',
-    {},
-    { headers: { Authorization: refreshToken } }
-  );
+  const result = await refreshAuthTokens({ refreshToken });
   return {
-    token: response?.data?.token || '',
-    refreshToken: response?.data?.refreshToken || refreshToken,
+    token: result.token,
+    refreshToken: result.refreshToken || refreshToken,
   };
 };
 
@@ -147,6 +159,11 @@ const tryHydrateViaMy = async (
     }
   } catch (error) {
     if (signal?.aborted || isAbortError(error)) {return null;}
+    // A fatal refresh verdict (reuse detected / token not found / stale
+    // with nothing newer around) carries no HTTP response, so it would
+    // otherwise fall through to `throw` — the session is simply dead,
+    // which for bootstrap means "nothing to restore".
+    if (isRefreshFatalError(error)) {return null;}
     if (isAuthError(error)) {return null;}
     throw error;
   }

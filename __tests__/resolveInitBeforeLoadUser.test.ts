@@ -224,3 +224,44 @@ describe('refreshUserCredentialsForXmpp', () => {
     });
   });
 });
+
+// ---- rotation durability -------------------------------------------
+
+describe('bootstrap rotation is never dropped', () => {
+  it('persists the rotated refreshToken even when /users/my fails afterwards', async () => {
+    // The regression this guards: the bootstrap path used to hold the
+    // rotated token in a local variable and only write it on the happy
+    // path, so a /users/my failure right after the refresh silently
+    // discarded it. The next launch would then present an already-burned
+    // token — which the backend reads as reuse.
+    // No xmpp creds, so the bootstrap actually goes through the
+    // /users/my + refresh chain instead of short-circuiting.
+    const candidate = userWithXmppCreds({
+      token: 'stale-access',
+      refreshToken: 'refresh-1',
+      xmppPassword: '',
+    });
+
+    getMyUser
+      .mockRejectedValueOnce({ response: { status: 401 } })
+      .mockRejectedValueOnce({ response: { status: 401 } });
+    http.post.mockResolvedValueOnce({
+      data: { token: 'access-2', refreshToken: 'refresh-2' },
+    });
+
+    await resolveInitBeforeLoadUser({
+      config: { userLogin: { enabled: true, user: candidate } as any },
+    });
+
+    expect(http.post).toHaveBeenCalledWith(
+      '/users/login/refresh',
+      {},
+      { headers: { Authorization: 'refresh-1' } }
+    );
+    expect(store.getState().chatSettingStore.user.refreshToken).toBe(
+      'refresh-2'
+    );
+    const raw = await AsyncStorage.getItem(localStorageConstants.ETHORA_USER);
+    expect(JSON.parse(raw as string).refreshToken).toBe('refresh-2');
+  });
+});

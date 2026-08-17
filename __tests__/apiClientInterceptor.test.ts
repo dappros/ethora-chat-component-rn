@@ -65,6 +65,7 @@ jest.mock('../src/roomStore', () => {
 // the captured interceptor list; stub it.
 jest.mock('../src/utils/devLogger', () => ({
   installAxiosCapture: jest.fn(),
+  pushLog: jest.fn(),
 }));
 
 import { store } from '../src/roomStore';
@@ -81,6 +82,12 @@ import {
   getCurrentBaseURL,
 } from '../src/networking/apiClient';
 
+import {
+  __resetAuthRefreshStateForTests,
+} from '../src/networking/authRefresh';
+import { asyncLocalStorage } from '../src/hooks/useLocalStorage';
+import { localStorageConstants } from '../src/helpers/constants/LOCAL_STORAGE';
+
 const fakeHttp = (jest.requireMock('axios') as any).__fakeHttp as any;
 
 // Grab the error handler the module registered (last `use` call wins
@@ -91,19 +98,22 @@ const interceptorOnError = () => {
   return calls[calls.length - 1][1] as (e: any) => Promise<any>;
 };
 
-beforeEach(() => {
+beforeEach(async () => {
   fakeHttp.post.mockReset();
   fakeHttp.get.mockReset();
   fakeHttp.put.mockReset();
   fakeHttp.delete.mockReset();
   (fakeHttp as jest.Mock).mockReset();
   store.dispatch({ type: 'chat/logout' });
+  // Drop any shared in-flight rotation left over from the previous case.
+  __resetAuthRefreshStateForTests();
+  await asyncLocalStorage(localStorageConstants.ETHORA_USER).remove();
 });
 
 // ---- refresh() ------------------------------------------------------
 
-describe('refresh()', () => {
-  it('resolves with the axios response on success and dispatches refreshTokens', async () => {
+describe('refresh() — deprecated forwarder', () => {
+  it('forwards to authRefresh and resolves with the rotated tokens', async () => {
     store.dispatch(setUser({ refreshToken: 'old-ref' } as any));
     fakeHttp.post.mockResolvedValueOnce({
       data: { token: 'new-tok', refreshToken: 'new-ref' },
@@ -114,27 +124,28 @@ describe('refresh()', () => {
       {},
       { headers: { Authorization: 'old-ref' } }
     );
-    expect(res.data.token).toBe('new-tok');
+    // No longer the axios envelope — the forwarder returns RefreshResult.
+    expect(res.token).toBe('new-tok');
     expect(store.getState().chatSettingStore.user.token).toBe('new-tok');
     expect(store.getState().chatSettingStore.user.refreshToken).toBe('new-ref');
   });
 
-  it('rejects when the inner http.post rejects', async () => {
+  it('rejects when the refresh POST rejects', async () => {
     store.dispatch(setUser({ refreshToken: 'r' } as any));
     fakeHttp.post.mockRejectedValueOnce(new Error('401'));
     await expect(refresh()).rejects.toThrow('401');
   });
 
-  it('rejects when http.post throws synchronously and dispatches logout', async () => {
-    store.dispatch(setUser({ refreshToken: 'r' } as any));
+  it('does NOT log out on a transport-level failure', async () => {
+    store.dispatch(setUser({ _id: 'u1', refreshToken: 'r' } as any));
     fakeHttp.post.mockImplementationOnce(() => {
       throw new Error('sync boom');
     });
-    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
     await expect(refresh()).rejects.toThrow('sync boom');
-    // logout() reset the user.
-    expect(store.getState().chatSettingStore.user._id).toBe('');
-    logSpy.mockRestore();
+    // The session survives: only a REFRESH_TOKEN_REUSE_DETECTED /
+    // NOT_FOUND / ALREADY_ROTATED verdict is allowed to clear it.
+    expect(store.getState().chatSettingStore.user._id).toBe('u1');
+    expect(store.getState().chatSettingStore.user.refreshToken).toBe('r');
   });
 });
 
@@ -316,47 +327,133 @@ describe('interceptor — built-in /users/login/refresh path', () => {
     expect(fakeHttp).not.toHaveBeenCalled();
   });
 
-  it('queues subsequent 401s while a refresh is in-flight and drains them with the new token', async () => {
+  it('shares ONE rotation across concurrent 401s and replays them all', async () => {
     const onError = interceptorOnError();
 
-    // Hold the refresh POST open until we say so.
+    // Hold the refresh POST open until we say so. Built up front: the
+    // rotation awaits storage before it reaches http.post.
     let resolveRefresh!: (v: any) => void;
-    fakeHttp.post.mockImplementationOnce(
-      () =>
-        new Promise((res) => {
-          resolveRefresh = res;
-        })
-    );
-    // Use a call-aware implementation so we don't have to think about
-    // whether processQueue or the first request's retry call fires
-    // http(...) first.
+    const pendingRefresh = new Promise((res) => {
+      resolveRefresh = res;
+    });
+    fakeHttp.post.mockReturnValueOnce(pendingRefresh);
+
     (fakeHttp as jest.Mock).mockImplementation((cfg: any) =>
       Promise.resolve({ data: `retry-of-${cfg.url}` })
     );
 
     const first: any = { url: '/protected', headers: {} };
-    const queued: any = { url: '/other', headers: {} };
+    const second: any = { url: '/other', headers: {} };
 
-    // Fire the first 401 — it triggers refresh + sets isRefreshing.
     const firstP = onError({ response: { status: 401 }, config: first });
-    // Fire a second 401 while refresh is still pending — should land
-    // in the queue and resolve to a retry once we drain it.
-    const queuedP = onError({ response: { status: 401 }, config: queued });
+    const secondP = onError({ response: { status: 401 }, config: second });
 
-    // Now complete the refresh.
     resolveRefresh({
       data: { token: 'queued-tok', refreshToken: 'queued-ref' },
     });
 
     const firstRes = await firstP;
-    const queuedRes = await queuedP;
+    const secondRes = await secondP;
 
     expect(firstRes).toEqual({ data: 'retry-of-/protected' });
-    expect(queuedRes).toEqual({ data: 'retry-of-/other' });
-    // The queued request had the new token stamped on it by
-    // processQueue.
-    expect(queued.headers.Authorization).toBe('queued-tok');
-    // And the first request got the token from refresh().
+    expect(secondRes).toEqual({ data: 'retry-of-/other' });
+    // Both replays carry the freshly rotated access token...
     expect(first.headers.Authorization).toBe('queued-tok');
+    expect(second.headers.Authorization).toBe('queued-tok');
+    // ...and crucially there was only ONE rotation. A second one would
+    // have presented an already-burned refresh token.
+    expect(fakeHttp.post).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not retry a request that already carries _retry', async () => {
+    const onError = interceptorOnError();
+    const err = {
+      response: { status: 401 },
+      config: { url: '/protected', headers: {}, _retry: true },
+    };
+
+    await expect(onError(err)).rejects.toBe(err);
+    expect(fakeHttp.post).not.toHaveBeenCalled();
+  });
+
+  it('rejects without refreshing when there is no refreshable session', async () => {
+    store.dispatch(setUser({ refreshToken: '' } as any));
+    const onError = interceptorOnError();
+    const err = {
+      response: { status: 401 },
+      config: { url: '/protected', headers: {} },
+    };
+
+    await expect(onError(err)).rejects.toBe(err);
+    expect(fakeHttp.post).not.toHaveBeenCalled();
+  });
+});
+
+// ---- interceptor: logout policy ------------------------------------
+
+describe('interceptor — when the session is dead vs merely failing', () => {
+  beforeEach(() => {
+    store.dispatch(setUser({ _id: 'u1', refreshToken: 'old-ref' } as any));
+    store.dispatch(
+      setConfig({
+        colors: { primary: '#0052CD', secondary: '#000' },
+        refreshTokens: { enabled: true },
+      } as any)
+    );
+  });
+
+  it('logs out on REFRESH_TOKEN_REUSE_DETECTED', async () => {
+    const onError = interceptorOnError();
+    fakeHttp.post.mockRejectedValueOnce({
+      response: {
+        status: 401,
+        data: { code: 'REFRESH_TOKEN_REUSE_DETECTED' },
+        headers: {},
+      },
+    });
+
+    await expect(
+      onError({
+        response: { status: 401 },
+        config: { url: '/protected', headers: {} },
+      })
+    ).rejects.toBeDefined();
+
+    expect(store.getState().chatSettingStore.user._id).toBe('');
+  });
+
+  it('keeps the session on a network failure', async () => {
+    const onError = interceptorOnError();
+    fakeHttp.post.mockRejectedValueOnce(new Error('Network Error'));
+
+    await expect(
+      onError({
+        response: { status: 401 },
+        config: { url: '/protected', headers: {} },
+      })
+    ).rejects.toThrow('Network Error');
+
+    expect(store.getState().chatSettingStore.user._id).toBe('u1');
+    expect(store.getState().chatSettingStore.user.refreshToken).toBe('old-ref');
+  });
+
+  it('keeps the session when the rotation loses a REFRESH_IN_PROGRESS race', async () => {
+    const onError = interceptorOnError();
+    fakeHttp.post.mockRejectedValue({
+      response: {
+        status: 401,
+        data: { code: 'REFRESH_IN_PROGRESS' },
+        headers: {},
+      },
+    });
+
+    await expect(
+      onError({
+        response: { status: 401 },
+        config: { url: '/protected', headers: {} },
+      })
+    ).rejects.toBeDefined();
+
+    expect(store.getState().chatSettingStore.user._id).toBe('u1');
   });
 });

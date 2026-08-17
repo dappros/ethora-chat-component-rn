@@ -479,7 +479,7 @@ export const useSendMessage = (_configOverride?: IConfig) => {
         const fd = new FormData();
         fd.append('files', fileBlob as any);
         try {
-          return await uploadFileMultipart(fd);
+          return await uploadFileMultipart(fd, activeRoomJID);
         } catch (err: any) {
           if (err?.response?.status === 500) {
             console.warn(
@@ -488,7 +488,7 @@ export const useSendMessage = (_configOverride?: IConfig) => {
             );
             const fd2 = new FormData();
             fd2.append('file', fileBlob as any);
-            return await uploadFileMultipart(fd2);
+            return await uploadFileMultipart(fd2, activeRoomJID);
           }
           throw err;
         }

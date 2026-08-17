@@ -1,8 +1,13 @@
 import axios from 'axios';
 import { store } from '../roomStore';
 
-import { logout, refreshTokens } from '../roomStore/chatSettingsSlice';
+import { logout } from '../roomStore/chatSettingsSlice';
 import { installAxiosCapture } from '../utils/devLogger';
+import {
+  refreshAuthTokens,
+  isRefreshFatalError,
+  RefreshResult,
+} from './authRefresh';
 
 // Per product-code-policy: no compiled-in Ethora endpoints or tokens.
 // Consumers must call `setBaseURL(baseUrl, appToken)` (or pass
@@ -39,149 +44,78 @@ export function getCurrentBaseURL() {
   return currentBaseURL;
 }
 
-export function refresh(): Promise<{
-  data: { refreshToken: string; token: string };
-}> {
-  return new Promise((resolve, reject) => {
-    const user = store.getState().chatSettingStore.user;
-    try {
-      http
-        .post(
-          '/users/login/refresh',
-          {},
-          { headers: { Authorization: user.refreshToken } }
-        )
-        .then((response) => {
-          store.dispatch(
-            refreshTokens({
-              token: response.data.token,
-              refreshToken: response.data.refreshToken,
-            })
-          );
-          // BUGFIX: previously the `.then` only dispatched and never
-          // resolved, so every `await refresh()` callsite hung forever
-          // on the happy path. Resolve with the axios response shape so
-          // the interceptor can read `tokens.data.token` to retry.
-          resolve(response);
-        })
-        .catch((error) => {
-          reject(error);
-        });
-    } catch (error) {
-      // BUGFIX: previously the outer-try catch dispatched logout but
-      // never rejected, so a synchronous throw from `http.post` (e.g.
-      // a bad URL) would hang the promise. Reject explicitly.
-      console.log('errr');
-      store.dispatch(logout());
-      reject(error);
-    }
-  });
+/**
+ * @deprecated Import `refreshAuthTokens` from `./authRefresh` instead.
+ *
+ * Kept as a thin forwarder so existing call sites keep working while
+ * they migrate. Declared as a function (not `const refresh =
+ * refreshAuthTokens`) on purpose: this module and `authRefresh` import
+ * each other, and a const would capture the binding before the other
+ * module finished evaluating.
+ */
+export function refresh(): Promise<RefreshResult> {
+  return refreshAuthTokens();
 }
-
-let isRefreshing = false;
-let failedQueue: any[] = [];
-
-const addRequestToQueue = (config: any) => {
-  return new Promise((resolve, reject) => {
-    failedQueue.push({ resolve, reject, config });
-  });
-};
-
-const processQueue = (newAccessToken: string) => {
-  for (const request of failedQueue) {
-    if (newAccessToken) {
-      request.config.headers.Authorization = newAccessToken;
-    }
-
-    request.resolve(http(request.config));
-  }
-
-  failedQueue = [];
-};
 
 http.interceptors.response.use(
   (response) => response,
   async (error) => {
-    // BUGFIX: the original condition was `if (!enabled)` — inverted, so
-    // turning `refreshTokens.enabled: true` actually DISABLED the refresh
-    // path on 401. Use the correct sense.
-    if (!store.getState().chatSettingStore?.config?.refreshTokens?.enabled) {
-      // BUGFIX: previously this branch fell off the end of the async
-      // function and returned `undefined`, which axios treats as a
-      // resolved-with-undefined response. Callers expecting an error
-      // got `undefined` instead, silently swallowing every failure
-      // when the refresh path isn't configured. Re-reject so the
-      // original error reaches the caller.
-      return Promise.reject(error);
-    }
-
     const originalRequest = error.config;
     const status = error.response?.status;
 
     // Refresh paths only fire on 401. Anything else passes through.
-    if (!error.response || status !== 401) {
+    if (!error.response || status !== 401 || !originalRequest) {
       return Promise.reject(error);
     }
 
+    // Never retry twice, and never touch the auth endpoints themselves —
+    // both would recurse. (`_retry` was set but never checked before,
+    // so a request could bounce between 401 and replay indefinitely.)
     if (
-      store.getState().chatSettingStore?.config?.refreshTokens?.refreshFunction
-    ) {
-      // Consumer-supplied refresh function. Call it, dispatch the new
-      // tokens, retry the original request.
-      try {
-        const fn = store.getState().chatSettingStore?.config?.refreshTokens?.refreshFunction;
-        if (!fn) return Promise.reject(error);
-        const result = await fn();
-        const { refreshToken: newRefreshToken, accessToken } = result || { refreshToken: '', accessToken: '' };
-        store.dispatch(
-          refreshTokens({
-            token: accessToken,
-            refreshToken: newRefreshToken || '',
-          })
-        );
-        // BUGFIX: previously this branch returned `undefined` after
-        // dispatching, so the original request was never retried and
-        // the caller resolved with undefined. Stamp the new token on
-        // the original config and replay.
-        if (originalRequest?.headers) {
-          originalRequest.headers.Authorization = accessToken;
-        }
-        return http(originalRequest);
-      } catch (refreshErr) {
-        return Promise.reject(refreshErr);
-      }
-    }
-
-    // Built-in `/users/login/refresh` path. Skip if the failing request
-    // IS the refresh / login itself — otherwise we'd loop forever.
-    if (
+      originalRequest._retry ||
       originalRequest.url === '/users/login/refresh' ||
       originalRequest.url === '/users/login'
     ) {
       return Promise.reject(error);
     }
 
-    originalRequest._retry = true;
+    const refreshConfig =
+      store.getState().chatSettingStore?.config?.refreshTokens;
 
-    if (isRefreshing) {
-      const retryOriginalRequest = addRequestToQueue(originalRequest);
-      return retryOriginalRequest;
+    // BUGFIX (kept): the original condition here was inverted, so
+    // `refreshTokens.enabled: true` actually DISABLED the refresh path.
+    if (!refreshConfig?.enabled) {
+      return Promise.reject(error);
     }
 
-    isRefreshing = true;
+    // Nothing to rotate with — reject rather than firing a doomed
+    // refresh that would look like a bad-token event to the backend.
+    const hasRefreshableSession = Boolean(
+      refreshConfig.refreshFunction ||
+        store.getState().chatSettingStore.user?.refreshToken
+    );
+    if (!hasRefreshableSession) {
+      return Promise.reject(error);
+    }
+
+    originalRequest._retry = true;
+
     try {
-      const tokens = await refresh();
-      // (was: console.log('tokens', tokens) — dumped the full response
-      // incl. access/refresh/ws tokens on every refresh; removed.)
-      isRefreshing = false;
-      originalRequest.headers.Authorization = tokens.data.token;
-      processQueue(tokens.data.token);
+      // One shared rotation for every 401 in flight — `refreshAuthTokens`
+      // dedupes internally, which replaces the old isRefreshing/
+      // failedQueue machinery entirely.
+      const tokens = await refreshAuthTokens();
+      originalRequest.headers = originalRequest.headers || {};
+      originalRequest.headers.Authorization = tokens.token;
       return http(originalRequest);
     } catch (refreshErr) {
-      isRefreshing = false;
-      // BUGFIX: previously this returned the error (resolving the
-      // promise with the error as value) instead of rejecting, so
-      // axios callers got the error as a "successful" response body.
+      // Only a genuinely dead session logs the user out. A network
+      // blip, a 5xx, or a REFRESH_IN_PROGRESS race must leave the
+      // session alone — logging out on those is exactly the mass-logout
+      // failure mode the new backend scheme would otherwise cause.
+      if (isRefreshFatalError(refreshErr)) {
+        store.dispatch(logout());
+      }
       return Promise.reject(refreshErr);
     }
   }

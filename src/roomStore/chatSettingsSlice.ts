@@ -146,14 +146,24 @@ const reducers = {
   setSelectedUser: (state: WritableDraft<ChatState>, action: PayloadAction<IUser | undefined>) => {
     state.selectedUser = action.payload;
   },
+  /**
+   * Token rotation. Dispatched from ONE place only — `authRefresh` —
+   * which awaits the AsyncStorage write immediately afterwards, before
+   * resolving its promise.
+   *
+   * The reducer used to fire its own best-effort write here. That was
+   * both redundant and racy (two writers, no ordering), and a
+   * fire-and-forget write can be lost if the app dies right after a
+   * rotation — which on a backend with reuse detection means the next
+   * launch presents a burned token. Persistence now belongs to the
+   * caller, which can actually await it.
+   */
   refreshTokens: (
     state: WritableDraft<ChatState>,
     action: PayloadAction<{ token: string; refreshToken: string }>
   ) => {
     state.user.refreshToken = action.payload.refreshToken;
     state.user.token = action.payload.token;
-    // AsyncStorage is async; fire-and-forget so the reducer stays sync.
-    asyncLocalStorage(localStorageConstants.ETHORA_USER).set(state.user);
   },
   logout: (state: WritableDraft<ChatState>) => {
     state.user = unpackAndTransform();
