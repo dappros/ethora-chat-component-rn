@@ -67,6 +67,8 @@ const refreshWithToken = async (refreshToken: string) => {
   return {
     token: result.token,
     refreshToken: result.refreshToken || refreshToken,
+    xmppPassword: result.xmppPassword || '',
+    fileToken: result.fileToken || '',
   };
 };
 
@@ -99,11 +101,15 @@ const tryHydrateViaMy = async (
 
   let workingToken = candidate?.token || '';
   let workingRefresh = candidate?.refreshToken || '';
+  let rotatedXmppPassword = '';
+  let workingFileToken = candidate?.fileToken || '';
 
   const candidateWithCurrentTokens = (): User => ({
     ...candidate,
     token: workingToken || candidate.token,
     refreshToken: workingRefresh || candidate.refreshToken,
+    xmppPassword: rotatedXmppPassword || candidate.xmppPassword,
+    fileToken: workingFileToken || candidate.fileToken,
   });
 
   const fallbackWithCreds = (): User | null => {
@@ -119,6 +125,8 @@ const tryHydrateViaMy = async (
       if (merged) {
         merged.token = workingToken || merged.token;
         merged.refreshToken = workingRefresh || merged.refreshToken;
+        merged.xmppPassword = rotatedXmppPassword || merged.xmppPassword;
+        merged.fileToken = workingFileToken || merged.fileToken;
       }
       return merged;
     } catch (error) {
@@ -139,6 +147,8 @@ const tryHydrateViaMy = async (
     const refreshed = await refreshWithToken(workingRefresh);
     workingToken = refreshed.token;
     workingRefresh = refreshed.refreshToken;
+    rotatedXmppPassword = refreshed.xmppPassword || rotatedXmppPassword;
+    workingFileToken = refreshed.fileToken || workingFileToken;
 
     try {
       const myUser = await getMyUser({ token: workingToken, endpoint: myEndpoint });
@@ -148,6 +158,8 @@ const tryHydrateViaMy = async (
       if (merged) {
         merged.token = workingToken || merged.token;
         merged.refreshToken = workingRefresh || merged.refreshToken;
+        merged.xmppPassword = rotatedXmppPassword || merged.xmppPassword;
+        merged.fileToken = workingFileToken || merged.fileToken;
       }
       return merged;
     } catch (myError) {

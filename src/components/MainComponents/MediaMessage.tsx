@@ -15,6 +15,8 @@ import { deriveDisplayFilename, isLikelyAudio } from '../../helpers/mimeToExtens
 import { FileIcon, PlayIcon } from '../../assets/icons';
 import { defaultMediaDims } from '../../helpers/mediaDimensions';
 import { useChatSettingState } from '../../hooks/useChatSettingState';
+import { useFileToken } from '../../hooks/useFileToken';
+import { appendFileToken } from '../../helpers/secureFileUrl';
 
 interface MediaMessageProps {
   mimeType?: string;
@@ -136,22 +138,26 @@ const PendingMediaMessage: React.FC<{
 
 const MediaMessage: React.FC<MediaMessageProps> = ({
   mimeType,
-  location,
-  messageText,
+  location: rawLocation,
+  messageText: rawMessageText,
   message,
   isUser,
 }) => {
+  const fileToken = useFileToken();
+  const location = appendFileToken(rawLocation, fileToken);
+  const messageText = appendFileToken(rawMessageText, fileToken);
+
   if (mimeType) {
     const displayName = deriveDisplayFilename({
       fileName: message?.fileName,
       originalName: (message as any)?.originalName,
-      url: location || messageText,
+      url: rawLocation || rawMessageText,
       mime: mimeType,
     });
     const isAudioPayload = isLikelyAudio(
       mimeType,
       displayName,
-      location,
+      rawLocation,
       {
         duration: (message as any)?.duration,
         waveForm: (message as any)?.waveForm,

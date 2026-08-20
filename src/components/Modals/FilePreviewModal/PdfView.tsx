@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { withFileToken } from '../../../helpers/secureFileUrl';
 import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -25,7 +26,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({ pdfUrl }) => {
     const run = async () => {
       try {
         const target = FileSystem.cacheDirectory + `pdf-${Date.now()}.pdf`;
-        const result = await FileSystem.downloadAsync(pdfUrl, target);
+        const result = await FileSystem.downloadAsync(withFileToken(pdfUrl), target);
         if (cancelled) {return;}
         setLocalUri(result.uri);
       } catch (e: any) {

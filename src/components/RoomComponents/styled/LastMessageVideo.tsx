@@ -1,4 +1,6 @@
 import React, { FC } from 'react';
+import { useFileToken } from '../../../hooks/useFileToken';
+import { appendFileToken } from '../../../helpers/secureFileUrl';
 import styled from 'styled-components/native';
 import { LastMessage } from '../../../types/types';
 import {
@@ -45,6 +47,7 @@ const LastMessageVideo: FC<LastMessageVideoProps> = ({
   location,
   originalName,
 }) => {
+  const fileToken = useFileToken();
   return (
     <LastRoomMessageContainer>
       <LastRoomMessageName>{user?.name || ''}:</LastRoomMessageName>
@@ -57,7 +60,7 @@ const LastMessageVideo: FC<LastMessageVideoProps> = ({
       >
         <VideoContainer>
           <ShadeWrapper>
-            <Thumbnail src={location} />
+            <Thumbnail src={appendFileToken(location, fileToken)} />
           </ShadeWrapper>
           <PlayButton><Text>▶</Text></PlayButton>
         </VideoContainer>

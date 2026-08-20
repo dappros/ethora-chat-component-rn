@@ -40,6 +40,7 @@ export const unpackAndTransform = (input?: User): User => {
     _id: input?._id || '',
     walletAddress: input?.defaultWallet?.walletAddress || '',
     xmppPassword: input?.xmppPassword || '',
+    fileToken: input?.fileToken || '',
     refreshToken: input?.refreshToken || '',
     firstName: input?.firstName || '',
     lastName: input?.lastName || '',
@@ -73,6 +74,7 @@ const initialState: ChatState = {
     _id: '',
     walletAddress: '',
     xmppPassword: '',
+    fileToken: '',
     refreshToken: '',
     firstName: '',
     lastName: '',
@@ -160,10 +162,23 @@ const reducers = {
    */
   refreshTokens: (
     state: WritableDraft<ChatState>,
-    action: PayloadAction<{ token: string; refreshToken: string }>
+    action: PayloadAction<{
+      token: string;
+      refreshToken: string;
+      xmppPassword?: string;
+      fileToken?: string;
+    }>
   ) => {
     state.user.refreshToken = action.payload.refreshToken;
     state.user.token = action.payload.token;
+
+    if (action.payload.xmppPassword) {
+      state.user.xmppPassword = action.payload.xmppPassword;
+    }
+
+    if (action.payload.fileToken) {
+      state.user.fileToken = action.payload.fileToken;
+    }
   },
   logout: (state: WritableDraft<ChatState>) => {
     state.user = unpackAndTransform();

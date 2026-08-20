@@ -1,4 +1,8 @@
 import React, { useEffect, useState } from 'react';
+import {
+  isSecureFileUrl,
+  requestFileTokenRecovery,
+} from '../../helpers/secureFileUrl';
 import { Container } from './StyledInputComponents/MediaComponents';
 import { useDispatch } from 'react-redux';
 import {
@@ -86,6 +90,12 @@ const CustomMessageImage: React.FC<CustomMessageImageProps> = ({
             backgroundColor: 'rgba(0, 0, 0, 0)',
           }}
           onLoadEnd={() => setLoading(false)}
+          onError={() => {
+            setLoading(false);
+            if (isSecureFileUrl(fileURL)) {
+              requestFileTokenRecovery();
+            }
+          }}
           // The box already matches the natural aspect ratio, so 'cover'
           // fills it edge-to-edge with no actual cropping or letterboxing.
           resizeMode="cover"

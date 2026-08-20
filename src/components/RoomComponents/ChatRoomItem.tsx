@@ -1,4 +1,6 @@
 import React, { useMemo } from 'react';
+import { useFileToken } from '../../hooks/useFileToken';
+import { appendFileToken } from '../../helpers/secureFileUrl';
 import { IConfig, IRoom } from '../../types/types';
 import { ProfileImagePlaceholder } from '../MainComponents/ProfileImagePlaceholder';
 import {
@@ -26,6 +28,8 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
   isDriver,
   config,
 }) => {
+  // Room icons can live on the membership-gated secure-files host.
+  const fileToken = useFileToken();
   const displayName = String(chat?.title || chat?.name || '').trim();
 
   const lastMessage = useMemo(() => {
@@ -86,7 +90,11 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
 
   return (
     <ChatItem key={index}>
-      <ProfileImagePlaceholder name={displayName} icon={chat?.icon} active={false} />
+      <ProfileImagePlaceholder
+        name={displayName}
+        icon={appendFileToken(chat?.icon, fileToken)}
+        active={false}
+      />
       <View
         style={{
           flexDirection: 'column',

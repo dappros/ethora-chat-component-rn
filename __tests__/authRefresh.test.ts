@@ -123,6 +123,73 @@ describe('happy path', () => {
   });
 });
 
+describe('rotating xmppPassword', () => {
+  // The XMPP password now expires after an hour and is re-issued by the
+  // refresh endpoint, so it has to ride along with the tokens.
+  it('persists the re-issued password with the tokens', async () => {
+    fakeHttp.post.mockResolvedValueOnce({
+      data: {
+        token: 'access-2',
+        refreshToken: 'refresh-2',
+        xmppPassword: 'xmpp-2',
+      },
+    });
+
+    const result = await refreshAuthTokens();
+
+    expect(result.xmppPassword).toBe('xmpp-2');
+    expect(store.getState().chatSettingStore.user.xmppPassword).toBe('xmpp-2');
+    const stored: any = await asyncLocalStorage(
+      localStorageConstants.ETHORA_USER
+    ).get();
+    expect(stored?.xmppPassword).toBe('xmpp-2');
+  });
+
+  it('keeps the existing password when the response carries none', async () => {
+    // Blanking it would take XMPP down until the next successful bind.
+    fakeHttp.post.mockResolvedValueOnce({
+      data: { token: 'access-2', refreshToken: 'refresh-2' },
+    });
+
+    await refreshAuthTokens();
+
+    expect(store.getState().chatSettingStore.user.xmppPassword).toBe('pw');
+  });
+
+  it('persists the re-issued fileToken with the tokens', async () => {
+    fakeHttp.post.mockResolvedValueOnce({
+      data: {
+        token: 'access-2',
+        refreshToken: 'refresh-2',
+        fileToken: 'ft-2',
+      },
+    });
+
+    const result = await refreshAuthTokens();
+
+    expect(result.fileToken).toBe('ft-2');
+    expect(store.getState().chatSettingStore.user.fileToken).toBe('ft-2');
+  });
+
+  it('passes a host-supplied password through the consumer path', async () => {
+    const refreshFunction = jest.fn().mockResolvedValue({
+      accessToken: 'host-access',
+      refreshToken: 'host-refresh',
+      xmppPassword: 'host-xmpp',
+    });
+    store.dispatch(
+      setConfig({ refreshTokens: { enabled: true, refreshFunction } } as any)
+    );
+
+    const result = await refreshAuthTokens();
+
+    expect(result.xmppPassword).toBe('host-xmpp');
+    expect(store.getState().chatSettingStore.user.xmppPassword).toBe(
+      'host-xmpp'
+    );
+  });
+});
+
 describe('concurrency', () => {
   it('collapses concurrent callers into a single request', async () => {
     // Deferred built up front: the module awaits storage before it ever

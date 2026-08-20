@@ -1,4 +1,8 @@
 import React, { useEffect, useState } from 'react';
+import {
+  isSecureFileUrl,
+  requestFileTokenRecovery,
+} from '../../helpers/secureFileUrl';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { useDispatch } from 'react-redux';
 import {
@@ -139,7 +143,12 @@ const CustomMessageVideo: React.FC<CustomMessageVideoProps> = ({
       <PosterVideo
         previewURL={previewURL}
         onOpen={handleOpen}
-        onPosterError={() => setPosterFailed(true)}
+        onPosterError={() => {
+          if (isSecureFileUrl(previewURL)) {
+            requestFileTokenRecovery();
+          }
+          setPosterFailed(true);
+        }}
       />
     );
   }

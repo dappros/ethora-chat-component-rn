@@ -115,7 +115,18 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
       //    the shared rotation point covers both the consumer-supplied
       //    function and the built-in endpoint.
       if (config?.refreshTokens?.enabled) {
-        await refreshAuthTokensQuietly();
+        const rotated = await refreshAuthTokensQuietly();
+
+        if (rotated?.xmppPassword) {
+          const rotatedUser = store.getState().chatSettingStore.user;
+          return {
+            username:
+              rotatedUser?.xmppUsername ||
+              rotatedUser?.defaultWallet?.walletAddress ||
+              '',
+            password: rotated.xmppPassword,
+          };
+        }
       }
 
       // 2. Re-mint XMPP creds via the right priority chain for the

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { withFileToken } from '../../../helpers/secureFileUrl';
 import styled from 'styled-components/native';
 import {
   CenterContainer,
@@ -154,7 +155,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
       );
 
       const filePath = FileSystem.cacheDirectory + fileName;
-      const download = await FileSystem.downloadAsync(activeFile.fileURL, filePath);
+      const download = await FileSystem.downloadAsync(withFileToken(activeFile.fileURL), filePath);
 
       if (download.status === 200) {
         await MediaLibrary.saveToLibraryAsync(download.uri);
@@ -179,7 +180,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
         activeFile.mimetype
       );
       const filePath = FileSystem.cacheDirectory + fileName;
-      const download = await FileSystem.downloadAsync(activeFile.fileURL, filePath);
+      const download = await FileSystem.downloadAsync(withFileToken(activeFile.fileURL), filePath);
 
       if (download.status !== 200) {
         Alert.alert('Error', 'Failed to save the file.');
@@ -272,7 +273,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           <FullScreenImage
             source={{
               uri:
-                activeFile.fileURL ||
+                withFileToken(activeFile.fileURL) ||
                 'https://as2.ftcdn.net/v2/jpg/02/51/95/53/1000_F_251955356_FAQH0U1y1TZw3ZcdPGybwUkH90a3VAhb.jpg',
             }}
             resizeMode="contain"
@@ -280,7 +281,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           />
         );
       case activeFile.mimetype.startsWith('video/'):
-        return <ModalVideo uri={activeFile.fileURL} />;
+        return <ModalVideo uri={withFileToken(activeFile.fileURL)} />;
       case activeFile.mimetype.includes('application/octet-stream'):
         return (
           <View
@@ -296,7 +297,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
               Voice message
             </Text>
             <AudioMessage
-              src={activeFile.fileURL}
+              src={withFileToken(activeFile.fileURL)}
               mimeType={activeFile.mimetype}
               fileName={activeFile.fileName}
               originalName={activeFile.originalName}
@@ -336,7 +337,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
               )}
             </Text>
             <AudioMessage
-              src={activeFile.fileURL}
+              src={withFileToken(activeFile.fileURL)}
               mimeType={activeFile.mimetype}
               fileName={activeFile.fileName}
               originalName={activeFile.originalName}
@@ -346,7 +347,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           </View>
         );
       case activeFile.mimetype === 'application/pdf':
-        return <PdfViewer pdfUrl={activeFile.fileURL} />;
+        return <PdfViewer pdfUrl={withFileToken(activeFile.fileURL)} />;
       default: {
         const displayName = ensureFilenameHasExtension(
           activeFile.fileName,

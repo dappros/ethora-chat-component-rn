@@ -50,6 +50,8 @@ export interface RefreshResult {
    * TODO(phase-7): decide whether to persist this on `User`.
    */
   wsToken?: string;
+  xmppPassword?: string;
+  fileToken?: string;
 }
 
 /**
@@ -179,6 +181,8 @@ const persistTokens = async (result: RefreshResult): Promise<void> => {
     refreshTokens({
       token: result.token,
       refreshToken: result.refreshToken,
+      xmppPassword: result.xmppPassword,
+      fileToken: result.fileToken,
     })
   );
 
@@ -217,13 +221,20 @@ const adoptStoredTokens = async (): Promise<RefreshResult | null> => {
     );
   }
 
-  return { token: stored.token, refreshToken: stored.refreshToken };
+  return {
+    token: stored.token,
+    refreshToken: stored.refreshToken,
+    xmppPassword: stored.xmppPassword,
+    fileToken: stored.fileToken,
+  };
 };
 
 /** Host-supplied rotation, mirrors `IConfig['refreshTokens']['refreshFunction']`. */
 type ConsumerRefreshFn = () => Promise<{
   accessToken: string;
   refreshToken?: string;
+  xmppPassword?: string;
+  fileToken?: string;
 } | null>;
 
 const runConsumerRefresh = async (
@@ -251,6 +262,8 @@ const runConsumerRefresh = async (
     token: refreshed.accessToken,
     refreshToken:
       refreshed.refreshToken || (await readCurrentRefreshToken()) || '',
+    xmppPassword: refreshed.xmppPassword,
+    fileToken: refreshed.fileToken,
   };
 
   await persistTokens(result);
@@ -270,6 +283,8 @@ const requestRotation = async (
     token: response?.data?.token || '',
     refreshToken: response?.data?.refreshToken || '',
     wsToken: response?.data?.wsToken,
+    xmppPassword: response?.data?.xmppPassword,
+    fileToken: response?.data?.fileToken,
   };
 
   if (!result.token || !result.refreshToken) {

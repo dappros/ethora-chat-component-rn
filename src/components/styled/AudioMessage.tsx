@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { withFileToken } from '../../helpers/secureFileUrl';
 import {
   View,
   TouchableOpacity,
@@ -425,7 +426,7 @@ const AudioMessage = ({
     const partInfo = await FileSystem.getInfoAsync(part);
     if (!partInfo.exists) {
       const download = await withTimeout(
-        FileSystem.downloadAsync(src, part),
+        FileSystem.downloadAsync(withFileToken(src), part),
         12000,
         'audio_download_timeout'
       );

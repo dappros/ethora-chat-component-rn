@@ -105,6 +105,7 @@ export interface User {
   ];
   appId: string;
   xmppPassword: string;
+  fileToken?: string;
 
   homeScreen?: string;
   registrationChannelType?: string;
@@ -472,6 +473,8 @@ export interface IConfig {
     refreshFunction?: () => Promise<{
       accessToken: string;
       refreshToken?: string;
+      fileToken?: string;
+      xmppPassword?: string;
     } | null>;
   };
 
