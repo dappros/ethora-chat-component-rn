@@ -26,10 +26,21 @@ const http = axios.create({
 // `http` instance.
 installAxiosCapture(http);
 
+const stripApiVersion = (baseUrl: string): string =>
+  baseUrl.replace(/\/+$/, '').replace(/\/v\d+$/, '');
+
+export const normalizeApiPath = (path?: string): string | undefined => {
+  if (!path) {return path;}
+  if (/^https?:\/\//i.test(path)) {return path;}
+  if (/^\/v\d+\//.test(path)) {return path;}
+  return `/v1${path.startsWith('/') ? '' : '/'}${path}`;
+};
+
 export function setBaseURL(baseUrl?: string, appToken?: string) {
-  if (baseUrl && baseUrl !== currentBaseURL) {
-    currentBaseURL = baseUrl;
-    http.defaults.baseURL = baseUrl;
+  const normalized = baseUrl ? stripApiVersion(baseUrl) : baseUrl;
+  if (normalized && normalized !== currentBaseURL) {
+    currentBaseURL = normalized;
+    http.defaults.baseURL = normalized;
   }
   if (appToken && appToken !== currentAppToken) {
     currentAppToken = appToken;
@@ -73,8 +84,8 @@ http.interceptors.response.use(
     // so a request could bounce between 401 and replay indefinitely.)
     if (
       originalRequest._retry ||
-      originalRequest.url === '/users/login/refresh' ||
-      originalRequest.url === '/users/login'
+      originalRequest.url === '/v1/users/login/refresh' ||
+      originalRequest.url === '/v1/users/login'
     ) {
       return Promise.reject(error);
     }

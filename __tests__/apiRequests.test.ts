@@ -14,7 +14,7 @@ jest.mock('../src/networking/apiClient', () => {
     post: jest.fn(),
     put: jest.fn(),
     delete: jest.fn(),
-    defaults: { baseURL: 'https://api.test/v1' },
+    defaults: { baseURL: 'https://api.test' },
   };
   // auth.api reads the app token/base URL via the getter functions
   // (not the legacy static `appToken`), so the mock must provide them
@@ -24,8 +24,12 @@ jest.mock('../src/networking/apiClient', () => {
     default: http,
     appToken: 'test-app-token',
     getCurrentAppToken: () => 'test-app-token',
-    getCurrentBaseURL: () => 'https://api.test/v1',
+    getCurrentBaseURL: () => 'https://api.test',
     setBaseURL: jest.fn(),
+    // Paths now carry their own version; the helper is what keeps a
+    // host-supplied `myEndpoint` working across the change.
+    normalizeApiPath: (path?: string) =>
+      !path || /^\/v\d+\//.test(path) ? path : `/v1${path}`,
   };
 });
 
@@ -60,7 +64,7 @@ import {
   loginViaJwt,
   checkEmailExist,
   uploadFile,
-  uploadFileMultipart,
+  uploadFileV2,
 } from '../src/networking/api-requests/auth.api';
 import {
   getRooms,
@@ -94,7 +98,7 @@ describe('user.api', () => {
     mockHttp.get.mockResolvedValueOnce({ data: { user: { _id: 'u1' } } });
     const out = await getMyUser();
     expect(mockHttp.get).toHaveBeenCalledWith(
-      '/users/my',
+      '/v1/users/my',
       { headers: { Authorization: 'redux-tok' } }
     );
     expect(out).toEqual({ _id: 'u1' });
@@ -106,28 +110,39 @@ describe('user.api', () => {
       token: 'explicit-tok',
       endpoint: '/users/special',
     });
+    // The base URL no longer carries `/v1`, so a host-supplied endpoint
+    // written the old way gets versioned rather than 404-ing.
     expect(mockHttp.get).toHaveBeenCalledWith(
-      '/users/special',
+      '/v1/users/special',
       { headers: { Authorization: 'explicit-tok' } }
     );
     // No `user` wrapper → returns response.data as-is.
     expect(out).toEqual({ _id: 'u2' });
   });
 
+  it('getMyUser: an endpoint that already names its version is left alone', async () => {
+    mockHttp.get.mockResolvedValueOnce({ data: { _id: 'u3' } });
+    await getMyUser({ token: 't', endpoint: '/v2/users/me' });
+    expect(mockHttp.get).toHaveBeenCalledWith(
+      '/v2/users/me',
+      { headers: { Authorization: 't' } }
+    );
+  });
+
   it('getDocuments uses the Bearer token prefix', () => {
     store.dispatch(setUser({ token: 't1' } as any));
     getDocuments('0xabc');
     expect(mockHttp.get).toHaveBeenCalledWith(
-      '/docs/0xabc',
+      '/v1/docs/0xabc',
       { headers: { Authorization: 'Bearer t1' } }
     );
   });
 
   it('deleteMe + updateMe hit /users with the right verbs', () => {
     deleteMe();
-    expect(mockHttp.delete).toHaveBeenCalledWith('/users');
+    expect(mockHttp.delete).toHaveBeenCalledWith('/v1/users');
     updateMe({ firstName: 'A' });
-    expect(mockHttp.put).toHaveBeenCalledWith('/users', { firstName: 'A' });
+    expect(mockHttp.put).toHaveBeenCalledWith('/v1/users', { firstName: 'A' });
   });
 
   it('updateProfile wraps the underlying error and rethrows', async () => {
@@ -151,7 +166,7 @@ describe('auth.api', () => {
     mockHttp.post.mockResolvedValueOnce({ data: { token: 't', user: {} } });
     await loginEmail('a@b.com', 'pw');
     expect(mockHttp.post).toHaveBeenCalledWith(
-      '/users/login-with-email',
+      '/v1/users/login-with-email',
       { email: 'a@b.com', password: 'pw' },
       { headers: { Authorization: 'test-app-token' } }
     );
@@ -167,7 +182,7 @@ describe('auth.api', () => {
     });
     const out = await loginViaJwt('client-jwt');
     expect(mockHttp.post).toHaveBeenCalledWith(
-      '/users/client',
+      '/v1/users/client',
       null,
       { headers: { 'x-custom-token': 'client-jwt' } }
     );
@@ -176,13 +191,31 @@ describe('auth.api', () => {
       firstName: 'A',
       token: 'srv-tok',
       refreshToken: 'srv-ref',
+      fileToken: '',
     });
+  });
+
+  it('loginViaJwt folds the top-level fileToken onto the user', async () => {
+    // It arrives next to token/refreshToken, not inside `user`. Missing
+    // it means every secure-files image renders blank.
+    mockHttp.post.mockResolvedValueOnce({
+      data: {
+        user: { _id: 'u', firstName: 'A' },
+        token: 'srv-tok',
+        refreshToken: 'srv-ref',
+        fileToken: 'ft-1',
+      },
+    });
+
+    const out = await loginViaJwt('client-jwt');
+
+    expect(out.fileToken).toBe('ft-1');
   });
 
   it('checkEmailExist hits /users/checkEmail/<email>', () => {
     checkEmailExist('a@b.com');
     expect(mockHttp.get).toHaveBeenCalledWith(
-      '/users/checkEmail/a@b.com',
+      '/v1/users/checkEmail/a@b.com',
       { headers: { Authorization: 'test-app-token' } }
     );
   });
@@ -191,7 +224,7 @@ describe('auth.api', () => {
     store.dispatch(setUser({ token: 'user-tok' } as any));
     uploadFile({ fake: 'fd' } as any);
     expect(mockHttp.post).toHaveBeenCalledWith(
-      '/files/',
+      '/v1/files/',
       { fake: 'fd' },
       expect.objectContaining({
         headers: expect.objectContaining({
@@ -227,7 +260,7 @@ describe('auth.api', () => {
 // replace XMLHttpRequest, so the upload rides RN's native networking
 // module instead. These guard that it stays that way.
 
-describe('auth.api.uploadFileMultipart', () => {
+describe('auth.api.uploadFileV2', () => {
   class FakeXHR {
     static last: FakeXHR;
     status = 200;
@@ -278,24 +311,34 @@ describe('auth.api.uploadFileMultipart', () => {
       throw new Error('upload must not use global fetch');
     });
 
-    const fd = { fake: 'fd' } as any;
-    const out = await uploadFileMultipart(fd);
+    const fd = { _parts: [['files', { uri: 'file:///tmp/a.jpg' }]] } as any;
+    const out = await uploadFileV2(fd, 'room-id@conference.example.com');
 
     expect((global as any).fetch).not.toHaveBeenCalled();
     (global as any).fetch = originalFetch;
 
     const xhr = FakeXHR.last;
     expect(xhr.method).toBe('POST');
-    expect(xhr.url).toBe('https://api.test/v1/files/');
+    expect(xhr.url).toBe('https://api.test/v2/files/secure');
     expect(xhr.headers.Authorization).toBe('user-tok');
-    expect(xhr.body).toBe(fd);
+    // A COPY of the caller's body, carrying the chat scope. (Under Jest
+    // the global FormData is browser-shaped, so read it either way — on
+    // a device it is RN's `_parts` polyfill.)
+    expect(xhr.body).not.toBe(fd);
+    const sentChatName = xhr.body?._parts
+      ? xhr.body._parts.find(([k]: [string]) => k === 'chatName')?.[1]
+      : xhr.body?.get?.('chatName');
+    expect(sentChatName).toBe('room-id');
+    // ...and the caller's own object is left untouched, so a retry
+    // doesn't send `chatName` twice.
+    expect(fd._parts).toHaveLength(1);
     expect(out).toEqual({
       data: { results: [{ location: 'https://files.test/a.jpg' }] },
     });
   });
 
   it('does not set Content-Type, so RN supplies the multipart boundary', async () => {
-    await uploadFileMultipart({ fake: 'fd' } as any);
+    await uploadFileV2({ _parts: [] } as any, 'room-id@conference.example.com');
     // Setting it ourselves would strip the boundary RN generates and the
     // server would mis-parse one file as many (413 TOO_MANY_FILES —
     // bug #10 in sdk-bug-tracker.md).
@@ -306,7 +349,10 @@ describe('auth.api.uploadFileMultipart', () => {
   });
 
   it('rejects with an axios-shaped error so the 500 retry still fires', async () => {
-    const pending = uploadFileMultipart({ fake: 'fd' } as any);
+    const pending = uploadFileV2(
+      { _parts: [] } as any,
+      'room-id@conference.example.com'
+    );
     // send() already scheduled onload; flip the status before it runs.
     FakeXHR.last.status = 500;
     FakeXHR.last.statusText = 'Internal Server Error';
@@ -314,7 +360,7 @@ describe('auth.api.uploadFileMultipart', () => {
 
     await expect(pending).rejects.toMatchObject({
       response: { status: 500, data: { error: 'boom' } },
-      config: { url: '/files/' },
+      config: { url: '/v2/files/secure' },
     });
   });
 
@@ -327,7 +373,7 @@ describe('auth.api.uploadFileMultipart', () => {
     (global as any).XMLHttpRequest = FailingXHR;
 
     await expect(
-      uploadFileMultipart({ fake: 'fd' } as any)
+      uploadFileV2({ _parts: [] } as any, 'room-id@conference.example.com')
     ).rejects.toMatchObject({ code: 'ERR_NETWORK' });
   });
 });
@@ -342,7 +388,7 @@ describe('rooms.api.getRooms', () => {
     });
     const out = await getRooms();
     expect(mockHttp.get).toHaveBeenCalledWith(
-      '/chats/my',
+      '/v1/chats/my',
       { headers: { Authorization: 'tok' } }
     );
     expect(out).toEqual({ items: [{ name: 'r1', _id: 'id1' }] });
@@ -412,7 +458,7 @@ describe('roomMembers.api.getUserByXmppUsername', () => {
     });
     const out = await getUserByXmppUsername('0xabc', 'tok');
     expect(mockHttp.get).toHaveBeenCalledWith(
-      '/apps/users/0xabc',
+      '/v1/apps/users/0xabc',
       { headers: { Authorization: 'tok' } }
     );
     expect(out).toEqual({ xmppUsername: '0xabc', firstName: 'Alice' });

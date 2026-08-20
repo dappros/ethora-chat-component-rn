@@ -1,12 +1,28 @@
 import { store } from '../roomStore';
+import { getCurrentBaseURL } from '../networking/apiClient';
 import { refreshAuthTokens } from '../networking/authRefresh';
 
 const SECURE_FILES_HOST_PREFIX = 'secure-files.';
+const SECURE_MEDIA_PATH_PREFIX = '/secure-media/';
 
 const FILE_TOKEN_PARAM = 'ft';
 
+export const resolveFileUrl = (url?: string | null): string => {
+  if (!url) {return '';}
+  // Any scheme at all — http(s), data, file, content, blob.
+  if (/^[a-z][a-z0-9+.-]*:/i.test(url)) {return url;}
+  if (!url.startsWith('/')) {return url;}
+
+  const base = getCurrentBaseURL().replace(/\/+$/, '');
+  return base ? `${base}${url}` : url;
+};
+
 export const isSecureFileUrl = (url?: string | null): boolean => {
   if (!url) {return false;}
+
+  const path = url.replace(/^[a-z][a-z0-9+.-]*:\/\/[^/]*/i, '');
+  if (path.startsWith(SECURE_MEDIA_PATH_PREFIX)) {return true;}
+
   const match = /^https?:\/\/(?:[^@/]+@)?([^:/?#]+)/i.exec(url);
   if (!match) {return false;}
   return match[1].toLowerCase().startsWith(SECURE_FILES_HOST_PREFIX);
@@ -17,7 +33,10 @@ export const appendFileToken = (
   fileToken: string | null | undefined
 ): string => {
   if (!url) {return '';}
-  if (!fileToken || !isSecureFileUrl(url)) {return url;}
+
+  const resolved = resolveFileUrl(url);
+  if (!fileToken || !isSecureFileUrl(resolved)) {return resolved;}
+  url = resolved;
 
   const hashIndex = url.indexOf('#');
   const hash = hashIndex === -1 ? '' : url.slice(hashIndex);

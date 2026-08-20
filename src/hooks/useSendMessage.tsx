@@ -9,7 +9,7 @@ import {
   clearMessageFailure,
   markMessageFailed,
 } from '../roomStore/roomHeapSlice';
-import { uploadFileMultipart } from '../networking/api-requests/auth.api';
+import { uploadFileV2 } from '../networking/api-requests/auth.api';
 import { enqueueOutboundSend } from '../networking/outboundQueue';
 import { RootState, store } from '../roomStore';
 import { getGlobalXmppClient } from '../utils/clientRegistry';
@@ -467,19 +467,11 @@ export const useSendMessage = (_configOverride?: IConfig) => {
         name: data?.name || data?.fileName || `media_${Date.now()}`,
       };
 
-      // Mirror the web client: a single multipart POST to /files/ with
-      // the file under the plural "files" field. We send it via fetch
-      // (not axios) because RN's fetch sets the multipart boundary on the
-      // Content-Type header correctly. The previous axios fallback omitted
-      // a valid boundary, so the server mis-parsed one file as many and
-      // rejected the request with HTTP 413 "TOO_MANY_FILES". The only
-      // retry is the documented singular-"file" fallback for deployments
-      // that 500 on the plural field (bug #10).
       const tryUpload = async () => {
         const fd = new FormData();
         fd.append('files', fileBlob as any);
         try {
-          return await uploadFileMultipart(fd, activeRoomJID);
+          return await uploadFileV2(fd, activeRoomJID);
         } catch (err: any) {
           if (err?.response?.status === 500) {
             console.warn(
@@ -488,7 +480,7 @@ export const useSendMessage = (_configOverride?: IConfig) => {
             );
             const fd2 = new FormData();
             fd2.append('file', fileBlob as any);
-            return await uploadFileMultipart(fd2, activeRoomJID);
+            return await uploadFileV2(fd2, activeRoomJID);
           }
           throw err;
         }

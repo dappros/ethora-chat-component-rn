@@ -7,7 +7,10 @@
  *
  *   <Chat
  *     config={{
- *       baseUrl: 'https://api.chat.ethora.com/v1',
+ *       // The API ROOT — the SDK versions every path itself
+ *       // (`/v1/...`, `/v2/...`). A legacy `.../v1` is accepted and
+ *       // normalised, so existing integrations keep working.
+ *       baseUrl: 'https://api.chat.ethora.com',
  *       xmppSettings: { host: 'xmpp.chat.ethora.com' },
  *       jwtLogin: { enabled: true, token: '<paste JWT>' },
  *       initBeforeLoad: true,

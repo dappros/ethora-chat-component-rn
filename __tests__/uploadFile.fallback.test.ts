@@ -1,22 +1,22 @@
 /**
- * Covers the /v2/files/secure -> /v1/files shim in auth.api, ported from
- * the web chat-component's `uploadFile.fallback.test.ts` so both clients
- * are pinned to the same behaviour: not every backend serves the secure,
- * chat-scoped upload route, so a failed attempt has to retry against the
- * legacy one (which must NOT see the `chatName` field the secure route
- * requires).
+ * Upload routing + the `/v2/files/secure` -> `/v1/files/` fallback.
  *
- * RN has two upload entry points instead of web's one — `uploadFile`
- * (axios, used by the avatar modals) and `uploadFileMultipart` (XHR,
- * used for chat attachments) — and they share the session latch, so
- * both are exercised here.
+ * Three entry points, deliberately separate:
+ *
+ *   uploadFileV2 (XHR)        — message attachments. Secure route,
+ *     scoped to the chat via `chatName`, with the fallback for backends
+ *     that don't serve it.
+ *   uploadFileMultipart (XHR) — the plain v1 upload it falls back to.
+ *   uploadFile (axios)        — avatars / room icons. Always
+ *     `/v1/files/`: a room icon must render for every member, and an
+ *     avatar picked while CREATING a chat has no chat to be scoped to.
  */
 
 jest.mock('../src/networking/apiClient', () => ({
   __esModule: true,
   default: { post: jest.fn(), get: jest.fn() },
   getCurrentAppToken: () => 'app-token',
-  getCurrentBaseURL: () => 'https://api.example.com/v1',
+  getCurrentBaseURL: () => 'https://api.example.com',
   setBaseURL: jest.fn(),
 }));
 
@@ -37,6 +37,8 @@ jest.mock('../src/utils/devLogger', () => ({
 }));
 
 const ROOM_JID = 'room-id@conference.xmpp.example.com';
+const SECURE_URL = 'https://api.example.com/v2/files/secure';
+const LEGACY_URL = 'https://api.example.com/v1/files/';
 
 const postMock = () =>
   (jest.requireMock('../src/networking/apiClient') as any).default
@@ -59,25 +61,7 @@ const makeFormData = () => {
   return formData;
 };
 
-/**
- * Read a field back out.
- *
- * On a device `FormData` is React Native's polyfill, which exposes
- * `_parts` and no `get()`; under jest the global is the browser-shaped
- * one. `cloneFormData` handles both, so the assertions do too.
- */
-const fieldValue = (formData: FormData, key: string) => {
-  const parts = (formData as any)._parts as
-    | Array<[string, unknown]>
-    | undefined;
-  if (Array.isArray(parts)) {
-    const hit = parts.find(([name]) => name === key);
-    return hit ? hit[1] : null;
-  }
-  return (formData as any).get?.(key) ?? null;
-};
-
-/** A stand-in for React Native's FormData polyfill. */
+/** A stand-in for React Native's FormData polyfill (no forEach/get). */
 const makeRnFormData = () => ({
   _parts: [
     [
@@ -90,232 +74,208 @@ const makeRnFormData = () => ({
   },
 });
 
-const httpError = (status: number) => ({ response: { status } });
+const fieldValue = (formData: any, key: string) => {
+  const parts = formData?._parts as Array<[string, unknown]> | undefined;
+  if (Array.isArray(parts)) {
+    const hit = parts.find(([name]) => name === key);
+    return hit ? hit[1] : null;
+  }
+  return formData?.get?.(key) ?? null;
+};
+
+class FakeXhr {
+  static instances: FakeXhr[] = [];
+  static respond: (xhr: FakeXhr) => void = () => {};
+
+  status = 200;
+  statusText = 'OK';
+  responseText = JSON.stringify({ results: [] });
+  url = '';
+  sentBody: any = null;
+  onload: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+  ontimeout: (() => void) | null = null;
+  onabort: (() => void) | null = null;
+
+  constructor() {
+    FakeXhr.instances.push(this);
+  }
+  open(_method: string, url: string) {
+    this.url = url;
+  }
+  setRequestHeader() {}
+  send(body: any) {
+    this.sentBody = body;
+    FakeXhr.respond(this);
+    if (this.status === 0) {
+      this.onerror?.();
+      return;
+    }
+    this.onload?.();
+  }
+}
+
+const originalXhr = (global as any).XMLHttpRequest;
 
 beforeEach(() => {
   jest.clearAllMocks();
   jest.spyOn(console, 'warn').mockImplementation(() => {});
+  FakeXhr.instances = [];
+  FakeXhr.respond = () => {};
+  (global as any).XMLHttpRequest = FakeXhr as any;
 });
 
 afterEach(() => {
+  (global as any).XMLHttpRequest = originalXhr;
   (console.warn as jest.Mock).mockRestore?.();
 });
 
-describe('uploadFile — secure/legacy endpoint fallback', () => {
-  it('uses /v2/files/secure with the chat name derived from the JID', async () => {
-    const { uploadFile } = loadModule();
-    const post = postMock();
-    post.mockResolvedValue({ data: { results: [{ location: 'u' }] } });
+/** Make the secure attempt fail with `status`; the legacy one succeeds. */
+const failSecureWith = (status: number) => {
+  FakeXhr.respond = (xhr) => {
+    if (xhr.url === SECURE_URL) {
+      xhr.status = status;
+      xhr.responseText = '{}';
+    }
+  };
+};
 
-    await uploadFile(makeFormData(), ROOM_JID);
+describe('uploadFileV2 — message attachments', () => {
+  it('posts to /v2/files/secure with the chat name derived from the JID', async () => {
+    const { uploadFileV2 } = loadModule();
 
-    expect(post).toHaveBeenCalledTimes(1);
-    const [endpoint, body] = post.mock.calls[0];
-    // RN hosts configure baseUrl WITH the version segment, so the secure
-    // route is addressed absolutely off the API root.
-    expect(endpoint).toBe('https://api.example.com/v2/files/secure');
-    expect(fieldValue(body, 'chatName')).toBe('room-id');
-    expect(fieldValue(body, 'files')).toBeTruthy();
+    await uploadFileV2(makeFormData(), ROOM_JID);
+
+    expect(FakeXhr.instances).toHaveLength(1);
+    expect(FakeXhr.instances[0].url).toBe(SECURE_URL);
+    expect(fieldValue(FakeXhr.instances[0].sentBody, 'chatName')).toBe(
+      'room-id'
+    );
   });
 
-  it('retries against /files without chatName when the secure route 404s', async () => {
-    const { uploadFile } = loadModule();
-    const post = postMock();
-    const legacyResponse = { data: { results: [{ location: 'legacy' }] } };
-    post
-      .mockRejectedValueOnce(httpError(404))
-      .mockResolvedValueOnce(legacyResponse);
+  it('retries against /v1/files/ WITHOUT chatName when the secure route 404s', async () => {
+    const { uploadFileV2 } = loadModule();
+    failSecureWith(404);
 
-    const result = await uploadFile(makeFormData(), ROOM_JID);
+    await uploadFileV2(makeFormData(), ROOM_JID);
 
-    expect(result).toBe(legacyResponse);
-    expect(post).toHaveBeenCalledTimes(2);
-    const [endpoint, body] = post.mock.calls[1];
-    expect(endpoint).toBe('/files/');
-    expect(fieldValue(body, 'chatName')).toBeNull();
-    // The file itself must survive into the retry.
-    expect(fieldValue(body, 'files')).toBeTruthy();
+    expect(FakeXhr.instances).toHaveLength(2);
+    expect(FakeXhr.instances[1].url).toBe(LEGACY_URL);
+    // The legacy route rejects the field the secure one requires.
+    expect(fieldValue(FakeXhr.instances[1].sentBody, 'chatName')).toBeNull();
+    // ...and the file itself must survive into the retry.
+    expect(fieldValue(FakeXhr.instances[1].sentBody, 'files')).toBeTruthy();
   });
 
-  it('falls back when the secure route fails with no response at all (network)', async () => {
-    const { uploadFile } = loadModule();
-    const post = postMock();
-    post
-      .mockRejectedValueOnce(new Error('Network Error'))
-      .mockResolvedValueOnce({ data: { results: [] } });
+  it('falls back when the secure route fails with no response at all', async () => {
+    const { uploadFileV2 } = loadModule();
+    FakeXhr.respond = (xhr) => {
+      if (xhr.url === SECURE_URL) {
+        xhr.status = 0; // triggers onerror — a network failure
+      }
+    };
 
-    await uploadFile(makeFormData(), ROOM_JID);
+    await uploadFileV2(makeFormData(), ROOM_JID);
 
-    expect(post.mock.calls[1][0]).toBe('/files/');
+    expect(FakeXhr.instances[1].url).toBe(LEGACY_URL);
   });
 
   it('stops probing the secure route after the first failure', async () => {
-    const { uploadFile } = loadModule();
-    const post = postMock();
-    post
-      .mockRejectedValueOnce(httpError(404))
-      .mockResolvedValue({ data: { results: [] } });
+    const { uploadFileV2 } = loadModule();
+    failSecureWith(404);
 
-    await uploadFile(makeFormData(), ROOM_JID);
-    post.mockClear();
-    await uploadFile(makeFormData(), ROOM_JID);
+    await uploadFileV2(makeFormData(), ROOM_JID);
+    FakeXhr.instances = [];
+    await uploadFileV2(makeFormData(), ROOM_JID);
 
-    expect(post).toHaveBeenCalledTimes(1);
-    expect(post.mock.calls[0][0]).toBe('/files/');
+    expect(FakeXhr.instances).toHaveLength(1);
+    expect(FakeXhr.instances[0].url).toBe(LEGACY_URL);
   });
 
   it('rethrows a 401 instead of retrying — that is the refresh interceptor’s job', async () => {
-    const { uploadFile } = loadModule();
-    const post = postMock();
-    post.mockRejectedValueOnce(httpError(401));
+    const { uploadFileV2 } = loadModule();
+    failSecureWith(401);
 
-    await expect(uploadFile(makeFormData(), ROOM_JID)).rejects.toMatchObject({
-      response: { status: 401 },
-    });
-    expect(post).toHaveBeenCalledTimes(1);
+    await expect(
+      uploadFileV2(makeFormData(), ROOM_JID)
+    ).rejects.toMatchObject({ response: { status: 401 } });
+    expect(FakeXhr.instances).toHaveLength(1);
   });
 
   it('rethrows a 413 — an oversized file fails the same way on either route', async () => {
-    const { uploadFile } = loadModule();
-    const post = postMock();
-    post.mockRejectedValueOnce(httpError(413));
+    const { uploadFileV2 } = loadModule();
+    failSecureWith(413);
 
-    await expect(uploadFile(makeFormData(), ROOM_JID)).rejects.toMatchObject({
-      response: { status: 413 },
-    });
-    expect(post).toHaveBeenCalledTimes(1);
+    await expect(
+      uploadFileV2(makeFormData(), ROOM_JID)
+    ).rejects.toMatchObject({ response: { status: 413 } });
+    expect(FakeXhr.instances).toHaveLength(1);
   });
 
   it('clones a React-Native FormData (no forEach/get) without losing the file', async () => {
     // The device path: RN's polyfill exposes only `_parts`, so the clone
-    // has to read that. A silent miss here would send the secure request
-    // with `chatName` and no file at all.
-    const { uploadFile } = loadModule();
-    const post = postMock();
-    post.mockResolvedValue({ data: { results: [] } });
+    // has to read that. A silent miss would post `chatName` and no file.
+    const { uploadFileV2 } = loadModule();
 
-    await uploadFile(makeRnFormData() as unknown as FormData, ROOM_JID);
+    await uploadFileV2(
+      makeRnFormData() as unknown as FormData,
+      ROOM_JID
+    );
 
-    const body = post.mock.calls[0][1];
+    const body = FakeXhr.instances[0].sentBody;
     expect(fieldValue(body, 'chatName')).toBe('room-id');
-    // Presence is the point: the failure mode being guarded is a clone
-    // that silently drops the file and posts only `chatName`. The part's
-    // identity can't be asserted here — the COPY is built with jest's
-    // browser-shaped FormData, which stringifies a plain object on
-    // append; on a device it is RN's polyfill, which stores it as-is.
     expect(fieldValue(body, 'files')).toBeTruthy();
   });
 
-  it('goes straight to the legacy route when there is no room JID yet', async () => {
-    // RN-only: the create-chat modals upload an avatar before the room
-    // exists. That call must not latch the secure route off for the
-    // uploads that DO have a JID.
-    const { uploadFile } = loadModule();
-    const post = postMock();
-    post.mockResolvedValue({ data: { results: [] } });
+  it('goes straight to /v1/files/ when there is no room JID, without latching', async () => {
+    const { uploadFileV2 } = loadModule();
 
-    await uploadFile(makeFormData());
-    expect(post.mock.calls[0][0]).toBe('/files/');
+    await uploadFileV2(makeFormData());
+    expect(FakeXhr.instances[0].url).toBe(LEGACY_URL);
 
-    post.mockClear();
-    await uploadFile(makeFormData(), ROOM_JID);
-    expect(post.mock.calls[0][0]).toBe(
-      'https://api.example.com/v2/files/secure'
-    );
+    // The secure route must still be probed for a send that DOES have a
+    // chat to scope to.
+    FakeXhr.instances = [];
+    await uploadFileV2(makeFormData(), ROOM_JID);
+    expect(FakeXhr.instances[0].url).toBe(SECURE_URL);
   });
 });
 
-describe('uploadFileMultipart — same shim over the XHR transport', () => {
-  class FakeXhr {
-    static instances: FakeXhr[] = [];
-    static respond: (xhr: FakeXhr) => void = () => {};
-
-    status = 200;
-    statusText = 'OK';
-    responseText = JSON.stringify({ results: [] });
-    url = '';
-    onload: (() => void) | null = null;
-    onerror: (() => void) | null = null;
-    ontimeout: (() => void) | null = null;
-    onabort: (() => void) | null = null;
-
-    constructor() {
-      FakeXhr.instances.push(this);
-    }
-    open(_method: string, url: string) {
-      this.url = url;
-    }
-    setRequestHeader() {}
-    send() {
-      FakeXhr.respond(this);
-      this.onload?.();
-    }
-  }
-
-  const originalXhr = (global as any).XMLHttpRequest;
-
-  beforeEach(() => {
-    FakeXhr.instances = [];
-    FakeXhr.respond = () => {};
-    (global as any).XMLHttpRequest = FakeXhr as any;
-  });
-
-  afterEach(() => {
-    (global as any).XMLHttpRequest = originalXhr;
-  });
-
-  it('posts to the secure URL with chatName', async () => {
-    const { uploadFileMultipart } = loadModule();
-
-    await uploadFileMultipart(makeFormData(), ROOM_JID);
-
-    expect(FakeXhr.instances).toHaveLength(1);
-    expect(FakeXhr.instances[0].url).toBe(
-      'https://api.example.com/v2/files/secure'
-    );
-  });
-
-  it('falls back to the legacy URL when the secure route 404s', async () => {
-    const { uploadFileMultipart } = loadModule();
-    FakeXhr.respond = (xhr) => {
-      if (xhr.url.includes('/v2/files/secure')) {
-        xhr.status = 404;
-        xhr.responseText = '{}';
-      }
-    };
-
-    await uploadFileMultipart(makeFormData(), ROOM_JID);
-
-    expect(FakeXhr.instances).toHaveLength(2);
-    expect(FakeXhr.instances[1].url).toBe('https://api.example.com/v1/files/');
-  });
-
-  it('shares the session latch with uploadFile', async () => {
-    const { uploadFile, uploadFileMultipart } = loadModule();
+describe('uploadFile — avatars and room icons', () => {
+  it('always posts to /v1/files/ and never probes the secure route', async () => {
+    const { uploadFile } = loadModule();
     const post = postMock();
-    post
-      .mockRejectedValueOnce(httpError(404))
-      .mockResolvedValue({ data: { results: [] } });
+    post.mockResolvedValue({ data: { results: [{ location: 'u' }] } });
 
-    // The axios entry point burns the single probe...
-    await uploadFile(makeFormData(), ROOM_JID);
-    // ...so the XHR one must not try the secure route again.
-    await uploadFileMultipart(makeFormData(), ROOM_JID);
+    await uploadFile(makeFormData());
 
-    expect(FakeXhr.instances).toHaveLength(1);
-    expect(FakeXhr.instances[0].url).toBe('https://api.example.com/v1/files/');
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(post.mock.calls[0][0]).toBe('/v1/files/');
+    // No chat to scope an icon to — and it must stay readable by every
+    // member, so it is deliberately not membership-gated.
+    expect(fieldValue(post.mock.calls[0][1], 'chatName')).toBeNull();
   });
 
-  it('rethrows a 401 without falling back', async () => {
-    const { uploadFileMultipart } = loadModule();
-    FakeXhr.respond = (xhr) => {
-      xhr.status = 401;
-      xhr.responseText = '{}';
-    };
+  it('cannot latch the secure route off for message uploads', async () => {
+    const { uploadFile, uploadFileV2 } = loadModule();
+    const post = postMock();
+    post.mockRejectedValueOnce({ response: { status: 404 } });
 
-    await expect(
-      uploadFileMultipart(makeFormData(), ROOM_JID)
-    ).rejects.toMatchObject({ response: { status: 401 } });
-    expect(FakeXhr.instances).toHaveLength(1);
+    await expect(uploadFile(makeFormData())).rejects.toMatchObject({
+      response: { status: 404 },
+    });
+
+    await uploadFileV2(makeFormData(), ROOM_JID);
+    expect(FakeXhr.instances[0].url).toBe(SECURE_URL);
+  });
+
+  it('propagates upload errors to the caller', async () => {
+    const { uploadFile } = loadModule();
+    const post = postMock();
+    post.mockRejectedValueOnce({ response: { status: 413 } });
+
+    await expect(uploadFile(makeFormData())).rejects.toMatchObject({
+      response: { status: 413 },
+    });
   });
 });

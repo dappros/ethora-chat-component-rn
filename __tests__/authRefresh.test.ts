@@ -108,7 +108,7 @@ describe('happy path', () => {
     await refreshAuthTokens();
 
     expect(fakeHttp.post).toHaveBeenCalledWith(
-      '/users/login/refresh',
+      '/v1/users/login/refresh',
       {},
       { headers: { Authorization: 'refresh-1' } }
     );

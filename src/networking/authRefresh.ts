@@ -80,7 +80,7 @@ export const isRefreshFatalError = (
   error instanceof RefreshFatalError ||
   (error as RefreshFatalError)?.name === 'RefreshFatalError';
 
-const REFRESH_ENDPOINT = '/users/login/refresh';
+const REFRESH_ENDPOINT = '/v1/users/login/refresh';
 
 /** `REFRESH_IN_PROGRESS` retry budget, per backend guidance (~300ms x 2-3). */
 const IN_PROGRESS_MAX_ATTEMPTS = 3;

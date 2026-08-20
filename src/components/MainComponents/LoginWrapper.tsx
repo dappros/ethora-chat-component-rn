@@ -36,6 +36,7 @@ const LoginWrapper: React.FC<LoginWrapperProps> = ({...props}) => {
         ...authData.data.user,
         token: authData.data.token,
         refreshToken: authData.data.refreshToken,
+        fileToken: (authData.data as any).fileToken || '',
       };
     } catch (error) {
       console.error('Login failed:', error);

@@ -19,6 +19,13 @@ jest.mock('../src/roomStore', () => {
   return { __esModule: true, store };
 });
 
+jest.mock('../src/networking/apiClient', () => ({
+  __esModule: true,
+  default: { post: jest.fn(), get: jest.fn() },
+  getCurrentBaseURL: () => 'https://api.example.com',
+  setBaseURL: jest.fn(),
+}));
+
 jest.mock('../src/networking/authRefresh', () => ({
   __esModule: true,
   refreshAuthTokens: jest.fn(),
@@ -29,6 +36,7 @@ import { setUser, setConfig } from '../src/roomStore/chatSettingsSlice';
 import { refreshAuthTokens } from '../src/networking/authRefresh';
 import {
   appendFileToken,
+  resolveFileUrl,
   isSecureFileUrl,
   withFileToken,
   requestFileTokenRecovery,
@@ -54,8 +62,36 @@ describe('isSecureFileUrl', () => {
     ['', false],
     [null, false],
     ['garbage', false],
+    // What the v2 endpoint actually returns, relative and resolved.
+    ['/secure-media/abc.pdf', true],
+    ['https://api.example.com/secure-media/abc.pdf', true],
   ])('%s -> %s', (url, expected) => {
     expect(isSecureFileUrl(url as string)).toBe(expected);
+  });
+});
+
+describe('resolveFileUrl', () => {
+  // `/v2/files/secure` answers with a root-relative location. Left as
+  // is, RN reads it as a local filesystem path: a blank image bubble,
+  // and `FileNotReadableException` from FileSystem.downloadAsync.
+  it('resolves a root-relative location against the API root', () => {
+    expect(resolveFileUrl('/secure-media/abc.pdf')).toBe(
+      'https://api.example.com/secure-media/abc.pdf'
+    );
+  });
+
+  it('leaves absolute URLs and non-http schemes alone', () => {
+    expect(resolveFileUrl(SECURE)).toBe(SECURE);
+    expect(resolveFileUrl(PUBLIC)).toBe(PUBLIC);
+    expect(resolveFileUrl('file:///tmp/x.jpg')).toBe('file:///tmp/x.jpg');
+    expect(resolveFileUrl('data:image/png;base64,AAA')).toBe(
+      'data:image/png;base64,AAA'
+    );
+  });
+
+  it('returns an empty string for a missing location', () => {
+    expect(resolveFileUrl(undefined)).toBe('');
+    expect(resolveFileUrl(null)).toBe('');
   });
 });
 
@@ -92,6 +128,12 @@ describe('appendFileToken', () => {
     );
     expect(appendFileToken(`${SECURE}?w=200&ft=old&h=100`, 'new')).toBe(
       `${SECURE}?w=200&h=100&ft=new`
+    );
+  });
+
+  it('resolves AND tokenises a relative /secure-media path', () => {
+    expect(appendFileToken('/secure-media/abc.pdf', 'tok')).toBe(
+      'https://api.example.com/secure-media/abc.pdf?ft=tok'
     );
   });
 

@@ -160,7 +160,7 @@ describe('refreshUserCredentialsForXmpp', () => {
     const out = await refreshUserCredentialsForXmpp({});
     expect(getMyUser).toHaveBeenCalledWith({
       token: 'access-stale',
-      endpoint: '/users/my',
+      endpoint: '/v1/users/my',
     });
     expect(out?.xmppPassword).toBe('pw-fresh');
   });
@@ -189,7 +189,7 @@ describe('refreshUserCredentialsForXmpp', () => {
     expect(getMyUser).toHaveBeenCalledTimes(2);
     // REST refresh fired with the refreshToken before the retry.
     expect(http.post).toHaveBeenCalledWith(
-      '/users/login/refresh',
+      '/v1/users/login/refresh',
       {},
       { headers: { Authorization: 'refresh-1' } }
     );
@@ -254,7 +254,7 @@ describe('bootstrap rotation is never dropped', () => {
     });
 
     expect(http.post).toHaveBeenCalledWith(
-      '/users/login/refresh',
+      '/v1/users/login/refresh',
       {},
       { headers: { Authorization: 'refresh-1' } }
     );

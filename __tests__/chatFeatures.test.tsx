@@ -88,6 +88,7 @@ jest.mock('../src/networking/api-requests/auth.api', () => ({
   loginViaJwt: jest.fn(),
   uploadFile: jest.fn(),
   uploadFileMultipart: jest.fn(),
+  uploadFileV2: jest.fn(),
 }));
 
 jest.mock('../src/networking/api-requests/rooms.api', () => ({
@@ -184,9 +185,9 @@ import { useSendMessage } from '../src/hooks/useSendMessage';
 import { useComposing } from '../src/hooks/useComposing';
 import { useUnreadMessagesCounter } from '../src/hooks/useUnreadMessagesCounter';
 
-import { uploadFile, uploadFileMultipart } from '../src/networking/api-requests/auth.api';
+import { uploadFile, uploadFileV2 } from '../src/networking/api-requests/auth.api';
 const mockUploadFile = uploadFile as unknown as jest.Mock;
-const mockUploadFileMultipart = uploadFileMultipart as unknown as jest.Mock;
+const mockUploadFileV2 = uploadFileV2 as unknown as jest.Mock;
 
 // ---- live creds (provided by the user) -------------------------------
 // Used to shape the mocked email-login response so xmppUsername/wallet
@@ -396,13 +397,13 @@ describe('useSendMessage — text', () => {
 // 4. useSendMessage — media (file upload + sendMediaMessageStanza)
 // =====================================================================
 describe('useSendMessage — media', () => {
-  it('uploads via /files/ and sends a media stanza per result item', async () => {
+  it('uploads via uploadFileV2 and sends a media stanza per result item', async () => {
     mockResetSpyClient();
-    // useSendMessage now routes through `uploadFileMultipart` first (RN
+    // useSendMessage routes media through `uploadFileV2` (RN
     // fetch path that owns Content-Type), with the axios `uploadFile`
     // only as ERR_NETWORK fallback. Mock the primary path so the
     // happy-path assertion lands on the new entrypoint.
-    mockUploadFileMultipart.mockResolvedValue({
+    mockUploadFileV2.mockResolvedValue({
       data: {
         results: [
           {
@@ -470,8 +471,8 @@ describe('useSendMessage — media', () => {
     });
 
     expect(mockSpyClient.onCriticalSend).toHaveBeenCalledWith(ROOM);
-    expect(mockUploadFileMultipart).toHaveBeenCalledTimes(1);
-    expect(mockUploadFileMultipart.mock.calls[0][0]).toBeDefined();
+    expect(mockUploadFileV2).toHaveBeenCalledTimes(1);
+    expect(mockUploadFileV2.mock.calls[0][0]).toBeDefined();
     expect(mockUploadFile).not.toHaveBeenCalled();
 
     // Trailing correlation id (`send-media-message-<timestamp>`)

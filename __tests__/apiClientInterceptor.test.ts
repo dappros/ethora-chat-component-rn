@@ -120,7 +120,7 @@ describe('refresh() — deprecated forwarder', () => {
     });
     const res = await refresh();
     expect(fakeHttp.post).toHaveBeenCalledWith(
-      '/users/login/refresh',
+      '/v1/users/login/refresh',
       {},
       { headers: { Authorization: 'old-ref' } }
     );
@@ -155,12 +155,30 @@ describe('setBaseURL + getters', () => {
   it('updates http.defaults.baseURL and the current app token', () => {
     const startedBase = getCurrentBaseURL();
     const startedTok = getCurrentAppToken();
-    setBaseURL('https://override.test/v1', 'override-token');
-    expect(fakeHttp.defaults.baseURL).toBe('https://override.test/v1');
-    expect(getCurrentBaseURL()).toBe('https://override.test/v1');
+    setBaseURL('https://override.test', 'override-token');
+    expect(fakeHttp.defaults.baseURL).toBe('https://override.test');
+    expect(getCurrentBaseURL()).toBe('https://override.test');
     expect(getCurrentAppToken()).toBe('override-token');
     // reset so the rest of the suite isn't affected
     setBaseURL(startedBase, startedTok);
+  });
+
+  it('strips a legacy /v1 (or any /vN) from a configured base URL', () => {
+    // Every existing integration passes `https://api…/v1`, because that
+    // is what the SDK used to require. Paths carry their own version
+    // now, so leaving it would send every request to `/v1/v1/...`.
+    const startedBase = getCurrentBaseURL();
+    setBaseURL('https://legacy.test/v1');
+    expect(getCurrentBaseURL()).toBe('https://legacy.test');
+
+    setBaseURL('https://legacy.test/v2/');
+    expect(getCurrentBaseURL()).toBe('https://legacy.test');
+
+    // A root URL passes through untouched.
+    setBaseURL('https://root.test');
+    expect(getCurrentBaseURL()).toBe('https://root.test');
+
+    setBaseURL(startedBase);
   });
 
   it('is a no-op when the new values are unchanged', () => {
@@ -275,7 +293,7 @@ describe('interceptor — built-in /users/login/refresh path', () => {
     const onError = interceptorOnError();
     const err = {
       response: { status: 401 },
-      config: { url: '/users/login/refresh', headers: {} },
+      config: { url: '/v1/users/login/refresh', headers: {} },
     };
     await expect(onError(err)).rejects.toBe(err);
     // No refresh post triggered (no recursion).
@@ -286,7 +304,7 @@ describe('interceptor — built-in /users/login/refresh path', () => {
     const onError = interceptorOnError();
     const err = {
       response: { status: 401 },
-      config: { url: '/users/login', headers: {} },
+      config: { url: '/v1/users/login', headers: {} },
     };
     await expect(onError(err)).rejects.toBe(err);
   });
@@ -305,7 +323,7 @@ describe('interceptor — built-in /users/login/refresh path', () => {
     const res = await onError(err);
 
     expect(fakeHttp.post).toHaveBeenCalledWith(
-      '/users/login/refresh',
+      '/v1/users/login/refresh',
       {},
       { headers: { Authorization: 'old-ref' } }
     );

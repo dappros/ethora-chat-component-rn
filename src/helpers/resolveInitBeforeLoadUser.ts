@@ -191,7 +191,7 @@ export const resolveInitBeforeLoadUser = async (
     setBaseURL(config.baseUrl, config.customAppToken);
   }
 
-  const myEndpoint = config?.initBeforeLoadAuth?.myEndpoint || '/users/my';
+  const myEndpoint = config?.initBeforeLoadAuth?.myEndpoint || '/v1/users/my';
 
   // Priority 1: explicit userLogin
   const explicitUser = config?.userLogin?.enabled ? config?.userLogin?.user : null;
@@ -304,7 +304,7 @@ export const refreshUserCredentialsForXmpp = async (
     }
   }
 
-  const myEndpoint = config?.initBeforeLoadAuth?.myEndpoint || '/users/my';
+  const myEndpoint = config?.initBeforeLoadAuth?.myEndpoint || '/v1/users/my';
 
   // Priority 2: redux store user (covers userLogin + customLogin +
   // anything previously persisted into chatSettingStore.user). The
