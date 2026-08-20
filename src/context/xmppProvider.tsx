@@ -355,6 +355,29 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
           store.dispatch(setConfig(config));
         }
 
+        // Rotate BEFORE the first XMPP connect. On the rotating backend
+        // the xmpp password is a short-lived JWT that only the newest
+        // rotation knows, and each rotation invalidates its predecessors
+        // — so a snapshot's password (a host's cached `userLogin.user`,
+        // a persisted session) is usually already dead at boot. Without
+        // this, the first SASL attempt fails `not-authorized`, all three
+        // bootstrap retries re-present the same dead password, and the
+        // user dead-ends on the Connection error modal even though one
+        // rotation away a perfectly good session existed. The rotation
+        // also lands the fileToken pre-render, so secure media never
+        // paints blank first. Quiet + deduped; when it can't rotate
+        // (no refresh material, non-rotating backend) we just connect
+        // with what the snapshot has, exactly as before.
+        // jwtLogin is skipped: /users/client just minted fresh creds.
+        let connectPassword = resolved.xmppPassword;
+        if (config?.refreshTokens?.enabled && !config?.jwtLogin?.enabled) {
+          const rotated = await refreshAuthTokensQuietly();
+          if (cancelled) {return;}
+          if (rotated?.xmppPassword) {
+            connectPassword = rotated.xmppPassword;
+          }
+        }
+
         // Kick off REST /chats/my; allRoomPresences below needs the
         // room list to be in redux, otherwise it joins 0 MUCs and the
         // user receives zero realtime messages until they manually tap
@@ -364,7 +387,7 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
 
         const c = await initializeClient(
           resolved.xmppUsername!,
-          resolved.xmppPassword,
+          connectPassword,
           config?.xmppSettings
         );
         if (cancelled) {return;}

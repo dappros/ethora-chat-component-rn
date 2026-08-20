@@ -265,3 +265,108 @@ describe('bootstrap rotation is never dropped', () => {
     expect(JSON.parse(raw as string).refreshToken).toBe('refresh-2');
   });
 });
+
+/**
+ * Priority-1 stale-snapshot adoption.
+ *
+ * A `userLogin.user` is usually a snapshot the host captured at its own
+ * login time and re-presents on every mount, while the SDK keeps rotating
+ * the session and persisting the newest pair (incl. fileToken) into
+ * ETHORA_USER. The resolver must prefer whichever refresh pair was minted
+ * later (JWT `iat` decides) and backfill a missing fileToken — otherwise
+ * secure media (`?ft=`-gated) renders blank on every mount after the
+ * first rotation, and dies for good when the snapshot's refresh ages out.
+ */
+describe('resolveInitBeforeLoadUser — persisted-session adoption (priority 1)', () => {
+  const fakeJwt = (iat: number) =>
+    `h.${Buffer.from(JSON.stringify({ iat })).toString('base64url')}.s`;
+
+  const persist = (user: any) =>
+    AsyncStorage.setItem(
+      localStorageConstants.ETHORA_USER,
+      JSON.stringify(user)
+    );
+
+  it('adopts the persisted pair + fileToken when it is newer than the snapshot', async () => {
+    const snapshot = userWithXmppCreds({
+      token: 'old-access',
+      refreshToken: fakeJwt(1_000),
+    });
+    await persist({
+      _id: 'u',
+      token: 'rotated-access',
+      refreshToken: fakeJwt(2_000),
+      fileToken: 'ft-rotated',
+    });
+
+    const out = await resolveInitBeforeLoadUser({
+      config: { userLogin: { enabled: true, user: snapshot } as any },
+    });
+
+    expect(out?.refreshToken).toBe(fakeJwt(2_000));
+    expect(out?.token).toBe('rotated-access');
+    expect(out?.fileToken).toBe('ft-rotated');
+    // Identity fields still come from the snapshot.
+    expect(out?.xmppPassword).toBe('pw');
+  });
+
+  it('keeps the snapshot pair when the host re-logged-in (newer iat) but still backfills fileToken', async () => {
+    const snapshot = userWithXmppCreds({
+      token: 'fresh-access',
+      refreshToken: fakeJwt(3_000),
+    });
+    await persist({
+      _id: 'u',
+      token: 'older-access',
+      refreshToken: fakeJwt(2_000),
+      fileToken: 'ft-old',
+    });
+
+    const out = await resolveInitBeforeLoadUser({
+      config: { userLogin: { enabled: true, user: snapshot } as any },
+    });
+
+    expect(out?.refreshToken).toBe(fakeJwt(3_000));
+    expect(out?.token).toBe('fresh-access');
+    // Better a possibly-stale fileToken (worst case: one 401 → recovery
+    // rotation) than guaranteed-blank media until the next rotation.
+    expect(out?.fileToken).toBe('ft-old');
+  });
+
+  it('ignores a persisted session that belongs to a different account', async () => {
+    const snapshot = userWithXmppCreds({
+      token: 'snap-access',
+      refreshToken: fakeJwt(1_000),
+    });
+    await persist({
+      _id: 'someone-else',
+      xmppUsername: 'other',
+      token: 'their-access',
+      refreshToken: fakeJwt(9_000),
+      fileToken: 'their-ft',
+    });
+
+    const out = await resolveInitBeforeLoadUser({
+      config: { userLogin: { enabled: true, user: snapshot } as any },
+    });
+
+    expect(out?.token).toBe('snap-access');
+    expect(out?.refreshToken).toBe(fakeJwt(1_000));
+    expect(out?.fileToken).toBeUndefined();
+  });
+
+  it('returns the snapshot untouched when nothing is persisted', async () => {
+    const snapshot = userWithXmppCreds({
+      token: 't',
+      refreshToken: 'not-a-jwt',
+      fileToken: 'ft-snap',
+    });
+
+    const out = await resolveInitBeforeLoadUser({
+      config: { userLogin: { enabled: true, user: snapshot } as any },
+    });
+
+    expect(out?.token).toBe('t');
+    expect(out?.fileToken).toBe('ft-snap');
+  });
+});

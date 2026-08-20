@@ -159,6 +159,15 @@ export function uploadFile(formData: FormData) {
 }
 
 const SECURE_UPLOAD_PATH = '/v2/files/secure';
+const LEGACY_UPLOAD_PATH = '/v1/files/';
+
+// Latched the first time `/v2/files/secure` answers 404: that backend
+// simply doesn't serve the route, and every later message upload goes
+// straight to `/v1/files/`. Module state on purpose — probing again next
+// session costs one request and picks the secure route back up after a
+// backend upgrade. A transient network failure does NOT latch (the next
+// send should try secure again); it only falls back for that one upload.
+let secureUploadUnavailable = false;
 
 /**
  * Copy a FormData before adding `chatName`.
@@ -201,8 +210,9 @@ const cloneFormData = (formData: FormData): FormData => {
 };
 
 /**
- * Message attachments: the membership-gated `/v2/files/secure` route,
- * scoped to a chat by `chatName` (the JID's localpart).
+ * Shared multipart transport for message-attachment uploads (both the
+ * membership-gated `/v2/files/secure` route and the `/v1/files/` legacy
+ * route it falls back to).
  *
  * Sent over `XMLHttpRequest`, NOT axios — and that is the whole reason
  * this doesn't just call `http.post`. Both obvious alternatives are
@@ -228,20 +238,11 @@ const cloneFormData = (formData: FormData): FormData => {
  * JS memory) and writes its own `Content-Type` with a valid boundary —
  * which is why we must NOT set that header ourselves.
  */
-export function uploadFileV2(
-  formData: FormData,
-  activeRoomJID: string
-): Promise<{ data: any }> {
-  const chatName = (activeRoomJID || '').split('@')[0];
-
-  const body = cloneFormData(formData);
-  body.append('chatName', chatName);
-
+function xhrUpload(path: string, body: FormData): Promise<{ data: any }> {
   const token = store.getState().chatSettingStore?.user?.token ?? '';
-  const url = `${getCurrentBaseURL().replace(/\/$/, '')}${SECURE_UPLOAD_PATH}`;
+  const url = `${getCurrentBaseURL().replace(/\/$/, '')}${path}`;
 
   pushLog('http', `→ POST ${url} (xhr)`, {
-    chatName,
     headers: {
       Authorization: token ? token.slice(0, 16) + '…' : '[empty]',
       Accept: '*/*',
@@ -252,10 +253,10 @@ export function uploadFileV2(
     const xhr = new XMLHttpRequest();
 
     const failNetwork = (reason: string) => {
-      pushLog('http', `← ERR xhr ${SECURE_UPLOAD_PATH}`, { reason });
+      pushLog('http', `← ERR xhr ${path}`, { reason });
       const err: any = new Error(reason);
       err.code = 'ERR_NETWORK';
-      err.config = { url: SECURE_UPLOAD_PATH };
+      err.config = { url: path };
       reject(err);
     };
 
@@ -269,18 +270,18 @@ export function uploadFileV2(
       }
 
       if (status < 200 || status >= 300) {
-        pushLog('http', `← ${status} POST ${SECURE_UPLOAD_PATH} (xhr)`, responseBody);
+        pushLog('http', `← ${status} POST ${path} (xhr)`, responseBody);
         const err: any = new Error(`Upload failed: ${status}`);
         // Shaped like an axios error so callers' `err.response.status`
         // checks keep working — notably useSendMessage's retry with the
         // singular "file" field on 500.
         err.response = { status, statusText: xhr.statusText, data: responseBody };
-        err.config = { url: SECURE_UPLOAD_PATH };
+        err.config = { url: path };
         reject(err);
         return;
       }
 
-      pushLog('http', `← ${status} POST ${SECURE_UPLOAD_PATH} (xhr)`, {
+      pushLog('http', `← ${status} POST ${path} (xhr)`, {
         resultsCount: Array.isArray(responseBody?.results)
           ? responseBody.results.length
           : 'n/a',
@@ -298,4 +299,58 @@ export function uploadFileV2(
     // Deliberately no Content-Type — see the note above.
     xhr.send(body as any);
   });
+}
+
+/** The plain v1 upload `uploadFileV2` falls back to. Same XHR transport. */
+export function uploadFileMultipart(formData: FormData): Promise<{ data: any }> {
+  return xhrUpload(LEGACY_UPLOAD_PATH, cloneFormData(formData));
+}
+
+export async function uploadFileV2(
+  formData: FormData,
+  activeRoomJID?: string
+): Promise<{ data: any }> {
+  const chatName = (activeRoomJID || '').split('@')[0];
+
+  // No chat to scope to, or the backend already told us it doesn't serve
+  // the secure route — go straight to the legacy upload.
+  if (!chatName || secureUploadUnavailable) {
+    return xhrUpload(LEGACY_UPLOAD_PATH, cloneFormData(formData));
+  }
+
+  const body = cloneFormData(formData);
+  body.append('chatName', chatName);
+
+  try {
+    return await xhrUpload(SECURE_UPLOAD_PATH, body);
+  } catch (err: any) {
+    const status = err?.response?.status;
+
+    if (status === 404) {
+      // Route not served by this backend: latch and retry on v1. The
+      // retry clones the ORIGINAL FormData — the legacy route rejects
+      // the `chatName` field the secure one requires.
+      secureUploadUnavailable = true;
+      pushLog(
+        'warn',
+        'uploadFileV2: /v2/files/secure not served (404) — falling back to /v1/files/ for this session'
+      );
+      return xhrUpload(LEGACY_UPLOAD_PATH, cloneFormData(formData));
+    }
+
+    if (!err?.response) {
+      // No response at all (ERR_NETWORK). Retry once on v1 without
+      // latching: if the network itself is down this fails identically,
+      // and if only the secure route hiccuped the send still goes out.
+      pushLog(
+        'warn',
+        'uploadFileV2: /v2/files/secure unreachable — retrying via /v1/files/'
+      );
+      return xhrUpload(LEGACY_UPLOAD_PATH, cloneFormData(formData));
+    }
+
+    // Real HTTP errors (401 auth, 413 size, 500 field-name quirk, 403
+    // membership) mean the route exists — surface them to the caller.
+    throw err;
+  }
 }
