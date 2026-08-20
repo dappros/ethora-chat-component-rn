@@ -349,18 +349,24 @@ describe('auth.api.uploadFileV2', () => {
   });
 
   it('rejects with an axios-shaped error so the 500 retry still fires', async () => {
-    const pending = uploadFileV2(
-      { _parts: [] } as any,
-      'room-id@conference.example.com'
-    );
-    // send() already scheduled onload; flip the status before it runs.
-    FakeXHR.last.status = 500;
-    FakeXHR.last.statusText = 'Internal Server Error';
-    FakeXHR.last.responseText = '{"error":"boom"}';
+    // A 500 on the secure route falls back to /v1/files/, so both have
+    // to fail for the caller to see an error at all. What matters is the
+    // SHAPE that reaches useSendMessage's singular-"file" retry.
+    class FailingXHR extends FakeXHR {
+      send() {
+        this.status = 500;
+        this.statusText = 'Internal Server Error';
+        this.responseText = '{"error":"boom"}';
+        setTimeout(() => this.onload?.(), 0);
+      }
+    }
+    (global as any).XMLHttpRequest = FailingXHR;
 
-    await expect(pending).rejects.toMatchObject({
+    await expect(
+      uploadFileV2({ _parts: [] } as any, 'room-id@conference.example.com')
+    ).rejects.toMatchObject({
       response: { status: 500, data: { error: 'boom' } },
-      config: { url: '/v2/files/secure' },
+      config: { url: '/v1/files/' },
     });
   });
 

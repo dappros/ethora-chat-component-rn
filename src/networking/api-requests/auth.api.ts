@@ -161,26 +161,6 @@ export function uploadFile(formData: FormData) {
 const SECURE_UPLOAD_PATH = '/v2/files/secure';
 const LEGACY_UPLOAD_PATH = '/v1/files/';
 
-// Latched the first time `/v2/files/secure` answers 404: that backend
-// simply doesn't serve the route, and every later message upload goes
-// straight to `/v1/files/`. Module state on purpose — probing again next
-// session costs one request and picks the secure route back up after a
-// backend upgrade. A transient network failure does NOT latch (the next
-// send should try secure again); it only falls back for that one upload.
-let secureUploadUnavailable = false;
-
-/**
- * Copy a FormData before adding `chatName`.
- *
- * Two reasons. The caller owns the object it handed us — appending to it
- * means a retry with the same FormData sends `chatName` twice. And React
- * Native's FormData polyfill has no `delete`, so there is no undo.
- *
- * That polyfill also has no `forEach`/`get`; `_parts` is the exact
- * round-trip (it holds the untouched `{ uri, type, name }` objects a
- * picker produced). The other branches cover a browser-shaped FormData
- * (which is what Jest provides).
- */
 const cloneFormData = (formData: FormData): FormData => {
   const copy = new FormData();
   const source = formData as any;
@@ -209,40 +189,16 @@ const cloneFormData = (formData: FormData): FormData => {
   return copy;
 };
 
-/**
- * Shared multipart transport for message-attachment uploads (both the
- * membership-gated `/v2/files/secure` route and the `/v1/files/` legacy
- * route it falls back to).
- *
- * Sent over `XMLHttpRequest`, NOT axios — and that is the whole reason
- * this doesn't just call `http.post`. Both obvious alternatives are
- * broken for a React Native multipart body:
- *
- *   - axios. Its adapter does not hand RN's `{ uri, type, name }` part
- *     to the native networking module the way RN's own XHR does; the
- *     request dies before it reaches the server, surfacing as
- *     `ERR_NETWORK` with no status, no statusText and no response body.
- *     (Historically it also forced `Content-Type: multipart/form-data`
- *     with no boundary, so the server mis-parsed one file as many and
- *     answered 413 TOO_MANY_FILES — bug #10, which is why the upload was
- *     moved off axios in the first place.)
- *   - `fetch`. Expo SDK 54 shipped a WinterCG-compliant fetch and SDK 57
- *     installs it as the GLOBAL fetch. It accepts only `Blob` / `File` /
- *     string parts, so RN's `{ uri, type, name }` — exactly what an
- *     image/document picker returns — is rejected with "Unsupported
- *     FormDataPart implementation", also as `ERR_NETWORK`.
- *
- * `XMLHttpRequest` avoids both: Expo replaces `fetch`, not XHR, so the
- * request goes through RN's native networking, which understands the
- * part, streams the file straight from disk (a 50MB video never lands in
- * JS memory) and writes its own `Content-Type` with a valid boundary —
- * which is why we must NOT set that header ourselves.
- */
-function xhrUpload(path: string, body: FormData): Promise<{ data: any }> {
+function postMultipart(
+  url: string,
+  body: FormData,
+  path: string
+): Promise<{ data: any }> {
   const token = store.getState().chatSettingStore?.user?.token ?? '';
-  const url = `${getCurrentBaseURL().replace(/\/$/, '')}${path}`;
 
   pushLog('http', `→ POST ${url} (xhr)`, {
+    path,
+    baseUrl: getCurrentBaseURL() || '[empty]',
     headers: {
       Authorization: token ? token.slice(0, 16) + '…' : '[empty]',
       Accept: '*/*',
@@ -253,7 +209,7 @@ function xhrUpload(path: string, body: FormData): Promise<{ data: any }> {
     const xhr = new XMLHttpRequest();
 
     const failNetwork = (reason: string) => {
-      pushLog('http', `← ERR xhr ${path}`, { reason });
+      pushLog('http', `← ERR xhr ${path}`, { reason, url });
       const err: any = new Error(reason);
       err.code = 'ERR_NETWORK';
       err.config = { url: path };
@@ -301,56 +257,50 @@ function xhrUpload(path: string, body: FormData): Promise<{ data: any }> {
   });
 }
 
-/** The plain v1 upload `uploadFileV2` falls back to. Same XHR transport. */
-export function uploadFileMultipart(formData: FormData): Promise<{ data: any }> {
-  return xhrUpload(LEGACY_UPLOAD_PATH, cloneFormData(formData));
-}
+const canFallBackToLegacyUpload = (error: unknown): boolean => {
+  const status = (error as { response?: { status?: number } })?.response
+    ?.status;
+  if (typeof status !== 'number') {return true;}
+  return status !== 401 && status !== 413;
+};
+
+let secureUploadUnavailable = false;
 
 export async function uploadFileV2(
   formData: FormData,
-  activeRoomJID?: string
+  activeRoomJID: string
 ): Promise<{ data: any }> {
   const chatName = (activeRoomJID || '').split('@')[0];
+  const apiRoot = getCurrentBaseURL().replace(/\/$/, '');
 
-  // No chat to scope to, or the backend already told us it doesn't serve
-  // the secure route — go straight to the legacy upload.
-  if (!chatName || secureUploadUnavailable) {
-    return xhrUpload(LEGACY_UPLOAD_PATH, cloneFormData(formData));
-  }
+  if (!secureUploadUnavailable && chatName) {
+    const body = cloneFormData(formData);
+    body.append('chatName', chatName);
 
-  const body = cloneFormData(formData);
-  body.append('chatName', chatName);
+    try {
+      return await postMultipart(
+        `${apiRoot}${SECURE_UPLOAD_PATH}`,
+        body,
+        SECURE_UPLOAD_PATH
+      );
+    } catch (error) {
+      if (!canFallBackToLegacyUpload(error)) {throw error;}
 
-  try {
-    return await xhrUpload(SECURE_UPLOAD_PATH, body);
-  } catch (err: any) {
-    const status = err?.response?.status;
-
-    if (status === 404) {
-      // Route not served by this backend: latch and retry on v1. The
-      // retry clones the ORIGINAL FormData — the legacy route rejects
-      // the `chatName` field the secure one requires.
       secureUploadUnavailable = true;
-      pushLog(
-        'warn',
-        'uploadFileV2: /v2/files/secure not served (404) — falling back to /v1/files/ for this session'
+      console.warn(
+        `[chat] ${SECURE_UPLOAD_PATH} unreachable, falling back to ${LEGACY_UPLOAD_PATH} for this session`,
+        error
       );
-      return xhrUpload(LEGACY_UPLOAD_PATH, cloneFormData(formData));
     }
-
-    if (!err?.response) {
-      // No response at all (ERR_NETWORK). Retry once on v1 without
-      // latching: if the network itself is down this fails identically,
-      // and if only the secure route hiccuped the send still goes out.
-      pushLog(
-        'warn',
-        'uploadFileV2: /v2/files/secure unreachable — retrying via /v1/files/'
-      );
-      return xhrUpload(LEGACY_UPLOAD_PATH, cloneFormData(formData));
-    }
-
-    // Real HTTP errors (401 auth, 413 size, 500 field-name quirk, 403
-    // membership) mean the route exists — surface them to the caller.
-    throw err;
   }
+
+  return postMultipart(
+    `${apiRoot}${LEGACY_UPLOAD_PATH}`,
+    formData,
+    LEGACY_UPLOAD_PATH
+  );
 }
+
+export const __resetSecureUploadLatchForTests = (): void => {
+  secureUploadUnavailable = false;
+};
