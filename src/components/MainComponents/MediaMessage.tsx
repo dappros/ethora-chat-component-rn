@@ -180,7 +180,11 @@ const MediaMessage: React.FC<MediaMessageProps> = ({
         return (
           <CustomMessageImage
             fileName={displayName}
+            // Full-size original: opened by the preview modal.
             fileURL={location || messageText || ''}
+            // ...and the thumbnail the bubble actually renders, which is
+            // what the web client shows too.
+            locationPreview={messageText}
             mimetype={mimeType}
           />
         );

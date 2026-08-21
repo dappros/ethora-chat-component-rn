@@ -182,13 +182,34 @@ export const useSendMessage = (_configOverride?: IConfig) => {
       // PENDING_WATCHDOG_MS, flip the bubble to "failed → tap to
       // retry". We check at fire-time whether the message is still
       // pending and not already marked failed by the catch path.
-      const watchdogTimer = setTimeout(() => {
+      // One-shot extension for the case below. Declared outside the
+      // timer so the rescheduled run can't extend again.
+      let watchdogExtended = false;
+      const runWatchdog = () => {
         const state = reduxStore.getState();
         const roomMsgs = state.rooms?.rooms?.[activeRoomJID]?.messages || [];
         const stillPending = roomMsgs.find(
           (m: any) => m.id === optimisticId && m.pending
         );
         const alreadyFailed = state.roomHeapSlice?.failedMessages?.[optimisticId];
+
+        // Don't call it a failure while the stream is still coming back.
+        // A reconnect tears the old client down and builds a new one, and
+        // any echo in flight during that window is simply lost — the
+        // message may well have been delivered (it has been observed
+        // arriving twice on the receiving side). Failing it here shows a
+        // red "tap to retry" under a message that actually went through.
+        // Give the reconnect one more window to produce an echo, once.
+        const streamOnline = getGlobalXmppClient()?.status === 'online';
+        if (stillPending && !alreadyFailed && !streamOnline && !watchdogExtended) {
+          watchdogExtended = true;
+          console.warn(
+            `Send watchdog — ${optimisticId} still pending but the stream is not online; extending one window`
+          );
+          watchdogTimer = setTimeout(runWatchdog, PENDING_WATCHDOG_MS);
+          return;
+        }
+
         if (stillPending && !alreadyFailed) {
           console.warn(
             `Send watchdog fired — message ${optimisticId} stuck pending > ${PENDING_WATCHDOG_MS}ms; marking failed`
@@ -211,7 +232,9 @@ export const useSendMessage = (_configOverride?: IConfig) => {
             messageType: 'text',
           });
         }
-      }, PENDING_WATCHDOG_MS);
+      };
+
+      let watchdogTimer = setTimeout(runWatchdog, PENDING_WATCHDOG_MS);
 
       try {
         // The single send closure, used both for the immediate send and for

@@ -182,6 +182,7 @@ import {
 } from '../src/roomStore/roomsSlice';
 import { logout, setConfig, setUser } from '../src/roomStore/chatSettingsSlice';
 import { useSendMessage } from '../src/hooks/useSendMessage';
+import { setGlobalXmppClient } from '../src/utils/clientRegistry';
 import { useComposing } from '../src/hooks/useComposing';
 import { useUnreadMessagesCounter } from '../src/hooks/useUnreadMessagesCounter';
 
@@ -394,6 +395,107 @@ describe('useSendMessage — text', () => {
 });
 
 // =====================================================================
+// 3b. Send watchdog — reconnect grace
+describe('useSendMessage — send watchdog', () => {
+  const ROOM = 'general@conference.xmpp.chat.ethora.com';
+
+  const sendAndWait = async (onMessageFailed: jest.Mock) => {
+    mockResetSpyClient();
+    store.dispatch(setUser(LIVE_USER as any));
+    store.dispatch(setConfig({ eventHandlers: { onMessageFailed } } as any));
+    // The watchdog looks the message up in the room's message list, so
+    // the room has to exist for the optimistic dispatch to land.
+    store.dispatch(
+      addRoom({
+        roomData: {
+          jid: ROOM,
+          id: ROOM,
+          name: 'general',
+          title: 'general',
+          usersCnt: 1,
+          messages: [],
+          isLoading: false,
+          roomBg: null,
+        } as any,
+      })
+    );
+
+    let api: any;
+    const Harness = () => {
+      api = useSendMessage();
+      return null;
+    };
+    await act(async () => {
+      renderer.create(
+        <ReduxProvider store={store}>
+          <Harness />
+        </ReduxProvider>
+      );
+    });
+    await act(async () => {
+      await api.sendMessage('Hi', ROOM, false, false, '');
+    });
+  };
+
+  afterEach(() => {
+    setGlobalXmppClient(null);
+    jest.useRealTimers();
+  });
+
+  it('does NOT fail a message while the stream is still reconnecting', async () => {
+    // The echo that would clear the bubble is lost when a reconnect tears
+    // the old client down and builds a new one — the message itself may
+    // well have been delivered. Failing here paints a red "tap to retry"
+    // under a message that actually went through.
+    jest.useFakeTimers();
+    const onMessageFailed = jest.fn();
+    await sendAndWait(onMessageFailed);
+
+    setGlobalXmppClient({ status: 'connecting' } as any);
+    await act(async () => {
+      jest.advanceTimersByTime(10_000);
+    });
+
+    expect(onMessageFailed).not.toHaveBeenCalled();
+  });
+
+  it('fails it on the next window once the stream is back and still no echo', async () => {
+    // The grace is one window, not forever: a genuinely lost send still
+    // has to surface as "tap to retry".
+    jest.useFakeTimers();
+    const onMessageFailed = jest.fn();
+    await sendAndWait(onMessageFailed);
+
+    setGlobalXmppClient({ status: 'connecting' } as any);
+    await act(async () => {
+      jest.advanceTimersByTime(10_000);
+    });
+    expect(onMessageFailed).not.toHaveBeenCalled();
+
+    setGlobalXmppClient({ status: 'online' } as any);
+    await act(async () => {
+      jest.advanceTimersByTime(10_000);
+    });
+
+    expect(onMessageFailed).toHaveBeenCalledWith(
+      expect.objectContaining({ messageType: 'text', roomJID: ROOM })
+    );
+  });
+
+  it('fails immediately when the stream is online the whole time', async () => {
+    jest.useFakeTimers();
+    const onMessageFailed = jest.fn();
+    setGlobalXmppClient({ status: 'online' } as any);
+    await sendAndWait(onMessageFailed);
+
+    await act(async () => {
+      jest.advanceTimersByTime(10_000);
+    });
+
+    expect(onMessageFailed).toHaveBeenCalledTimes(1);
+  });
+});
+
 // 4. useSendMessage — media (file upload + sendMediaMessageStanza)
 // =====================================================================
 describe('useSendMessage — media', () => {
