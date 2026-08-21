@@ -1,4 +1,6 @@
 import React, { FC } from 'react';
+import { useFileToken } from '../../../hooks/useFileToken';
+import { appendFileToken } from '../../../helpers/secureFileUrl';
 import styled from 'styled-components/native';
 import { LastMessage } from '../../../types/types';
 import {
@@ -30,6 +32,7 @@ const LastMessagePhoto: FC<LastMessagePhotoProps> = ({
   locationPreview,
   originalName,
 }) => {
+  const fileToken = useFileToken();
   return (
     <LastRoomMessageContainer>
       <LastRoomMessageName>{user?.name || ''}:</LastRoomMessageName>
@@ -42,7 +45,7 @@ const LastMessagePhoto: FC<LastMessagePhotoProps> = ({
       >
         <PhotoContainer>
           <ShadeWrapper>
-            <LastMessageImg src={locationPreview} />
+            <LastMessageImg src={appendFileToken(locationPreview, fileToken)} />
           </ShadeWrapper>
         </PhotoContainer>
         <LastRoomMessageText>{originalName || 'file'}</LastRoomMessageText>

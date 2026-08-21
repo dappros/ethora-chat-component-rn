@@ -28,6 +28,8 @@ import { MODAL_TYPES } from '../../helpers/constants/MODAL_TYPES';
 import { RoomMenu } from '../MenuRoom/MenuRoom';
 import { useRoomState } from '../../hooks/useRoomState';
 import { useChatSettingState } from '../../hooks/useChatSettingState';
+import { useFileToken } from '../../hooks/useFileToken';
+import { appendFileToken } from '../../helpers/secureFileUrl';
 import { View, StyleSheet, Text, Keyboard } from 'react-native';
 import { getIconColor } from '../../helpers/getIconColor';
 import { resolveHeaderHeight } from '../../helpers/headerLayout';
@@ -43,6 +45,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   currentRoom,
   handleBackClick,
 }) => {
+  const fileToken = useFileToken();
   const dispatch = useDispatch();
   const { client } = useXmppClient();
 
@@ -152,7 +155,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
             <ProfileImagePlaceholder
               name={currentRoom?.title || currentRoom?.name}
               size={40}
-              icon={currentRoom?.icon}
+              icon={appendFileToken(currentRoom?.icon, fileToken)}
               active={!config?.disableChatInfo?.disableChatHeaderMenu}
               click={
                 config?.disableChatInfo?.disableChatHeaderMenu

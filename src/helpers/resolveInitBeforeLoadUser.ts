@@ -1,4 +1,5 @@
-import http, { setBaseURL } from '../networking/apiClient';
+import { setBaseURL } from '../networking/apiClient';
+import { refreshAuthTokens, isRefreshFatalError } from '../networking/authRefresh';
 import { loginViaJwt } from '../networking/api-requests/auth.api';
 import { getMyUser } from '../networking/api-requests/user.api';
 import { IConfig, User } from '../types/types';
@@ -46,15 +47,109 @@ const normalizeUserForXmpp = (user?: User | null): User | null => {
   return { ...user, xmppUsername: normalizedXmppUsername };
 };
 
+// Hermes has no atob/Buffer; hand-decode just enough base64url to read a
+// JWT's `iat`. Claims are ASCII so the byte-per-char string is fine.
+const B64_ALPHABET =
+  'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+const readJwtIat = (token?: string | null): number => {
+  if (!token || typeof token !== 'string') {return 0;}
+  const part = token.split('.')[1];
+  if (!part) {return 0;}
+  try {
+    const clean = part.replace(/-/g, '+').replace(/_/g, '/');
+    let out = '';
+    let buffer = 0;
+    let bits = 0;
+    for (let i = 0; i < clean.length; i++) {
+      const idx = B64_ALPHABET.indexOf(clean[i]);
+      if (idx === -1) {continue;}
+      buffer = (buffer << 6) | idx;
+      bits += 6;
+      if (bits >= 8) {
+        bits -= 8;
+        out += String.fromCharCode((buffer >> bits) & 0xff);
+      }
+    }
+    const iat = JSON.parse(out)?.iat;
+    return typeof iat === 'number' ? iat : 0;
+  } catch {
+    return 0;
+  }
+};
+
+/**
+ * A `userLogin.user` is typically a snapshot the host captured at ITS
+ * login time and re-presents verbatim on every mount, while this SDK
+ * keeps rotating the session and persisting the newest pair to
+ * `ETHORA_USER`. Taking the snapshot as-is therefore discards the live
+ * session in favour of an ever-aging copy: media goes blank the moment
+ * the snapshot has no `fileToken` (secure-files URLs 401 without it),
+ * and once the snapshot's refresh token ages out entirely the account
+ * looks dead even though the SDK held a working session all along.
+ *
+ * So, for the SAME account only, prefer whichever refresh pair was
+ * minted later (JWT `iat` decides — a host that genuinely re-logged-in
+ * hands us newer tokens and wins), and fill in a missing `fileToken`
+ * from the persisted copy either way.
+ */
+const adoptFresherPersistedSession = async (candidate: User): Promise<User> => {
+  try {
+    const stored = await asyncLocalStorage<User>(
+      localStorageConstants.ETHORA_USER
+    ).get();
+    if (!stored) {return candidate;}
+
+    const sameUser =
+      (candidate._id && stored._id && candidate._id === stored._id) ||
+      (candidate.xmppUsername &&
+        stored.xmppUsername &&
+        candidate.xmppUsername === stored.xmppUsername);
+    if (!sameUser) {return candidate;}
+
+    const merged = { ...candidate };
+
+    if (
+      stored.refreshToken &&
+      readJwtIat(stored.refreshToken) > readJwtIat(candidate.refreshToken)
+    ) {
+      merged.refreshToken = stored.refreshToken;
+      if (stored.token) {merged.token = stored.token;}
+      if (stored.fileToken) {merged.fileToken = stored.fileToken;}
+    }
+
+    if (!merged.fileToken && stored.fileToken) {
+      merged.fileToken = stored.fileToken;
+    }
+
+    return merged;
+  } catch {
+    return candidate;
+  }
+};
+
+/**
+ * Bootstrap rotation.
+ *
+ * Was a second, independent `/users/login/refresh` caller that bypassed
+ * every lock in the SDK — and, worse, only wrote the rotated token to
+ * the store on the happy path, so several of the early-return branches
+ * below used to drop it. Under the backend's reuse detection a dropped
+ * rotation means the next launch presents a burned token and the
+ * session is killed.
+ *
+ * `refreshAuthTokens` persists the new pair before it resolves, so by
+ * the time this returns the rotation is safe no matter which branch the
+ * caller takes afterwards. The explicit token is required here: during
+ * bootstrap the candidate session isn't in the store yet.
+ */
 const refreshWithToken = async (refreshToken: string) => {
-  const response = await http.post(
-    '/users/login/refresh',
-    {},
-    { headers: { Authorization: refreshToken } }
-  );
+  const result = await refreshAuthTokens({ refreshToken });
   return {
-    token: response?.data?.token || '',
-    refreshToken: response?.data?.refreshToken || refreshToken,
+    token: result.token,
+    refreshToken: result.refreshToken || refreshToken,
+    xmppPassword: result.xmppPassword || '',
+    fileToken: result.fileToken || '',
   };
 };
 
@@ -87,11 +182,15 @@ const tryHydrateViaMy = async (
 
   let workingToken = candidate?.token || '';
   let workingRefresh = candidate?.refreshToken || '';
+  let rotatedXmppPassword = '';
+  let workingFileToken = candidate?.fileToken || '';
 
   const candidateWithCurrentTokens = (): User => ({
     ...candidate,
     token: workingToken || candidate.token,
     refreshToken: workingRefresh || candidate.refreshToken,
+    xmppPassword: rotatedXmppPassword || candidate.xmppPassword,
+    fileToken: workingFileToken || candidate.fileToken,
   });
 
   const fallbackWithCreds = (): User | null => {
@@ -107,6 +206,8 @@ const tryHydrateViaMy = async (
       if (merged) {
         merged.token = workingToken || merged.token;
         merged.refreshToken = workingRefresh || merged.refreshToken;
+        merged.xmppPassword = rotatedXmppPassword || merged.xmppPassword;
+        merged.fileToken = workingFileToken || merged.fileToken;
       }
       return merged;
     } catch (error) {
@@ -127,6 +228,8 @@ const tryHydrateViaMy = async (
     const refreshed = await refreshWithToken(workingRefresh);
     workingToken = refreshed.token;
     workingRefresh = refreshed.refreshToken;
+    rotatedXmppPassword = refreshed.xmppPassword || rotatedXmppPassword;
+    workingFileToken = refreshed.fileToken || workingFileToken;
 
     try {
       const myUser = await getMyUser({ token: workingToken, endpoint: myEndpoint });
@@ -136,6 +239,8 @@ const tryHydrateViaMy = async (
       if (merged) {
         merged.token = workingToken || merged.token;
         merged.refreshToken = workingRefresh || merged.refreshToken;
+        merged.xmppPassword = rotatedXmppPassword || merged.xmppPassword;
+        merged.fileToken = workingFileToken || merged.fileToken;
       }
       return merged;
     } catch (myError) {
@@ -147,6 +252,11 @@ const tryHydrateViaMy = async (
     }
   } catch (error) {
     if (signal?.aborted || isAbortError(error)) {return null;}
+    // A fatal refresh verdict (reuse detected / token not found / stale
+    // with nothing newer around) carries no HTTP response, so it would
+    // otherwise fall through to `throw` — the session is simply dead,
+    // which for bootstrap means "nothing to restore".
+    if (isRefreshFatalError(error)) {return null;}
     if (isAuthError(error)) {return null;}
     throw error;
   }
@@ -162,13 +272,15 @@ export const resolveInitBeforeLoadUser = async (
     setBaseURL(config.baseUrl, config.customAppToken);
   }
 
-  const myEndpoint = config?.initBeforeLoadAuth?.myEndpoint || '/users/my';
+  const myEndpoint = config?.initBeforeLoadAuth?.myEndpoint || '/v1/users/my';
 
   // Priority 1: explicit userLogin
   const explicitUser = config?.userLogin?.enabled ? config?.userLogin?.user : null;
   if (explicitUser) {
     const candidate = normalizeUserForXmpp(explicitUser);
-    if (candidate && hasXmppCredentials(candidate)) {return candidate;}
+    if (candidate && hasXmppCredentials(candidate)) {
+      return await adoptFresherPersistedSession(candidate);
+    }
 
     const hydrated = await tryHydrateViaMy(explicitUser, myEndpoint, signal).catch(
       () => null
@@ -275,7 +387,7 @@ export const refreshUserCredentialsForXmpp = async (
     }
   }
 
-  const myEndpoint = config?.initBeforeLoadAuth?.myEndpoint || '/users/my';
+  const myEndpoint = config?.initBeforeLoadAuth?.myEndpoint || '/v1/users/my';
 
   // Priority 2: redux store user (covers userLogin + customLogin +
   // anything previously persisted into chatSettingStore.user). The

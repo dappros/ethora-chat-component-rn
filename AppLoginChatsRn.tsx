@@ -92,6 +92,9 @@ interface AppUser {
   email?: string;
   token: string;
   refreshToken?: string;
+  // Gates every secure-media download (`?ft=`); top-level in the login
+  // response, folded into the user by "Test connection".
+  fileToken?: string;
   xmppUsername: string;
   xmppPassword: string;
   walletAddress?: string;
@@ -371,6 +374,12 @@ const SetupTab: React.FC<{
           ...(data.user || {}),
           token: data.token,
           refreshToken: data.refreshToken,
+          // Arrives at the TOP level of the login response, NOT inside
+          // `user`. Secure media (/v2/files/secure → secure-files.*) is
+          // served only with `?ft=<fileToken>`; dropping it here left the
+          // SDK rendering every image/video bubble blank until a token
+          // rotation happened to backfill it.
+          fileToken: data.fileToken || '',
         };
         if (!user.token || !user.xmppUsername || !user.xmppPassword) {
           setTestResult({
@@ -965,11 +974,18 @@ const ChatPane: React.FC<{ creds: Creds | null; isVisible: boolean }> = ({ creds
   }, [creds]);
 
   // Stable cache key so the chat re-mounts only when meaningful auth
-  // identity changes (not on every keystroke during setup).
+  // identity changes (not on every keystroke during setup). The token
+  // tail is part of the key on purpose: after a fresh "Test connection"
+  // + "Save & use", the resolved user carries NEW tokens for the SAME
+  // account — without a remount the chat kept running on the old
+  // (possibly expired) session until a full app restart, which read as
+  // "re-login didn't fix it".
   const keyId = useMemo(() => {
     if (!creds) {return 'no-creds';}
     if (creds.mode === 'jwt') {return `jwt:${creds.jwt.slice(0, 24)}`;}
-    return `email:${creds.resolvedUser?._id || creds.email}`;
+    return `email:${creds.resolvedUser?._id || creds.email}:${(
+      creds.resolvedUser?.token || ''
+    ).slice(-16)}`;
   }, [creds]);
 
   const singleRoomMode = !!(creds?.singleRoom && creds.singleRoomJid);
@@ -1304,7 +1320,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: 'white' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   muted: { color: MUTED },
-  pane: { ...StyleSheet.absoluteFillObject },
+  pane: { ...StyleSheet.absoluteFill },
   paneShown: { display: 'flex' },
   paneHidden: { display: 'none' },
   // tab bar

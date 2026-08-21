@@ -14,7 +14,7 @@ import { VideoCallOverlay } from '../components/VideoCalls/VideoCallOverlay';
 import XmppClient, {
   XmppCredentialsProvider,
 } from '../networking/xmppClient';
-import { refreshTokens } from '../roomStore/chatSettingsSlice';
+import { refreshAuthTokensQuietly } from '../networking/authRefresh';
 import {
   IConfig,
   ProviderBootstrapStatus,
@@ -107,23 +107,25 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
   // the XmppClient at least doesn't crash on `undefined.password`.
   const credentialsProvider = useMemo<XmppCredentialsProvider>(() => {
     return async () => {
-      // 1. Consumer-supplied REST refresh (when wired). This runs
-      //    before the SDK's own refresh chain so non-Ethora backends
-      //    can keep auth state in sync with their own token endpoint.
-      const customRefresh = config?.refreshTokens?.refreshFunction;
-      if (customRefresh) {
-        try {
-          const result = await customRefresh();
-          if (result?.accessToken) {
-            store.dispatch(
-              refreshTokens({
-                token: result.accessToken,
-                refreshToken: result.refreshToken || '',
-              })
-            );
-          }
-        } catch (err) {
-          devPushLog('warn', 'XMPP creds refresh: customRefresh failed', err);
+      // 1. Make sure the REST tokens are fresh before re-minting XMPP
+      //    creds. This used to call `config.refreshTokens.refreshFunction`
+      //    directly and then fall into step 2, which refreshes again —
+      //    two rotations back to back, which the new backend scheme
+      //    reads as a race at best and token reuse at worst. One call to
+      //    the shared rotation point covers both the consumer-supplied
+      //    function and the built-in endpoint.
+      if (config?.refreshTokens?.enabled) {
+        const rotated = await refreshAuthTokensQuietly();
+
+        if (rotated?.xmppPassword) {
+          const rotatedUser = store.getState().chatSettingStore.user;
+          return {
+            username:
+              rotatedUser?.xmppUsername ||
+              rotatedUser?.defaultWallet?.walletAddress ||
+              '',
+            password: rotated.xmppPassword,
+          };
         }
       }
 
@@ -163,7 +165,7 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
   }, [
     config?.jwtLogin?.enabled,
     config?.jwtLogin?.token,
-    config?.refreshTokens?.refreshFunction,
+    config?.refreshTokens?.enabled,
     config?.userLogin?.enabled,
     config?.customLogin?.enabled,
     config?.initBeforeLoadAuth?.myEndpoint,
@@ -353,6 +355,29 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
           store.dispatch(setConfig(config));
         }
 
+        // Rotate BEFORE the first XMPP connect. On the rotating backend
+        // the xmpp password is a short-lived JWT that only the newest
+        // rotation knows, and each rotation invalidates its predecessors
+        // — so a snapshot's password (a host's cached `userLogin.user`,
+        // a persisted session) is usually already dead at boot. Without
+        // this, the first SASL attempt fails `not-authorized`, all three
+        // bootstrap retries re-present the same dead password, and the
+        // user dead-ends on the Connection error modal even though one
+        // rotation away a perfectly good session existed. The rotation
+        // also lands the fileToken pre-render, so secure media never
+        // paints blank first. Quiet + deduped; when it can't rotate
+        // (no refresh material, non-rotating backend) we just connect
+        // with what the snapshot has, exactly as before.
+        // jwtLogin is skipped: /users/client just minted fresh creds.
+        let connectPassword = resolved.xmppPassword;
+        if (config?.refreshTokens?.enabled && !config?.jwtLogin?.enabled) {
+          const rotated = await refreshAuthTokensQuietly();
+          if (cancelled) {return;}
+          if (rotated?.xmppPassword) {
+            connectPassword = rotated.xmppPassword;
+          }
+        }
+
         // Kick off REST /chats/my; allRoomPresences below needs the
         // room list to be in redux, otherwise it joins 0 MUCs and the
         // user receives zero realtime messages until they manually tap
@@ -362,7 +387,7 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
 
         const c = await initializeClient(
           resolved.xmppUsername!,
-          resolved.xmppPassword,
+          connectPassword,
           config?.xmppSettings
         );
         if (cancelled) {return;}

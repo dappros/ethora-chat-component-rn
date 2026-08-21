@@ -47,7 +47,18 @@ jest.mock('react-native', () => {
       React.createElement('TouchableOpacity', props, children),
     StyleSheet: {
       create: (styles: any) => styles,
+      absoluteFill: {},
       absoluteFillObject: {},
+    },
+    // expo@57's winter runtime installs a lazy global `fetch` getter that
+    // requires expo-modules-core on first touch, and that module reads
+    // `Platform.select` from react-native at import time. Without Platform
+    // in this mock the whole suite dies with "Cannot read properties of
+    // undefined (reading 'select')".
+    Platform: {
+      OS: 'ios',
+      select: (specifics: any) =>
+        specifics?.ios ?? specifics?.native ?? specifics?.default,
     },
     Dimensions: {
       get: () => ({ width: 390, height: 844 }),

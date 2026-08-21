@@ -64,6 +64,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ config }) => {
         ...authData.data.user,
         token: authData.data.token,
         refreshToken: authData.data.refreshToken,
+        fileToken: (authData.data as any).fileToken || '',
       };
       dispatch(setUser(user));
 

@@ -94,6 +94,13 @@ interface MamInFlightEntry {
   startedAt: number;
 }
 
+/**
+ * Floor between two credential rotations driven by reconnects. Well under
+ * the XMPP password's one-hour life, but high enough that a link flapping
+ * every few seconds rotates once, not thirty times.
+ */
+const CREDENTIALS_REFRESH_MIN_INTERVAL_MS = 60_000;
+
 export type XmppCredentialsProvider = () => Promise<{
   username: string;
   password: string;
@@ -137,6 +144,12 @@ export class XmppClient {
   // derived XMPP password after idle). Triggers the credentialsProvider
   // refresh path in reconnect().
   lastAuthError: 'not-authorized' | null = null;
+  /**
+   * When the credentials currently held were last (re)minted. Drives the
+   * throttle in `reconnect()` so a flapping connection can't rotate the
+   * session once per flap.
+   */
+  private credentialsRefreshedAt = 0;
   private credentialsProvider: XmppCredentialsProvider | null = null;
   private credentialsRefreshInFlight: Promise<void> | null = null;
   // Fired by the provider on every 'online' so it can re-join MUC rooms
@@ -700,14 +713,32 @@ export class XmppClient {
     console.log('Attempting to reconnect xmpp client...');
 
     try {
-      // If the last failure was a SASL `not-authorized` (typically a stale
-      // JWT-derived XMPP password after idle), try to fetch fresh creds
-      // before retrying. Without this, reconnect retries with the same
-      // stale password forever and the user has to kill the app.
-      if (this.lastAuthError === 'not-authorized' && this.credentialsProvider) {
+      // Re-mint credentials BEFORE reconnecting.
+      //
+      // This deliberately no longer waits for a SASL `not-authorized`.
+      // The XMPP password expires after an hour, and an expiry does NOT
+      // drop an established connection — authentication happens once, at
+      // bind. So by the time anything disconnects us (a network blip, a
+      // sleeping device, a server restart) the password we still hold may
+      // well be dead, and we have no way to know. Reconnecting with it
+      // burns a guaranteed-failed bind plus a backoff delay before the
+      // old `lastAuthError` path could even start recovering.
+      //
+      // Throttled, because reconnects are not rare: a flapping link would
+      // otherwise rotate the whole session (access + refresh + file token
+      // + XMPP password) once per flap. A SASL failure bypasses the
+      // throttle — there the credentials are known bad.
+      const authFailed = this.lastAuthError === 'not-authorized';
+      const staleCreds =
+        Date.now() - this.credentialsRefreshedAt >=
+        CREDENTIALS_REFRESH_MIN_INTERVAL_MS;
+
+      if (this.credentialsProvider && (authFailed || staleCreds)) {
         try {
           await this.refreshCredentialsOnce();
         } catch (err) {
+          // Offline is the common case here — reconnect with what we
+          // have and let the next attempt try again.
           console.warn(
             'XMPP credential refresh failed; reconnecting with cached creds',
             err
@@ -763,6 +794,7 @@ export class XmppClient {
           // creds really are stale we simply get not-authorized again and
           // retry, which is the confirmed-good 26.5.7 behaviour.
           this.updateCredentials(fresh.username, fresh.password);
+          this.credentialsRefreshedAt = Date.now();
           this.lastAuthError = null;
         }
       } finally {

@@ -9,7 +9,7 @@ import {
   clearMessageFailure,
   markMessageFailed,
 } from '../roomStore/roomHeapSlice';
-import { uploadFileMultipart } from '../networking/api-requests/auth.api';
+import { uploadFileV2 } from '../networking/api-requests/auth.api';
 import { enqueueOutboundSend } from '../networking/outboundQueue';
 import { RootState, store } from '../roomStore';
 import { getGlobalXmppClient } from '../utils/clientRegistry';
@@ -182,13 +182,34 @@ export const useSendMessage = (_configOverride?: IConfig) => {
       // PENDING_WATCHDOG_MS, flip the bubble to "failed → tap to
       // retry". We check at fire-time whether the message is still
       // pending and not already marked failed by the catch path.
-      const watchdogTimer = setTimeout(() => {
+      // One-shot extension for the case below. Declared outside the
+      // timer so the rescheduled run can't extend again.
+      let watchdogExtended = false;
+      const runWatchdog = () => {
         const state = reduxStore.getState();
         const roomMsgs = state.rooms?.rooms?.[activeRoomJID]?.messages || [];
         const stillPending = roomMsgs.find(
           (m: any) => m.id === optimisticId && m.pending
         );
         const alreadyFailed = state.roomHeapSlice?.failedMessages?.[optimisticId];
+
+        // Don't call it a failure while the stream is still coming back.
+        // A reconnect tears the old client down and builds a new one, and
+        // any echo in flight during that window is simply lost — the
+        // message may well have been delivered (it has been observed
+        // arriving twice on the receiving side). Failing it here shows a
+        // red "tap to retry" under a message that actually went through.
+        // Give the reconnect one more window to produce an echo, once.
+        const streamOnline = getGlobalXmppClient()?.status === 'online';
+        if (stillPending && !alreadyFailed && !streamOnline && !watchdogExtended) {
+          watchdogExtended = true;
+          console.warn(
+            `Send watchdog — ${optimisticId} still pending but the stream is not online; extending one window`
+          );
+          watchdogTimer = setTimeout(runWatchdog, PENDING_WATCHDOG_MS);
+          return;
+        }
+
         if (stillPending && !alreadyFailed) {
           console.warn(
             `Send watchdog fired — message ${optimisticId} stuck pending > ${PENDING_WATCHDOG_MS}ms; marking failed`
@@ -211,7 +232,9 @@ export const useSendMessage = (_configOverride?: IConfig) => {
             messageType: 'text',
           });
         }
-      }, PENDING_WATCHDOG_MS);
+      };
+
+      let watchdogTimer = setTimeout(runWatchdog, PENDING_WATCHDOG_MS);
 
       try {
         // The single send closure, used both for the immediate send and for
@@ -467,19 +490,11 @@ export const useSendMessage = (_configOverride?: IConfig) => {
         name: data?.name || data?.fileName || `media_${Date.now()}`,
       };
 
-      // Mirror the web client: a single multipart POST to /files/ with
-      // the file under the plural "files" field. We send it via fetch
-      // (not axios) because RN's fetch sets the multipart boundary on the
-      // Content-Type header correctly. The previous axios fallback omitted
-      // a valid boundary, so the server mis-parsed one file as many and
-      // rejected the request with HTTP 413 "TOO_MANY_FILES". The only
-      // retry is the documented singular-"file" fallback for deployments
-      // that 500 on the plural field (bug #10).
       const tryUpload = async () => {
         const fd = new FormData();
         fd.append('files', fileBlob as any);
         try {
-          return await uploadFileMultipart(fd);
+          return await uploadFileV2(fd, activeRoomJID);
         } catch (err: any) {
           if (err?.response?.status === 500) {
             console.warn(
@@ -488,7 +503,7 @@ export const useSendMessage = (_configOverride?: IConfig) => {
             );
             const fd2 = new FormData();
             fd2.append('file', fileBlob as any);
-            return await uploadFileMultipart(fd2);
+            return await uploadFileV2(fd2, activeRoomJID);
           }
           throw err;
         }

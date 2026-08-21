@@ -181,7 +181,7 @@ export async function getRooms(): Promise<{ items: ApiRoom[] }> {
 
   getRoomsInFlightToken = token;
   getRoomsInFlight = (async () => {
-    const response = await http.get('/chats/my', {
+    const response = await http.get('/v1/chats/my', {
       headers: { Authorization: token },
     });
     lastGetRoomsResponse = response.data;
@@ -206,7 +206,7 @@ export async function getRoomByName(chatName: string): Promise<ApiRoom> {
   const token = store.getState().chatSettingStore.user.token || '';
 
   try {
-    const response = await http.get(`/chats/my/${chatName}`, {
+    const response = await http.get(`/v1/chats/my/${chatName}`, {
       headers: {
         Authorization: token,
       },
@@ -221,7 +221,7 @@ export async function postRoom(data: PostRoom) {
   const token = store.getState().chatSettingStore.user.token || '';
 
   try {
-    const response = await http.post('/chats', data, {
+    const response = await http.post('/v1/chats', data, {
       headers: {
         Authorization: token,
       },
@@ -240,7 +240,7 @@ export async function postPrivateRoom(
 
   try {
     const response = await http.post(
-      '/chats/private',
+      '/v1/chats/private',
       { username },
       {
         headers: {
@@ -260,7 +260,7 @@ export async function postReportRoom(data: PostReportRoom) {
 
   try {
     const response = await http.post(
-      `/chats/reports/${chatName}`,
+      `/v1/chats/reports/${chatName}`,
       { category, text },
       {
         headers: {
@@ -282,7 +282,7 @@ export async function postAddRoomMember(
 
   try {
     const response = await http.post(
-      `/chats/users-access`,
+      `/v1/chats/users-access`,
       { chatName, members },
       {
         headers: {
@@ -301,7 +301,7 @@ export async function deleteRoomMember(data: DeleteRoomMember) {
   const token = store.getState().chatSettingStore.user.token || '';
 
   try {
-    const response = await http.delete(`/chats/users-access`, {
+    const response = await http.delete(`/v1/chats/users-access`, {
       headers: {
         Authorization: token,
       },
@@ -320,7 +320,7 @@ export async function deleteRoom(name: string) {
   const token = store.getState().chatSettingStore.user.token || '';
 
   try {
-    const response = await http.delete('/chats', {
+    const response = await http.delete('/v1/chats', {
       headers: {
         Authorization: token,
       },
@@ -360,7 +360,7 @@ export async function createChatCall(
 
   try {
     await http.post(
-      `/chats/call/create/${chatName}`,
+      `/v1/chats/call/create/${chatName}`,
       { kind },
       {
         headers: {

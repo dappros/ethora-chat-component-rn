@@ -4,6 +4,7 @@ import { initRoomsPresence } from './initRoomsPresence';
 import XmppClient from '../networking/xmppClient';
 import { IConfig, IRoom, User } from '../types/types';
 import { store } from '../roomStore';
+import { refreshAuthTokensQuietly } from '../networking/authRefresh';
 
 const initXmppRooms = async (
   user: User,
@@ -59,7 +60,10 @@ const initXmppRooms = async (
     }
 
     if (config?.refreshTokens?.enabled) {
-      config?.refreshTokens?.refreshFunction?.();
+      // Was a bare call to the consumer-supplied refreshFunction, i.e. a
+      // rotation completely outside the SDK's lock. Routed through the
+      // one rotation point, which calls that same function internally.
+      refreshAuthTokensQuietly();
     }
   } catch (error) {
     console.error(error);

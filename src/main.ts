@@ -7,7 +7,10 @@
  *
  *   <Chat
  *     config={{
- *       baseUrl: 'https://api.chat.ethora.com/v1',
+ *       // The API ROOT — the SDK versions every path itself
+ *       // (`/v1/...`, `/v2/...`). A legacy `.../v1` is accepted and
+ *       // normalised, so existing integrations keep working.
+ *       baseUrl: 'https://api.chat.ethora.com',
  *       xmppSettings: { host: 'xmpp.chat.ethora.com' },
  *       jwtLogin: { enabled: true, token: '<paste JWT>' },
  *       initBeforeLoad: true,
@@ -66,3 +69,21 @@ export type {
 } from './types/types';
 export type { Iso639_1Codes } from './types/models/language.model';
 export type { TranslateMode } from './utils/translateModePolicy';
+
+// Auth-token rotation. Exposed so hosts can drive a refresh themselves
+// (it is deduped and shares the SDK's lock) and, more importantly, so
+// they can tell a dead session from a transient failure: only
+// `RefreshFatalError` means "log the user out". Every other rejection —
+// network, 5xx, a lost REFRESH_IN_PROGRESS race — must leave the
+// session alone.
+export {
+  refreshAuthTokens,
+  refreshAuthTokensQuietly,
+  RefreshFatalError,
+  isRefreshFatalError,
+} from './networking/authRefresh';
+export type {
+  RefreshErrorCode,
+  RefreshResult,
+  RefreshOptions,
+} from './networking/authRefresh';

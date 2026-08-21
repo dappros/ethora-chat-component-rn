@@ -8,6 +8,12 @@ import {
 } from './StyledRoomComponents';
 import { FileIcon } from '../../../assets/icons';
 import { Image, View } from 'react-native';
+import { useFileToken } from '../../../hooks/useFileToken';
+import {
+  appendFileToken,
+  isSecureFileUrl,
+  requestFileTokenRecovery,
+} from '../../../helpers/secureFileUrl';
 
 interface LastMessageFileProps
   extends Pick<LastMessage, 'user' | 'originalName' | 'locationPreview'> {}
@@ -21,6 +27,7 @@ const LastMessageFile: FC<LastMessageFileProps> = ({
   locationPreview,
 }) => {
   const [imgSrc, setImgSrc] = useState(locationPreview);
+  const fileToken = useFileToken();
 
   return (
     <LastRoomMessageContainer>
@@ -34,13 +41,18 @@ const LastMessageFile: FC<LastMessageFileProps> = ({
       >
         {imgSrc ? (
           <Image
-            source={{ uri: imgSrc }}
+            source={{ uri: appendFileToken(imgSrc, fileToken) }}
             style={{
               borderRadius: 16,
               width: 20,
               height: 20,
             }}
-            onError={() => setImgSrc(fallbackImage)}
+            onError={() => {
+              if (isSecureFileUrl(imgSrc)) {
+                requestFileTokenRecovery();
+              }
+              setImgSrc(fallbackImage);
+            }}
           />
         ) : (
           <FileIcon style={{ width: '20px', height: '20px' }} />

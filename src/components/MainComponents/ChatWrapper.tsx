@@ -23,7 +23,7 @@ import {
   setIsLoading,
   setLastViewedTimestamp,
 } from '../../roomStore/roomsSlice';
-import {refresh} from '../../networking/apiClient';
+import {refreshAuthTokensQuietly} from '../../networking/authRefresh';
 import RoomList from './RoomList';
 import {StyledLoaderWrapper} from '../styled/StyledComponents';
 import Modal from '../Modals/Modal/Modal';
@@ -170,6 +170,16 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
       );
     }
 
+    // Top-up rotation after the client is up. Deduped inside
+    // `refreshAuthTokensQuietly`, so it can no longer race the 401
+    // interceptor into a second, parallel rotation — which the backend
+    // would read as reuse. Never rejects, hence no `.catch` here.
+    const ensureFreshTokens = () => {
+      if (config?.refreshTokens?.enabled) {
+        refreshAuthTokensQuietly();
+      }
+    };
+
     const initXmmpClient = async () => {
       // Only sync config to redux if we have one — passing `undefined`
       // wipes whatever XmppProvider already set up.
@@ -252,14 +262,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
             devPushLog('warn', 'initializeClient failed (legacy path)', err);
           }
           setInited(true);
-          if (config?.refreshTokens?.enabled) {
-            // refresh() is fire-and-forget but rejects on bad
-            // refreshToken / network — surface via .catch instead of
-            // leaving the rejection unhandled (was bug #4, id:2).
-            refresh().catch((err) =>
-              console.warn('refresh failed', err)
-            );
-          }
+          ensureFreshTokens();
         } else if (storedClient) {
           devPushLog('rn', 'ChatWrapper: reusing storedClient');
           setClient(storedClient);
@@ -274,11 +277,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
               .catch((err: unknown) => console.warn('getRoomsStanza failed', err));
           }
           setInited(true);
-          if (config?.refreshTokens?.enabled) {
-            refresh().catch((err) =>
-              console.warn('refresh failed', err)
-            );
-          }
+          ensureFreshTokens();
         } else if (client) {
           devPushLog('rn', 'ChatWrapper: reusing provider client');
           if (!activeRoomJID) {
@@ -295,11 +294,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
             console.warn('getChatsPrivateStoreRequestStanza failed', err)
           );
           setInited(true);
-          if (config?.refreshTokens?.enabled) {
-            refresh().catch((err) =>
-              console.warn('refresh failed', err)
-            );
-          }
+          ensureFreshTokens();
         }
 
         dispatch(setIsLoading({loading: false}));

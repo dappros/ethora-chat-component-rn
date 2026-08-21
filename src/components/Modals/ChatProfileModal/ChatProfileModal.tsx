@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useFileToken } from '../../../hooks/useFileToken';
+import { appendFileToken } from '../../../helpers/secureFileUrl';
 import {
   CenterContainer,
   UserInfo,
@@ -69,6 +71,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
   const { client } = useXmppClient();
   const { user: stateUser, config } = useChatSettingState();
   const activeRoom = useSelector((state: RootState) => getActiveRoom(state));
+  const fileToken = useFileToken();
 
   // Pull live member list from the MUC when the modal opens — REST
   // hydration only fills the *count* (item.participants /
@@ -295,7 +298,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
       <CenterContainer>
         <ProfileImagePlaceholder
           name={activeRoom.title || activeRoom.name}
-          icon={activeRoom.icon}
+          icon={appendFileToken(activeRoom.icon, fileToken)}
           // Two gates control whether the icon is editable:
           //   1. role — only non-participants could edit before.
           //   2. NEW: `disableChatInfo.disableIconEdit` — hard kill from

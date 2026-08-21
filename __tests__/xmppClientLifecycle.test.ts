@@ -322,6 +322,68 @@ describe('XmppClient — reconnect', () => {
     expect(reconnectSpy).toHaveBeenCalledTimes(2);
   });
 
+  it('re-mints credentials BEFORE reconnecting, without waiting for a SASL failure', async () => {
+    // The XMPP password expires after an hour and an expiry does NOT
+    // drop the connection, so whatever disconnects us (blip, sleep,
+    // server restart) may well leave us holding a dead password. Waiting
+    // for `not-authorized` first burns a guaranteed-failed bind.
+    const c = new XmppClient('u', 'old-pass', { devServer: 'h' });
+    const provider = jest
+      .fn()
+      .mockResolvedValue({ username: 'u', password: 'fresh-pass' });
+    c.setCredentialsProvider(provider);
+
+    await c.reconnect();
+
+    expect(provider).toHaveBeenCalledTimes(1);
+    expect((c as any).password).toBe('fresh-pass');
+  });
+
+  it('throttles rotation so a flapping link does not rotate once per flap', async () => {
+    const c = new XmppClient('u', 'p', { devServer: 'h' });
+    const provider = jest
+      .fn()
+      .mockResolvedValue({ username: 'u', password: 'fresh-pass' });
+    c.setCredentialsProvider(provider);
+
+    await c.reconnect();
+    await c.reconnect();
+    await c.reconnect();
+
+    // Rotating the whole session (access + refresh + file token + XMPP
+    // password) on every flap would be its own kind of broken.
+    expect(provider).toHaveBeenCalledTimes(1);
+  });
+
+  it('bypasses the throttle when SASL already rejected the credentials', async () => {
+    const c = new XmppClient('u', 'p', { devServer: 'h' });
+    const provider = jest
+      .fn()
+      .mockResolvedValue({ username: 'u', password: 'fresh-pass' });
+    c.setCredentialsProvider(provider);
+
+    await c.reconnect();
+    // Known-bad credentials: the throttle must not hold us back.
+    c.lastAuthError = 'not-authorized';
+    await c.reconnect();
+
+    expect(provider).toHaveBeenCalledTimes(2);
+    expect(c.lastAuthError).toBeNull();
+  });
+
+  it('still reconnects when the credential refresh itself fails', async () => {
+    // Offline is the common case here — falling back to cached creds is
+    // better than not reconnecting at all.
+    const c = new XmppClient('u', 'cached-pass', { devServer: 'h' });
+    c.setCredentialsProvider(jest.fn().mockRejectedValue(new Error('offline')));
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await expect(c.reconnect()).resolves.toBeUndefined();
+    expect((c as any).password).toBe('cached-pass');
+
+    warn.mockRestore();
+  });
+
   it('keeps retrying past maxReconnectAttempts with the delay clamped (no permanent give-up)', () => {
     jest.useFakeTimers();
     const c = new XmppClient('u', 'p', { devServer: 'h' });
@@ -459,15 +521,25 @@ describe('XmppClient — credentialsProvider', () => {
     expect(c.lastAuthError).toBeNull();
   });
 
-  it('reconnect() does NOT call credentialsProvider when there was no auth error', async () => {
+  it('reconnect() calls credentialsProvider even without an auth error', async () => {
+    // This used to assert the opposite — creds were only re-minted after
+    // a SASL `not-authorized`. That was wrong once the XMPP password
+    // started expiring hourly: an expiry does NOT drop the connection,
+    // so an ordinary disconnect (blip, sleep, server restart) can leave
+    // us holding a dead password with `lastAuthError` still null. Waiting
+    // for the bind to fail first cost a guaranteed-failed attempt plus a
+    // backoff delay on every reconnect that crossed the hour.
     const c = new XmppClient('u', 'p', { devServer: 'h' });
-    const provider = jest.fn();
+    const provider = jest
+      .fn()
+      .mockResolvedValue({ username: 'u', password: 'fresh' });
     c.setCredentialsProvider(provider);
     // lastAuthError stays null (e.g. a transient network blip).
 
     await c.reconnect();
     await new Promise((r) => setTimeout(r, 5));
-    expect(provider).not.toHaveBeenCalled();
+    expect(provider).toHaveBeenCalledTimes(1);
+    expect(c.password).toBe('fresh');
   });
 
   it('reconnect() swallows credentialsProvider errors and still attempts to reconnect with cached creds', async () => {
