@@ -6,8 +6,7 @@ import { IConfig, User } from '../types/types';
 import { store } from '../roomStore';
 import { setUser } from '../roomStore/chatSettingsSlice';
 import { walletToUsername } from './walletUsername';
-import { asyncLocalStorage } from '../hooks/useLocalStorage';
-import { localStorageConstants } from './constants/LOCAL_STORAGE';
+import { secureUserStorage } from './secureUserStorage';
 
 interface ResolveInitBeforeLoadUserOptions {
   config?: IConfig;
@@ -95,9 +94,7 @@ const readJwtIat = (token?: string | null): number => {
  */
 const adoptFresherPersistedSession = async (candidate: User): Promise<User> => {
   try {
-    const stored = await asyncLocalStorage<User>(
-      localStorageConstants.ETHORA_USER
-    ).get();
+    const stored = await secureUserStorage().get();
     if (!stored) {return candidate;}
 
     const sameUser =
@@ -329,13 +326,13 @@ export const resolveInitBeforeLoadUser = async (
 
   // Priority 5: persisted user in AsyncStorage
   try {
-    const storedUser = await asyncLocalStorage<User>(localStorageConstants.ETHORA_USER).get();
+    const storedUser = await secureUserStorage().get();
     if (storedUser && (storedUser.token || storedUser.refreshToken || storedUser.xmppPassword)) {
       const hydrated = await tryHydrateViaMy(storedUser, myEndpoint, signal).catch(
         () => null
       );
       if (hydrated && hasXmppCredentials(hydrated)) {return hydrated;}
-      await asyncLocalStorage(localStorageConstants.ETHORA_USER).remove();
+      await secureUserStorage().remove();
     }
   } catch {
     // ignore storage errors
@@ -407,9 +404,7 @@ export const refreshUserCredentialsForXmpp = async (
   // should already mirror this, but if the redux state got cleared
   // mid-session (logout race) this gives us one last shot.
   try {
-    const storedUser = await asyncLocalStorage<User>(
-      localStorageConstants.ETHORA_USER
-    ).get();
+    const storedUser = await secureUserStorage().get();
     if (
       storedUser &&
       (storedUser.token || storedUser.refreshToken || storedUser.xmppPassword)

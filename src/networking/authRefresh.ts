@@ -1,8 +1,7 @@
 import http from './apiClient';
 import { store } from '../roomStore';
 import { refreshTokens } from '../roomStore/chatSettingsSlice';
-import { asyncLocalStorage } from '../hooks/useLocalStorage';
-import { localStorageConstants } from '../helpers/constants/LOCAL_STORAGE';
+import { secureUserStorage } from '../helpers/secureUserStorage';
 import { pushLog } from '../utils/devLogger';
 import { User } from '../types/types';
 
@@ -163,9 +162,7 @@ const readCurrentRefreshToken = async (): Promise<string> => {
     return fromStore;
   }
 
-  const stored = await asyncLocalStorage<User>(
-    localStorageConstants.ETHORA_USER
-  ).get();
+  const stored = await secureUserStorage().get();
   return stored?.refreshToken || '';
 };
 
@@ -190,7 +187,7 @@ const persistTokens = async (result: RefreshResult): Promise<void> => {
     // Write the post-dispatch snapshot rather than a read-modify-write
     // merge, so this can't race the reducer's own write back to a
     // stale copy of the surrounding user fields.
-    await asyncLocalStorage<User>(localStorageConstants.ETHORA_USER).set(
+    await secureUserStorage().set(
       store.getState().chatSettingStore.user as User
     );
   } catch (error) {
@@ -204,9 +201,7 @@ const persistTokens = async (result: RefreshResult): Promise<void> => {
  * web build and this one stay structurally identical.
  */
 const adoptStoredTokens = async (): Promise<RefreshResult | null> => {
-  const stored = await asyncLocalStorage<User>(
-    localStorageConstants.ETHORA_USER
-  ).get();
+  const stored = await secureUserStorage().get();
   if (!stored?.refreshToken || !stored?.token) {
     return null;
   }

@@ -31,7 +31,18 @@ import {
   persistenceMiddleware,
   readPersistedState,
 } from '../src/roomStore/persistence';
+import { encryptForPersist, decryptFromPersist } from '../src/helpers/persistCrypto';
 import type { IMessage, IRoom, User } from '../src/types/types';
+
+// The at-rest value is an AES envelope, not the plain JSON the middleware
+// serialized — decrypt before parsing so content assertions still read
+// the real payload.
+async function readDecrypted(key: string): Promise<any> {
+  const raw = await AsyncStorage.getItem(key);
+  if (!raw) {return null;}
+  const plain = await decryptFromPersist(raw);
+  return plain ? JSON.parse(plain) : null;
+}
 
 beforeEach(async () => {
   await AsyncStorage.clear();
@@ -92,9 +103,13 @@ function makeStore() {
 
 async function flushDebouncedWrite() {
   jest.advanceTimersByTime(250);
-  // multiSet schedules a microtask — yield a couple of times.
-  await Promise.resolve();
-  await Promise.resolve();
+  // Encrypting now awaits the SecureStore-backed cipher key (secureGet,
+  // and on first use secureSet) before the ciphertext is even computed,
+  // on top of the multiSet itself — deeper microtask chain than a bare
+  // AsyncStorage write, so yield generously.
+  for (let i = 0; i < 20; i++) {
+    await Promise.resolve();
+  }
 }
 
 // ---------- multi-room cap + per-room independence -------------------
@@ -117,9 +132,7 @@ describe('persistence — multi-room cap', () => {
 
     await flushDebouncedWrite();
 
-    const persisted = JSON.parse(
-      (await AsyncStorage.getItem(PERSIST_KEYS.KEY_ROOMS))!
-    );
+    const persisted = await readDecrypted(PERSIST_KEYS.KEY_ROOMS);
     expect(persisted.rooms['a@h'].messages).toHaveLength(100);
     // Most-recent 100 kept: m-21 .. m-120
     expect(persisted.rooms['a@h'].messages[0].body).toBe('body-a-21');
@@ -149,9 +162,7 @@ describe('persistence — sanitisation', () => {
 
     await flushDebouncedWrite();
 
-    const persisted = JSON.parse(
-      (await AsyncStorage.getItem(PERSIST_KEYS.KEY_ROOMS))!
-    );
+    const persisted = await readDecrypted(PERSIST_KEYS.KEY_ROOMS);
     expect(persisted.rooms['good@h']).toBeDefined();
     expect(persisted.rooms['also-good@h']).toBeDefined();
     expect(persisted.rooms['not-a-jid']).toBeUndefined();
@@ -176,9 +187,7 @@ describe('persistence — sanitisation', () => {
 
     await flushDebouncedWrite();
 
-    const persisted = JSON.parse(
-      (await AsyncStorage.getItem(PERSIST_KEYS.KEY_ROOMS))!
-    );
+    const persisted = await readDecrypted(PERSIST_KEYS.KEY_ROOMS);
     expect(persisted.rooms['a@h'].composing).toBe(false);
     expect(persisted.rooms['a@h'].composingList).toEqual([]);
     expect(persisted.rooms['a@h'].isLoading).toBe(false);
@@ -213,13 +222,9 @@ describe('persistence — debounce', () => {
     // intermediate ones would still be the persisted ones up to the
     // last unflushed one, but in a coalesced model the final state
     // is what lands).
-    const persistedChat = JSON.parse(
-      (await AsyncStorage.getItem(PERSIST_KEYS.KEY_CHAT))!
-    );
+    const persistedChat = await readDecrypted(PERSIST_KEYS.KEY_CHAT);
     expect(persistedChat.user.firstName).toBe('C');
-    const persistedRooms = JSON.parse(
-      (await AsyncStorage.getItem(PERSIST_KEYS.KEY_ROOMS))!
-    );
+    const persistedRooms = await readDecrypted(PERSIST_KEYS.KEY_ROOMS);
     expect(Object.keys(persistedRooms.rooms).sort()).toEqual(['a@h', 'b@h']);
   });
 
@@ -231,16 +236,12 @@ describe('persistence — debounce', () => {
     const store = makeStore();
     store.dispatch(setUser(makeUser({ firstName: 'First' })));
     await flushDebouncedWrite();
-    let persistedChat = JSON.parse(
-      (await AsyncStorage.getItem(PERSIST_KEYS.KEY_CHAT))!
-    );
+    let persistedChat = await readDecrypted(PERSIST_KEYS.KEY_CHAT);
     expect(persistedChat.user.firstName).toBe('First');
 
     store.dispatch(setUser(makeUser({ firstName: 'Second' })));
     await flushDebouncedWrite();
-    persistedChat = JSON.parse(
-      (await AsyncStorage.getItem(PERSIST_KEYS.KEY_CHAT))!
-    );
+    persistedChat = await readDecrypted(PERSIST_KEYS.KEY_CHAT);
     expect(persistedChat.user.firstName).toBe('Second');
   });
 });
@@ -292,10 +293,15 @@ describe('persistence — rehydrate', () => {
 
   it('readPersistedState handles a single-key state (only rooms, no chat)', async () => {
     // Manual write of just the rooms key — readPersistedState must
-    // return `chat: null` without crashing.
+    // return `chat: null` without crashing. Seeded through the same
+    // encryption envelope the middleware would have written — a raw
+    // plaintext blob here would (correctly) come back as null too, see
+    // the "pre-encryption install" case below.
     await AsyncStorage.setItem(
       PERSIST_KEYS.KEY_ROOMS,
-      JSON.stringify({ rooms: { 'lone@h': makeRoom('lone@h') } })
+      await encryptForPersist(
+        JSON.stringify({ rooms: { 'lone@h': makeRoom('lone@h') } })
+      )
     );
     jest.useRealTimers();
     const out = await readPersistedState();
@@ -316,9 +322,7 @@ describe('persistence — state evolution', () => {
     store.dispatch(addRoom({ roomData: makeRoom('b@h') }));
     await flushDebouncedWrite();
 
-    let persisted = JSON.parse(
-      (await AsyncStorage.getItem(PERSIST_KEYS.KEY_ROOMS))!
-    );
+    let persisted = await readDecrypted(PERSIST_KEYS.KEY_ROOMS);
     expect(Object.keys(persisted.rooms).sort()).toEqual(['a@h', 'b@h']);
 
     // Now drop the rooms manually-as-if from an action and confirm
@@ -331,9 +335,7 @@ describe('persistence — state evolution', () => {
     store.dispatch(addRoom({ roomData: makeRoom('a@h') }));
     await flushDebouncedWrite();
 
-    persisted = JSON.parse(
-      (await AsyncStorage.getItem(PERSIST_KEYS.KEY_ROOMS))!
-    );
+    persisted = await readDecrypted(PERSIST_KEYS.KEY_ROOMS);
     expect(Object.keys(persisted.rooms)).toEqual(['a@h']);
     expect(persisted.rooms['b@h']).toBeUndefined();
   });

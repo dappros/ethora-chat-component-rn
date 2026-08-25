@@ -11,8 +11,7 @@ import {
 } from '../types/types';
 import { Iso639_1Codes } from '../types/models/language.model';
 import type { TranslateMode } from '../utils/translateModePolicy';
-import { localStorageConstants } from '../helpers/constants/LOCAL_STORAGE';
-import { asyncLocalStorage } from '../hooks/useLocalStorage';
+import { secureUserStorage } from '../helpers/secureUserStorage';
 
 export interface ChatState {
   user: User;
@@ -113,9 +112,7 @@ const initialState: ChatState = {
 const reducers = {
   setUser: (state: WritableDraft<ChatState>, action: PayloadAction<User>) => {
     state.user = unpackAndTransform(action.payload);
-    asyncLocalStorage(localStorageConstants.ETHORA_USER).set(
-      unpackAndTransform(action.payload)
-    );
+    secureUserStorage().set(unpackAndTransform(action.payload));
   },
   updateUser(state: WritableDraft<ChatState>, action: PayloadAction<{ updates: Partial<User> }>) {
     const { updates } = action.payload;
@@ -186,7 +183,7 @@ const reducers = {
     state.client = undefined;
     state.langSource = undefined;
     state.translateMode = undefined;
-    asyncLocalStorage(localStorageConstants.ETHORA_USER).remove();
+    secureUserStorage().remove();
   },
   setLangSource: (
     state: WritableDraft<ChatState>,

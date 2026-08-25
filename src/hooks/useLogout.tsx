@@ -9,7 +9,7 @@ import { clearHeap } from '../roomStore/roomHeapSlice';
 import { pushSubscriptionService } from '../services/pushSubscriptionService';
 import { clearRoomsRestCache } from '../networking/api-requests/rooms.api';
 import { clearPersistedState } from '../roomStore/persistence';
-import { localStorageConstants } from '../helpers/constants/LOCAL_STORAGE';
+import { secureUserStorage } from '../helpers/secureUserStorage';
 
 // AsyncStorage keys the library writes but that aren't cleared by any
 // slice reducer. Listed here so a single logout call wipes the full
@@ -120,16 +120,22 @@ const logoutService = {
 
     // 6. Stray keys the slices don't touch.
     try {
-      await AsyncStorage.multiRemove([
-        ...LIBRARY_STRAY_KEYS,
-        // Belt-and-suspenders: the chat slice's `logout` reducer
-        // schedules an async remove of ETHORA_USER fire-and-forget;
-        // re-issue it here so the disk is provably clean before this
-        // Promise resolves.
-        localStorageConstants.ETHORA_USER,
-      ]);
+      await AsyncStorage.multiRemove(LIBRARY_STRAY_KEYS);
     } catch (e) {
       console.warn('logoutService: stray-key clear failed', e);
+    }
+
+    // 7. Belt-and-suspenders: the chat slice's `logout` reducer already
+    //    fires an async ETHORA_USER removal, but re-issue it here (via
+    //    the same secureUserStorage split the reducer uses) so BOTH the
+    //    plain-AsyncStorage profile half AND the Keychain/Keystore
+    //    secrets are provably gone before this Promise resolves — a bare
+    //    `AsyncStorage.removeItem(ETHORA_USER)` here would only clear the
+    //    profile half and leave the tokens behind.
+    try {
+      await secureUserStorage().remove();
+    } catch (e) {
+      console.warn('logoutService: secure user storage clear failed', e);
     }
   },
 };

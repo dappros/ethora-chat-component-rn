@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Middleware } from '@reduxjs/toolkit';
 import { IMessage, IRoom, User } from '../types/types';
+import { encryptForPersist, decryptFromPersist } from '../helpers/persistCrypto';
 
 // -------------------------------------------------------------------
 // Lightweight RN persistence layer. Mirrors what redux-persist gives
@@ -11,7 +12,11 @@ import { IMessage, IRoom, User } from '../types/types';
 //   - cap each room's messages to the most recent MESSAGE_LIMIT (100)
 //   - debounced writes (200ms) on relevant action types
 //
-// Not encrypted. We rely on AsyncStorage's per-app sandbox.
+// AES-256-CBC at rest (see `helpers/persistCrypto.ts`): the JSON blob
+// under each key below is encrypted before it reaches AsyncStorage, with
+// the symmetric key held in the platform Keychain/Keystore. `user` here
+// is already secret-free (see `sanitizeUser`) — the encryption is for
+// the message bodies in `rooms`, which aren't.
 // -------------------------------------------------------------------
 
 const KEY_CHAT = '@ethora/persist:chatSettingStore';
@@ -199,21 +204,27 @@ export const persistenceMiddleware: Middleware = (storeAPI) => (next) => (
 
   if (writeTimer) {clearTimeout(writeTimer);}
   writeTimer = setTimeout(() => {
-    try {
-      const state = storeAPI.getState();
-      const chatPayload: PersistedChatState = {
-        user: sanitizeUser(state.chatSettingStore?.user) as User,
-      };
-      const roomsPayload: PersistedRoomsState = {
-        rooms: sanitizeRooms(state.rooms?.rooms || {}),
-      };
-      AsyncStorage.multiSet([
-        [KEY_CHAT, JSON.stringify(chatPayload)],
-        [KEY_ROOMS, JSON.stringify(roomsPayload)],
-      ]).catch((e) => console.warn('persist write failed', e));
-    } catch (e) {
-      console.warn('persist serialize failed', e);
-    }
+    (async () => {
+      try {
+        const state = storeAPI.getState();
+        const chatPayload: PersistedChatState = {
+          user: sanitizeUser(state.chatSettingStore?.user) as User,
+        };
+        const roomsPayload: PersistedRoomsState = {
+          rooms: sanitizeRooms(state.rooms?.rooms || {}),
+        };
+        const [chatCipher, roomsCipher] = await Promise.all([
+          encryptForPersist(JSON.stringify(chatPayload)),
+          encryptForPersist(JSON.stringify(roomsPayload)),
+        ]);
+        await AsyncStorage.multiSet([
+          [KEY_CHAT, chatCipher],
+          [KEY_ROOMS, roomsCipher],
+        ]);
+      } catch (e) {
+        console.warn('persist write failed', e);
+      }
+    })();
   }, 200);
 
   return result;
@@ -233,9 +244,18 @@ export async function readPersistedState(): Promise<{
       KEY_CHAT,
       KEY_ROOMS,
     ]);
-    const chat = chatRaw[1] ? (JSON.parse(chatRaw[1]) as PersistedChatState) : null;
-    const rooms = roomsRaw[1]
-      ? (JSON.parse(roomsRaw[1]) as PersistedRoomsState)
+    const [chatPlain, roomsPlain] = await Promise.all([
+      chatRaw[1] ? decryptFromPersist(chatRaw[1]) : Promise.resolve(null),
+      roomsRaw[1] ? decryptFromPersist(roomsRaw[1]) : Promise.resolve(null),
+    ]);
+    // `decryptFromPersist` returns null both for "nothing stored" and
+    // for "stored value isn't a valid envelope for the current key" —
+    // notably a plaintext blob left over from a pre-encryption install.
+    // Either way there is nothing safe to parse, so the caller treats it
+    // as a cold start and re-hydrates from the server.
+    const chat = chatPlain ? (JSON.parse(chatPlain) as PersistedChatState) : null;
+    const rooms = roomsPlain
+      ? (JSON.parse(roomsPlain) as PersistedRoomsState)
       : null;
     return { chat, rooms };
   } catch (e) {

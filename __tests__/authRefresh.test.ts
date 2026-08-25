@@ -40,8 +40,7 @@ jest.mock('../src/roomStore', () => {
 import axios from 'axios';
 import { store } from '../src/roomStore';
 import { setUser, setConfig } from '../src/roomStore/chatSettingsSlice';
-import { asyncLocalStorage } from '../src/hooks/useLocalStorage';
-import { localStorageConstants } from '../src/helpers/constants/LOCAL_STORAGE';
+import { secureUserStorage } from '../src/helpers/secureUserStorage';
 import {
   refreshAuthTokens,
   refreshAuthTokensQuietly,
@@ -71,7 +70,7 @@ const seedUser = (refreshToken: string, token = 'access-old') => {
 beforeEach(async () => {
   __resetAuthRefreshStateForTests();
   jest.clearAllMocks();
-  await asyncLocalStorage(localStorageConstants.ETHORA_USER).remove();
+  await secureUserStorage().remove();
   store.dispatch(setConfig({ refreshTokens: { enabled: true } } as any));
   seedUser('refresh-1');
 });
@@ -94,9 +93,7 @@ describe('happy path', () => {
     expect(store.getState().chatSettingStore.user.refreshToken).toBe(
       'refresh-2'
     );
-    const stored: any = await asyncLocalStorage(
-      localStorageConstants.ETHORA_USER
-    ).get();
+    const stored: any = await secureUserStorage().get();
     expect(stored?.refreshToken).toBe('refresh-2');
   });
 
@@ -139,9 +136,7 @@ describe('rotating xmppPassword', () => {
 
     expect(result.xmppPassword).toBe('xmpp-2');
     expect(store.getState().chatSettingStore.user.xmppPassword).toBe('xmpp-2');
-    const stored: any = await asyncLocalStorage(
-      localStorageConstants.ETHORA_USER
-    ).get();
+    const stored: any = await secureUserStorage().get();
     expect(stored?.xmppPassword).toBe('xmpp-2');
   });
 
@@ -265,7 +260,7 @@ describe('error codes', () => {
   });
 
   it('ALREADY_ROTATED: adopts a newer token from storage', async () => {
-    await asyncLocalStorage(localStorageConstants.ETHORA_USER).set({
+    await secureUserStorage().set({
       _id: 'u1',
       token: 'access-newer',
       refreshToken: 'refresh-newer',

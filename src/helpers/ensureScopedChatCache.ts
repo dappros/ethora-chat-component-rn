@@ -3,7 +3,7 @@ import { store } from '../roomStore';
 import { logout } from '../roomStore/chatSettingsSlice';
 import { setLogoutState } from '../roomStore/roomsSlice';
 import { asyncLocalStorage } from '../hooks/useLocalStorage';
-import { localStorageConstants } from './constants/LOCAL_STORAGE';
+import { secureUserStorage } from './secureUserStorage';
 import { clearRoomsRestCache } from '../networking/api-requests/rooms.api';
 import { clearPersistedState } from '../roomStore/persistence';
 import {
@@ -53,7 +53,7 @@ export async function ensureScopedChatCache(config?: IConfig): Promise<void> {
     clearRoomsRestCache();
     store.dispatch(setLogoutState());
     store.dispatch(logout());
-    await asyncLocalStorage(localStorageConstants.ETHORA_USER).remove();
+    await secureUserStorage().remove();
     await clearPersistedState();
   }
 

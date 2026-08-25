@@ -49,8 +49,7 @@ import {
   setUnreadSyncing,
 } from '../roomStore/roomsSlice';
 import { runHistoryPreloadScheduler } from '../helpers/historyPreloadScheduler';
-import { asyncLocalStorage } from '../hooks/useLocalStorage';
-import { localStorageConstants } from '../helpers/constants/LOCAL_STORAGE';
+import { secureUserStorage } from '../helpers/secureUserStorage';
 import { clearPersistedState } from '../roomStore/persistence';
 import { pushLog as devPushLog } from '../utils/devLogger';
 
@@ -324,7 +323,7 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
           devPushLog('rn', 'initBeforeLoad: clearStoreBeforeInit');
           store.dispatch(setLogoutState());
           store.dispatch(logout());
-          await asyncLocalStorage(localStorageConstants.ETHORA_USER).remove().catch(() => undefined);
+          await secureUserStorage().remove().catch(() => undefined);
         }
 
         await ensureScopedChatCache(config);

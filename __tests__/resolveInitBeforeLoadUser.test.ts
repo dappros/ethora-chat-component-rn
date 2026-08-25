@@ -5,7 +5,7 @@ import {
   refreshUserCredentialsForXmpp,
   resolveInitBeforeLoadUser,
 } from '../src/helpers/resolveInitBeforeLoadUser';
-import { localStorageConstants } from '../src/helpers/constants/LOCAL_STORAGE';
+import { secureUserStorage } from '../src/helpers/secureUserStorage';
 import { store } from '../src/roomStore';
 import { logout, setUser } from '../src/roomStore/chatSettingsSlice';
 
@@ -121,10 +121,7 @@ describe('resolveInitBeforeLoadUser', () => {
 
   it('reads stored user from AsyncStorage as last fallback', async () => {
     const stored = userWithXmppCreds();
-    await AsyncStorage.setItem(
-      localStorageConstants.ETHORA_USER,
-      JSON.stringify(stored)
-    );
+    await secureUserStorage().set(stored as any);
     const out = await resolveInitBeforeLoadUser({ config: {} });
     expect(out?.walletAddress).toBe('0xabc');
   });
@@ -261,8 +258,8 @@ describe('bootstrap rotation is never dropped', () => {
     expect(store.getState().chatSettingStore.user.refreshToken).toBe(
       'refresh-2'
     );
-    const raw = await AsyncStorage.getItem(localStorageConstants.ETHORA_USER);
-    expect(JSON.parse(raw as string).refreshToken).toBe('refresh-2');
+    const stored = await secureUserStorage().get();
+    expect(stored?.refreshToken).toBe('refresh-2');
   });
 });
 
@@ -281,11 +278,7 @@ describe('resolveInitBeforeLoadUser — persisted-session adoption (priority 1)'
   const fakeJwt = (iat: number) =>
     `h.${Buffer.from(JSON.stringify({ iat })).toString('base64url')}.s`;
 
-  const persist = (user: any) =>
-    AsyncStorage.setItem(
-      localStorageConstants.ETHORA_USER,
-      JSON.stringify(user)
-    );
+  const persist = (user: any) => secureUserStorage().set(user);
 
   it('adopts the persisted pair + fileToken when it is newer than the snapshot', async () => {
     const snapshot = userWithXmppCreds({

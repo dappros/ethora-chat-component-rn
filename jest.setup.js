@@ -2,6 +2,43 @@
 // modules + the AsyncStorage native module; provide test doubles so the
 // unit + integration tests run inside node.
 
+// `react-native-get-random-values` polyfills `global.crypto.getRandomValues`
+// via a native module bridge that doesn't exist under Jest's Node
+// environment. The real app gets it from that package (imported at the
+// very top of `main.ts`/`index.js`); tests get the same global filled in
+// with Node's own CSPRNG instead, so `persistCrypto.ts`'s key/IV
+// generation exercises real randomness rather than a mock.
+if (!global.crypto) {
+  global.crypto = {};
+}
+if (typeof global.crypto.getRandomValues !== 'function') {
+  const nodeCrypto = require('crypto');
+  global.crypto.getRandomValues = (typedArray) => {
+    const bytes = nodeCrypto.randomBytes(typedArray.length);
+    typedArray.set(bytes);
+    return typedArray;
+  };
+}
+
+// expo-secure-store: this repo's own devDependency (added so the test
+// harness can exercise real Keychain/Keystore storage on-device), but
+// under Jest there's no native module bridge — back it with an in-memory
+// Map so secureUserStorage/persistCrypto tests see real persistence
+// semantics without touching the OS keychain.
+jest.mock('expo-secure-store', () => {
+  const store = new Map();
+  return {
+    getItemAsync: jest.fn(async (key) => (store.has(key) ? store.get(key) : null)),
+    setItemAsync: jest.fn(async (key, value) => {
+      store.set(key, value);
+    }),
+    deleteItemAsync: jest.fn(async (key) => {
+      store.delete(key);
+    }),
+    __store: store,
+  };
+});
+
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock')
 );

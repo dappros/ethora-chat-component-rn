@@ -12,6 +12,7 @@ import {
   persistenceMiddleware,
   readPersistedState,
 } from '../src/roomStore/persistence';
+import { decryptFromPersist } from '../src/helpers/persistCrypto';
 import type { IRoom, User } from '../src/types/types';
 
 beforeEach(async () => {
@@ -21,6 +22,25 @@ beforeEach(async () => {
 afterEach(() => {
   jest.useRealTimers();
 });
+
+// The at-rest value is an AES envelope, not the plain JSON the middleware
+// serialized — decrypt before parsing so content assertions still read
+// the real payload. `flushMicrotasks` drains a deeper async chain than a
+// bare AsyncStorage write: encrypting now awaits the SecureStore-backed
+// cipher key (secureGet, and on first use secureSet) before the ciphertext
+// is even computed, on top of the multiSet itself.
+async function readDecrypted(key: string): Promise<any> {
+  const raw = await AsyncStorage.getItem(key);
+  if (!raw) {return null;}
+  const plain = await decryptFromPersist(raw);
+  return plain ? JSON.parse(plain) : null;
+}
+
+async function flushMicrotasks(turns = 20): Promise<void> {
+  for (let i = 0; i < turns; i++) {
+    await Promise.resolve();
+  }
+}
 
 function makeUser(): User {
   return {
@@ -70,23 +90,27 @@ describe('persistence — write', () => {
     expect(await AsyncStorage.getItem(PERSIST_KEYS.KEY_ROOMS)).toBeNull();
 
     jest.advanceTimersByTime(250);
-    // multiSet inside the middleware schedules a microtask — yield once.
-    await Promise.resolve();
-    await Promise.resolve();
+    await flushMicrotasks();
 
     const chatRaw = await AsyncStorage.getItem(PERSIST_KEYS.KEY_CHAT);
     const roomsRaw = await AsyncStorage.getItem(PERSIST_KEYS.KEY_ROOMS);
     expect(chatRaw).not.toBeNull();
     expect(roomsRaw).not.toBeNull();
+    // The raw value is an opaque AES envelope, not the plaintext payload:
+    // it parses as JSON (the envelope itself is JSON) but carries none of
+    // the actual persisted fields directly.
+    const rawEnvelope = JSON.parse(chatRaw!);
+    expect(rawEnvelope.user).toBeUndefined();
+    expect(rawEnvelope.ct).toEqual(expect.any(String));
 
-    const persistedChat = JSON.parse(chatRaw!);
+    const persistedChat = await readDecrypted(PERSIST_KEYS.KEY_CHAT);
     expect(persistedChat.user.walletAddress).toBe('0xabc');
     // Secrets must be scrubbed before write.
     expect(persistedChat.user.token).toBe('');
     expect(persistedChat.user.refreshToken).toBe('');
     expect(persistedChat.user.xmppPassword).toBe('');
 
-    const persistedRooms = JSON.parse(roomsRaw!);
+    const persistedRooms = await readDecrypted(PERSIST_KEYS.KEY_ROOMS);
     expect(persistedRooms.rooms['r@h']).toBeDefined();
   });
 
@@ -105,12 +129,9 @@ describe('persistence — write', () => {
     );
 
     jest.advanceTimersByTime(250);
-    await Promise.resolve();
-    await Promise.resolve();
+    await flushMicrotasks();
 
-    const persistedRooms = JSON.parse(
-      (await AsyncStorage.getItem(PERSIST_KEYS.KEY_ROOMS))!
-    );
+    const persistedRooms = await readDecrypted(PERSIST_KEYS.KEY_ROOMS);
     expect(persistedRooms.rooms['r@h'].messages).toHaveLength(100);
     // Keeps the most recent 100 — drops m0..m9, keeps m10..m109.
     expect(persistedRooms.rooms['r@h'].messages[0].body).toBe('m10');
@@ -131,5 +152,25 @@ describe('persistence — read + clear', () => {
     await clearPersistedState();
     expect(await AsyncStorage.getItem(PERSIST_KEYS.KEY_CHAT)).toBeNull();
     expect(await AsyncStorage.getItem(PERSIST_KEYS.KEY_ROOMS)).toBeNull();
+  });
+
+  it('treats a pre-encryption plaintext cache as a cold start, not a crash', async () => {
+    // A user upgrading from a version that wrote plain JSON to this key.
+    // `decryptFromPersist` sees a value that doesn't match the {v,iv,ct}
+    // envelope shape and returns null, same as "nothing stored" — the
+    // room/chat state just re-hydrates from the server instead of ever
+    // being treated as (or crashing while parsed as) ciphertext.
+    await AsyncStorage.setItem(
+      PERSIST_KEYS.KEY_CHAT,
+      JSON.stringify({ user: { firstName: 'Legacy' } })
+    );
+    await AsyncStorage.setItem(
+      PERSIST_KEYS.KEY_ROOMS,
+      JSON.stringify({ rooms: { 'old@h': {} } })
+    );
+
+    const out = await readPersistedState();
+    expect(out.chat).toBeNull();
+    expect(out.rooms).toBeNull();
   });
 });

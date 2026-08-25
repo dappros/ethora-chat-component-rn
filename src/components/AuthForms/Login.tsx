@@ -12,9 +12,8 @@ import {
   // signInWithGoogle,
 } from '../../networking/api-requests/auth.api';
 import { useDispatch } from 'react-redux';
-import { useLocalStorage } from '../../hooks/useLocalStorage';
+import { secureUserStorage } from '../../helpers/secureUserStorage';
 import { setUser, unpackAndTransform } from '../../roomStore/chatSettingsSlice';
-import { localStorageConstants } from '../../helpers/constants/LOCAL_STORAGE';
 import { Text, TextInput, View } from 'react-native';
 
 interface LoginFormProps {
@@ -23,7 +22,7 @@ interface LoginFormProps {
 
 const LoginForm: React.FC<LoginFormProps> = ({ config }) => {
   const dispatch = useDispatch();
-  const { set } = useLocalStorage(localStorageConstants.ETHORA_USER);
+  const { set } = secureUserStorage();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
