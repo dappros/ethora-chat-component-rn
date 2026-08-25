@@ -97,16 +97,26 @@ export const ProfileImagePlaceholder: React.FC<
     return '';
   };
 
-  const getInitials = () => (!icon && name ? getTwoUppercaseLetters(name) : '');
+  const getInitials = () =>
+    !imageSource && name ? getTwoUppercaseLetters(name) : '';
+
+  const imageSource =
+    typeof icon === 'string' && icon
+      ? { uri: icon }
+      : typeof icon === 'number'
+      ? icon
+      : icon && typeof (icon as any).uri === 'string' && (icon as any).uri
+      ? (icon as any)
+      : null;
 
   return (
     <Wrapper
-      bgColor={icon ? 'transparent' : backgroundColor?.backgroundColor}
+      bgColor={imageSource ? 'transparent' : backgroundColor?.backgroundColor}
       size={size}
       isClickable={active || !!upload?.active}
     >
       <AvatarCircle
-        bgColor={icon ? 'transparent' : backgroundColor?.backgroundColor}
+        bgColor={imageSource ? 'transparent' : backgroundColor?.backgroundColor}
         size={size}
         isClickable={active || !!upload?.active}
         onPress={
@@ -117,11 +127,8 @@ export const ProfileImagePlaceholder: React.FC<
             : undefined
         }
       >
-        {icon ? (
-          <AvatarImage
-            source={typeof icon === 'string' ? { uri: icon } : icon as any}
-            size={size}
-          />
+        {imageSource ? (
+          <AvatarImage source={imageSource} size={size} />
         ) : placeholderIcon ? (
           placeholderIcon
         ) : (
@@ -140,7 +147,7 @@ export const ProfileImagePlaceholder: React.FC<
           </Overlay>
         )}
       </AvatarCircle>
-      {remove?.enabled && icon && role !== 'participant' && (
+      {remove?.enabled && imageSource && role !== 'participant' && (
         <RemoveButton onPress={remove.onRemoveClick}>
           <RemoveButtonText>&times;</RemoveButtonText>
         </RemoveButton>

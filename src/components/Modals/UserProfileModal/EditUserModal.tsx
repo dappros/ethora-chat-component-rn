@@ -8,22 +8,9 @@ import { updateProfile } from '../../../networking/api-requests/user.api';
 import { useDispatch } from 'react-redux';
 import { updateUser } from '../../../roomStore/chatSettingsSlice';
 import { View } from 'react-native';
+import { pickImageAsset, PickedImage } from '../../../helpers/pickImageAsset';
 import { AddPhotoIcon } from '../../../assets/icons';
 // import { actionUpdateUser } from '../actions';
-
-const base64ToFile = (base64String: string, fileName: string) => {
-  const byteString = atob(base64String.split(',')[1]);
-  const arrayBuffer = new ArrayBuffer(byteString.length);
-  const uintArray = new Uint8Array(arrayBuffer);
-  for (let i = 0; i < byteString.length; i++) {
-    uintArray[i] = byteString.charCodeAt(i);
-  }
-  const blob = new Blob([uintArray], { type: 'image/jpeg' });
-  return new File([blob], fileName, {
-    type: 'image/jpeg',
-    lastModified: Date.now(),
-  });
-};
 
 interface EditUserModalProps {
   setIsEditing: React.Dispatch<React.SetStateAction<boolean>>;
@@ -41,7 +28,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   const [firstName, setFirstName] = useState(modalUser?.firstName || '');
   const [lastName, setLastName] = useState(modalUser?.lastName || '');
   const [description, setDescription] = useState(modalUser?.description || '');
-  const [profileImage, setProfileImage] = useState<string | File>(
+  const [profileImage, setProfileImage] = useState<string | PickedImage>(
     modalUser?.profileImage
   );
 
@@ -49,14 +36,8 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
     try {
       let fd = new FormData();
 
-      if (
-        typeof profileImage === 'string' &&
-        profileImage.startsWith('data:image/')
-      ) {
-        const file = base64ToFile(profileImage, 'profileImage.jpg');
-        fd.append('file', file);
-      } else if (profileImage instanceof File) {
-        fd.append('file', profileImage);
+      if (profileImage && typeof profileImage !== 'string') {
+        fd.append('file', profileImage as any);
       }
 
       fd.append('firstName', firstName);
@@ -82,8 +63,11 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
     }
   };
 
-  const handleProfileImageChange = (image: File) => {
-    setProfileImage(image);
+  const handleProfileImageChange = async () => {
+    const picked = await pickImageAsset();
+    if (picked) {
+      setProfileImage(picked);
+    }
   };
 
   return (

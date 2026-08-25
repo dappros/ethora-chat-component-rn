@@ -951,7 +951,7 @@ const ChatPane: React.FC<{ creds: Creds | null; isVisible: boolean }> = ({ creds
         disableType: true,
         // Make the chat icon read-only — no press-to-edit picker, no
         // remove affordance, regardless of the user's role.
-        disableIconEdit: true,
+        disableIconEdit: false,
         disableRoomMenu: true
       },
       disableMemberProfileActions: true

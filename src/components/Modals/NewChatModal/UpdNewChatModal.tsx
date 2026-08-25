@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { pickImageAsset, PickedImage } from '../../../helpers/pickImageAsset';
 import Button from '../../styled/Button';
 import { AddNewIcon } from '../../../assets/icons';
 import { useDispatch, useSelector } from 'react-redux';
@@ -29,7 +30,16 @@ const NewChatModal: React.FC = () => {
     name: 'Public',
     id: 'public',
   });
-  const [profileImage, setProfileImage] = useState<string | File | null>(null);
+  const [profileImage, setProfileImage] = useState<
+    string | PickedImage | null
+  >(null);
+
+  const handleUploadImage = async () => {
+    const picked = await pickImageAsset();
+    if (picked) {
+      setProfileImage(picked);
+    }
+  };
   const [errors, setErrors] = useState({ name: '', description: '' });
   const [selectedUsers, setSelectedUsers] = useState<RoomMember[]>([]);
 
@@ -119,6 +129,7 @@ const NewChatModal: React.FC = () => {
             setRoomDescription={setRoomDescription}
             setChatType={setChatType}
             setProfileImage={setProfileImage}
+            onUploadImage={handleUploadImage}
             selectedUsers={selectedUsers}
             setSelectedUsers={setSelectedUsers}
             handleCreateRoom={handleCreateRoom}

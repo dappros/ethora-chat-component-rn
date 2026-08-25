@@ -83,6 +83,45 @@ describe('roomsSlice — Cluster A (multi-room state machine)', () => {
     expect(state.rooms['a@conference.test'].title).toBe('Room a');
   });
 
+  it('addRoom keeps an icon the incoming payload simply omits', () => {
+    let state = roomsReducer(
+      initial(),
+      addRoom({
+        roomData: makeRoom('a@conference.test', {
+          icon: 'https://cdn.test/room.jpg',
+        }),
+      })
+    );
+
+    // The /chats/my refetch: same room, no `icon` key at all.
+    state = roomsReducer(
+      state,
+      addRoom({ roomData: makeRoom('a@conference.test') })
+    );
+
+    expect(state.rooms['a@conference.test'].icon).toBe(
+      'https://cdn.test/room.jpg'
+    );
+  });
+
+  it('addRoom still clears the icon when a source explicitly says there is none', () => {
+    let state = roomsReducer(
+      initial(),
+      addRoom({
+        roomData: makeRoom('a@conference.test', {
+          icon: 'https://cdn.test/room.jpg',
+        }),
+      })
+    );
+
+    state = roomsReducer(
+      state,
+      addRoom({ roomData: makeRoom('a@conference.test', { icon: null }) })
+    );
+
+    expect(state.rooms['a@conference.test'].icon).toBeNull();
+  });
+
   it('addRoom overwrites existing room fields when the payload provides them', () => {
     // `addRoom` overwrites with EXPLICIT payload values (title, and an
     // explicit unreadMessages: 0 here). What it must NOT do is wipe fields

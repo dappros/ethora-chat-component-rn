@@ -1,4 +1,5 @@
 import React from 'react';
+import { PickedImage } from '../../../helpers/pickImageAsset';
 import {
   ModalContainer,
   CloseButton,
@@ -19,12 +20,13 @@ type ModalContentProps = {
   roomName: string;
   roomDescription: string;
   chatType: ChatAccessOption;
-  profileImage: string | File | null;
+  profileImage: string | PickedImage | null;
   setActiveTab: (tab: '0' | '1' | null) => void;
   handleRoomNameChange: (e: string) => void;
   setRoomDescription: (description: string) => void;
   setChatType: (type: ChatAccessOption) => void;
-  setProfileImage: (image: string | File | null) => void;
+  setProfileImage: (image: string | PickedImage | null) => void;
+  onUploadImage: () => void;
   selectedUsers: any[];
   setSelectedUsers: (users: any[]) => void;
   handleCreateRoom: () => void;
@@ -40,6 +42,7 @@ const ModalContent: React.FC<ModalContentProps> = ({
   roomDescription,
   chatType,
   profileImage,
+  onUploadImage,
   setActiveTab,
   handleRoomNameChange,
   setChatType,
@@ -62,7 +65,7 @@ const ModalContent: React.FC<ModalContentProps> = ({
           <ModalTitle>Create New Chat</ModalTitle>
           <ProfileImagePlaceholder
             size={120}
-            upload={{ active: true, onUpload: setProfileImage }}
+            upload={{ active: true, onUpload: onUploadImage }}
             remove={{
               enabled: true,
               onRemoveClick: () => setProfileImage(null),

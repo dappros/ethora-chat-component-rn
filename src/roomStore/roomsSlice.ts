@@ -317,6 +317,8 @@ const reducers = {
         : [];
       state.rooms[roomData.jid] = {
         ...roomData,
+        icon: roomData.icon !== undefined ? roomData.icon : existing?.icon,
+        roomBg: roomData.roomBg !== undefined ? roomData.roomBg : existing?.roomBg,
         messages:
           existingMessages.length > 0 ? existingMessages : incomingMessages,
         lastViewedTimestamp: lastViewed,
