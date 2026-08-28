@@ -271,6 +271,28 @@ function SignOutButton() {
 }
 ```
 
+### Built-in "Sign out" menu item
+
+Don't want to build your own button? Enable the item in the room-list header menu (the drawer with New Chat / Profile / Settings). It renders last, tinted with `config.colors.primary`, and runs the same awaitable teardown as `useLogout()`:
+
+```tsx
+<Chat
+  config={{
+    logout: {
+      enabled: true,
+      label: 'Sign out',                        // default
+      confirm: { message: 'Sign out of chat?' }, // `true` (default) uses stock copy, `false` skips the dialog
+      onBeforeLogout: async () => {
+        // return false to cancel (e.g. unsaved draft guard)
+      },
+      onAfterLogout: () => navigation.replace('SignIn'), // runs AFTER the full teardown
+    },
+  }}
+/>
+```
+
+Tap flow: close drawer → confirmation (native `Alert`) → `await onBeforeLogout?.()` (`false` cancels) → `await logoutService.performLogout()` → `await onAfterLogout?.()`. The host-side session/navigation logout belongs in `onAfterLogout` — by the time it runs, XMPP is disconnected and every persisted key is gone. Errors thrown by either callback are caught and logged via `console.warn`; a throwing `onBeforeLogout` cancels the logout. With `enabled: false` (or the option omitted) the menu is unchanged.
+
 Why awaitable: the persistence layer debounces writes by 200 ms, and the chat slice removes its persisted user fire-and-forget. If the host navigated / re-mounted `<Chat>` immediately after a non-awaited call, the next bootstrap could occasionally rehydrate stale state ("old chats reappear"). Awaiting the returned promise eliminates that race. The function never rejects — any internal failure is logged via `console.warn`, so a non-awaited call still won't crash the host. For non-React contexts you can call `logoutService.performLogout()` directly (same Promise).
 
 ## Customization flags worth knowing

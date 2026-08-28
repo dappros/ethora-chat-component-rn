@@ -39,12 +39,13 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
 }) => {
   const { config } = useChatSettingState();
   const ts = config?.typography?.attachSheet;
-  // Pending handler captured on row tap — runs once the EXIT animation
-  // finishes so iOS doesn't try to present an image picker over a
-  // still-dismissing modal (was the original reason for the
-  // platform-split + Modal.onDismiss dance). The animation completion
-  // callback now drives this on both platforms.
   const pendingRef = useRef<(() => void) | null>(null);
+  const runPending = () => {
+    console.log('[timing] runPending', Date.now());
+    const fn = pendingRef.current;
+    pendingRef.current = null;
+    fn?.();
+  };
 
   // Local "modal stays mounted while animating out" state. The parent
   // controls `visible`; we mirror it but delay unmount until the exit
@@ -95,8 +96,6 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
       return () => cancelAnimationFrame(raf);
     }
     if (!mounted) {return;}
-    // Exit: fade the backdrop, slide the sheet down, then unmount and
-    // fire any pending picker handler.
     Animated.parallel([
       Animated.timing(backdropOpacity, {
         toValue: 0,
@@ -113,19 +112,19 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
     ]).start(({ finished }) => {
       if (!finished) {return;} // interrupted (rapid re-open) → leave state alone
       setMounted(false);
-      const fn = pendingRef.current;
-      pendingRef.current = null;
-      fn?.();
+      if (Platform.OS !== 'ios') {
+        runPending();
+      }
     });
     return undefined;
   }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const trigger = (handler: () => void) => () => {
-    // Capture the handler and ask parent to close. The exit-animation
-    // completion above fires `handler` AFTER the sheet has slid away,
-    // so iOS no longer tries to present a picker over a dismissing
-    // modal — and Android no longer needs the ad-hoc 150ms setTimeout.
+    console.log('[timing] row tap', Date.now());
     pendingRef.current = handler;
+    if (Platform.OS === 'ios') {
+      setMounted(false);
+    }
     onClose();
   };
 
@@ -166,11 +165,13 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
       onRequestClose={onClose}
       // Hardware-back / iOS gesture also routes through onClose, which
       // flips `visible` and triggers our exit animation above.
+      onDismiss={Platform.OS === 'ios' ? runPending : undefined}
     >
       <Animated.View
         style={[styles.backdrop, { opacity: backdropOpacity }]}
       >
         <TouchableOpacity
+          testID="attach-backdrop"
           style={StyleSheet.absoluteFill}
           activeOpacity={1}
           onPress={onClose}
@@ -187,6 +188,7 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
             {rows.map(({ label, hint, Icon, handler }, idx) => (
               <TouchableOpacity
                 key={label}
+                testID={`attach-row-${label}`}
                 activeOpacity={0.6}
                 style={[
                   styles.row,

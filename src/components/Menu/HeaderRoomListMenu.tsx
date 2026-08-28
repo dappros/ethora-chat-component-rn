@@ -1,5 +1,6 @@
 import React, { FC, useMemo } from 'react';
 import {
+  Alert,
   Animated,
   Text,
   TouchableOpacity,
@@ -8,10 +9,81 @@ import {
   Dimensions,
   View,
 } from 'react-native';
-import { AddNewIcon, ProfileIcon, SettingIcon } from '../../assets/icons';
+import {
+  AddNewIcon,
+  LogoutIcon,
+  ProfileIcon,
+  SettingIcon,
+} from '../../assets/icons';
 import { useDispatch } from 'react-redux';
 import { setActiveModal } from '../../roomStore/chatSettingsSlice';
 import { MODAL_TYPES } from '../../helpers/constants/MODAL_TYPES';
+import { useChatSettingState } from '../../hooks/useChatSettingState';
+import { useLogout } from '../../hooks/useLogout';
+import type { IConfig } from '../../types/types';
+
+type LogoutConfig = NonNullable<IConfig['logout']>;
+
+const DEFAULT_LOGOUT_LABEL = 'Sign out';
+
+const confirmLogout = (
+  confirm: LogoutConfig['confirm'],
+  label: string
+): Promise<boolean> => {
+  if (confirm === false) {
+    return Promise.resolve(true);
+  }
+  const copy = typeof confirm === 'object' && confirm ? confirm : {};
+  return new Promise<boolean>((resolve) => {
+    Alert.alert(
+      copy.title ?? label,
+      copy.message ?? 'Are you sure you want to sign out?',
+      [
+        {
+          text: copy.cancelText ?? 'Cancel',
+          style: 'cancel',
+          onPress: () => resolve(false),
+        },
+        {
+          text: copy.confirmText ?? label,
+          style: 'destructive',
+          onPress: () => resolve(true),
+        },
+      ],
+      { cancelable: true, onDismiss: () => resolve(false) }
+    );
+  });
+};
+
+export const runLogoutFlow = async (
+  logoutConfig: LogoutConfig,
+  performLogout: () => Promise<void>
+): Promise<void> => {
+  const label = logoutConfig.label ?? DEFAULT_LOGOUT_LABEL;
+  const confirmed = await confirmLogout(logoutConfig.confirm ?? true, label);
+  if (!confirmed) {
+    return;
+  }
+  if (logoutConfig.onBeforeLogout) {
+    try {
+      const proceed = await logoutConfig.onBeforeLogout();
+      if (proceed === false) {
+        return;
+      }
+    } catch (e) {
+      console.warn('HeaderRoomListMenu: onBeforeLogout threw, logout cancelled', e);
+      return;
+    }
+  }
+  await performLogout(); // never rejects (see useLogout)
+  if (logoutConfig.onAfterLogout) {
+    try {
+      await logoutConfig.onAfterLogout();
+    } catch (e) {
+      console.warn('HeaderRoomListMenu: onAfterLogout threw', e);
+    }
+  }
+};
 
 const { width } = Dimensions.get('window');
 
@@ -29,14 +101,25 @@ export const HeaderRoomListMenu: FC<HeaderRoomListMenuProps> = ({
   closeDrawer,
 }) => {
   const dispatch = useDispatch();
+  const { config } = useChatSettingState();
+  const performLogout = useLogout();
+  const logoutConfig = config?.logout?.enabled ? config.logout : undefined;
+  const primaryColor = config?.colors?.primary ?? '#0052CD';
 
   const drawerTranslateX = drawerAnimation.interpolate({
     inputRange: [0, 1],
     outputRange: [width, 0],
   });
 
-  const menuOptions = useMemo(
-    () => [
+  const menuOptions = useMemo(() => {
+    const options: {
+      label: string;
+      icon: React.ReactElement;
+      onClick: () => void;
+      styles?: { color: string };
+      /** When true the row closes the drawer itself before acting. */
+      closesDrawer?: boolean;
+    }[] = [
       {
         label: 'New Chat',
         icon: <AddNewIcon color="#8C8C8C" />,
@@ -62,13 +145,21 @@ export const HeaderRoomListMenu: FC<HeaderRoomListMenuProps> = ({
           console.log('Settings clicked');
         },
       },
-      // {
-      //   label: "Logout",
-      //   onClick: handleLogout,
-      // },
-    ],
-    []
-  );
+    ];
+    if (logoutConfig) {
+      options.push({
+        label: logoutConfig.label ?? DEFAULT_LOGOUT_LABEL,
+        icon: <LogoutIcon color={primaryColor} />,
+        styles: { color: primaryColor },
+        closesDrawer: true,
+        onClick: () => {
+          closeDrawer();
+          runLogoutFlow(logoutConfig, performLogout).catch(() => {});
+        },
+      });
+    }
+    return options;
+  }, [dispatch, logoutConfig, performLogout, primaryColor, closeDrawer]);
 
   return (
     <>
@@ -82,9 +173,12 @@ export const HeaderRoomListMenu: FC<HeaderRoomListMenuProps> = ({
           <View key={index} style={styles.menuItemWrapper}>
             <TouchableOpacity
               style={styles.menuItem}
+              testID={`header-menu-${option.label}`}
               onPress={() => {
                 option.onClick();
-                closeDrawer();
+                if (!option.closesDrawer) {
+                  closeDrawer();
+                }
               }}
             >
               <View

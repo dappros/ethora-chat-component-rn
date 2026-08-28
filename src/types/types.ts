@@ -454,6 +454,20 @@ export interface IConfig {
     loginFunction: () => Promise<User | null>;
   };
   defaultLogin?: boolean;
+  logout?: {
+    enabled: boolean;
+    label?: string;
+    confirm?:
+      | boolean
+      | {
+          title?: string;
+          message?: string;
+          confirmText?: string;
+          cancelText?: string;
+        };
+    onBeforeLogout?: () => Promise<boolean | void> | boolean | void;
+    onAfterLogout?: () => Promise<void> | void;
+  };
   refreshTokens?: {
     enabled: boolean;
     /**

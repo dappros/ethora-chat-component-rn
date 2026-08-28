@@ -129,6 +129,7 @@ Pick **one** auth mode. Mixing is undefined behavior.
 | `googleLogin` | `{ enabled: boolean; firebaseConfig: FBConfig }` | Google sign-in via Firebase. |
 | `defaultLogin` | `boolean` | Legacy: enables built-in login form. Ignored when one of the above is set. |
 | `refreshTokens` | `{ enabled: boolean; refreshFunction?: () => Promise<{ accessToken; refreshToken? } \| null> }` | Token-refresh strategy. With `enabled: true` and no `refreshFunction`, the SDK uses the canonical `/users/refresh` endpoint. |
+| `logout` | `{ enabled: boolean; label?: string; confirm?: boolean \| { title?; message?; confirmText?; cancelText? }; onBeforeLogout?: () => Promise<boolean \| void> \| boolean \| void; onAfterLogout?: () => Promise<void> \| void }` | Built-in "Sign out" item in the room-list header menu (rendered last, tinted `colors.primary`). Flow: close drawer → confirm (default `true`, stock copy) → `onBeforeLogout` (`false` cancels) → `logoutService.performLogout()` → `onAfterLogout` (put host logout / navigation here — runs after the full teardown). Callback errors are logged, never thrown. Default: item hidden. |
 
 ### XMPP / network
 

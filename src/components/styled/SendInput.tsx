@@ -265,16 +265,6 @@ const SendInput: React.FC<SendInputProps> = ({
     if (pickingDocRef.current) {return;}
     pickingDocRef.current = true;
     try {
-      // Let the attach-sheet's modal finish its NATIVE dismissal before we
-      // present the picker. The sheet fires this handler right after its
-      // slide-out animation, but the underlying RN Modal view-controller
-      // dismissal is async — presenting the document picker over a still-
-      // dismissing modal makes iOS tear it down without a cancel callback,
-      // which strands expo-document-picker's pickingContext and makes every
-      // subsequent open throw "Different document picking in progress".
-      if (Platform.OS === 'ios') {
-        await new Promise((resolve) => setTimeout(resolve, 350));
-      }
       const result = await DocumentPicker.getDocumentAsync({
         type: '*/*',
         multiple: false,

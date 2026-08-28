@@ -578,6 +578,25 @@ export const SettingIcon = ({ color = '#8C8C8C', ...props }) => (
   </Svg>
 );
 
+export const LogoutIcon = ({ color = '#8C8C8C', ...props }) => (
+  <Svg width="24" height="24" viewBox="0 0 24 24" fill="none" {...props}>
+    <Path
+      d="M15 4H18C19.1046 4 20 4.89543 20 6V18C20 19.1046 19.1046 20 18 20H15"
+      stroke={color}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M10 8L14 12L10 16M14 12H4"
+      stroke={color}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
 export const FileIcon = ({ width = 46, height = 46, ...props }) => (
   <Svg width={width} height={height} viewBox="0 0 40 40" fill="none">
     <Rect width="40" height="40" rx="8" fill="#F2E6F6" />
