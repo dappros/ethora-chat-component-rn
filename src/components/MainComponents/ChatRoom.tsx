@@ -31,6 +31,9 @@ import CustomTypingIndicator from '../styled/StyledInputComponents/CustomTypingI
 // import {PanGestureHandler} from 'react-native-gesture-handler';
 import { FlatList } from 'react-native';
 import {
+  AppState,
+  AppStateStatus,
+  Keyboard,
   Platform,
   TouchableWithoutFeedback,
   View,
@@ -106,6 +109,45 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
       configWithEventHandlers || storeConfig,
     );
 
+    // Under the sticky keyboard strategy, the input dock's position is
+    // driven by KeyboardStickyView's native-animated offset. If the app
+    // is backgrounded while the keyboard-close animation hasn't finished,
+    // the OS removes the keyboard from the app-switcher snapshot but the
+    // shared value hasn't caught up to "closed" yet, so the input appears
+    // to float in that preview.
+    //
+    // NOTE on what this does and doesn't fix: iOS actually captures that
+    // preview during the active→inactive transition, BEFORE 'background'
+    // fires — so dismissing here on 'background' lands too late to affect
+    // the snapshot already taken, and is effectively a no-op for the exact
+    // iOS symptom in bug #37. An earlier version keyed this off 'inactive'
+    // instead, which does land in time, but 'inactive' also fires for
+    // Control Center, share sheets, and permission prompts — none of which
+    // should close the user's keyboard — so that traded a rare cosmetic
+    // preview glitch for a much more common false dismissal. Kept on
+    // 'background': it still resets the offset for genuine backgrounding
+    // (home button, app switch) and for Android's recents preview (RN's
+    // AppState has no 'inactive' there), at the cost of leaving the iOS
+    // switcher-preview glitch itself unresolved. Both symptoms are cosmetic
+    // per the QA report, which explicitly accepted leaving this imperfect
+    // rather than risk destabilizing the sticky strategy. Sticky-only;
+    // doesn't touch the other keyboard strategies.
+    const stickyInputEnabled =
+      !configWithEventHandlers?.disableKeyboardAvoidingView &&
+      !!configWithEventHandlers?.keyboardStickyInput;
+    useEffect(() => {
+      if (!stickyInputEnabled) {
+        return;
+      }
+      const onAppStateChange = (nextState: AppStateStatus) => {
+        if (nextState === 'background') {
+          Keyboard.dismiss();
+        }
+      };
+      const subscription = AppState.addEventListener('change', onAppStateChange);
+      return () => subscription.remove();
+    }, [stickyInputEnabled]);
+
     const sendMessage = useCallback(
       (message: string) => {
         if (!activeRoomJID) {
@@ -170,15 +212,28 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
       clientRef.current = client;
     }, [client]);
 
+    // Tracks what the user actually saw: `null` while they're at the
+    // bottom (safe to mark everything read), or the timestamp of the
+    // newest message visible when they scrolled away from it. Reported
+    // by MessageList via onReadBoundaryChange. Without this, leaving a
+    // room (or backgrounding) while scrolled up stamped `now()` as read
+    // and silently discarded genuinely-unread messages. Customer-
+    // reported #33.
+    const readBoundaryRef = useRef<number | null>(null);
+    const handleReadBoundaryChange = useCallback((boundaryTs: number | null) => {
+      readBoundaryRef.current = boundaryTs;
+    }, []);
+
     useEffect(() => {
       if (!activeRoomJID) {
         return;
       }
 
+      readBoundaryRef.current = null;
       dispatch(setVisibleRoom({ roomJID: activeRoomJID }));
       setIsLoadingMore(false);
       return () => {
-        const timestamp = new Date().getTime();
+        const timestamp = readBoundaryRef.current ?? new Date().getTime();
         dispatch(
           setLastViewedTimestamp({
             chatJID: activeRoomJID,
@@ -191,6 +246,12 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
           liveClient
             .flushLastViewedToPrivateStoreStanza(store.getState().rooms?.rooms, {
               visibleRoomJID: activeRoomJID,
+              // Carry the same boundary to the SERVER marker. Without
+              // this the flush defaults to Date.now() for the visible
+              // room, so messages the user never scrolled down to come
+              // back as read on the next login — the local count was
+              // right but the server overrode it.
+              visibleRoomTs: readBoundaryRef.current,
             })
             .catch(() => {});
         }
@@ -404,6 +465,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
                 config={configWithEventHandlers}
                 loading={isLoadingMore}
                 isReply={false}
+                onReadBoundaryChange={handleReadBoundaryChange}
               />
             )}
           </View>

@@ -49,6 +49,7 @@ import {
   setUnreadSyncing,
 } from '../roomStore/roomsSlice';
 import { runHistoryPreloadScheduler } from '../helpers/historyPreloadScheduler';
+import { updateMessagesTillLast } from '../helpers/updateMessagesTillLast';
 import { secureUserStorage } from '../helpers/secureUserStorage';
 import { clearPersistedState } from '../roomStore/persistence';
 import { pushLog as devPushLog } from '../utils/devLogger';
@@ -239,6 +240,19 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
           .catch((e: unknown) =>
             devPushLog('warn', 'reconnect: privateStore refresh failed', e)
           );
+        // Pull whatever landed in each room's archive while the stream was
+        // down. MUC presence re-join above only restores delivery for
+        // messages sent AFTER this reconnect — anything sent during the
+        // offline window has no live stanza to catch, and previously only
+        // came back on a full app restart (fresh useChatWrapperInit mount
+        // re-running its own one-shot boot sync). Safe on the very first
+        // connect too: rooms have no `lastMessageTimestamp` yet at that
+        // point, so this is a no-op until the bootstrap's own history load
+        // populates it. Customer-reported #32.
+        const rooms = store.getState().rooms?.rooms || {};
+        updateMessagesTillLast(rooms, created).catch((e: unknown) =>
+          devPushLog('warn', 'reconnect: offline catch-up sync failed', e)
+        );
       });
 
       setClient(created);

@@ -12,6 +12,14 @@ interface FlushOpts {
   // up to now" and stamp it with Date.now() — even if its in-memory
   // lastViewedTimestamp has not been updated yet.
   visibleRoomJID?: string | null;
+  // Explicit read boundary for the visible room, used INSTEAD of
+  // Date.now(). ChatRoom passes the timestamp of the newest message the
+  // user actually reached when they leave a room while scrolled up —
+  // without it, the Date.now() default writes "read everything" to the
+  // server and the messages they never scrolled down to come back as
+  // read on the next login, even though the local count was correct.
+  // Customer-reported #33 (server half).
+  visibleRoomTs?: number | null;
   // If true, only write entries for rooms where unreadMessages === 0
   // (or the visible room). Used at logout time: rooms with outstanding
   // unread keep their old marker so the next login still surfaces them.
@@ -34,7 +42,7 @@ export async function flushLastViewedToPrivateStore(
   opts: FlushOpts = {}
 ): Promise<boolean> {
   if (!client?.client) {return false;}
-  const { visibleRoomJID, onlyIfNoUnread } = opts;
+  const { visibleRoomJID, visibleRoomTs, onlyIfNoUnread } = opts;
   const roomList = Object.values(rooms || {});
   if (roomList.length === 0) {return false;}
 
@@ -55,10 +63,16 @@ export async function flushLastViewedToPrivateStore(
     const hasUnread = Number(room.unreadMessages || 0) > 0;
 
     // For the visible room, persist "now" — read state is driven by
-    // room visibility, not by a sentinel timestamp.
+    // room visibility, not by a sentinel timestamp. The exception is an
+    // explicit `visibleRoomTs`: the caller knows the user only read up
+    // to a certain point (left the room while scrolled up), so stamping
+    // "now" here would mark genuinely-unread messages as read.
     let ts: number | undefined;
     if (isVisible) {
-      ts = nowMs;
+      ts =
+        typeof visibleRoomTs === 'number' && visibleRoomTs > 0
+          ? visibleRoomTs
+          : nowMs;
     } else if (room.lastViewedTimestamp && room.lastViewedTimestamp > 0) {
       ts = room.lastViewedTimestamp;
     }

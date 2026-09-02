@@ -11,6 +11,12 @@ interface UnreadMessagesStats {
   totalCount: number;
   unreadByRoom: UnreadMessagesMap;
   isLoading: boolean;
+  // True while at least one room's unread count could still be a floor
+  // rather than the true total — the history-preload scheduler paged back
+  // as far as its catch-up budget allows without finding the read
+  // boundary. Lets a host show "99+"-style affordances honestly instead of
+  // implying an exact count it can't back up.
+  isCapped: boolean;
 }
 
 export const useUnreadMessagesCounter = (): UnreadMessagesStats => {
@@ -35,12 +41,16 @@ export const useUnreadMessagesCounter = (): UnreadMessagesStats => {
   const rooms = roomsState.rooms;
   const unreadByRoom: UnreadMessagesMap = {};
   let totalCount = 0;
+  let isCapped = false;
 
   Object.entries(rooms).forEach(([roomJid, room]: [string, IRoom]) => {
     const unreadCount = room.unreadMessages || 0;
     if (unreadCount > 0) {
       unreadByRoom[roomJid] = unreadCount;
       totalCount += unreadCount;
+    }
+    if ((room as any)?.unreadCapped) {
+      isCapped = true;
     }
   });
 
@@ -49,6 +59,7 @@ export const useUnreadMessagesCounter = (): UnreadMessagesStats => {
     totalCount,
     unreadByRoom,
     isLoading: !!roomsState.isUnreadSyncing || !!roomsState.isLoading,
+    isCapped,
   };
 };
 

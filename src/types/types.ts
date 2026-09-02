@@ -557,6 +557,14 @@ export interface IConfig {
   // `disableKeyboardAvoidingView` is set. Needs on-device tuning of any
   // `keyboardVerticalOffset`.
   keyboardStickyInput?: boolean;
+  // The message list's FlatList uses keyboardDismissMode="interactive" by
+  // default, so a drag can be used to pull the keyboard closed. Because
+  // the list is `inverted`, an ordinary scroll gesture through history can
+  // also be read as a dismiss drag, closing the keyboard mid-scroll. Set
+  // this to keep the keyboard open regardless of how the list is scrolled
+  // — dismissal then only happens when the user deliberately closes it
+  // (tapping outside, back button, etc). Customer-reported #36.
+  keepKeyboardOpenOnScroll?: boolean;
 
   // ----- interactions / messages -----
   disableInteractions?: boolean;
