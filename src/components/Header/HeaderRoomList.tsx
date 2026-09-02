@@ -59,7 +59,7 @@ export const HeaderRoomList: FC<HeaderRoomListProps> = ({ setDrawerOpen }) => {
         <ProfileImagePlaceholder
           icon={modalUser?.profileImage ?? null}
           name={modalUser?.name ?? modalUser?.firstName}
-          size={30}
+          size={36}
           click={{
             isClick: true,
             onPress: setDrawerOpen,
@@ -86,7 +86,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   leftContainer: {
-    width: 40,
+    width: 44,
     alignItems: 'flex-start',
     justifyContent: 'center',
   },
@@ -98,7 +98,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   rightContainer: {
-    width: 40,
+    width: 44,
     alignItems: 'flex-end',
     justifyContent: 'center',
   },

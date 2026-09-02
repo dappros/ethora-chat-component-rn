@@ -48,6 +48,11 @@ import axios from 'axios';
 // Android equally.
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+// Only the top edge is padded. Padding the bottom too left a blank white
+// band under the room list (and under any sheet the chat presents), which
+// is not how a messenger looks — content runs under the home indicator.
+const SAFE_EDGES = ['top', 'left', 'right'] as const;
+
 import { ReduxWrapper as Chat } from './src/components/MainComponents/ReduxWrapper';
 import { store as chatStore } from './src/roomStore';
 import { logoutService } from './src/hooks/useLogout';
@@ -1254,14 +1259,14 @@ const AppLoginChatsRn: React.FC = () => {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.root, styles.center]}>
+      <SafeAreaView style={[styles.root, styles.center]} edges={SAFE_EDGES}>
         <ActivityIndicator color={PRIMARY} />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.root}>
+    <SafeAreaView style={styles.root} edges={SAFE_EDGES}>
       <StatusBar barStyle="dark-content" />
       <TabBar active={tab} onChange={setTab} />
       <View style={styles.flex1}>

@@ -19,6 +19,10 @@ import { CameraIcon, DocumentIcon } from '../../../assets/icons';
 import { useChatSettingState } from '../../../hooks/useChatSettingState';
 import { chatTextStyle } from '../../../helpers/typography';
 import { getMediaLibrary } from '../../../helpers/mediaLibraryRuntime';
+import {
+  shouldClaimVerticalDrag,
+  shouldDismissOnDrag,
+} from '../../../helpers/sheetGestures';
 
 interface RecentItem {
   id: string;
@@ -47,14 +51,8 @@ interface AttachSheetProps {
 // height so it sits fully below the viewport before opening; the exact
 // number doesn't matter visually because it animates to 0.
 const SHEET_OFFSCREEN = 800;
-const DISMISS_DISTANCE = 90;
-const DISMISS_VELOCITY = 0.8;
-
-export const shouldClaimVerticalDrag = (dy: number, dx: number) =>
-  dy > 6 && Math.abs(dy) > Math.abs(dx) * 1.5;
-
-export const shouldDismissOnDrag = (dy: number, vy: number) =>
-  dy > DISMISS_DISTANCE || vy > DISMISS_VELOCITY;
+// Re-exported so this sheet's own tests keep addressing them here.
+export { shouldClaimVerticalDrag, shouldDismissOnDrag };
 
 const RECENTS_COUNT = 12;
 const THUMB_SIZE = 88;

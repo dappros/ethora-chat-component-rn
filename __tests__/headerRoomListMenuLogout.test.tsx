@@ -1,6 +1,6 @@
 import React from 'react';
 import renderer, { act } from 'react-test-renderer';
-import { Alert, Animated, TouchableOpacity } from 'react-native';
+import { Alert, Animated, Modal, TouchableOpacity } from 'react-native';
 import { Provider } from 'react-redux';
 import { store } from '../src/roomStore';
 import { setConfig } from '../src/roomStore/chatSettingsSlice';
@@ -9,6 +9,18 @@ import {
   runLogoutFlow,
 } from '../src/components/Menu/HeaderRoomListMenu';
 import { logoutService } from '../src/hooks/useLogout';
+import {
+  shouldClaimVerticalDrag,
+  shouldDismissOnDrag,
+} from '../src/helpers/sheetGestures';
+
+// The menu is a bottom sheet now, so it reads the bottom inset. The SDK
+// mounts SafeAreaProvider in ReduxWrapper; the renderer has no window
+// metrics, so stand one in.
+jest.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 47, bottom: 34, left: 0, right: 0 }),
+  SafeAreaProvider: ({ children }: any) => children,
+}));
 
 jest.mock('../src/hooks/useLogout', () => {
   const performLogout = jest.fn(() => Promise.resolve());
@@ -22,7 +34,7 @@ const performLogoutMock = logoutService.performLogout as jest.Mock;
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
-const renderMenu = async (config: any) => {
+const renderMenu = async (config: any, opts: { isDrawerOpen?: boolean } = {}) => {
   await act(async () => {
     store.dispatch(setConfig(config));
   });
@@ -32,7 +44,7 @@ const renderMenu = async (config: any) => {
     tree = renderer.create(
       <Provider store={store}>
         <HeaderRoomListMenu
-          isDrawerOpen
+          isDrawerOpen={opts.isDrawerOpen ?? true}
           drawerAnimation={new Animated.Value(1)}
           overlayAnimation={new Animated.Value(1)}
           closeDrawer={closeDrawer}
@@ -67,6 +79,60 @@ const stubAlert = (choice: 'confirm' | 'cancel') =>
 beforeEach(() => {
   performLogoutMock.mockClear();
   jest.restoreAllMocks();
+});
+
+describe('HeaderRoomListMenu — bottom sheet', () => {
+  it('slides up from the bottom instead of in from the right', async () => {
+    const { tree } = await renderMenu({});
+    const sheet = tree.root.find((n) => n.props?.testID === 'header-menu-sheet');
+    const style = (Array.isArray(sheet.props.style)
+      ? sheet.props.style
+      : [sheet.props.style]
+    ).flat();
+    const flat = Object.assign({}, ...style.filter(Boolean));
+    // Hugs the bottom edge, inset by a couple of points so the dimmed
+    // screen shows around it, and only as tall as its rows.
+    expect(flat.bottom).toBeLessThanOrEqual(4);
+    expect(flat.left).toBeGreaterThan(0);
+    expect(flat.right).toBeGreaterThan(0);
+    expect(flat.top).toBeUndefined();
+    expect(flat.height).toBeUndefined();
+    expect(flat.borderRadius).toBeGreaterThan(0);
+    // The motion is vertical now.
+    const transform = flat.transform ?? [];
+    expect(transform.some((t: any) => 'translateY' in t)).toBe(true);
+    expect(transform.some((t: any) => 'translateX' in t)).toBe(false);
+  });
+
+  it('is not mounted at all while closed, so nothing bleeds along the edge', async () => {
+    const { tree } = await renderMenu({}, { isDrawerOpen: false });
+    expect(
+      tree.root.findAll((n) => n.props?.testID === 'header-menu-sheet')
+    ).toHaveLength(0);
+  });
+
+  it('presents through a real Modal so it reaches the screen edges', async () => {
+    const { tree } = await renderMenu({});
+    const modal = tree.root.findByType(Modal);
+    expect(modal.props.visible).toBe(true);
+    expect(modal.props.transparent).toBe(true);
+    // Without this the sheet is clipped by the room list's own container
+    // and the dim stops short of the host's chrome.
+    expect(modal.props.statusBarTranslucent).toBe(true);
+  });
+
+  it('can be pulled down to dismiss, without stealing row taps', async () => {
+    const { tree } = await renderMenu({});
+    const sheet = tree.root.find((n) => n.props?.testID === 'header-menu-sheet');
+    // Pan handlers are attached…
+    expect(typeof sheet.props.onResponderRelease).toBe('function');
+    // …and only claim a clear downward pull, so a tap still hits the row.
+    expect(sheet.props.onStartShouldSetResponder()).toBe(false);
+    expect(shouldClaimVerticalDrag(30, 0)).toBe(true);
+    expect(shouldClaimVerticalDrag(3, 0)).toBe(false);
+    expect(shouldDismissOnDrag(120, 0)).toBe(true);
+    expect(shouldDismissOnDrag(30, 0.2)).toBe(false);
+  });
 });
 
 describe('HeaderRoomListMenu — Sign out item visibility', () => {
