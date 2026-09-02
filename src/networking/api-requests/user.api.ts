@@ -74,3 +74,74 @@ export async function updateProfile(fd: FormData): Promise<{ user: User }> {
     throw new Error('Error updating profile');
   }
 }
+
+/** One entry of `GET /v2/files/`, normalised for the UI. */
+export interface UserFile {
+  id: string;
+  name: string;
+  url: string;
+  mimetype: string;
+  createdAt?: string;
+  size?: number;
+}
+
+/**
+ * Files uploaded by the signed-in user (the JWT owner) — the profile
+ * screen's Media and Documents tabs.
+ *
+ * v2 answers `{ results, pagination }` and, for backward compatibility,
+ * also `{ limit, offset, total, items }`; older deployments only have the
+ * legacy shape. Read whichever is there instead of betting on one. Field
+ * names vary the same way between deployments (`location` vs `locations[]`,
+ * `originalname` vs `filename`), so each one falls through its aliases and
+ * anything without a usable URL is dropped rather than rendered as a dead
+ * row.
+ */
+export async function getUserFiles(options?: {
+  limit?: number;
+  offset?: number;
+}): Promise<UserFile[]> {
+  const token = store.getState().chatSettingStore.user.token || '';
+  const response = await http.get('/v2/files/', {
+    params: {
+      limit: options?.limit ?? 100,
+      offset: options?.offset ?? 0,
+    },
+    headers: { Authorization: token },
+  });
+
+  const payload = response?.data ?? {};
+  const rows: any[] = payload.results ?? payload.items ?? [];
+
+  return rows
+    .map((row: any): UserFile | null => {
+      const url = row?.location || row?.locations?.[0] || row?.url || '';
+      if (!url) {return null;}
+      return {
+        id: String(row?._id ?? row?.id ?? url),
+        name:
+          row?.originalname ||
+          row?.filename ||
+          row?.documentName ||
+          row?.name ||
+          url.split('/').pop() ||
+          'file',
+        url,
+        mimetype: row?.mimetype || row?.mimeType || row?.type || '',
+        createdAt: row?.createdAt || row?.updatedAt,
+        size: typeof row?.size === 'number' ? row.size : undefined,
+      };
+    })
+    .filter(Boolean) as UserFile[];
+}
+
+/** Images and video go to the Media tab, everything else to Documents. */
+export const isMediaFile = (file: UserFile): boolean => {
+  const mime = (file.mimetype || '').toLowerCase();
+  if (mime.startsWith('image/') || mime.startsWith('video/')) {return true;}
+  if (mime) {return false;}
+  // Deployments that don't store a mimetype still name the file.
+  return /\.(jpe?g|png|gif|webp|heic|heif|mp4|mov|m4v|3gp|avi|mkv)$/i.test(
+    file.name
+  );
+};

@@ -1,48 +1,97 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+/** @format */
+
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  CenterContainer,
-  UserInfo,
-  UserName,
-  UserStatus,
-  ModalContainerFullScreen,
-  ActionButton,
-  Label,
-  BorderedContainer,
-  LabelData,
-  ModalBackground,
-  ModalContainer,
-  CloseButton,
-  ModalTitle,
-  GroupContainer,
-} from '../styledModalComponents';
-import { ChatIcon, DeleteIcon, DownloadIcon, EditIcon, IconDoc, LeaveIcon, MoreIcon } from '../../../assets/icons';
-import ModalHeaderComponent from '../ModalHeaderComponent';
-import { useSelector } from 'react-redux';
-import { RootState } from '../../../roomStore';
-import { ProfileImagePlaceholder } from '../../MainComponents/ProfileImagePlaceholder';
-import Button from '../../styled/Button';
-import DropdownMenu from '../../DropdownMenu/DropdownMenu';
+  ActivityIndicator,
+  Animated,
+  Image,
+  Share,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { ModalContainerFullScreen } from '../styledModalComponents';
 import {
-  logout,
+  ChatIcon,
+  EditIcon,
+  IconDoc,
+  LeaveIcon,
+  LogoutIcon,
+  ProfileIcon,
+  ShareIcon,
+} from '../../../assets/icons';
+import { useAppDispatch } from '../../../hooks/hooks';
+import { useChatSettingState } from '../../../hooks/useChatSettingState';
+import { useXmppClient } from '../../../context/xmppProvider';
+import { useToast } from '../../../context/ToastContext';
+import { useT } from '../../../i18n/useT';
+import { useFileToken } from '../../../hooks/useFileToken';
+import { appendFileToken } from '../../../helpers/secureFileUrl';
+import { getIconColor } from '../../../helpers/getIconColor';
+import { chatTextStyle } from '../../../helpers/typography';
+import { getElementFont } from '../../../helpers/getElementFont';
+import { LANGUAGE_OPTIONS } from '../../../helpers/constants/LANGUAGE_OPTIONS';
+import { MODAL_TYPES } from '../../../helpers/constants/MODAL_TYPES';
+import {
+  setActiveFile,
   setActiveModal,
   setLangSource,
   setSelectedUser,
 } from '../../../roomStore/chatSettingsSlice';
-import { addRoomViaApi, setCurrentRoom, setLogoutState } from '../../../roomStore/roomsSlice';
-import EditUserModal from './EditUserModal';
-import { walletToUsername } from '../../../helpers/walletUsername';
-import { useXmppClient } from '../../../context/xmppProvider';
-import Loader from '../../styled/Loader';
-import { IRoom, Iso639_1Codes } from '../../../types/types';
-import Select from '../../MainComponents/Select';
-import { useAppDispatch, useAppSelector } from '../../../hooks/hooks';
-import { ScrollView, Text, View } from 'react-native';
+import { addRoomViaApi, setCurrentRoom } from '../../../roomStore/roomsSlice';
+import { runLogoutFlow } from '../../Menu/HeaderRoomListMenu';
+import { useLogout } from '../../../hooks/useLogout';
 import { ApiRoom, postPrivateRoom } from '../../../networking/api-requests/rooms.api';
+import {
+  getUserFiles,
+  isMediaFile,
+  UserFile,
+} from '../../../networking/api-requests/user.api';
 import { createRoomFromApi } from '../../../helpers/createRoomFromApi';
-import { useToast } from '../../../context/ToastContext';
-import { LANGUAGE_OPTIONS } from '../../../helpers/constants/LANGUAGE_OPTIONS';
-import { deleteDocument, getDocuments } from '../../../networking/api-requests/user.api';
-import { useChatSettingState } from '../../../hooks/useChatSettingState';
+import { walletToUsername } from '../../../helpers/walletUsername';
+import { Iso639_1Codes } from '../../../types/types';
+import {
+  ProfileHero,
+  ProfileTopBar,
+  HeroAction,
+  useHeaderMetrics,
+} from '../ProfileHeader/ProfileHeader';
+import EditUserModal from './EditUserModal';
+
+const PREFIX = 'user-profile';
+
+type TabKey = 'language' | 'media' | 'documents';
+
+/** Two uppercase letters for a person without a picture. */
+export const userInitials = (name?: string | null): string => {
+  const words = (name || '').trim().split(/\s+/).filter(Boolean);
+  const letters = (words.length >= 2
+    ? [words[0][0], words[1][0]]
+    : [words[0]?.[0], words[0]?.[1]]
+  ).filter((c) => !!c && /[\p{L}\p{N}]/u.test(c));
+  return letters.join('').toUpperCase();
+};
+
+/**
+ * Which tabs a profile shows. Only the signed-in user has tabs at all:
+ * `GET /v2/files/` returns the JWT owner's files, so there is nothing to
+ * put under Media/Documents for anybody else, and the language picker is
+ * a personal setting.
+ */
+export const profileTabs = (opts: {
+  isOwnProfile: boolean;
+  translatesEnabled: boolean;
+  hasMedia: boolean;
+  hasDocuments: boolean;
+}): TabKey[] => {
+  if (!opts.isOwnProfile) {return [];}
+  const tabs: TabKey[] = [];
+  if (opts.translatesEnabled) {tabs.push('language');}
+  if (opts.hasMedia) {tabs.push('media');}
+  if (opts.hasDocuments) {tabs.push('documents');}
+  return tabs;
+};
 
 interface UserProfileModalProps {
   handleCloseModal: any;
@@ -51,89 +100,107 @@ interface UserProfileModalProps {
 const UserProfileModal: React.FC<UserProfileModalProps> = ({
   handleCloseModal,
 }) => {
+  const t = useT();
   const dispatch = useAppDispatch();
-
   const { client } = useXmppClient();
   const { showToast } = useToast();
-
   const { config, user, selectedUser, langSource } = useChatSettingState();
+  const fileToken = useFileToken();
 
-  const [isEditing, setIsEditing] = useState<boolean>(false);
-  const [documents, setDocuments] = useState<any[]>([]);
-  const [deleteDocumentId, setDeleteDocumentId] = useState<string>('');
-  const [showDelete, setShowDelete] = useState<boolean>(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [files, setFiles] = useState<UserFile[]>([]);
+  const [loadingFiles, setLoadingFiles] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabKey | null>(null);
 
-  const handleDeleteDocument = async () => {
-    try {
-      await deleteDocument(deleteDocumentId);
-      setDocuments(documents.filter((doc) => doc._id !== deleteDocumentId));
-      showToast({
-        id: Date.now().toString(),
-        title: 'Success',
-        message: 'Document deleted successfully',
-        type: 'success',
-      });
-      // handleGetDocs();
-    } catch (error) {
-      console.error('Error deleting document', error);
-      showToast({
-        id: Date.now().toString(),
-        title: 'Error',
-        message: 'Failed to delete document',
-        type: 'error',
-      });
-    } finally {
-      setShowDelete(false);
-    }
-  };
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const scrollRef = useRef<any>(null);
+  const { collapseDistance } = useHeaderMetrics();
+  const [viewportHeight, setViewportHeight] = useState(0);
 
-  const handleGetDocs = async () => {
-    try {
-      const { data } = await getDocuments(user?.defaultWallet?.walletAddress);
-      const items = data.results.filter((el: {locations: unknown[]}) => el.locations[0]);
+  const isOwnProfile = !selectedUser;
+  const profileUser: any = selectedUser ?? user;
 
-      setDocuments(items);
-    } catch (error) {
-      console.error('Error getting docs', error);
-    }
-  };
+  const media = useMemo(() => files.filter(isMediaFile), [files]);
+  const documents = useMemo(
+    () => files.filter((file) => !isMediaFile(file)),
+    [files]
+  );
 
+  const tabs = useMemo(
+    () =>
+      profileTabs({
+        isOwnProfile,
+        translatesEnabled: !!config?.translates?.enabled,
+        hasMedia: media.length > 0,
+        hasDocuments: documents.length > 0,
+      }),
+    [isOwnProfile, config?.translates?.enabled, media.length, documents.length]
+  );
+
+  // Keep the selected tab valid as the lists load in.
   useEffect(() => {
-    handleGetDocs();
-  }, []);
+    if (tabs.length === 0) {
+      setActiveTab(null);
+      return;
+    }
+    setActiveTab((current) =>
+      current && tabs.includes(current) ? current : tabs[0]
+    );
+  }, [tabs]);
+
+  // One request per visit, and only for one's own profile — the endpoint
+  // is scoped to the JWT owner, so it would return *our* files while
+  // looking at somebody else's page.
+  useEffect(() => {
+    if (!isOwnProfile) {
+      setFiles([]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingFiles(true);
+    getUserFiles()
+      .then((rows) => {
+        if (!cancelled) {setFiles(rows);}
+      })
+      .catch((error) => {
+        console.warn('Could not load user files:', error);
+        if (!cancelled) {setFiles([]);}
+      })
+      .finally(() => {
+        if (!cancelled) {setLoadingFiles(false);}
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOwnProfile, user?.token]);
 
   const handleBackClick = useCallback(() => {
     dispatch(setSelectedUser(undefined));
     handleCloseModal();
-  }, []);
+  }, [dispatch, handleCloseModal]);
 
+  // Same teardown the room-list menu runs (XMPP, redux, persisted slices,
+  // AsyncStorage), including the host's confirm copy and callbacks.
+  const performLogout = useLogout();
   const handleLogout = useCallback(() => {
-    dispatch(logout());
-    dispatch(setLogoutState());
-  }, []);
+    runLogoutFlow(config?.logout ?? { enabled: true }, performLogout).catch(() => {});
+  }, [config?.logout, performLogout]);
 
-  const menuOptions = useMemo(
-    () => [
-      {
-        label: 'Log Out',
-        icon: <LeaveIcon />,
-        onClick: () => {
-          handleLogout();
-        },
-        styles: { color: 'red' },
-      },
-    ],
-    []
-  );
-
-  const handleSelect = (selected: { name: string; id: Iso639_1Codes }) => {
-    dispatch(setLangSource(selected.id));
-  };
-
-  const EditClick = useCallback(() => {
-    setIsEditing(true);
-  }, []);
-
+  const handleShare = useCallback(async () => {
+    const name =
+      profileUser?.name ||
+      `${profileUser?.firstName ?? ''} ${profileUser?.lastName ?? ''}`.trim();
+    const id =
+      profileUser?.userJID ||
+      profileUser?.defaultWallet?.walletAddress ||
+      profileUser?.id ||
+      '';
+    try {
+      await Share.share({ message: id ? `${name}\n${id}` : name });
+    } catch (error) {
+      console.warn('Could not share the profile:', error);
+    }
+  }, [profileUser]);
 
   const handleRoomCreation = async (
     newChat: ApiRoom,
@@ -146,15 +213,9 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
         usersArrayLength
       );
 
-      if (!normalizedChat || !client) return;
+      if (!normalizedChat || !client) {return;}
 
-      dispatch(
-        addRoomViaApi({
-          room: normalizedChat,
-          xmpp: client,
-        })
-      );
-
+      dispatch(addRoomViaApi({ room: normalizedChat, xmpp: client }));
       dispatch(setCurrentRoom({ roomJID: normalizedChat?.jid || '' }));
 
       showToast({
@@ -177,22 +238,19 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
       type: 'info',
       duration: 3000,
     });
-    let newRoomJid = '';
     if (config?.newArch) {
       const newRoom = await postPrivateRoom(
         selectedUser?.userJID ?? (selectedUser?.id || '')
       );
       handleRoomCreation(newRoom, 2);
-      newRoomJid = newRoom.name;
     } else {
       const selectedUserUsername = walletToUsername(selectedUser?.id || '');
       const myUsername = walletToUsername(user.defaultWallet.walletAddress);
 
-      const combinedWalletAddress = [myUsername, selectedUserUsername]
+      const roomJid = [myUsername, selectedUserUsername]
         .sort()
-        .join('.');
-
-      const roomJid = combinedWalletAddress.toLowerCase();
+        .join('.')
+        .toLowerCase();
 
       const combinedUsersName = [
         user.firstName,
@@ -201,11 +259,12 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
         .sort()
         .join(' and ');
 
-      newRoomJid = (await client?.createPrivateRoomStanza(
-        combinedUsersName,
-        `Private chat ${combinedUsersName}`,
-        roomJid
-      )) || '';
+      const newRoomJid =
+        (await client?.createPrivateRoomStanza(
+          combinedUsersName,
+          `Private chat ${combinedUsersName}`,
+          roomJid
+        )) || '';
 
       if (newRoomJid) {
         await client?.inviteRoomRequestStanza(selectedUserUsername, newRoomJid);
@@ -214,202 +273,425 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     }
 
     dispatch(setActiveModal(undefined));
-  }, [selectedUser]);
+  }, [selectedUser]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const modalUser: any = selectedUser ?? user;
-
-  const findLanguage = () => {
-    if(!langSource) {return null;}
-
-    const language = LANGUAGE_OPTIONS.find((lang) => lang.id === langSource);
-    return language || null;
+  const openFile = (file: UserFile) => {
+    dispatch(
+      setActiveFile({
+        fileName: file.name,
+        fileURL: file.url,
+        mimetype: file.mimetype,
+      })
+    );
+    dispatch(setActiveModal(MODAL_TYPES.FILE_PREVIEW));
   };
 
-  const showDeleteModal = (docId: string) => {
-    setDeleteDocumentId(docId);
-    setShowDelete(true);
-  };
+  const heroActions: HeroAction[] = useMemo(
+    () =>
+      isOwnProfile
+        ? [
+            {
+              key: 'account',
+              label: t('action.account'),
+              icon: (color: string) => <ProfileIcon color={color} />,
+              onPress: () => dispatch(setActiveModal(MODAL_TYPES.SETTINGS)),
+            },
+            {
+              key: 'share',
+              label: t('action.share'),
+              icon: (color: string) => <ShareIcon color={color} />,
+              onPress: handleShare,
+            },
+            {
+              key: 'edit',
+              label: t('action.edit'),
+              icon: (color: string) => <EditIcon color={color} />,
+              onPress: () => setIsEditing(true),
+            },
+            {
+              key: 'logout',
+              label: t('action.logOut'),
+              icon: (color: string) => <LogoutIcon color={color} />,
+              onPress: handleLogout,
+            },
+          ]
+        : [
+            ...(config?.hideMemberSendMessageAction
+              ? []
+              : [
+                  {
+                    key: 'message',
+                    label: t('action.message'),
+                    icon: (color: string) => <ChatIcon color={color} />,
+                    onPress: handlePrivateMessage,
+                  },
+                ]),
+            {
+              key: 'share',
+              label: t('action.share'),
+              icon: (color: string) => <ShareIcon color={color} />,
+              onPress: handleShare,
+            },
+          ],
+    [isOwnProfile, t, handleShare, handlePrivateMessage, handleLogout] // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
-  const DefaultBody = useMemo(
-    () => (
-      <>
-        <ModalHeaderComponent
-          handleCloseModal={handleBackClick}
-          headerTitle={'Profile'}
-          rightMenu={
-            !selectedUser && (
-              <>
-                <Button onPress={EditClick}>
-                  <EditIcon color="#8C8C8C" />
-                </Button>
-                <DropdownMenu
-                  options={menuOptions}
-                  position="right"
-                  menuIcon={<MoreIcon />}
-                />
-              </>
-            )
-          }
+  if (isEditing) {
+    return (
+      <ModalContainerFullScreen>
+        <EditUserModal
+          setIsEditing={setIsEditing}
+          modalUser={profileUser}
+          config={config}
         />
-        <CenterContainer>
-          <ProfileImagePlaceholder
-            icon={modalUser?.profileImage ?? null}
-            name={modalUser?.name ?? modalUser?.firstName}
-            size={120}
-          />
-          <UserInfo>
-            <UserName>
-              {modalUser?.name
-                ? `${modalUser?.name}`
-                : `${modalUser?.firstName} ${modalUser?.lastName}`}
-            </UserName>
-            {/* <UserStatus>Status</UserStatus> */}
-          </UserInfo>
-          {!selectedUser && config?.translates?.enabled && (
-            <BorderedContainer>
-              <Select
-                options={LANGUAGE_OPTIONS}
-                placeholder={'Select your language'}
-                onSelect={handleSelect}
-                accentColor={config?.colors?.primary}
-                selectedValue={findLanguage()}
-              />
-            </BorderedContainer>
-          )}
-          <BorderedContainer>
-            <Label>About</Label>
-            <LabelData>
-              {modalUser?.description && modalUser?.description?.length > 4
-                ? modalUser.description
-                : 'No description'}
-            </LabelData>
-          </BorderedContainer>
+      </ModalContainerFullScreen>
+    );
+  }
 
-          {selectedUser && !config?.disableMemberProfileActions && (
-            <>
-              {!config?.hideMemberSendMessageAction && (
-                <ActionButton
-                  StartIcon={<ChatIcon />}
-                  onPress={handlePrivateMessage}
-                  variant="filled"
-                >
-                  <Text style={{ color: '#ffffff' }}>Message</Text>
-                </ActionButton>
-              )}
-              {!config?.hideMemberCopyIdAction && (
-                <ActionButton
-                  onPress={() => {}}
-                  // onPress={() => handleCopyClick(selectedUser.id)}
-                  variant="filled"
-                >
-                  <Text style={{ color: '#ffffff' }}>Copy User Id</Text>
-                </ActionButton>
-              )}
-            </>
-          )}
+  const displayName =
+    profileUser?.name ||
+    `${profileUser?.firstName ?? ''} ${profileUser?.lastName ?? ''}`.trim() ||
+    t('modal.profile.title');
+  const heroImage =
+    appendFileToken(profileUser?.profileImage, fileToken) || null;
+  const heroColor = config?.colors?.avatar || getIconColor(config);
+  const description = profileUser?.description;
 
-          <BorderedContainer>
-            <ScrollView
-              style={{ maxHeight: 400 }}
-              showsVerticalScrollIndicator={true}
-              nestedScrollEnabled={true}
-            >
-            {documents.map((doc) => (
-              <View
-                key={doc._id}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 24,
-                  backgroundColor: '#F3F6FC',
-                  marginBottom: 8,
-                  paddingVertical: 8,
-                  paddingHorizontal: 16,
-                  borderRadius: 8,
-                }}
+  const renderTabBody = () => {
+    if (activeTab === 'language') {
+      return (
+        <View>
+          {LANGUAGE_OPTIONS.map((option) => {
+            const selected = langSource === option.id;
+            return (
+              <TouchableOpacity
+                key={option.id}
+                testID={`${PREFIX}-language-${option.id}`}
+                activeOpacity={0.7}
+                style={styles.languageRow}
+                onPress={() =>
+                  dispatch(setLangSource(option.id as Iso639_1Codes))
+                }
               >
-                <View style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 24,
-                }}>
-                <View><IconDoc/></View>
-                <View>
-                  <Label style={{ paddingBottom: 4 }}>{doc.documentName}</Label>
-                  <LabelData>
-                    {new Date(doc.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + new Date(doc.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
-                  </LabelData>
-                </View>
-                </View>
-                <Button onPress={() => showDeleteModal(doc._id)}>
-                  <DeleteIcon/>
-                </Button>
-              </View>
-            ))}
-            </ScrollView>
-          </BorderedContainer>
+                <Text style={styles.languageLabel}>{option.name}</Text>
+                {selected && (
+                  <Text style={[styles.check, { color: getIconColor(config) }]}>
+                    ✓
+                  </Text>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      );
+    }
 
+    if (activeTab === 'media') {
+      return (
+        <View style={styles.mediaGrid}>
+          {media.map((file) => (
+            <TouchableOpacity
+              key={file.id}
+              testID={`${PREFIX}-media-${file.id}`}
+              activeOpacity={0.8}
+              style={styles.mediaTile}
+              onPress={() => openFile(file)}
+            >
+              <Image
+                source={{ uri: appendFileToken(file.url, fileToken) || file.url }}
+                style={styles.mediaImage}
+                resizeMode="cover"
+              />
+            </TouchableOpacity>
+          ))}
+        </View>
+      );
+    }
 
-          {/* <EmptySection /> */}
-        </CenterContainer>
-      </>
-    ),
-    [modalUser, documents]
-  );
-
-  const EditingBody = useMemo(
-    () => (
-      <EditUserModal
-        setIsEditing={setIsEditing}
-        modalUser={modalUser}
-        config={config}
-      />
-    ),
-    [modalUser]
-  );
+    return (
+      <View>
+        {documents.map((file) => (
+          <TouchableOpacity
+            key={file.id}
+            testID={`${PREFIX}-document-${file.id}`}
+            activeOpacity={0.7}
+            style={styles.documentRow}
+            onPress={() => openFile(file)}
+          >
+            <IconDoc />
+            <View style={styles.documentText}>
+              <Text numberOfLines={1} style={styles.documentName}>
+                {file.name}
+              </Text>
+              {!!file.createdAt && (
+                <Text style={styles.documentDate}>
+                  {new Date(file.createdAt).toLocaleDateString()}
+                </Text>
+              )}
+            </View>
+          </TouchableOpacity>
+        ))}
+      </View>
+    );
+  };
 
   return (
-    <>
-      <ModalContainerFullScreen>
-        {!isEditing ? DefaultBody : EditingBody}
-      </ModalContainerFullScreen>
+    <ModalContainerFullScreen style={styles.screen}>
+      <Animated.ScrollView
+        ref={scrollRef}
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.scrollContent,
+          viewportHeight > 0 && {
+            minHeight: viewportHeight + collapseDistance,
+          },
+        ]}
+        onLayout={(e) => setViewportHeight(e.nativeEvent.layout.height)}
+        showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: true }
+        )}
+      >
+        <ProfileHero
+          testIDPrefix={PREFIX}
+          title={displayName}
+          imageUri={heroImage}
+          fallbackColor={heroColor}
+          initials={userInitials(displayName)}
+          scrollY={scrollY}
+          actions={heroActions}
+          titleStyle={chatTextStyle(config?.typography?.profile?.title)}
+          titleAccessory={
+            isOwnProfile ? (
+              <TouchableOpacity
+                testID={`${PREFIX}-logout`}
+                activeOpacity={0.7}
+                style={styles.leaveButton}
+                onPress={handleLogout}
+              >
+                <LeaveIcon color="#FFFFFF" width={18} height={18} />
+                <Text style={styles.leaveLabel}>{t('action.leave')}</Text>
+              </TouchableOpacity>
+            ) : undefined
+          }
+        />
 
-      {showDelete && (
-        <ModalBackground style={{ position: 'absolute', zIndex: 9999 }}>
-          <ModalContainer>
-            <CloseButton onPress={() => setShowDelete(false)}>
-              <Text style={{ fontSize: 24 }}>&times;</Text>
-            </CloseButton>
-            <ModalTitle>Delete this document?</ModalTitle>
+        <View style={styles.body}>
+          <View style={styles.card}>
+            <Text
+              style={[
+                styles.cardLabel,
+                getElementFont(config, 'profileSectionLabel'),
+              ]}
+            >
+              {t('modal.profile.about')}
+            </Text>
+            <Text style={styles.cardValue}>
+              {description && description.length > 4
+                ? description
+                : t('modal.profile.noDescription')}
+            </Text>
+          </View>
 
-            <GroupContainer>
-              <Button
-                onPress={() => setShowDelete(false)}
-                text={'Cancel'}
-                style={{ width: '100%' }}
-                unstyled
-                variant="filled"
-                color="white"
-              />
-              <Button
-                onPress={handleDeleteDocument}
-                text={'Delete'}
-                style={{
-                  width: '100%',
-                  borderWidth: 1,
-                  borderColor: 'red',
-                }}
-                color="red"
-                unstyled
-                variant="outlined"
-              />
-            </GroupContainer>
-          </ModalContainer>
-        </ModalBackground>
-      )}
-    </>
+          {tabs.length > 0 && (
+            <View style={styles.card}>
+              <View style={styles.tabsRow}>
+                {tabs.map((tab) => {
+                  const active = tab === activeTab;
+                  const count =
+                    tab === 'media'
+                      ? media.length
+                      : tab === 'documents'
+                        ? documents.length
+                        : 0;
+                  return (
+                    <TouchableOpacity
+                      key={tab}
+                      testID={`${PREFIX}-tab-${tab}`}
+                      activeOpacity={0.7}
+                      style={[
+                        styles.tab,
+                        active && { borderBottomColor: getIconColor(config) },
+                      ]}
+                      onPress={() => setActiveTab(tab)}
+                    >
+                      <Text
+                        style={[
+                          styles.tabLabel,
+                          active && { color: getIconColor(config) },
+                        ]}
+                      >
+                        {t(`modal.profile.${tab}`)}
+                      </Text>
+                      {count > 0 && (
+                        <View
+                          style={[
+                            styles.tabBadge,
+                            { backgroundColor: getIconColor(config) },
+                          ]}
+                        >
+                          <Text style={styles.tabBadgeText}>{count}</Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              {renderTabBody()}
+            </View>
+          )}
+
+          {isOwnProfile && loadingFiles && files.length === 0 && (
+            <ActivityIndicator testID={`${PREFIX}-files-loading`} />
+          )}
+        </View>
+      </Animated.ScrollView>
+
+      <ProfileTopBar
+        testIDPrefix={PREFIX}
+        title={displayName}
+        imageUri={heroImage}
+        fallbackColor={heroColor}
+        initials={userInitials(displayName)}
+        scrollY={scrollY}
+        onBack={handleBackClick}
+        titleStyle={chatTextStyle(config?.typography?.profile?.screenTitle)}
+      />
+    </ModalContainerFullScreen>
   );
 };
+
+const styles = StyleSheet.create({
+  screen: {
+    position: 'relative',
+    backgroundColor: '#F2F3F5',
+  },
+  scroll: {
+    width: '100%',
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 32,
+  },
+  body: {
+    padding: 12,
+    gap: 12,
+  },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  cardLabel: {
+    color: '#8C8C8C',
+    fontSize: 14,
+  },
+  cardValue: {
+    color: '#141414',
+    fontSize: 16,
+    marginTop: 4,
+  },
+  leaveButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
+  leaveLabel: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  tabsRow: {
+    flexDirection: 'row',
+    gap: 20,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#EFEFF2',
+    marginBottom: 12,
+  },
+  tab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingBottom: 10,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  tabLabel: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#8C8C8C',
+  },
+  tabBadge: {
+    minWidth: 20,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  tabBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  languageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+  },
+  languageLabel: {
+    fontSize: 16,
+    color: '#141414',
+  },
+  check: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  mediaGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  mediaTile: {
+    width: '31.8%',
+    aspectRatio: 1,
+    borderRadius: 10,
+    overflow: 'hidden',
+    backgroundColor: '#EFEFF2',
+  },
+  mediaImage: {
+    width: '100%',
+    height: '100%',
+  },
+  documentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingVertical: 12,
+  },
+  documentText: {
+    flex: 1,
+  },
+  documentName: {
+    fontSize: 16,
+    color: '#141414',
+  },
+  documentDate: {
+    fontSize: 13,
+    color: '#8C8C8C',
+    marginTop: 2,
+  },
+});
 
 export default UserProfileModal;

@@ -33,7 +33,9 @@ export interface ChatState {
 
 export const unpackAndTransform = (input?: User): User => {
   return {
-    description: '',
+    // Was hardcoded to '' — every setUser dropped the user's own bio, so
+    // the profile's About section could never show one.
+    description: input?.description || '',
     token: input?.token || '',
     profileImage: input?.profileImage || '',
     _id: input?._id || '',

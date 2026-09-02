@@ -46,12 +46,12 @@ import { useT } from '../../../i18n/useT';
 import DeleteChatModal from './DeleteChatModal';
 import ReportChatModal from './ReportChatModal';
 import {
-  ChatProfileHero,
-  ChatProfileTopBar,
+  ProfileHero,
+  ProfileTopBar,
   HeroAction,
   useHeaderMetrics,
-} from './ChatProfileHeader';
-import ChatProfileMenu, { ChatProfileMenuItem } from './ChatProfileMenu';
+} from '../ProfileHeader/ProfileHeader';
+import ProfileMenu, { ProfileMenuItem } from '../ProfileHeader/ProfileMenu';
 
 /**
  * Where the header should sit when search opens: tucked away at the
@@ -382,8 +382,8 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
   // "…" menu. Edit is the chat picture — the only chat detail this SDK can
   // actually change (there is no update-chat endpoint for title/description),
   // so it is only offered when the picture is editable.
-  const menuItems: ChatProfileMenuItem[] = useMemo(() => {
-    const items: ChatProfileMenuItem[] = [];
+  const menuItems: ProfileMenuItem[] = useMemo(() => {
+    const items: ProfileMenuItem[] = [];
     if (canEditIcon) {
       items.push({
         key: 'edit',
@@ -485,7 +485,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
           }
         )}
       >
-        <ChatProfileHero
+        <ProfileHero
           title={title}
           subtitle={subtitle}
           imageUri={heroImage}
@@ -663,7 +663,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
         </View>
       </Animated.ScrollView>
 
-      <ChatProfileTopBar
+      <ProfileTopBar
         title={title}
         subtitle={subtitle}
         imageUri={heroImage}
@@ -672,7 +672,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
         scrollY={scrollY}
         onBack={handleCloseModal}
         titleStyle={chatTextStyle(config?.typography?.profile?.screenTitle)}
-        menu={<ChatProfileMenu items={menuItems} />}
+        menu={<ProfileMenu items={menuItems} />}
       />
 
       <DeleteChatModal

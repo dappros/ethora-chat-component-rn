@@ -115,13 +115,15 @@ export interface HeroAction {
 
 interface CommonProps {
   title: string;
-  subtitle: string;
+  subtitle?: string;
   imageUri?: string | null;
   /** Background when the chat has no picture — one flat colour, no scrims. */
   fallbackColor: string;
   /** Two uppercase letters shown on that background. */
   initials: string;
   scrollY: Animated.Value;
+  /** Prefixes every testID, so each screen's tests address their own. */
+  testIDPrefix?: string;
 }
 
 /** Everything the screen needs to line its scroll content up with the bar. */
@@ -157,9 +159,11 @@ const useCollapse = (scrollY: Animated.Value, collapseDistance: number) =>
  * the picture drifts at ~⅓ of the scroll speed, and over-scrolling
  * upwards scales it up the way iOS profile headers do.
  */
-export const ChatProfileHero: React.FC<
+export const ProfileHero: React.FC<
   CommonProps & {
     actions: HeroAction[];
+    /** Rendered to the right of the name (the profile's Leave button). */
+    titleAccessory?: React.ReactNode;
     titleStyle?: StyleProp<TextStyle>;
     subtitleStyle?: StyleProp<TextStyle>;
   }
@@ -171,8 +175,10 @@ export const ChatProfileHero: React.FC<
   initials,
   scrollY,
   actions,
+  titleAccessory,
   titleStyle,
   subtitleStyle,
+  testIDPrefix = 'chat-profile',
 }) => {
   const { collapseDistance } = useHeaderMetrics();
   const parallax = scrollY.interpolate({
@@ -231,7 +237,7 @@ export const ChatProfileHero: React.FC<
         >
           {onPhoto ? (
             <Image
-              testID="chat-profile-hero-image"
+              testID={`${testIDPrefix}-hero-image`}
               source={{ uri: imageUri as string }}
               style={StyleSheet.absoluteFill}
               resizeMode="cover"
@@ -239,7 +245,7 @@ export const ChatProfileHero: React.FC<
           ) : (
             <View style={styles.initialsWrap}>
               <Text
-                testID="chat-profile-hero-initials"
+                testID={`${testIDPrefix}-hero-initials`}
                 style={[styles.heroInitials, { color: contentColor }]}
               >
                 {initials}
@@ -255,7 +261,7 @@ export const ChatProfileHero: React.FC<
           * of itself. */}
         {onPhoto && (
           <Animated.View
-            testID="chat-profile-hero-blur"
+            testID={`${testIDPrefix}-hero-blur`}
             pointerEvents="none"
             style={[StyleSheet.absoluteFill, { opacity: collapsed }]}
           >
@@ -267,27 +273,37 @@ export const ChatProfileHero: React.FC<
       </View>
 
       <Animated.View style={[styles.heroContent, { opacity: contentOpacity }]}>
-        <Text
-          numberOfLines={2}
-          style={[styles.heroTitle, { color: contentColor }, titleStyle]}
-        >
-          {title}
-        </Text>
-        <Text
-          style={[
-            styles.heroSubtitle,
-            { color: contentColor, opacity: 0.85 },
-            subtitleStyle,
-          ]}
-        >
-          {subtitle}
-        </Text>
+        <View style={styles.titleRow}>
+          <Text
+            numberOfLines={2}
+            style={[
+              styles.heroTitle,
+              styles.titleText,
+              { color: contentColor },
+              titleStyle,
+            ]}
+          >
+            {title}
+          </Text>
+          {titleAccessory}
+        </View>
+        {!!subtitle && (
+          <Text
+            style={[
+              styles.heroSubtitle,
+              { color: contentColor, opacity: 0.85 },
+              subtitleStyle,
+            ]}
+          >
+            {subtitle}
+          </Text>
+        )}
         {actions.length > 0 && (
           <View style={styles.actionsRow}>
             {actions.map((action) => (
               <TouchableOpacity
                 key={action.key}
-                testID={`chat-profile-action-${action.key}`}
+                testID={`${testIDPrefix}-action-${action.key}`}
                 activeOpacity={0.7}
                 style={styles.action}
                 onPress={action.onPress}
@@ -314,7 +330,7 @@ export const ChatProfileHero: React.FC<
  * there, while the frosted picture, small avatar and name fade in as the
  * hero scrolls away — the collapsed state from the design's third screen.
  */
-export const ChatProfileTopBar: React.FC<
+export const ProfileTopBar: React.FC<
   CommonProps & {
     onBack: () => void;
     menu?: React.ReactNode;
@@ -330,6 +346,7 @@ export const ChatProfileTopBar: React.FC<
   onBack,
   menu,
   titleStyle,
+  testIDPrefix = 'chat-profile',
 }) => {
   const { insets, barHeight, collapseDistance } = useHeaderMetrics();
   const collapsed = useCollapse(scrollY, collapseDistance);
@@ -368,7 +385,7 @@ export const ChatProfileTopBar: React.FC<
 
       <View style={styles.topBarButtons}>
         <TouchableOpacity
-          testID="chat-profile-back"
+          testID={`${testIDPrefix}-back`}
           activeOpacity={0.7}
           onPress={onBack}
           style={styles.roundButton}
@@ -383,7 +400,7 @@ export const ChatProfileTopBar: React.FC<
         * screen. It only appears once the hero has scrolled away, so it
         * never competes with the big title over the picture. */}
       <Animated.View
-        testID="chat-profile-collapsed-title"
+        testID={`${testIDPrefix}-collapsed-title`}
         pointerEvents="none"
         style={[
           styles.collapsedTitle,
@@ -414,9 +431,11 @@ export const ChatProfileTopBar: React.FC<
           <Text numberOfLines={1} style={[styles.collapsedName, titleStyle]}>
             {title}
           </Text>
-          <Text numberOfLines={1} style={styles.collapsedSubtitle}>
-            {subtitle}
-          </Text>
+          {!!subtitle && (
+            <Text numberOfLines={1} style={styles.collapsedSubtitle}>
+              {subtitle}
+            </Text>
+          )}
         </View>
       </Animated.View>
     </View>
@@ -475,6 +494,17 @@ const styles = StyleSheet.create({
   heroContent: {
     paddingHorizontal: 20,
     paddingBottom: 20,
+  },
+  // The accessory (the profile's Leave button) is pushed to the far right;
+  // the name takes what is left of the row.
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  titleText: {
+    flexShrink: 1,
   },
   heroTitle: {
     fontSize: 26,

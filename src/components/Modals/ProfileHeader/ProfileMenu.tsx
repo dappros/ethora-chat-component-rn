@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { MoreIcon } from '../../../assets/icons';
 
-export interface ChatProfileMenuItem {
+export interface ProfileMenuItem {
   key: string;
   label: string;
   icon: React.ReactNode;
@@ -31,7 +31,7 @@ const DEFAULT_TOP = 104;
 const EDGE = 12;
 
 /**
- * The "…" overflow menu for the chat profile.
+ * The "…" overflow menu shared by the chat and user profile screens.
  *
  * The shared `DropdownMenu` pins its card at a hard-coded `top: 95`, which
  * on this screen landed it over the host's own tab bar, unanchored to the
@@ -40,9 +40,10 @@ const EDGE = 12;
  * back, which is how you fake a transform-origin in React Native) so the
  * menu visibly unfolds from the three dots.
  */
-const ChatProfileMenu: React.FC<{ items: ChatProfileMenuItem[] }> = ({
-  items,
-}) => {
+const ProfileMenu: React.FC<{
+  items: ProfileMenuItem[];
+  testIDPrefix?: string;
+}> = ({ items, testIDPrefix = 'chat-profile' }) => {
   const buttonRef = useRef<View>(null);
   const [open, setOpen] = useState(false);
   const [anchor, setAnchor] = useState({ top: DEFAULT_TOP, right: EDGE });
@@ -101,7 +102,7 @@ const ChatProfileMenu: React.FC<{ items: ChatProfileMenuItem[] }> = ({
     <>
       <View ref={buttonRef} collapsable={false} onLayout={measure}>
         <TouchableOpacity
-          testID="chat-profile-menu"
+          testID={`${testIDPrefix}-menu`}
           activeOpacity={0.7}
           onPress={openMenu}
           style={styles.button}
@@ -117,12 +118,12 @@ const ChatProfileMenu: React.FC<{ items: ChatProfileMenuItem[] }> = ({
         onRequestClose={() => closeMenu()}
       >
         <Pressable
-          testID="chat-profile-menu-backdrop"
+          testID={`${testIDPrefix}-menu-backdrop`}
           style={StyleSheet.absoluteFill}
           onPress={() => closeMenu()}
         />
         <Animated.View
-          testID="chat-profile-menu-card"
+          testID={`${testIDPrefix}-menu-card`}
           onLayout={(e) => {
             const { width, height } = e.nativeEvent.layout;
             if (width && height) {setSize({ width, height });}
@@ -148,7 +149,7 @@ const ChatProfileMenu: React.FC<{ items: ChatProfileMenuItem[] }> = ({
           {items.map((item, index) => (
             <TouchableOpacity
               key={item.key}
-              testID={`chat-profile-menu-${item.key}`}
+              testID={`${testIDPrefix}-menu-${item.key}`}
               activeOpacity={0.6}
               style={[styles.row, index > 0 && styles.rowDivider]}
               onPress={() => closeMenu(item.onPress)}
@@ -213,4 +214,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ChatProfileMenu;
+export default ProfileMenu;

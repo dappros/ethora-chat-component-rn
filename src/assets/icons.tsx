@@ -333,6 +333,26 @@ export const ReplyIcon = ({ color = '#8C8C8C', ...props }) => (
   </Svg>
 );
 
+/**
+ * Classic "share" glyph — three nodes joined by two links — for the
+ * profile's Share button. `SendItemIcon`, which used to stand in here, is
+ * a textured item/token badge with a hardcoded blue outline: wrong shape,
+ * and it ignores the button's tint.
+ */
+export const ShareIcon = ({ color = '#8C8C8C', width = 24, height = 24, ...props }) => (
+  <Svg width={width} height={height} viewBox="0 0 24 24" fill="none" {...props}>
+    <Circle cx="18" cy="5" r="3" stroke={color} strokeWidth="2" />
+    <Circle cx="6" cy="12" r="3" stroke={color} strokeWidth="2" />
+    <Circle cx="18" cy="19" r="3" stroke={color} strokeWidth="2" />
+    <Path
+      d="M8.59 13.51L15.42 17.49M15.41 6.51L8.59 10.49"
+      stroke={color}
+      strokeWidth="2"
+      strokeLinecap="round"
+    />
+  </Svg>
+);
+
 export const SendItemIcon = ({ color = '#8C8C8C', ...props }) => (
   <Svg width="24" height="24" viewBox="0 0 24 24" fill="none" {...props}>
     <Path

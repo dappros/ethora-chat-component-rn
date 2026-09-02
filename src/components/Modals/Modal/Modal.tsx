@@ -37,6 +37,13 @@ const Modal: React.FC<ModalProps> = ({ children, modal, setOpenModal }) => {
 
     return <ModalComponent handleCloseModal={handleClose} />;
   };
+  // Modals that present themselves (a real RN <Modal>, so the dim covers
+  // the whole window rather than stopping at this component's frame) must
+  // not also sit inside the shared in-tree backdrop — that would dim twice.
+  if (modal === MODAL_TYPES.NEW_CHAT) {
+    return <>{renderModalContent()}{children}</>;
+  }
+
   return (
     modal && (
       <ModalBackground

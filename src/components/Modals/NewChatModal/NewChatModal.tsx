@@ -1,20 +1,24 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import Button from '../../styled/Button';
-import { AddNewIcon, AddPhotoIcon } from '../../../assets/icons';
+import React, { useState, useMemo } from 'react';
+import { CameraIcon } from '../../../assets/icons';
 import { RootState } from '../../../roomStore';
 import { useXmppClient } from '../../../context/xmppProvider';
-import {
-  CloseButton,
-  GroupContainer,
-  ModalBackground,
-  ModalContainer,
-  ModalTitle,
-} from '../styledModalComponents';
 import { addRoomViaApi, setCurrentRoom, updateRoom } from '../../../roomStore/roomsSlice';
-import InputWithLabel from '../../styled/StyledInput';
 import { uploadFile } from '../../../networking/api-requests/auth.api';
-import { ProfileImagePlaceholder } from '../../MainComponents/ProfileImagePlaceholder';
-import { Text, Alert, Linking } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  Linking,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { getIconColor } from '../../../helpers/getIconColor';
+import { useT } from '../../../i18n/useT';
 import * as ImagePicker from 'expo-image-picker';
 import { ApiRoom, ChatAccessOption, RoomMember } from '../../../types/models/room.model';
 import { createRoomFromApi } from '../../../helpers/createRoomFromApi';
@@ -24,16 +28,16 @@ import { useChatSettingState } from '../../../hooks/useChatSettingState';
 import { useToast } from '../../../context/ToastContext';
 
 interface NewChatModalProps {
-  handleCloseModal?: any;
+  handleCloseModal?: () => void;
 }
 
 const NewChatModal: React.FC<NewChatModalProps> = ({
   // Some call sites mount `<NewChatModal />` with no props (e.g. the
-  // empty-state in ChatRoom when roomsList is empty). Default to a noop
-  // so the Close/Cancel buttons don't throw "handleClose is not a
-  // function".
-  handleCloseModal: handleClose = () => {},
+  // empty-state in ChatRoom when roomsList is empty). There is nothing to
+  // dismiss back to there, so Cancel just resets the form.
+  handleCloseModal: handleClose,
 }) => {
+  const t = useT();
  const config = useAppSelector(
     (state: RootState) => state.chatSettingStore.config
   );
@@ -43,9 +47,7 @@ const NewChatModal: React.FC<NewChatModalProps> = ({
   const { user } = useChatSettingState();
   const { showToast } = useToast();
 
-  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'0' | '1' | null>('0');
 
   const [roomName, setRoomName] = useState<string>('');
   const [roomDescription, setRoomDescription] = useState<string>('');
@@ -65,7 +67,7 @@ const NewChatModal: React.FC<NewChatModalProps> = ({
 
   const validateRoomName = (name: string) => {
     if (name.trim().length < 3) {
-      return 'Room name must be at least 3 characters.';
+      return t('modal.newChat.nameTooShort');
     }
     return '';
   };
@@ -97,13 +99,17 @@ const NewChatModal: React.FC<NewChatModalProps> = ({
     }));
   };
 
-  const handleOpenModal = () => setIsModalOpen(true);
-  const handleCloseModal = () => {
-    handleClose();
-    setActiveTab('0');
-    setIsModalOpen(false);
+  const resetForm = () => {
     setRoomName('');
+    setRoomDescription('');
+    setProfileImage(null);
     setSelectedUsers([]);
+    setErrors({ name: '', description: '' });
+  };
+
+  const handleCloseModal = () => {
+    resetForm();
+    handleClose?.();
   };
 
   const onUpload = async () => {
@@ -129,7 +135,7 @@ const NewChatModal: React.FC<NewChatModalProps> = ({
         quality: 0.8,
       });
 
-      if (result.canceled) return;
+      if (result.canceled) {return;}
 
       const asset = result.assets[0];
       const originalName = asset.uri.split('/').pop();
@@ -161,7 +167,7 @@ const NewChatModal: React.FC<NewChatModalProps> = ({
         usersArrayLength
       );
 
-      if (!normalizedChat || !client) return;
+      if (!normalizedChat || !client) {return;}
 
       dispatch(
         addRoomViaApi({
@@ -261,103 +267,199 @@ const NewChatModal: React.FC<NewChatModalProps> = ({
         }
       }
 
-      setIsModalOpen(false);
-      setErrors({ name: '', description: '' });
-      setProfileImage(null);
-      setRoomName('');
-      setRoomDescription('');
+      resetForm();
       setLoading(false);
     }
   };
 
+  const primary = getIconColor(config);
+  const pickedUri =
+    profileImage && typeof profileImage === 'object' && 'uri' in profileImage
+      ? profileImage.uri
+      : typeof profileImage === 'string'
+        ? profileImage
+        : null;
+
   return (
-    <>
-      {/* <Button
-        style={{
-          padding: 8,
-          borderRadius: 16,
-          backgroundColor: "transparent",
-        }}
-        color="black"
-        unstyled
-        EndIcon={<AddNewIcon color={config?.colors?.primary} />}
-        onPress={handleOpenModal}
-      /> */}
+    // A real <Modal> rather than an in-tree overlay: the SDK renders inside
+    // whatever frame the host gives it, so an in-tree backdrop stopped at
+    // the component's edge and left the host's own chrome (tab bars and
+    // such) lit. This one dims the whole window.
+    <Modal
+      transparent
+      visible
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={handleCloseModal}
+    >
+      <View style={styles.backdrop}>
+        <Pressable
+          testID="new-chat-backdrop"
+          style={StyleSheet.absoluteFill}
+          onPress={handleCloseModal}
+        />
+        <View style={styles.card}>
+          <Text style={styles.title}>{t('modal.newChat.title')}</Text>
 
-      <ModalBackground
-      // visible={isModalOpen}
-      // transparent={true}
-      // animationType="fade"
-      // onRequestClose={handleCloseModal}
-      >
-        <ModalContainer>
-          <CloseButton onPress={handleCloseModal}>
-            <Text style={{ fontSize: 24, padding: 5 }}>&times;</Text>
-          </CloseButton>
-          <ModalTitle>Create New Chat</ModalTitle>
-          <ProfileImagePlaceholder
-            size={120}
-            upload={{ active: true, onUpload }}
-            remove={{ enabled: true, onRemoveClick }}
-            placeholderIcon={<AddPhotoIcon color="#0052CD" />}
-            icon={
-              profileImage && typeof profileImage === 'object' && 'uri' in profileImage
-                ? { uri: profileImage.uri }
-                : profileImage
-            }
-            disableOverlay={!profileImage}
-            role="user"
-          />
-          <GroupContainer
-            style={{
-              flexDirection: 'column',
-              position: 'relative',
-              width: '100%',
-            }}
+          <TouchableOpacity
+            testID="new-chat-picture"
+            activeOpacity={0.8}
+            onPress={onUpload}
+            onLongPress={pickedUri ? onRemoveClick : undefined}
+            style={[styles.picture, { backgroundColor: primary }]}
           >
-            <InputWithLabel
-              color="#F5F7F9"
-              id="roomName"
-              value={roomName}
-              onChangeText={handleRoomNameChange}
-              placeholder="Enter Room Name"
-              helperText={errors.name}
-              error={!!errors.name}
-            />
-            <InputWithLabel
-              color="#F5F7F9"
-              id="roomDescription"
-              value={roomDescription}
-              onChangeText={handleRoomDescriptionChange}
-              placeholder="Enter Description"
-              helperText={errors.description}
-              error={!!errors.description}
-            />
-          </GroupContainer>
+            {pickedUri ? (
+              <Image source={{ uri: pickedUri }} style={styles.pictureImage} />
+            ) : (
+              <CameraIcon color="#FFFFFF" width={26} height={26} />
+            )}
+          </TouchableOpacity>
 
-          <GroupContainer>
-            <Button
-              onPress={handleCreateRoom}
-              text={'Create'}
-              style={{ width: '100%' }}
-              unstyled
-              variant="filled"
-              disabled={!isValid}
-              color="#fff"
-            />
-            <Button
+          <TextInput
+            testID="new-chat-name"
+            style={styles.input}
+            value={roomName}
+            onChangeText={handleRoomNameChange}
+            placeholder={t('modal.newChat.roomNamePlaceholder')}
+            placeholderTextColor="#8C8C8C"
+            returnKeyType="next"
+          />
+          {!!errors.name && roomName.length > 0 && (
+            <Text testID="new-chat-name-error" style={styles.error}>
+              {errors.name}
+            </Text>
+          )}
+
+          <TextInput
+            testID="new-chat-description"
+            style={[styles.input, styles.textArea]}
+            value={roomDescription}
+            onChangeText={handleRoomDescriptionChange}
+            placeholder={t('modal.newChat.descriptionPlaceholder')}
+            placeholderTextColor="#8C8C8C"
+            multiline
+          />
+
+          <View style={styles.buttons}>
+            <TouchableOpacity
+              testID="new-chat-cancel"
+              activeOpacity={0.7}
+              style={[styles.button, styles.cancel]}
               onPress={handleCloseModal}
-              text={'Cancel'}
-              style={{ width: '100%' }}
-              unstyled
-              variant="outlined"
-              color="#0052CD"
-            />
-          </GroupContainer>
-        </ModalContainer>
-      </ModalBackground>
-    </>
+            >
+              <Text style={styles.cancelLabel}>{t('action.cancel')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              testID="new-chat-submit"
+              activeOpacity={0.7}
+              disabled={!isValid || loading}
+              style={[
+                styles.button,
+                { backgroundColor: primary, opacity: !isValid || loading ? 0.5 : 1 },
+              ]}
+              onPress={handleCreateRoom}
+            >
+              {loading ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.submitLabel}>
+                  {t('modal.newChat.createButton')}
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 };
+
+const styles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    // Opaque, per the design: the chat list behind stays hidden rather
+    // than showing through a translucent dim.
+    backgroundColor: '#E9EDF2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  card: {
+    width: '100%',
+    maxWidth: 380,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    padding: 20,
+    shadowColor: '#121219',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 24,
+    elevation: 6,
+  },
+  title: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#141414',
+    textAlign: 'center',
+  },
+  picture: {
+    alignSelf: 'center',
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    marginVertical: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  pictureImage: {
+    width: '100%',
+    height: '100%',
+  },
+  input: {
+    borderRadius: 12,
+    backgroundColor: '#F4F5F7',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: '#141414',
+    marginTop: 10,
+  },
+  textArea: {
+    minHeight: 84,
+    textAlignVertical: 'top',
+  },
+  error: {
+    color: '#E53935',
+    fontSize: 12,
+    marginTop: 6,
+    marginLeft: 4,
+  },
+  buttons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 20,
+  },
+  button: {
+    flex: 1,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancel: {
+    backgroundColor: '#E7E8EA',
+  },
+  cancelLabel: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#8C8C8C',
+  },
+  submitLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+});
 
 export default NewChatModal;
