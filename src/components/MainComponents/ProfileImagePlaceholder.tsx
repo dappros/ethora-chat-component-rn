@@ -69,27 +69,27 @@ export const ProfileImagePlaceholder: React.FC<
     if (words.length === 0) {return '';}
 
     if (words.length >= 2) {
-      const firstLetter = /^[a-zA-Zа-яА-ЯёЁ]$/.test(words[0]?.[0] || '')
+      const firstLetter = /^[\p{L}\p{N}]$/u.test(words[0]?.[0] || '')
         ? words[0][0].toUpperCase()
         : '';
-      const secondLetter = /^[a-zA-Zа-яА-ЯёЁ]$/.test(words[1]?.[0] || '')
+      const secondLetter = /^[\p{L}\p{N}]$/u.test(words[1]?.[0] || '')
         ? words[1][0].toUpperCase()
         : '';
       return firstLetter + secondLetter;
     }
 
     if (words.length === 1 && words[0].length >= 2) {
-      const firstLetter = /^[a-zA-Zа-яА-ЯёЁ]$/.test(words[0][0] || '')
+      const firstLetter = /^[\p{L}\p{N}]$/u.test(words[0][0] || '')
         ? words[0][0].toUpperCase()
         : '';
-      const secondLetter = /^[a-zA-Zа-яА-ЯёЁ]$/.test(words[0][1] || '')
+      const secondLetter = /^[\p{L}\p{N}]$/u.test(words[0][1] || '')
         ? words[0][1].toUpperCase()
         : '';
       return firstLetter + secondLetter;
     }
 
     if (words.length === 1 && words[0].length === 1) {
-      return /^[a-zA-Zа-яА-ЯёЁ]$/.test(words[0][0] || '')
+      return /^[\p{L}\p{N}]$/u.test(words[0][0] || '')
         ? words[0][0].toUpperCase()
         : '';
     }

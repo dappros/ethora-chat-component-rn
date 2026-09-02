@@ -71,8 +71,10 @@ Image / video / document / audio send & receive, HEIC→JPEG conversion, profile
 ```bash
 npx expo install \
   expo-audio expo-video expo-clipboard expo-document-picker \
-  expo-image-manipulator expo-image-picker expo-media-library
+  expo-image-manipulator expo-image-picker expo-media-library expo-blur
 ```
+
+> `expo-blur` is only used to frost the chat picture as the chat-profile header collapses. Skip it and that layer falls back to a plain dim — everything else is unaffected.
 
 > Video playback uses **`expo-video`** (`useVideoPlayer` / `VideoView`) and audio uses **`expo-audio`** (`createAudioPlayer` / `useAudioRecorder`). Install both. The discontinued `expo-av` is no longer used anywhere in the SDK, so consumers on Expo SDK 57 / RN 0.86 with the New Architecture can drop it.
 
@@ -302,7 +304,7 @@ Why awaitable: the persistence layer debounces writes by 200 ms, and the chat sl
 | `disableProfilesInteractions` | Disables entry to the **user-profile popup** — the in-bubble avatar tap on other users' messages. The avatar is still rendered, just non-interactive. (Does **not** affect the chat-title press → use `disableChatInfo.disableChatHeaderMenu` for that.) |
 | `disableChatInfo.disableChatHeaderMenu` | Disables the **chat-info modal entry point** in the header (tapping the chat title / icon). Use this when you want the header purely informational. The chat-info modal itself has further granular flags (`disableDescription`, `disableType`, `disableMembers`, `hideMembers`, `disableIconEdit`). |
 | `disableChatInfo.disableRoomMenu` | Hides the **three-dots overflow menu on the right of the chat-room header** (the `RoomMenu` with "Leave", etc.). The center panel (avatar + chat name) stays fully visible. **Not** to be confused with the top-level `disableRoomMenu`, which hides the context menu in the **room list**, not the open-chat header. |
-| `disableChatInfo.disableIconEdit` | Makes the chat icon read-only in the chat-info modal — hides the press-to-pick picker AND the remove affordance regardless of the user's role. The icon still renders. |
+| `disableChatInfo.disableIconEdit` | Makes the chat picture read-only — drops "Edit" and "Remove photo" from the chat-profile "…" menu regardless of the user's role. The picture still renders as the screen's hero. |
 | `disableChatHeaderBurgerMenuIcon` | Hides the burger icon in the chat header (the icon that opens the room-list dropdown). `chatHeaderBurgerMenu` controls only the dropdown — set this when you want neither rendered. |
 | `enableAudio` | Opt-in voice messages. **Off by default.** When `true`, an idle input (no text, no attachments) shows a mic icon in the send-button slot — tap → start recording → stop & send. iOS apps need `NSMicrophoneUsageDescription` in Info.plist (add via `expo-audio`'s plugin block in `app.json`). Receiving voice messages from other clients (incl. legacy web `.bin` voicemails) is **independent of this flag** — incoming audio plays regardless. |
 | `disableMemberProfileActions` | Hides the whole "Message / Copy User Id" action block **inside** the chat-info member-profile popup. The popup itself still opens — to block the tap entirely, use `disableChatInfo.disableMemberTap`. |
@@ -334,8 +336,8 @@ Individual labels accept a `{ fontSize?, fontWeight? }` override. Each only sets
     typography: {
       headerTitle: { fontSize: 18, fontWeight: '600' }, // room title in the chat header
       profile: {
-        screenTitle: { fontSize: 20, fontWeight: '700' }, // "Chat Profile" title in the modal header bar
-        title: { fontSize: 24 },                          // big room-name title on the profile screen
+        screenTitle: { fontSize: 20, fontWeight: '700' }, // chat name in the collapsed profile bar
+        title: { fontSize: 24 },                          // chat name over the profile photo hero
         memberName: { fontSize: 16, fontWeight: '600' },
       },
       attachSheet: {

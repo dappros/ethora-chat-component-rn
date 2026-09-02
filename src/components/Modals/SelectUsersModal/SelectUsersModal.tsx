@@ -17,7 +17,13 @@ import { useToast } from '../../../context/ToastContext';
 import { updateRoom } from '../../../roomStore/roomsSlice';
 import { Text } from 'react-native';
 
-const SelectUsersModal: React.FC = () => {
+interface SelectUsersModalProps {
+  /** Render the opener yourself (the chat profile uses an "Add Members"
+   * row). Falls back to the plain "Add more Users" button. */
+  trigger?: (open: () => void) => React.ReactNode;
+}
+
+const SelectUsersModal: React.FC<SelectUsersModalProps> = ({ trigger }) => {
   const { showToast } = useToast();
   const dispatch = useDispatch();
 
@@ -74,9 +80,13 @@ const SelectUsersModal: React.FC = () => {
 
   return (
     <>
-      <ActionButton variant="filled" unstyled onPress={handleOpenModal}>
-        Add more Users
-      </ActionButton>
+      {trigger ? (
+        trigger(handleOpenModal)
+      ) : (
+        <ActionButton variant="filled" unstyled onPress={handleOpenModal}>
+          Add more Users
+        </ActionButton>
+      )}
 
       {isModalOpen && (
         <ModalBackground>
