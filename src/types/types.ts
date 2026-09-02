@@ -310,13 +310,16 @@ export interface TypographyConfig {
   };
   /** Attach (photo/document picker) bottom sheet. */
   attachSheet?: {
-    /** "Attach" header label. Default 13 / "600". */
+    /** "Photos & Videos" section header. Default 17 / "700". */
     title?: ChatTextStyle;
-    /** Row labels (Camera / Gallery / Document). Default 16 / "500". */
+    /** "View Library" link next to the section header. Default 15 / "500". */
+    viewLibrary?: ChatTextStyle;
+    /** Row labels ("Upload a File"). Default 16 / "500". */
     rowLabel?: ChatTextStyle;
-    /** Grey hint under each row. Default 12. */
+    /** @deprecated Rows no longer render a hint line. */
     rowHint?: ChatTextStyle;
-    /** Cancel button. Default 16 / "600". */
+    /** @deprecated The sheet has no Cancel button — it closes by tapping
+     * the backdrop, dragging it down, or the hardware back gesture. */
     cancelButton?: ChatTextStyle;
   };
 

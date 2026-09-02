@@ -26,7 +26,7 @@ import {
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { PlayIcon } from '../../../assets/icons';
 import * as FileSystem from 'expo-file-system/legacy';
-import * as MediaLibrary from 'expo-media-library';
+import { getMediaLibrary } from '../../../helpers/mediaLibraryRuntime';
 import { useToast } from '../../../context/ToastContext';
 import PdfViewer from './PdfView';
 import DocumentViewer from './DocumentViewer';
@@ -129,6 +129,8 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   if (!activeFile) {return null;}
 
   const requestStoragePermission = async () => {
+    const MediaLibrary = getMediaLibrary();
+    if (!MediaLibrary?.requestPermissionsAsync) {return false;}
     try {
       const { status } = await MediaLibrary.requestPermissionsAsync();
       return status === 'granted';
@@ -158,7 +160,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
       const download = await FileSystem.downloadAsync(withFileToken(activeFile.fileURL), filePath);
 
       if (download.status === 200) {
-        await MediaLibrary.saveToLibraryAsync(download.uri);
+        await getMediaLibrary()?.saveToLibraryAsync(download.uri);
         showToast({
           id: Date.now().toString(),
           title: 'Success',

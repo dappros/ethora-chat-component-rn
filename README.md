@@ -339,10 +339,9 @@ Individual labels accept a `{ fontSize?, fontWeight? }` override. Each only sets
         memberName: { fontSize: 16, fontWeight: '600' },
       },
       attachSheet: {
-        title: { fontSize: 13, fontWeight: '600' },       // "Attach" header label
-        rowLabel: { fontSize: 16, fontWeight: '500' },    // row labels (Take photo / Photo or video / Document)
-        rowHint: { fontSize: 13 },                        // the small grey subtitle under each row
-        cancelButton: { fontSize: 16, fontWeight: '600' },
+        title: { fontSize: 17, fontWeight: '700' },       // "Photos & Videos" section header
+        viewLibrary: { fontSize: 15, fontWeight: '500' }, // the "View Library" link
+        rowLabel: { fontSize: 16, fontWeight: '500' },    // row labels ("Upload a File")
       },
     },
   }}

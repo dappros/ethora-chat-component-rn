@@ -1,19 +1,37 @@
 /** @format */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Animated,
   Easing,
+  Image,
   Modal,
+  PanResponder,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { CameraIcon, DocumentIcon, MediaIcon } from '../../../assets/icons';
+import { CameraIcon, DocumentIcon } from '../../../assets/icons';
 import { useChatSettingState } from '../../../hooks/useChatSettingState';
 import { chatTextStyle } from '../../../helpers/typography';
+import { getMediaLibrary } from '../../../helpers/mediaLibraryRuntime';
+
+interface RecentItem {
+  id: string;
+  uri: string;
+  filename: string;
+}
+
+export interface PickedMedia {
+  uri: string;
+  name: string;
+  mimeType?: string;
+  isVideo: boolean;
+}
 
 interface AttachSheetProps {
   visible: boolean;
@@ -21,13 +39,60 @@ interface AttachSheetProps {
   onCamera: () => void;
   onGallery: () => void;
   onDocument: () => void;
+  onPickMedia?: (media: PickedMedia) => void;
   primaryColor?: string;
 }
 
 // Starting translateY for the sheet. Larger than any realistic sheet
 // height so it sits fully below the viewport before opening; the exact
 // number doesn't matter visually because it animates to 0.
-const SHEET_OFFSCREEN = 600;
+const SHEET_OFFSCREEN = 800;
+const DISMISS_DISTANCE = 90;
+const DISMISS_VELOCITY = 0.8;
+
+export const shouldClaimVerticalDrag = (dy: number, dx: number) =>
+  dy > 6 && Math.abs(dy) > Math.abs(dx) * 1.5;
+
+export const shouldDismissOnDrag = (dy: number, vy: number) =>
+  dy > DISMISS_DISTANCE || vy > DISMISS_VELOCITY;
+
+const RECENTS_COUNT = 12;
+const THUMB_SIZE = 88;
+const THUMB_DECODE = THUMB_SIZE * 2;
+
+const EXT_MIME: Record<string, string> = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  heic: 'image/heic',
+  heif: 'image/heif',
+};
+
+const guessMimeType = (name: string) => {
+  const ext = name.split('.').pop()?.toLowerCase() ?? '';
+  return EXT_MIME[ext] ?? 'image/jpeg';
+};
+
+const toRecentItem = async (
+  MediaLibrary: any,
+  asset: any
+): Promise<RecentItem | null> => {
+  const filename = asset?.filename || `photo_${asset?.id ?? Date.now()}`;
+  if (asset?.uri && !asset.uri.startsWith('ph://')) {
+    return { id: asset.id, uri: asset.uri, filename };
+  }
+  try {
+    const info = await MediaLibrary?.getAssetInfoAsync?.(asset, {
+      shouldDownloadFromNetwork: false,
+    });
+    if (!info?.localUri) {return null;}
+    return { id: asset.id, uri: info.localUri, filename };
+  } catch {
+    return null;
+  }
+};
 
 const AttachSheet: React.FC<AttachSheetProps> = ({
   visible,
@@ -35,13 +100,13 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
   onCamera,
   onGallery,
   onDocument,
+  onPickMedia,
   primaryColor = '#0052CD',
 }) => {
   const { config } = useChatSettingState();
   const ts = config?.typography?.attachSheet;
   const pendingRef = useRef<(() => void) | null>(null);
   const runPending = () => {
-    console.log('[timing] runPending', Date.now());
     const fn = pendingRef.current;
     pendingRef.current = null;
     fn?.();
@@ -63,6 +128,9 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
   const sheetTranslateY = useRef(
     new Animated.Value(SHEET_OFFSCREEN)
   ).current;
+
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (visible) {
@@ -119,8 +187,92 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
     return undefined;
   }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const makeDragResponder = (claimOnStart: boolean) =>
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => claimOnStart,
+      onMoveShouldSetPanResponder: (_evt, g) =>
+        claimOnStart || shouldClaimVerticalDrag(g.dy, g.dx),
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderMove: (_evt, g) => {
+        sheetTranslateY.setValue(Math.max(0, g.dy));
+      },
+      onPanResponderRelease: (_evt, g) => {
+        if (shouldDismissOnDrag(g.dy, g.vy)) {
+          onCloseRef.current();
+          return;
+        }
+        Animated.spring(sheetTranslateY, {
+          toValue: 0,
+          tension: 90,
+          friction: 14,
+          useNativeDriver: true,
+        }).start();
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(sheetTranslateY, {
+          toValue: 0,
+          tension: 90,
+          friction: 14,
+          useNativeDriver: true,
+        }).start();
+      },
+    });
+
+  const sheetPanRef = useRef<ReturnType<typeof makeDragResponder> | null>(null);
+  const grabberPanRef = useRef<ReturnType<typeof makeDragResponder> | null>(null);
+  if (!sheetPanRef.current) {sheetPanRef.current = makeDragResponder(false);}
+  if (!grabberPanRef.current) {grabberPanRef.current = makeDragResponder(true);}
+  const sheetPan = sheetPanRef.current;
+  const grabberPan = grabberPanRef.current;
+
+  const [recents, setRecents] = useState<RecentItem[]>([]);
+  const [loadingRecents, setLoadingRecents] = useState(false);
+  const lastLoadRef = useRef(0);
+  const RECENTS_TTL_MS = 15000;
+
+  const loadRecents = useCallback(async () => {
+    const MediaLibrary = getMediaLibrary();
+    if (!MediaLibrary?.getAssetsAsync) {
+      setLoadingRecents(false);
+      return;
+    }
+    try {
+      const perm = await MediaLibrary.getPermissionsAsync();
+      if (!perm?.granted) {
+        setRecents([]);
+        return;
+      }
+      const page = await MediaLibrary.getAssetsAsync({
+        first: RECENTS_COUNT,
+        sortBy: [MediaLibrary.SortBy?.creationTime ?? 'creationTime'],
+        mediaType: [MediaLibrary.MediaType?.photo ?? 'photo'],
+      });
+      const items = await Promise.all(
+        (page?.assets ?? []).map((asset: any) => toRecentItem(MediaLibrary, asset))
+      );
+      lastLoadRef.current = Date.now();
+      setRecents(items.filter(Boolean) as RecentItem[]);
+    } catch (err) {
+      console.warn('AttachSheet: could not read recent media', err);
+      setRecents([]);
+    } finally {
+      setLoadingRecents(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!visible) {return undefined;}
+    if (recents.length && Date.now() - lastLoadRef.current < RECENTS_TTL_MS) {
+      return undefined;
+    }
+    setLoadingRecents(true);
+    const timer = setTimeout(() => {
+      loadRecents();
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [visible]);
+
   const trigger = (handler: () => void) => () => {
-    console.log('[timing] row tap', Date.now());
     pendingRef.current = handler;
     if (Platform.OS === 'ios') {
       setMounted(false);
@@ -128,27 +280,29 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
     onClose();
   };
 
+  const handleRecentPress = (item: RecentItem) =>
+    trigger(() => {
+      if (onPickMedia) {
+        onPickMedia({
+          uri: item.uri,
+          name: item.filename,
+          mimeType: guessMimeType(item.filename),
+          isVideo: false,
+        });
+      } else {
+        onGallery();
+      }
+    });
+
   const rows: {
+    id: string;
     label: string;
-    hint: string;
     Icon: React.ComponentType<any>;
     handler: () => void;
   }[] = [
     {
-      label: 'Take photo',
-      hint: 'Capture with the camera',
-      Icon: CameraIcon,
-      handler: onCamera,
-    },
-    {
-      label: 'Photo or video',
-      hint: 'Pick from your library',
-      Icon: MediaIcon,
-      handler: onGallery,
-    },
-    {
-      label: 'Document',
-      hint: 'Choose a file',
+      id: 'Document',
+      label: 'Upload a File',
       Icon: DocumentIcon,
       handler: onDocument,
     },
@@ -181,43 +335,101 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
             styles.sheet,
             { transform: [{ translateY: sheetTranslateY }] },
           ]}
+          {...sheetPan.panHandlers}
         >
-          <TouchableOpacity activeOpacity={1}>
+          <View
+            testID="attach-grabber"
+            style={styles.grabberArea}
+            {...grabberPan.panHandlers}
+          >
             <View style={styles.grabber} />
-            <Text style={[styles.title, chatTextStyle(ts?.title)]}>Attach</Text>
-            {rows.map(({ label, hint, Icon, handler }, idx) => (
-              <TouchableOpacity
-                key={label}
-                testID={`attach-row-${label}`}
-                activeOpacity={0.6}
+          </View>
+
+          {/* Photos & Videos ------------------------------------------------ */}
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, chatTextStyle(ts?.title)]}>
+              Photos & Videos
+            </Text>
+            <TouchableOpacity
+              testID="attach-view-library"
+              activeOpacity={0.6}
+              onPress={trigger(onGallery)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text
                 style={[
-                  styles.row,
-                  idx < rows.length - 1 && styles.rowDivider,
+                  styles.sectionAction,
+                  { color: primaryColor },
+                  chatTextStyle(ts?.viewLibrary),
                 ]}
-                onPress={trigger(handler)}
               >
-                <View
-                  style={[
-                    styles.iconBubble,
-                    { backgroundColor: primaryColor + '14' },
-                  ]}
-                >
-                  <Icon color={primaryColor} width={20} height={20} />
-                </View>
-                <View style={styles.rowText}>
-                  <Text style={[styles.rowLabel, chatTextStyle(ts?.rowLabel)]}>{label}</Text>
-                  <Text style={[styles.rowHint, chatTextStyle(ts?.rowHint)]}>{hint}</Text>
-                </View>
+                View Library
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.strip}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Camera tile — always first, works without library access. */}
+            <TouchableOpacity
+              testID="attach-row-Camera"
+              activeOpacity={0.7}
+              style={styles.cameraTile}
+              onPress={trigger(onCamera)}
+            >
+              <CameraIcon color="#8A8A8E" width={26} height={26} />
+            </TouchableOpacity>
+
+            {loadingRecents && recents.length === 0 && (
+              <View style={styles.loadingTile}>
+                <ActivityIndicator color="#8A8A8E" />
+              </View>
+            )}
+
+            {recents.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                testID={`attach-recent-${item.id}`}
+                activeOpacity={0.8}
+                style={styles.thumbWrap}
+                onPress={handleRecentPress(item)}
+              >
+                <Image
+                  source={{
+                    uri: item.uri,
+                    width: THUMB_DECODE,
+                    height: THUMB_DECODE,
+                  }}
+                  style={styles.thumb}
+                  resizeMethod="resize"
+                  resizeMode="cover"
+                  fadeDuration={0}
+                />
               </TouchableOpacity>
             ))}
+          </ScrollView>
+
+          <View style={styles.rowsDivider} />
+          {rows.map(({ id, label, Icon, handler }) => (
             <TouchableOpacity
+              key={id}
+              testID={`attach-row-${id}`}
               activeOpacity={0.6}
-              style={styles.cancelRow}
-              onPress={onClose}
+              style={styles.row}
+              onPress={trigger(handler)}
             >
-              <Text style={[styles.cancelLabel, chatTextStyle(ts?.cancelButton)]}>Cancel</Text>
+              <View style={styles.rowIcon}>
+                <Icon color="#1C1C1E" width={20} height={20} />
+              </View>
+              <Text style={[styles.rowLabel, chatTextStyle(ts?.rowLabel)]}>
+                {label}
+              </Text>
             </TouchableOpacity>
-          </TouchableOpacity>
+          ))}
         </Animated.View>
       </Animated.View>
     </Modal>
@@ -234,7 +446,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    paddingTop: 8,
+    paddingTop: 4,
     paddingBottom: Platform.OS === 'ios' ? 32 : 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
@@ -242,65 +454,83 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 16,
   },
+  grabberArea: {
+    alignItems: 'center',
+    paddingTop: 10,
+    paddingBottom: 14,
+  },
   grabber: {
-    alignSelf: 'center',
     width: 40,
     height: 4,
     borderRadius: 2,
     backgroundColor: '#D9D9DE',
-    marginBottom: 12,
   },
-  title: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#8A8A8E',
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingBottom: 8,
+    paddingBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#1C1C1E',
+  },
+  sectionAction: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  strip: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    gap: 8,
+  },
+  cameraTile: {
+    width: THUMB_SIZE,
+    height: THUMB_SIZE,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E4E4E9',
+    backgroundColor: '#FAFAFC',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingTile: {
+    width: THUMB_SIZE,
+    height: THUMB_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  thumbWrap: {
+    width: THUMB_SIZE,
+    height: THUMB_SIZE,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: '#EFEFF2',
+  },
+  thumb: {
+    width: '100%',
+    height: '100%',
+  },
+  rowsDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#EFEFF2',
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingVertical: 16,
   },
-  rowDivider: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#EFEFF2',
-  },
-  iconBubble: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  rowIcon: {
+    width: 28,
     alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 14,
-  },
-  rowText: {
-    flex: 1,
+    marginRight: 12,
   },
   rowLabel: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#1C1C1E',
-  },
-  rowHint: {
-    fontSize: 12,
-    color: '#8A8A8E',
-    marginTop: 2,
-  },
-  cancelRow: {
-    marginTop: 8,
-    marginHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: 14,
-    alignItems: 'center',
-    backgroundColor: '#F2F2F7',
-  },
-  cancelLabel: {
-    fontSize: 16,
-    fontWeight: '600',
     color: '#1C1C1E',
   },
 });

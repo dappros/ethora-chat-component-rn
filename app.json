@@ -54,6 +54,13 @@
         }
       ],
       [
+        "expo-media-library",
+        {
+          "photosPermission": "$(PRODUCT_NAME) needs access to your photos so you can attach them to chat messages.",
+          "savePhotosPermission": "$(PRODUCT_NAME) needs access to your photos so you can save media you receive in chat."
+        }
+      ],
+      [
         "expo-document-picker",
         {
           "iCloudContainerEnvironment": "Production"

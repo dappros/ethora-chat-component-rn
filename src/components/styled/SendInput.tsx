@@ -10,14 +10,16 @@ import { IConfig, MediaFile } from '../../types/types';
 import Button from './Button';
 import { SendIcon, AttachIcon, RecordIcon } from '../../assets/icons';
 import { KeyboardAvoidingView, Platform, View, Text, TouchableOpacity, Alert, Linking } from 'react-native';
-import AttachSheet from '../Modals/AttachSheet/AttachSheet';
+import AttachSheet, { PickedMedia } from '../Modals/AttachSheet/AttachSheet';
 import { MediaFilePreview } from './MediaFilePreview';
 import { getIconColor } from '../../helpers/getIconColor';
 import { getElementFont } from '../../helpers/getElementFont';
 import { useT } from '../../i18n/useT';
+import { getMediaLibrary } from '../../helpers/mediaLibraryRuntime';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
+import * as FileSystem from 'expo-file-system/legacy';
 // expo-audio replaces the discontinued expo-av: `useAudioRecorder` owns a
 // single reusable recorder for this input's lifetime (prepare → record →
 // stop → prepare again), and the module-level helpers cover permissions
@@ -259,6 +261,53 @@ const SendInput: React.FC<SendInputProps> = ({
     }
   };
 
+  // A tap on a thumbnail in the attach sheet's recents strip. The sheet
+  // already resolved the asset to a real on-disk uri (iOS `ph://` ids are
+  // not uploadable); here we apply the same treatment the full-blown
+  // pickers get — HEIC→JPEG for images, and a size probe so the 50 MB cap
+  // is enforced before anything hits the network.
+  const handleRecentMediaSelection = async (media: PickedMedia) => {
+    try {
+      let size: number | undefined;
+      try {
+        const info = await FileSystem.getInfoAsync(media.uri);
+        if (info.exists && typeof (info as any).size === 'number') {
+          size = (info as any).size;
+        }
+      } catch {
+        // Size is a nice-to-have; the backend still rejects oversized bodies.
+      }
+
+      if (media.isVideo) {
+        handleFileSelect([
+          {
+            uri: media.uri,
+            type: media.mimeType || 'video/mp4',
+            name: media.name,
+            size,
+          },
+        ]);
+        return;
+      }
+
+      const normalized = await normalizeImageAsset({
+        uri: media.uri,
+        mimeType: media.mimeType,
+        fileName: media.name,
+      } as ImagePicker.ImagePickerAsset);
+      handleFileSelect([
+        {
+          uri: normalized.uri,
+          type: normalized.mime,
+          name: normalized.name,
+          size,
+        },
+      ]);
+    } catch (error) {
+      console.error('Recent media error:', error);
+    }
+  };
+
   const handleFileSelection = async () => {
     // Drop overlapping invocations — a second getDocumentAsync while the
     // first is still presented throws PickingInProgressException on iOS.
@@ -287,8 +336,39 @@ const SendInput: React.FC<SendInputProps> = ({
     }
   };
 
+  // Photo-library access is requested HERE, not inside the sheet: iOS
+  // cannot present the permission alert while an RN <Modal> owns the
+  // screen (the same UIKit limitation that used to swallow the pickers),
+  // so asking from inside resolved to a silent "denied" and the recents
+  // strip stayed empty forever. Asking on the paperclip tap puts the
+  // system alert over the plain chat screen, where it can actually show.
+  // Only the first tap ever waits on it — afterwards the status is
+  // already determined and `getPermissionsAsync` returns immediately.
+  const ensureLibraryPermission = async () => {
+    const MediaLibrary = getMediaLibrary();
+    if (!MediaLibrary?.getPermissionsAsync) {return;}
+    try {
+      const perm = await MediaLibrary.getPermissionsAsync();
+      if (perm?.granted || perm?.canAskAgain === false) {return;}
+      await MediaLibrary.requestPermissionsAsync();
+    } catch (err) {
+      // Optional peer / unsupported platform: the sheet just shows the
+      // camera tile and the full-library route.
+      console.warn('Media library permission check failed:', err);
+    }
+  };
+
+  // Only the very first tap of a session goes through the permission
+  // check; afterwards the sheet opens with zero added latency.
+  const libraryPermissionCheckedRef = useRef(false);
+
   const handleAttachPress = () => {
-    setShowMediaMenu(true);
+    if (libraryPermissionCheckedRef.current) {
+      setShowMediaMenu(true);
+      return;
+    }
+    libraryPermissionCheckedRef.current = true;
+    ensureLibraryPermission().finally(() => setShowMediaMenu(true));
   };
 
   // ─── Voice recording ──────────────────────────────────────────────
@@ -692,6 +772,7 @@ const SendInput: React.FC<SendInputProps> = ({
           onCamera={handleCameraSelection}
           onGallery={handleGallerySelection}
           onDocument={handleFileSelection}
+          onPickMedia={handleRecentMediaSelection}
           primaryColor={getIconColor(config)}
         />
       </InputContainer>
