@@ -1039,7 +1039,11 @@ export class XmppClient {
   // src/networking/xmpp/flushLastViewedToPrivateStore.ts for details.
   async flushLastViewedToPrivateStoreStanza(
     rooms: Record<string, any> | null | undefined,
-    opts: { visibleRoomJID?: string | null; onlyIfNoUnread?: boolean } = {}
+    opts: {
+      visibleRoomJID?: string | null;
+      visibleRoomTs?: number | null;
+      onlyIfNoUnread?: boolean;
+    } = {}
   ) {
     if (this.disableLastRead) {return false;}
     try {

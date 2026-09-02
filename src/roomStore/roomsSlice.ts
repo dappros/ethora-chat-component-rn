@@ -13,7 +13,7 @@ import type XmppClient from '../networking/xmppClient';
 // older history added via unshift/splice is exempt, so the user can
 // page backward arbitrarily far without instantly losing what they
 // just fetched. After cap eviction we drop from the head (oldest).
-const RUNTIME_MESSAGE_LIMIT = 100;
+export const RUNTIME_MESSAGE_LIMIT = 100;
 
 // Body strings the server uses for call signaling broadcasts (call-token,
 // call-state ringing/ended, etc). These should never reach the chat

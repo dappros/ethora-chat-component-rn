@@ -1,7 +1,11 @@
 import { AppState } from 'react-native';
 import XmppClient from '../networking/xmppClient';
 import { store } from '../roomStore';
-import { applyRoomsPreloadBatch, setUnreadSyncing } from '../roomStore/roomsSlice';
+import {
+  applyRoomsPreloadBatch,
+  setUnreadSyncing,
+  RUNTIME_MESSAGE_LIMIT,
+} from '../roomStore/roomsSlice';
 import { IMessage, IRoom } from '../types/types';
 
 interface HistoryPreloadSchedulerOptions {
@@ -30,6 +34,13 @@ const DEFAULT_CONCURRENCY = 3;
 // `mergeHistoryIntoCache` rarely has to fall back to clear-and-replace.
 const DEFAULT_PAGE_SIZE = 20;
 const DEFAULT_RETRY_LIMIT = 2;
+// When the first page is entirely unread (every fetched message is newer
+// than `lastViewedTimestamp`), the true unread count could be far bigger
+// than `pageSize` — `useUnread()` only ever sees what's been loaded. Page
+// further back, up to this many extra fetches, until we either find the
+// boundary or give up (`unreadCapped` then stays true so callers at least
+// know the count is a floor, not exact). Customer-reported #34.
+const MAX_UNREAD_CATCHUP_PAGES = 8;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -226,9 +237,75 @@ export const runHistoryPreloadScheduler = async (
             }
 
             const nextRoom = store.getState().rooms.rooms[item.jid];
+            let combined: IMessage[] = fetchedMessages || [];
+            const lastViewed = Number(nextRoom?.lastViewedTimestamp) || 0;
+
+            // The first page was entirely unread — keep paging older until
+            // we find a message at/before `lastViewedTimestamp` (the true
+            // boundary) or run out of catch-up budget, so the count isn't
+            // silently truncated at `pageSize`.
+            if (lastViewed > 0 && computeUnreadCapped(nextRoom, combined, pageSize)) {
+              let lastPageLen = combined.length;
+              let extraPages = 0;
+              while (
+                extraPages < MAX_UNREAD_CATCHUP_PAGES &&
+                lastPageLen >= pageSize &&
+                !signal?.aborted
+              ) {
+                const oldestId = combined.reduce<number | null>((min, m) => {
+                  const idNum = Number((m as any)?.id);
+                  if (!Number.isFinite(idNum)) {return min;}
+                  return min === null || idNum < min ? idNum : min;
+                }, null);
+                if (oldestId === null) {break;}
+
+                let older: IMessage[] | undefined;
+                try {
+                  older = await client.getHistoryStanza(
+                    item.jid,
+                    pageSize,
+                    oldestId,
+                    undefined,
+                    {
+                      coalesceRoom: true,
+                      skipIfPreloaded: !forceReload,
+                      source: 'background',
+                    }
+                  );
+                } catch {
+                  break;
+                }
+                if (!older || !older.length) {break;}
+
+                combined = [...older, ...combined];
+                lastPageLen = older.length;
+                extraPages++;
+
+                const oldestTs = combined.reduce<number>((minTs, m) => {
+                  const ts = messageTimestamp(m);
+                  return ts > 0 ? Math.min(minTs, ts) : minTs;
+                }, Number.MAX_SAFE_INTEGER);
+                if (oldestTs !== Number.MAX_SAFE_INTEGER && oldestTs <= lastViewed) {
+                  break;
+                }
+              }
+            }
+
+            // `mergeHistoryIntoCache` (roomsSlice) caps whatever we dispatch
+            // here to the newest RUNTIME_MESSAGE_LIMIT messages before it
+            // ever reaches `unreadMiddleware` — so a catch-up fetch that
+            // pulled the true boundary can still have it silently dropped
+            // by that cap, leaving a falsely-confident `unreadCapped:false`
+            // (bug #34's failure mode again, just one layer downstream).
+            // Simulate that cap here so the flag reflects what will
+            // actually survive, not just what this fetch retrieved.
+            const simulatedStored =
+              combined.length > RUNTIME_MESSAGE_LIMIT
+                ? combined.slice(-RUNTIME_MESSAGE_LIMIT)
+                : combined;
             const unreadCapped = computeUnreadCapped(
               nextRoom,
-              fetchedMessages || [],
+              simulatedStored,
               pageSize
             );
 
@@ -237,7 +314,7 @@ export const runHistoryPreloadScheduler = async (
                 rooms: [
                   {
                     jid: item.jid,
-                    messages: fetchedMessages || [],
+                    messages: combined,
                     unreadCapped,
                     historyPreloadState: 'done',
                   },

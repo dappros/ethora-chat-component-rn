@@ -18,6 +18,7 @@ import { useChatSettingState } from './useChatSettingState';
 import { isChatIdPresentInArray } from '../helpers/isChatIdPresentInArray';
 import useGetNewArchRoom from './useGetNewArchRoom';
 import { getRoomsWithRetry } from '../helpers/getRoomsWithRetry';
+import { shallowEqual } from '../helpers/shallowEqual';
 
 interface useChatWrapperInitProps {
   roomJID: string | null | undefined;
@@ -64,6 +65,20 @@ const useChatWrapperInit = ({
       }
     };
   }, [user.xmppPassword]);
+
+  // Presentational config flags (e.g. `disableHeader`) can change while the
+  // chat stays mounted — sync them to redux whenever `config` actually
+  // changes, not just at init. Shallow-equal guard: an inline object
+  // literal from the host is a fresh reference every render even when
+  // nothing in it changed, and dispatching unconditionally would re-render
+  // every config consumer on every host render.
+  const lastSyncedConfigRef = useRef<IConfig | undefined>(undefined);
+  useEffect(() => {
+    if (!shallowEqual(lastSyncedConfigRef.current, config)) {
+      lastSyncedConfigRef.current = config;
+      dispatch(setConfig(config));
+    }
+  }, [config, dispatch]);
 
   const getRoomsWithRertyRequest = async () => {
     setIsRetrying(true);

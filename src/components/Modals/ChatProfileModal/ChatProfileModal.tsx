@@ -295,6 +295,11 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
           </>
         }
       />
+      <ScrollView
+        style={{ width: '100%', flex: 1 }}
+        contentContainerStyle={{ flexGrow: 1 }}
+        showsVerticalScrollIndicator={true}
+      >
       <CenterContainer>
         <ProfileImagePlaceholder
           name={activeRoom.title || activeRoom.name}
@@ -378,11 +383,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
               Member list unavailable
             </Label>
           ) : (
-            <ScrollView
-              style={{ maxHeight: 400 }}
-              showsVerticalScrollIndicator={true}
-              nestedScrollEnabled={true}
-            >
+            <View>
               {activeRoom?.roomMembers?.map((user, index) => (
                 <View
                   key={user.xmppUsername}
@@ -477,11 +478,12 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
                   {index < (activeRoom?.roomMembers?.length || 0) - 1 && <Divider />}
                 </View>
               ))}
-            </ScrollView>
+            </View>
           )}
         </BorderedContainer>
         )}
       </CenterContainer>
+      </ScrollView>
 
       <DeleteChatModal
         isModalOpen={isModalOpen}

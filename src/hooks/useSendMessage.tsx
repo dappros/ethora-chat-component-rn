@@ -10,7 +10,7 @@ import {
   markMessageFailed,
 } from '../roomStore/roomHeapSlice';
 import { uploadFileV2 } from '../networking/api-requests/auth.api';
-import { enqueueOutboundSend } from '../networking/outboundQueue';
+import { enqueueOutboundSend, removeOutboundSend } from '../networking/outboundQueue';
 import { RootState, store } from '../roomStore';
 import { getGlobalXmppClient } from '../utils/clientRegistry';
 import { useEventHandlers } from './useEventHandlers';
@@ -214,6 +214,13 @@ export const useSendMessage = (_configOverride?: IConfig) => {
           console.warn(
             `Send watchdog fired — message ${optimisticId} stuck pending > ${PENDING_WATCHDOG_MS}ms; marking failed`
           );
+          // Drop the buffered replay now that the bubble is showing
+          // "failed / tap to retry" — a later onOnline flush must not
+          // silently resend it behind the user's back. If the original
+          // send actually lands after this point, the server echo still
+          // flips the bubble back to delivered (newMessageMidlleware);
+          // only an explicit tap-to-retry should trigger another send.
+          removeOutboundSend(optimisticId);
           dispatch(
             markMessageFailed({
               kind: 'text',
@@ -308,6 +315,9 @@ export const useSendMessage = (_configOverride?: IConfig) => {
         });
       } catch (error) {
         clearTimeout(watchdogTimer);
+        // Same reasoning as the watchdog: once the bubble shows failed,
+        // only an explicit tap-to-retry should resend it.
+        removeOutboundSend(optimisticId);
         dispatch(
           markMessageFailed({
             kind: 'text',
@@ -454,6 +464,10 @@ export const useSendMessage = (_configOverride?: IConfig) => {
           console.warn(
             `Media-send watchdog fired — ${id} stuck pending > ${PENDING_WATCHDOG_MS}ms; marking failed`
           );
+          // See the text-send watchdog above: drop the buffered replay so
+          // a later onOnline flush can't silently resend behind the
+          // "failed / tap to retry" bubble.
+          removeOutboundSend(id);
           dispatch(
             markMessageFailed({
               kind: 'media',
@@ -661,6 +675,22 @@ export const useSendMessage = (_configOverride?: IConfig) => {
     async (failedId: string) => {
       const payload = failedMessages[failedId];
       if (!payload) {return;}
+
+      // The server may have accepted the original send even though its
+      // echo arrived too late to beat the watchdog — the bubble shows
+      // failed, but a confirmed (non-pending) copy is already sitting in
+      // the room. Resending here would deliver a genuine duplicate; just
+      // clear the failure and let the existing copy stand.
+      const roomMsgs = rooms?.[payload.roomJID]?.messages || [];
+      const alreadyDelivered = roomMsgs.some(
+        (m: any) =>
+          !m.pending && (m.id === failedId || m.xmppId === failedId)
+      );
+      if (alreadyDelivered) {
+        dispatch(clearMessageFailure(failedId));
+        return;
+      }
+
       dispatch(clearMessageFailure(failedId));
       handleMessageRetry({
         messageId: failedId,
@@ -690,7 +720,7 @@ export const useSendMessage = (_configOverride?: IConfig) => {
         );
       }
     },
-    [failedMessages, dispatch, handleMessageRetry, sendMessage, sendMedia]
+    [failedMessages, rooms, dispatch, handleMessageRetry, sendMessage, sendMedia]
   );
 
   // ChatRoom/ThreadWrapper consume this as the "edit branch" of send.

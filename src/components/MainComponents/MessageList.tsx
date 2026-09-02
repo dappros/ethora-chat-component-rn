@@ -53,6 +53,15 @@ interface MessageListProps<TMessage extends IMessage> {
   config?: IConfig;
   isReply: boolean;
   activeMessage?: IMessage;
+  /**
+   * Fired whenever the "read up to" boundary changes: `null` while the
+   * user is at the bottom (everything is read), or the timestamp of the
+   * newest message they'd actually seen when they scrolled away from it.
+   * Lets the host mark only what was actually viewed as read instead of
+   * stamping "now" on unmount/leave, which would wrongly clear unread
+   * messages the user scrolled up and never got back down to.
+   */
+  onReadBoundaryChange?: (boundaryTs: number | null) => void;
 }
 
 const MessageList = <TMessage extends IMessage>({
@@ -66,6 +75,7 @@ const MessageList = <TMessage extends IMessage>({
   loading,
   isReply,
   activeMessage,
+  onReadBoundaryChange,
 }: MessageListProps<TMessage>) => {
   const { composing, messages, composingList } = useRoomState(roomJID)
     .room! as IRoom;
@@ -332,6 +342,7 @@ const MessageList = <TMessage extends IMessage>({
         // counter so the badge disappears with the arrow.
         setUnreadWhileScrolledUp(0);
         newestSeenTsRef.current = null;
+        onReadBoundaryChange?.(null);
       } else {
         isUserAtBottomRef.current = false;
         if (hasUserScrolledRef.current) {
@@ -349,11 +360,12 @@ const MessageList = <TMessage extends IMessage>({
             },
             0
           );
+          onReadBoundaryChange?.(newestSeenTsRef.current);
         }
         setIsUserAtBottom(false);
       }
     },
-    [memoizedMessages]
+    [memoizedMessages, onReadBoundaryChange]
   );
 
   // Keep the badge in sync with messages that arrive while the user is
@@ -382,6 +394,7 @@ const MessageList = <TMessage extends IMessage>({
     setIsUserAtBottom(true);
     setUnreadWhileScrolledUp(0);
     newestSeenTsRef.current = null;
+    onReadBoundaryChange?.(null);
     scrollToBottom();
   };
 
@@ -392,6 +405,8 @@ const MessageList = <TMessage extends IMessage>({
     setIsUserAtBottom(true);
     setUnreadWhileScrolledUp(0);
     newestSeenTsRef.current = null;
+    onReadBoundaryChange?.(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomJID]);
 
   const BackgroundImage = useMemo(() => {
@@ -442,7 +457,9 @@ const MessageList = <TMessage extends IMessage>({
         onLayout={handleLayout}
         inverted={true}
         keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="interactive"
+        keyboardDismissMode={
+          config?.keepKeyboardOpenOnScroll ? 'none' : 'interactive'
+        }
         contentContainerStyle={styles.flatListContent}
         ListFooterComponent={
           loading && memoizedMessages.length > 15 ? (

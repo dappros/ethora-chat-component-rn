@@ -1,4 +1,4 @@
-import React, {FC, useEffect, useMemo, useState} from 'react';
+import React, {FC, useEffect, useMemo, useRef, useState} from 'react';
 import {useDispatch, useSelector} from 'react-redux';
 import ChatRoom from './ChatRoom';
 import {
@@ -34,6 +34,7 @@ import {DeviceEventEmitter, Pressable, Text, View} from 'react-native';
 import {pushLog as devPushLog} from '../../utils/devLogger';
 import {normalizeRoomJid} from '../../helpers/normalizeRoomJid';
 import {buildSeedRoom} from '../../helpers/buildSeedRoom';
+import {shallowEqual} from '../../helpers/shallowEqual';
 import {InteractionsOverlayProvider} from '../MessageBubble/InteractionsOverlay';
 
 interface ChatWrapperProps {
@@ -160,6 +161,23 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
     );
     dispatch(addRoom({roomData: buildSeedRoom(seededRoomJID)}));
   }, [seededRoomJID, seededRoomMissing, dispatch]);
+
+  // Presentational config flags (e.g. `disableHeader`) can change while the
+  // chat stays mounted — sync them to redux whenever `config` actually
+  // changes, not just at init. Kept separate from the init effect below so
+  // toggling a flag doesn't re-run client/token setup. Guarded with a
+  // shallow-equal check (not just the `config` reference) because hosts
+  // commonly pass an inline object literal (`<Chat config={{...}}/>`) that
+  // is a new reference on every render even when nothing in it changed —
+  // dispatching unconditionally there would re-render every config
+  // consumer (ChatRoom, modals, ...) on every host render.
+  const lastSyncedConfigRef = useRef<IConfig | undefined>(undefined);
+  useEffect(() => {
+    if (config && !shallowEqual(lastSyncedConfigRef.current, config)) {
+      lastSyncedConfigRef.current = config;
+      dispatch(setConfig(config));
+    }
+  }, [config, dispatch]);
 
   useEffect(() => {
     if (roomJID) {
