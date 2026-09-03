@@ -13,8 +13,8 @@ import {
   FlatList,
   Pressable,
   Animated,
-  Text,
-  TouchableOpacity,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
 } from 'react-native';
 import { IRoom } from '../../types/types';
 import { SearchInput } from '../InputComponents/Search';
@@ -39,9 +39,10 @@ interface RoomListProps {
  * rounded bottom corners. */
 const LIST_BACKGROUND = '#E8EDF2';
 
-/** First-paint fallback until the floating search strip reports its real
- * height; the list's top padding follows the measurement after that. */
-const SEARCH_BAR_ESTIMATE = 60;
+/** A release that leaves the search strip in between is settled by
+ * scrolling to whichever end is nearer; this delay lets the platform tell
+ * us first whether the finger threw the list (momentum) or just let go. */
+const SNAP_SETTLE_DELAY = 60;
 
 const RoomList: React.FC<RoomListProps> = ({
   chats,
@@ -55,9 +56,11 @@ const RoomList: React.FC<RoomListProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [isLongPress, setIsLongPress] = useState(false);
   const [isDrawerOpen, setDrawerOpen] = useState(false);
+  const [isSearchFocused, setSearchFocused] = useState(false);
 
   const pressTimer = useRef<NodeJS.Timeout | null>(null);
   const containerRef = useRef<View>(null);
+  const listRef = useRef<FlatList<IRoom>>(null);
 
   const drawerAnimation = useRef(new Animated.Value(0)).current;
   const overlayAnimation = useRef(new Animated.Value(0)).current;
@@ -128,9 +131,99 @@ const RoomList: React.FC<RoomListProps> = ({
     }
   }, [burgerMenu]);
 
-  // Measured, so the list's top padding always matches the floating
-  // search strip — including when a larger font or a taller field grows it.
-  const [searchBarHeight, setSearchBarHeight] = useState(SEARCH_BAR_ESTIMATE);
+  // The search field is the list's own header rather than a bar pinned
+  // above it: it lives in the scrollable content, so the list opens
+  // already scrolled past it (rooms first, no search in sight) and
+  // dragging the content down brings it back with the finger — the way
+  // Telegram's chat list behaves. A pinned bar could not do this on
+  // Android, where a list sitting at offset 0 has nothing left to drag.
+  const searchBarHeight = useRef(0);
+  const listHeight = useRef(0);
+  const contentHeight = useRef(0);
+  /** The list starts hidden-search only once, and only before the user
+   * has touched it — chats arriving later must not yank the view. */
+  const didInitialHide = useRef(false);
+  const hasDragged = useRef(false);
+  const inMomentum = useRef(false);
+  const settleTimer = useRef<NodeJS.Timeout | null>(null);
+
+  // A search being typed in (or just focused) is never tucked away
+  // under the header, whichever way the list is then dragged.
+  const searchIsActive = useRef(false);
+  searchIsActive.current = isSearchFocused || searchTerm.length > 0;
+
+  /** How far the list can scroll — the strip can only be hidden fully
+   * when the rooms below it are tall enough to take its place. */
+  const maxOffset = () => contentHeight.current - listHeight.current;
+
+  const hideSearchInitially = useCallback(() => {
+    if (didInitialHide.current || hasDragged.current) return;
+    const bar = searchBarHeight.current;
+    if (!bar || !listHeight.current || !contentHeight.current) return;
+    if (maxOffset() < bar) return;
+    didInitialHide.current = true;
+    listRef.current?.scrollToOffset({ offset: bar, animated: false });
+  }, []);
+
+  /** The magnet: a strip left half-way in or out settles to whichever
+   * end it is closer to. */
+  const snapSearch = useCallback((offset: number) => {
+    const bar = searchBarHeight.current;
+    if (!bar || maxOffset() < bar) return;
+    if (offset <= 0 || offset >= bar) return;
+    const hide = !searchIsActive.current && offset > bar / 2;
+    listRef.current?.scrollToOffset({ offset: hide ? bar : 0, animated: true });
+  }, []);
+
+  const clearSettleTimer = () => {
+    if (settleTimer.current) {
+      clearTimeout(settleTimer.current);
+      settleTimer.current = null;
+    }
+  };
+
+  useEffect(() => clearSettleTimer, []);
+
+  const handleScrollBeginDrag = useCallback(() => {
+    hasDragged.current = true;
+    clearSettleTimer();
+  }, []);
+
+  const handleScrollEndDrag = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const offset = e.nativeEvent.contentOffset.y;
+      inMomentum.current = false;
+      clearSettleTimer();
+      // A flick keeps scrolling after the release; snapping now would
+      // fight it, so wait a beat and let momentum claim the gesture.
+      settleTimer.current = setTimeout(() => {
+        settleTimer.current = null;
+        if (!inMomentum.current) snapSearch(offset);
+      }, SNAP_SETTLE_DELAY);
+    },
+    [snapSearch]
+  );
+
+  const handleMomentumBegin = useCallback(() => {
+    inMomentum.current = true;
+    clearSettleTimer();
+  }, []);
+
+  const handleMomentumEnd = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      inMomentum.current = false;
+      snapSearch(e.nativeEvent.contentOffset.y);
+    },
+    [snapSearch]
+  );
+
+  // Tapping the field pulls it fully into view even if it was caught
+  // half-way, so the caret never sits under the header.
+  useEffect(() => {
+    if (isSearchFocused) {
+      listRef.current?.scrollToOffset({ offset: 0, animated: true });
+    }
+  }, [isSearchFocused]);
 
   const toggleDrawer = () => {
     if (isDrawerOpen) {
@@ -169,6 +262,26 @@ const RoomList: React.FC<RoomListProps> = ({
     });
   };
 
+  const searchHeader = (
+    <View
+      testID="room-list-search"
+      style={styles.searchBar}
+      onLayout={(e) => {
+        searchBarHeight.current = e.nativeEvent.layout.height;
+        hideSearchInitially();
+      }}
+    >
+      <SearchInput
+        icon={<SearchIcon height={20} />}
+        value={searchTerm}
+        onChangeText={handleSearchChange}
+        onFocus={() => setSearchFocused(true)}
+        onBlur={() => setSearchFocused(false)}
+        placeholder={t('search.placeholder')}
+      />
+    </View>
+  );
+
   return (
     <>
       {burgerMenu && !open && (
@@ -192,19 +305,25 @@ const RoomList: React.FC<RoomListProps> = ({
           <>
             <View style={styles.scrollContainer}>
               <HeaderRoomList setDrawerOpen={toggleDrawer} />
-              {/* The search field floats OVER the list rather than
-                  sitting above it in the column: its strip is transparent
-                  and the rooms scroll underneath, which is what the design
-                  shows. It is still fixed (not a ListHeaderComponent), so
-                  it stays reachable however far the list is scrolled — as a
-                  list header it scrolled away behind the opaque header. */}
               <View style={styles.listArea}>
                 <FlatList
+                  ref={listRef}
                   data={filteredChats}
                   keyExtractor={(item) => item.jid}
-                  // Clears the floating field on first paint; scrolling
-                  // then slides the rooms under it.
-                  contentContainerStyle={{ paddingTop: searchBarHeight }}
+                  ListHeaderComponent={searchHeader}
+                  onLayout={(e) => {
+                    listHeight.current = e.nativeEvent.layout.height;
+                    hideSearchInitially();
+                  }}
+                  onContentSizeChange={(_w, h) => {
+                    contentHeight.current = h;
+                    hideSearchInitially();
+                  }}
+                  onScrollBeginDrag={handleScrollBeginDrag}
+                  onScrollEndDrag={handleScrollEndDrag}
+                  onMomentumScrollBegin={handleMomentumBegin}
+                  onMomentumScrollEnd={handleMomentumEnd}
+                  keyboardShouldPersistTaps="handled"
                   renderItem={({ item }) => (
                     <Pressable
                       // Stable testID so e2e drivers can target a room
@@ -221,20 +340,6 @@ const RoomList: React.FC<RoomListProps> = ({
                   )}
                   style={styles.chatList}
                 />
-                <View
-                  testID="room-list-search"
-                  style={styles.searchBar}
-                  onLayout={(e) =>
-                    setSearchBarHeight(e.nativeEvent.layout.height)
-                  }
-                >
-                  <SearchInput
-                    icon={<SearchIcon height={20} />}
-                    value={searchTerm}
-                    onChangeText={handleSearchChange}
-                    placeholder={t('search.placeholder')}
-                  />
-                </View>
               </View>
 
               <HeaderRoomListMenu
@@ -279,16 +384,9 @@ const styles = StyleSheet.create({
     // `row` matters: SearchInputWrapper is `flex: 1` plus a fixed 44px
     // height. In a column parent that flex resolves VERTICALLY against a
     // parent with no height of its own and collapses the field to nothing
-    // but its magnifier. As a row it resolves to width, which is what it
-    // meant back when the field was a list-header child.
+    // but its magnifier. As a row it resolves to width.
     flexDirection: 'row',
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
     paddingTop: 8,
-    paddingBottom: 8,
-    paddingHorizontal: 16,
     backgroundColor: 'transparent',
   },
   chatList: {

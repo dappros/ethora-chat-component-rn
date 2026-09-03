@@ -3,12 +3,13 @@ import renderer, { act } from 'react-test-renderer';
 import { Alert, Animated, Modal, TouchableOpacity } from 'react-native';
 import { Provider } from 'react-redux';
 import { store } from '../src/roomStore';
-import { setConfig } from '../src/roomStore/chatSettingsSlice';
+import { setActiveModal, setConfig } from '../src/roomStore/chatSettingsSlice';
 import {
   HeaderRoomListMenu,
   runLogoutFlow,
 } from '../src/components/Menu/HeaderRoomListMenu';
 import { logoutService } from '../src/hooks/useLogout';
+import { MODAL_TYPES } from '../src/helpers/constants/MODAL_TYPES';
 import {
   shouldClaimVerticalDrag,
   shouldDismissOnDrag,
@@ -57,17 +58,30 @@ const renderMenu = async (config: any, opts: { isDrawerOpen?: boolean } = {}) =>
       .findAllByType(TouchableOpacity)
       .filter((n) => typeof n.props?.testID === 'string' && n.props.testID.startsWith('header-menu-'))
       .map((n) => n.props.testID.replace('header-menu-', ''));
-  const press = async (label: string) => {
+  const tap = async (label: string) => {
     const node = tree.root
       .findAllByType(TouchableOpacity)
       .find((n) => n.props?.testID === `header-menu-${label}`)!;
     await act(async () => {
       node.props.onPress();
       await flush();
+    });
+  };
+  // What the OS does once the sheet's Modal is actually off screen. Rows
+  // park their action until this fires — presenting anything (a modal, an
+  // Alert) while the sheet is still up is what iOS refuses to do.
+  const dismiss = async () => {
+    await act(async () => {
+      tree.root.findByType(Modal).props.onDismiss?.();
+      await flush();
       await flush();
     });
   };
-  return { tree, closeDrawer, labels, press };
+  const press = async (label: string) => {
+    await tap(label);
+    await dismiss();
+  };
+  return { tree, closeDrawer, labels, press, tap, dismiss };
 };
 
 const stubAlert = (choice: 'confirm' | 'cancel') =>
@@ -247,6 +261,62 @@ describe('HeaderRoomListMenu — Sign out tap flow', () => {
     expect(title).toBe('T');
     expect(message).toBe('M');
     expect(buttons?.map((b) => b.text)).toEqual(['No', 'Yes']);
+  });
+});
+
+describe('HeaderRoomListMenu — rows act only after the sheet is gone', () => {
+  // Regression: tapping a row used to fire its action synchronously, while
+  // this sheet's own <Modal> was still presented. New Chat presents its own
+  // <Modal>, and iOS then logs "Attempt to present
+  // <RCTFabricModalHostViewController> ... which is already presenting
+  // <RCTFabricModalHostViewController>": the New Chat modal never appeared
+  // and the sheet was wedged — the menu stopped opening at all.
+  const activeModal = () => store.getState().chatSettingStore.activeModal;
+
+  beforeEach(async () => {
+    await act(async () => {
+      store.dispatch(setActiveModal(undefined));
+    });
+  });
+
+  it('New Chat closes the drawer first and only opens once dismissed', async () => {
+    const { closeDrawer, tap, dismiss } = await renderMenu({});
+    await tap('New Chat');
+    expect(closeDrawer).toHaveBeenCalledTimes(1);
+    expect(activeModal()).toBeUndefined();
+    await dismiss();
+    expect(activeModal()).toBe(MODAL_TYPES.NEW_CHAT);
+  });
+
+  it('Profile and Settings are deferred the same way', async () => {
+    const { tap, dismiss } = await renderMenu({});
+    await tap('Profile');
+    expect(activeModal()).toBeUndefined();
+    await dismiss();
+    expect(activeModal()).toBe(MODAL_TYPES.PROFILE);
+
+    await act(async () => {
+      store.dispatch(setActiveModal(undefined));
+    });
+    await tap('Settings');
+    expect(activeModal()).toBeUndefined();
+    await dismiss();
+    expect(activeModal()).toBe(MODAL_TYPES.SETTINGS);
+  });
+
+  it('the Sign out confirm Alert waits for the dismissal too', async () => {
+    const alertSpy = stubAlert('cancel');
+    const { tap, dismiss } = await renderMenu({ logout: { enabled: true } });
+    await tap('Sign out');
+    expect(alertSpy).not.toHaveBeenCalled();
+    await dismiss();
+    expect(alertSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('a dismissal with nothing parked (swipe / backdrop tap) does nothing', async () => {
+    const { dismiss } = await renderMenu({});
+    await dismiss();
+    expect(activeModal()).toBeUndefined();
   });
 });
 

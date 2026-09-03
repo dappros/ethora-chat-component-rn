@@ -36,6 +36,9 @@ const CHATS = [
   },
 ];
 
+const SEARCH_H = 64;
+const LIST_H = 600;
+
 const render = async () => {
   await act(async () => {
     store.dispatch(setUser({ firstName: 'Ann', token: 'jwt' } as any));
@@ -54,34 +57,158 @@ const render = async () => {
       {},
       ...(Array.isArray(style) ? style : [style]).flat().filter(Boolean)
     );
-  return { tree, flatStyle };
+  const list = () => tree.root.findByType(FlatList);
+  const strip = () => tree.root.find((n) => n.props?.testID === 'room-list-search');
+
+  /** Feed the measurements the component waits for before it can tuck the
+   * search away: strip height, viewport height and content height. */
+  const measure = async (contentH: number) => {
+    await act(async () => {
+      strip().props.onLayout({ nativeEvent: { layout: { height: SEARCH_H } } });
+      list().props.onLayout({ nativeEvent: { layout: { height: LIST_H } } });
+      list().props.onContentSizeChange(320, contentH);
+    });
+  };
+
+  const scroll = async (handler: string, y: number) => {
+    await act(async () => {
+      list().props[handler]({ nativeEvent: { contentOffset: { y } } });
+    });
+  };
+
+  return { tree, flatStyle, list, strip, measure, scroll };
 };
 
 describe('Room list search strip', () => {
-  it('floats over the list on a transparent strip', async () => {
-    const { tree, flatStyle } = await render();
-    const strip = tree.root.find((n) => n.props?.testID === 'room-list-search');
-    const style = flatStyle(strip.props.style);
-    expect(style.position).toBe('absolute');
-    expect(style.top).toBe(0);
-    // Transparent, so the rooms passing underneath stay visible around the
-    // field's own white card.
-    expect(style.backgroundColor).toBe('transparent');
+  let scrollToOffset: jest.SpyInstance;
+
+  beforeEach(() => {
+    scrollToOffset = jest
+      .spyOn(FlatList.prototype, 'scrollToOffset')
+      .mockImplementation(() => {});
   });
 
-  it('pads the list so the first room clears the field, then scrolls under it', async () => {
-    const { tree, flatStyle } = await render();
-    const list = tree.root.findByType(FlatList);
-    const padding = flatStyle(list.props.contentContainerStyle).paddingTop;
-    expect(padding).toBeGreaterThan(0);
+  afterEach(() => {
+    scrollToOffset.mockRestore();
+  });
 
-    // The strip reports its real height; the padding follows it.
-    const strip = tree.root.find((n) => n.props?.testID === 'room-list-search');
-    await act(async () => {
-      strip.props.onLayout({ nativeEvent: { layout: { height: 72 } } });
+  it('rides in the scrollable content as the list header, not pinned above it', async () => {
+    const { list, strip, flatStyle } = await render();
+    // The header element the list renders IS the search strip: dragging
+    // the content down is what brings it back into view.
+    expect(list().props.ListHeaderComponent.props.testID).toBe(
+      'room-list-search'
+    );
+    const style = flatStyle(strip().props.style);
+    expect(style.position).toBeUndefined();
+    // No padding stand-in either — the header itself takes the space.
+    expect(flatStyle(list().props.contentContainerStyle).paddingTop).toBe(
+      undefined
+    );
+  });
+
+  it('opens scrolled past the search, so only chats show at first', async () => {
+    const { measure } = await render();
+    await measure(2000);
+    expect(scrollToOffset).toHaveBeenCalledWith({
+      offset: SEARCH_H,
+      animated: false,
     });
-    const updated = tree.root.findByType(FlatList);
-    expect(flatStyle(updated.props.contentContainerStyle).paddingTop).toBe(72);
+  });
+
+  it('leaves the search in view when there are too few chats to scroll it away', async () => {
+    const { measure } = await render();
+    await measure(LIST_H + SEARCH_H - 10);
+    expect(scrollToOffset).not.toHaveBeenCalled();
+  });
+
+  it('does not tuck the search away once the user has taken hold of the list', async () => {
+    const { measure, scroll } = await render();
+    await scroll('onScrollBeginDrag', 0);
+    await measure(2000);
+    expect(scrollToOffset).not.toHaveBeenCalled();
+  });
+
+  it('magnets the half-shown search closed when the list settles past its middle', async () => {
+    const { measure, scroll } = await render();
+    await measure(2000);
+    scrollToOffset.mockClear();
+    await scroll('onMomentumScrollEnd', SEARCH_H * 0.7);
+    expect(scrollToOffset).toHaveBeenCalledWith({
+      offset: SEARCH_H,
+      animated: true,
+    });
+  });
+
+  it('magnets it fully open when the list settles before its middle', async () => {
+    const { measure, scroll } = await render();
+    await measure(2000);
+    scrollToOffset.mockClear();
+    await scroll('onMomentumScrollEnd', SEARCH_H * 0.3);
+    expect(scrollToOffset).toHaveBeenCalledWith({ offset: 0, animated: true });
+  });
+
+  it('leaves a settled list alone at either end', async () => {
+    const { measure, scroll } = await render();
+    await measure(2000);
+    scrollToOffset.mockClear();
+    await scroll('onMomentumScrollEnd', 0);
+    await scroll('onMomentumScrollEnd', SEARCH_H * 4);
+    expect(scrollToOffset).not.toHaveBeenCalled();
+  });
+
+  it('keeps the search open while it is being typed in', async () => {
+    const { measure, scroll, strip } = await render();
+    await measure(2000);
+    await act(async () => {
+      strip().props.children.props.onChangeText('on');
+    });
+    scrollToOffset.mockClear();
+    // Past the middle, which would normally hide it.
+    await scroll('onMomentumScrollEnd', SEARCH_H * 0.7);
+    expect(scrollToOffset).toHaveBeenCalledWith({ offset: 0, animated: true });
+  });
+
+  it('pulls the search fully into view when the field takes focus', async () => {
+    const { measure, strip } = await render();
+    await measure(2000);
+    scrollToOffset.mockClear();
+    await act(async () => {
+      strip().props.children.props.onFocus();
+    });
+    expect(scrollToOffset).toHaveBeenCalledWith({ offset: 0, animated: true });
+  });
+
+  describe('release without momentum', () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    it('snaps after the release settles', async () => {
+      const { measure, scroll } = await render();
+      await measure(2000);
+      scrollToOffset.mockClear();
+      await scroll('onScrollEndDrag', SEARCH_H * 0.7);
+      expect(scrollToOffset).not.toHaveBeenCalled();
+      await act(async () => {
+        jest.advanceTimersByTime(100);
+      });
+      expect(scrollToOffset).toHaveBeenCalledWith({
+        offset: SEARCH_H,
+        animated: true,
+      });
+    });
+
+    it('yields to a flick instead of fighting its momentum', async () => {
+      const { measure, scroll, list } = await render();
+      await measure(2000);
+      scrollToOffset.mockClear();
+      await scroll('onScrollEndDrag', SEARCH_H * 0.7);
+      await act(async () => {
+        list().props.onMomentumScrollBegin();
+        jest.advanceTimersByTime(100);
+      });
+      expect(scrollToOffset).not.toHaveBeenCalled();
+    });
   });
 });
 

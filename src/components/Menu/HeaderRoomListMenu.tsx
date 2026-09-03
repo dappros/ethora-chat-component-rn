@@ -1,4 +1,4 @@
-import React, { FC, useEffect, useMemo, useRef, useState } from 'react';
+import React, { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
@@ -9,6 +9,7 @@ import {
   Dimensions,
   Modal,
   PanResponder,
+  Platform,
   View,
 } from 'react-native';
 import {
@@ -130,6 +131,30 @@ export const HeaderRoomListMenu: FC<HeaderRoomListMenuProps> = ({
   const closeDrawerRef = useRef(closeDrawer);
   closeDrawerRef.current = closeDrawer;
 
+  const pendingActionRef = useRef<(() => void) | null>(null);
+
+  const runPendingAction = useCallback(() => {
+    const action = pendingActionRef.current;
+    pendingActionRef.current = null;
+    action?.();
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS === 'ios' || isDrawerOpen) {
+      return;
+    }
+    const id = setTimeout(runPendingAction, 0);
+    return () => clearTimeout(id);
+  }, [isDrawerOpen, runPendingAction]);
+
+  const handleOptionPress = useCallback(
+    (action: () => void) => {
+      pendingActionRef.current = action;
+      closeDrawer();
+    },
+    [closeDrawer]
+  );
+
   useEffect(() => {
     if (!isDrawerOpen) {
       dragY.setValue(0);
@@ -215,15 +240,12 @@ export const HeaderRoomListMenu: FC<HeaderRoomListMenuProps> = ({
       icon: React.ReactElement;
       onClick: () => void;
       styles?: { color: string };
-      /** When true the row closes the drawer itself before acting. */
-      closesDrawer?: boolean;
     }[] = [
       {
         label: 'New Chat',
         icon: <AddNewIcon color={primaryColor} />,
         onClick: () => {
           dispatch(setActiveModal(MODAL_TYPES.NEW_CHAT));
-          console.log('New chat clicked');
         },
         styles: { color: '#141414' },
       },
@@ -232,7 +254,6 @@ export const HeaderRoomListMenu: FC<HeaderRoomListMenuProps> = ({
         icon: <ProfileIcon color={primaryColor} />,
         onClick: () => {
           dispatch(setActiveModal(MODAL_TYPES.PROFILE));
-          console.log('Profile clicked');
         },
       },
       {
@@ -240,7 +261,6 @@ export const HeaderRoomListMenu: FC<HeaderRoomListMenuProps> = ({
         icon: <SettingIcon color={primaryColor} />,
         onClick: () => {
           dispatch(setActiveModal(MODAL_TYPES.SETTINGS));
-          console.log('Settings clicked');
         },
       },
     ];
@@ -249,15 +269,13 @@ export const HeaderRoomListMenu: FC<HeaderRoomListMenuProps> = ({
         label: logoutConfig.label ?? DEFAULT_LOGOUT_LABEL,
         icon: <LogoutIcon color={primaryColor} />,
         styles: { color: primaryColor },
-        closesDrawer: true,
         onClick: () => {
-          closeDrawer();
           runLogoutFlow(logoutConfig, performLogout).catch(() => {});
         },
       });
     }
     return options;
-  }, [dispatch, logoutConfig, performLogout, primaryColor, closeDrawer]);
+  }, [dispatch, logoutConfig, performLogout, primaryColor]);
 
   return (
     // Presented through a real <Modal>: as an in-tree overlay the sheet was
@@ -270,6 +288,7 @@ export const HeaderRoomListMenu: FC<HeaderRoomListMenuProps> = ({
       animationType="none"
       statusBarTranslucent
       onRequestClose={closeDrawer}
+      onDismiss={runPendingAction}
     >
       <TouchableWithoutFeedback onPress={closeDrawer}>
         <Animated.View
@@ -314,12 +333,7 @@ export const HeaderRoomListMenu: FC<HeaderRoomListMenuProps> = ({
                 style={styles.menuItem}
                 testID={`header-menu-${option.label}`}
                 activeOpacity={0.6}
-                onPress={() => {
-                  option.onClick();
-                  if (!option.closesDrawer) {
-                    closeDrawer();
-                  }
-                }}
+                onPress={() => handleOptionPress(option.onClick)}
               >
                 <View style={styles.iconSlot}>{option.icon}</View>
                 <Text style={[styles.label, option?.styles]}>

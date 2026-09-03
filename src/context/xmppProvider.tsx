@@ -115,7 +115,7 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
       //    the shared rotation point covers both the consumer-supplied
       //    function and the built-in endpoint.
       if (config?.refreshTokens?.enabled) {
-        const rotated = await refreshAuthTokensQuietly();
+        const rotated = await refreshAuthTokensQuietly({ force: true });
 
         if (rotated?.xmppPassword) {
           const rotatedUser = store.getState().chatSettingStore.user;
@@ -384,7 +384,7 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
         // jwtLogin is skipped: /users/client just minted fresh creds.
         let connectPassword = resolved.xmppPassword;
         if (config?.refreshTokens?.enabled && !config?.jwtLogin?.enabled) {
-          const rotated = await refreshAuthTokensQuietly();
+          const rotated = await refreshAuthTokensQuietly({ force: true });
           if (cancelled) {return;}
           if (rotated?.xmppPassword) {
             connectPassword = rotated.xmppPassword;

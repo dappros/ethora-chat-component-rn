@@ -382,6 +382,9 @@ export interface RefreshOptions {
 
 let inflight: Promise<RefreshResult> | null = null;
 
+let lastRotationAt = 0;
+const QUIET_ROTATION_MIN_INTERVAL_MS = 5 * 60 * 1000;
+
 /**
  * Rotate the tokens. Concurrent callers share ONE request — this is the
  * lock the new backend scheme requires.
@@ -399,9 +402,14 @@ export function refreshAuthTokens(
     return inflight;
   }
 
-  inflight = performRefresh(options?.refreshToken).finally(() => {
-    inflight = null;
-  });
+  inflight = performRefresh(options?.refreshToken)
+    .then((result) => {
+      lastRotationAt = Date.now();
+      return result;
+    })
+    .finally(() => {
+      inflight = null;
+    });
 
   return inflight;
 }
@@ -411,7 +419,19 @@ export function refreshAuthTokens(
  * tokens are fresh" and have no meaningful error handling — chat
  * bootstrap, XMPP reconnect. Never rejects.
  */
-export async function refreshAuthTokensQuietly(): Promise<RefreshResult | null> {
+export interface QuietRefreshOptions {
+  force?: boolean;
+}
+
+export async function refreshAuthTokensQuietly(
+  options?: QuietRefreshOptions
+): Promise<RefreshResult | null> {
+  if (
+    !options?.force &&
+    Date.now() - lastRotationAt < QUIET_ROTATION_MIN_INTERVAL_MS
+  ) {
+    return null;
+  }
   try {
     return await refreshAuthTokens();
   } catch (error) {
@@ -427,4 +447,5 @@ export async function refreshAuthTokensQuietly(): Promise<RefreshResult | null> 
 /** Test seam — drops any shared in-flight promise between cases. */
 export function __resetAuthRefreshStateForTests(): void {
   inflight = null;
+  lastRotationAt = 0;
 }
