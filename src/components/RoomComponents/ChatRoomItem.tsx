@@ -90,11 +90,13 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
 
   return (
     <ChatItem key={index}>
-      <ProfileImagePlaceholder
-        name={displayName}
-        icon={appendFileToken(chat?.icon, fileToken)}
-        active={false}
-      />
+      <View pointerEvents="none">
+        <ProfileImagePlaceholder
+          name={displayName}
+          icon={appendFileToken(chat?.icon, fileToken)}
+          active={false}
+        />
+      </View>
       <View
         style={{
           flexDirection: 'column',

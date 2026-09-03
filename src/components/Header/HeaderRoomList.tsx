@@ -38,11 +38,16 @@ export const HeaderRoomList: FC<HeaderRoomListProps> = ({ setDrawerOpen }) => {
       {!config?.disableRoomMenu && config?.headerMenu ? (
         <View style={styles.leftContainer}>
           <Button
+            testID="room-list-burger"
             style={styles.menuButton}
             color="black"
             unstyled
             EndIcon={<BurgerMenuIcon color={config?.colors?.primary} />}
-            onPress={() => config?.headerMenu && config?.headerMenu()}
+            onPress={() =>
+              typeof config?.headerMenu === 'function'
+                ? config.headerMenu()
+                : setDrawerOpen()
+            }
           />
         </View>
       ) : (

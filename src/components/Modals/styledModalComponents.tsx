@@ -86,8 +86,15 @@ export const HeaderContainer = styled.View`
    * button and 8px below — properly sized and properly centered. */
   padding: 8px 16px;
   background-color: #fff;
-  border-bottom-width: 1px;
-  border-bottom-color: #f0f0f0;
+  /* Same card treatment as the room-list header: rounded bottom corners
+   * and a soft drop shadow instead of a hairline rule. */
+  border-bottom-left-radius: 20px;
+  border-bottom-right-radius: 20px;
+  shadow-color: #101828;
+  shadow-offset: 0px 4px;
+  shadow-opacity: 0.06;
+  shadow-radius: 12px;
+  elevation: 4;
   z-index: 1;
   flex-direction: row;
   justify-content: space-between;

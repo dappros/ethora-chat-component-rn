@@ -57,6 +57,7 @@ import {
   HeroAction,
   useHeaderMetrics,
 } from '../ProfileHeader/ProfileHeader';
+import ProfileMenu, { ProfileMenuItem } from '../ProfileHeader/ProfileMenu';
 import EditUserModal from './EditUserModal';
 
 const PREFIX = 'user-profile';
@@ -116,6 +117,10 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const scrollRef = useRef<any>(null);
   const { collapseDistance } = useHeaderMetrics();
   const [viewportHeight, setViewportHeight] = useState(0);
+  // `scrollY` is driven natively, so its value can't be read back with
+  // addListener; the Animated.event's JS `listener` still fires, which is
+  // enough to know which state the header is in.
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   const isOwnProfile = !selectedUser;
   const profileUser: any = selectedUser ?? user;
@@ -336,6 +341,22 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     [isOwnProfile, t, handleShare, handlePrivateMessage, handleLogout] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
+  // Collapsed, the hero's round buttons are gone — the "…" menu carries
+  // exactly the same actions so nothing becomes unreachable.
+  const menuItems: ProfileMenuItem[] = useMemo(
+    () =>
+      isCollapsed
+        ? heroActions.map((action) => ({
+            key: action.key,
+            label: action.label,
+            icon: action.icon('#141414'),
+            destructive: action.key === 'logout',
+            onPress: action.onPress,
+          }))
+        : [],
+    [isCollapsed, heroActions]
+  );
+
   if (isEditing) {
     return (
       <ModalContainerFullScreen>
@@ -451,7 +472,13 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
         scrollEventThrottle={16}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: true }
+          {
+            useNativeDriver: true,
+            listener: (e: any) => {
+              const y = e?.nativeEvent?.contentOffset?.y ?? 0;
+              setIsCollapsed(y >= collapseDistance - 8);
+            },
+          }
         )}
       >
         <ProfileHero
@@ -558,6 +585,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
         scrollY={scrollY}
         onBack={handleBackClick}
         titleStyle={chatTextStyle(config?.typography?.profile?.screenTitle)}
+        menu={<ProfileMenu testIDPrefix={PREFIX} items={menuItems} />}
       />
     </ModalContainerFullScreen>
   );

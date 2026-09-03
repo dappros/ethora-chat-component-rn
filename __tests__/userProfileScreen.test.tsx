@@ -248,6 +248,31 @@ describe('User profile screen', () => {
     shareSpy.mockRestore();
   });
 
+  it('moves every hero action into the "…" menu once collapsed', async () => {
+    await seed(undefined);
+    const { tree, has } = await render();
+    // Expanded: the buttons are on the hero, so there is no overflow menu.
+    expect(has('user-profile-menu')).toBe(false);
+
+    const handler: any = tree.root.findByType(Animated.ScrollView as any).props
+      .onScroll;
+    const fire =
+      typeof handler === 'function' ? handler : handler?.__getHandler?.();
+    await act(async () => {
+      fire?.({ nativeEvent: { contentOffset: { y: 400 } } });
+    });
+    expect(has('user-profile-menu')).toBe(true);
+
+    await act(async () => {
+      tree.root
+        .find((n) => n.props?.testID === 'user-profile-menu')
+        .props.onPress();
+    });
+    for (const key of ['account', 'share', 'edit', 'logout']) {
+      expect(has(`user-profile-menu-${key}`)).toBe(true);
+    }
+  });
+
   it('keeps the collapsing header wired to the scroll position', async () => {
     await seed(undefined);
     const { tree, has } = await render();

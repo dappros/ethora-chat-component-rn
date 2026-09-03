@@ -425,7 +425,7 @@ export interface IConfig {
   hideMemberSendMessageAction?: boolean; // hides only "Message"
   hideMemberCopyIdAction?: boolean;      // hides only "Copy User Id"
   chatHeaderAdditional?: { enabled: boolean; element: any };
-  headerMenu?: () => void;
+  headerMenu?: (() => void) | boolean;
   headerChatMenu?: () => void;
   chatHeaderSettings?: {
     hide?: boolean;

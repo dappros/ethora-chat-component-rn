@@ -18,9 +18,15 @@ import { getAvatarTextColor } from '../../../helpers/getAvatarColor';
 /** Height of the expanded photo hero. */
 export const HERO_HEIGHT = 320;
 /** Back / "…" row, directly below the status-bar inset. */
-export const TOP_BAR_BUTTONS = 48;
-/** Avatar + name row underneath it, revealed as the header collapses. */
-export const TOP_BAR_NAME = 64;
+export const TOP_BAR_BUTTONS = 60;
+/**
+ * Avatar + name row underneath it, revealed as the header collapses.
+ * Taller than the 48pt avatar it holds, so the row breathes: the extra
+ * height splits evenly above and below (the row centres its content),
+ * putting real space between the avatar and both the buttons above and
+ * the content below.
+ */
+export const TOP_BAR_NAME = 92;
 /** Content band of the collapsed bar, below the status-bar inset. */
 export const TOP_BAR_BAND = TOP_BAR_BUTTONS + TOP_BAR_NAME;
 /** How far above the fully-collapsed point the bar starts fading in. */
@@ -210,10 +216,17 @@ export const ProfileHero: React.FC<
   // whichever of black/white reads on that colour.
   const onPhoto = !!imageUri;
   const contentColor = onPhoto ? '#FFFFFF' : getAvatarTextColor(fallbackColor);
-  const circleTint =
-    onPhoto || contentColor === '#FFFFFF'
+  // The glyphs inside the circles are always white — several of the SDK's
+  // icons paint white regardless of their `color` prop, so tinting the
+  // rest to match the title left a mix of black and white glyphs in one
+  // row. The circle darkens instead, which keeps them readable on a light
+  // fill as well as on a photo.
+  const iconColor = '#FFFFFF';
+  const circleTint = onPhoto
+    ? 'rgba(255,255,255,0.22)'
+    : contentColor === '#FFFFFF'
       ? 'rgba(255,255,255,0.22)'
-      : 'rgba(0,0,0,0.10)';
+      : 'rgba(0,0,0,0.22)';
 
   return (
     <View style={[styles.hero, { backgroundColor: fallbackColor }]}>
@@ -311,7 +324,7 @@ export const ProfileHero: React.FC<
                 <View
                   style={[styles.actionCircle, { backgroundColor: circleTint }]}
                 >
-                  {action.icon(contentColor)}
+                  {action.icon(iconColor)}
                 </View>
                 <Text style={[styles.actionLabel, { color: contentColor }]}>
                   {action.label}
@@ -546,8 +559,12 @@ const styles = StyleSheet.create({
   topBarButtons: {
     height: TOP_BAR_BUTTONS,
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
+    alignItems: 'flex-end',
+    paddingBottom: 4,
+    // 20 = the collapsed row's 16pt inset + half the difference between
+    // the 48pt avatar and these 40pt buttons, so a button's centre line
+    // matches the avatar's once the header is collapsed.
+    paddingHorizontal: 20,
   },
   roundButton: {
     width: 40,

@@ -165,7 +165,7 @@ Pick **one** auth mode. Mixing is undefined behavior.
 | `chatHeaderSettings.hideSearch` | `boolean` | Hide the search bar above the chat list. |
 | `chatHeaderAdditional` | `{ enabled: boolean; element: () => React.ReactNode }` | Inject a custom element below the header. |
 | `headerLogo` | `string \| React.ReactElement` | Replace the default "Chats" label with a logo / custom element. |
-| `headerMenu` | `() => void` | Tap handler for the room-list burger menu. |
+| `headerMenu` | `(() => void) \| boolean` | Burger button on the left of the room-list header. A function shows the button and calls it (host-driven drawer); `true` shows it and opens the SDK's own menu — the same sheet the header avatar opens; omitted hides it. `disableRoomMenu` hides it either way. |
 | `headerChatMenu` | `() => void` | Tap handler for the chat-screen header menu. |
 
 ### Room list

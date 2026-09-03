@@ -899,6 +899,7 @@ const ChatPane: React.FC<{ creds: Creds | null; isVisible: boolean }> = ({ creds
         host: creds.xmppHost,
         conference: creds.conference,
       },
+      headerMenu: false as const,
       colors: {
         primary: PRIMARY,
         secondary: SECONDARY,

@@ -84,3 +84,66 @@ describe('Room list search strip', () => {
     expect(flatStyle(updated.props.contentContainerStyle).paddingTop).toBe(72);
   });
 });
+
+describe('Room list header burger', () => {
+  const renderWith = async (cfg: any) => {
+    await act(async () => {
+      store.dispatch(setUser({ firstName: 'Ann', token: 'jwt' } as any));
+      store.dispatch(setConfig(cfg));
+    });
+    let tree!: renderer.ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(
+        <Provider store={store}>
+          <RoomList chats={CHATS as any} onRoomClick={jest.fn()} />
+        </Provider>
+      );
+    });
+    const has = (id: string) =>
+      tree.root.findAll((n) => n.props?.testID === id).length > 0;
+    return { tree, has };
+  };
+
+  it('is hidden unless the host asks for it', async () => {
+    const { has } = await renderWith({});
+    expect(has('room-list-burger')).toBe(false);
+  });
+
+  it('shows and opens the SDK menu when headerMenu is true', async () => {
+    const { tree, has } = await renderWith({ headerMenu: true });
+    expect(has('room-list-burger')).toBe(true);
+    expect(has('header-menu-sheet')).toBe(false);
+    await act(async () => {
+      tree.root
+        .find(
+          (n) =>
+            n.props?.testID === 'room-list-burger' &&
+            typeof n.props?.onPress === 'function'
+        )
+        .props.onPress();
+    });
+    expect(has('header-menu-sheet')).toBe(true);
+  });
+
+  it('calls the host handler when headerMenu is a function', async () => {
+    const headerMenu = jest.fn();
+    const { tree, has } = await renderWith({ headerMenu });
+    await act(async () => {
+      tree.root
+        .find(
+          (n) =>
+            n.props?.testID === 'room-list-burger' &&
+            typeof n.props?.onPress === 'function'
+        )
+        .props.onPress();
+    });
+    expect(headerMenu).toHaveBeenCalled();
+    // The host drives its own drawer, so the SDK's sheet stays closed.
+    expect(has('header-menu-sheet')).toBe(false);
+  });
+
+  it('stays hidden when disableRoomMenu is set', async () => {
+    const { has } = await renderWith({ headerMenu: true, disableRoomMenu: true });
+    expect(has('room-list-burger')).toBe(false);
+  });
+});
