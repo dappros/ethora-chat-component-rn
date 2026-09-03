@@ -211,6 +211,13 @@ export class XmppClient {
       this.devServer = xmppSettings?.devServer;
     }
     this.disableLastRead = this.xmppSettings?.disableLastRead === true;
+    // `xmppPingOnSendEnabled` was declared in the public settings type but
+    // never read. It now controls the SEND-path liveness probe only; the
+    // periodic watchdog and the NetInfo check always run, so turning this
+    // off cannot leave a zombie socket undetected — it only removes the
+    // extra probe a send would otherwise trigger. Defaults to on
+    // (previous behaviour), just throttled and confirmation-gated now.
+    this.pingOnSendEnabled = this.xmppSettings?.xmppPingOnSendEnabled !== false;
 
     const qos = this.xmppSettings?.historyQoS;
     if (qos) {
@@ -494,6 +501,10 @@ export class XmppClient {
       this.status = 'online';
       this.presencesReady = true;
       this.reconnectAttempts = 0;
+      // Fresh stream: forget any probe failures from the dead one, and
+      // don't let the throttle suppress the first probe on it.
+      this.failedProbeStreak = 0;
+      this.lastStreamProbeAt = 0;
       try {
         devPushLog(
           'xmpp',
@@ -655,8 +666,54 @@ export class XmppClient {
   }
 
   private streamAliveProbe: Promise<boolean> | null = null;
+  /** Wall-clock of the last probe, for throttling. */
+  private lastStreamProbeAt = 0;
+  /** Consecutive failed probes; a reconnect needs confirmation, not one miss. */
+  private failedProbeStreak = 0;
 
-  verifyStreamAlive(timeoutMs: number = 4000): Promise<boolean> {
+  // --- liveness-probe tuning -------------------------------------------
+  // The probe exists to catch a ZOMBIE socket: the WebSocket still reads
+  // `online` but nothing traverses it (iOS suspending a backgrounded
+  // socket, the JS debugger pausing the runtime). Without it the client
+  // sits "online" forever and every send silently vanishes.
+  //
+  // The original settings were far too trigger-happy: a 4s budget for a
+  // ping round-trip, fired after EVERY send, with a single timeout
+  // immediately calling `forceReconnect()` — a full teardown, rebuild,
+  // MUC re-join and private-store refetch. On a slow or congested mobile
+  // link a perfectly healthy but quiet stream would miss that 4s window
+  // and get torn down mid-conversation, repeatedly. (That reconnect is
+  // also what used to replay the outbound queue and duplicate a message
+  // that had already been delivered — customer-reported #31.)
+  //
+  // Tuned to: a realistic timeout, a throttle so bursts of sends can't
+  // each start a probe, and a required second failure before we tear a
+  // connection down. Zombie sockets fail every probe, so they are still
+  // caught — just after confirmation rather than on one unlucky RTT.
+  /** Per-probe budget. 4s was under a slow-network ping RTT. */
+  private streamProbeTimeoutMs = 10_000;
+  /** Minimum gap between probes, so a burst of sends probes at most once. */
+  private minStreamProbeIntervalMs = 15_000;
+  /** Delay before the confirmation probe that a teardown requires. */
+  private streamProbeConfirmDelayMs = 2_000;
+  /** Failures needed before `forceReconnect()`. */
+  private streamProbeFailuresForReconnect = 2;
+  /** Host opt-out for the send-path probe (`xmppPingOnSendEnabled`). */
+  private pingOnSendEnabled = true;
+
+  /**
+   * Send-path liveness check. Throttled and skippable by config — unlike
+   * the watchdog, this fires from user activity and must not turn a chatty
+   * room into a probe storm.
+   */
+  ensureStreamAliveAfterSend(): void {
+    if (!this.pingOnSendEnabled) {return;}
+    this.ensureStreamAlive({ reason: 'send' }).catch(() => {});
+  }
+
+  verifyStreamAlive(
+    timeoutMs: number = this.streamProbeTimeoutMs
+  ): Promise<boolean> {
     if (this.status !== 'online' || !this.client) {
       return Promise.resolve(false);
     }
@@ -688,16 +745,70 @@ export class XmppClient {
     return this.streamAliveProbe;
   }
 
-  async ensureStreamAlive(timeoutMs: number = 4000): Promise<void> {
+  /**
+   * Check that the stream is really carrying traffic, and tear it down only
+   * if that is confirmed false.
+   *
+   * `force` skips the throttle — used by the periodic watchdog and the
+   * NetInfo "we're reachable again" signal, which are already rare and
+   * genuinely want to know right now. Send-path callers leave it off so a
+   * burst of messages triggers at most one probe.
+   */
+  async ensureStreamAlive(opts?: {
+    force?: boolean;
+    reason?: string;
+  }): Promise<void> {
     if (this.suppressReconnect || this.status !== 'online') {return;}
-    const alive = await this.verifyStreamAlive(timeoutMs);
-    // Re-check state: a reconnect may have started meanwhile.
-    if (!alive && this.status === 'online' && !this.suppressReconnect) {
-      try {
-        devPushLog('xmpp', 'stream is zombie (ping unanswered) → forceReconnect');
-      } catch {}
-      this.forceReconnect();
+
+    const now = Date.now();
+    if (
+      !opts?.force &&
+      now - this.lastStreamProbeAt < this.minStreamProbeIntervalMs
+    ) {
+      // Probed recently — a healthy answer is still fresh, and a dead
+      // socket will be caught by the next watchdog tick anyway.
+      return;
     }
+    this.lastStreamProbeAt = now;
+
+    const alive = await this.verifyStreamAlive();
+
+    // Re-check state: a reconnect may have started while we waited.
+    if (this.status !== 'online' || this.suppressReconnect) {return;}
+
+    if (alive) {
+      this.failedProbeStreak = 0;
+      return;
+    }
+
+    this.failedProbeStreak += 1;
+    if (this.failedProbeStreak < this.streamProbeFailuresForReconnect) {
+      // One missed probe is not proof of a dead socket — a congested link
+      // or a busy server can blow the budget on a stream that is fine.
+      // Confirm with a second probe shortly, instead of tearing down a
+      // working connection on a single unlucky round trip.
+      try {
+        devPushLog(
+          'xmpp',
+          `stream probe missed (${this.failedProbeStreak}/${this.streamProbeFailuresForReconnect}) — confirming before reconnect`
+        );
+      } catch {}
+      setTimeout(() => {
+        this.ensureStreamAlive({ force: true, reason: 'probe-confirm' }).catch(
+          () => {}
+        );
+      }, this.streamProbeConfirmDelayMs);
+      return;
+    }
+
+    this.failedProbeStreak = 0;
+    try {
+      devPushLog(
+        'xmpp',
+        'stream is zombie (probe unanswered twice) → forceReconnect'
+      );
+    } catch {}
+    this.forceReconnect();
   }
 
   async reconnect() {

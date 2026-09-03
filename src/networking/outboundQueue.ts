@@ -52,9 +52,11 @@ export interface QueuedSend {
    * Such a send has most likely reached the server already — only its
    * echo may still be in flight. Blind-replaying it on the next 'online'
    * event is what produced real duplicates on the recipient side: a send
-   * is followed by `ensureStreamAlive()`, whose 4s "did any stanza come
-   * back" probe force-reconnects a perfectly healthy but quiet stream,
-   * and the resulting reconnect flushed the queue. The queue exists for
+   * is followed by a liveness probe which, at the time, force-reconnected
+   * a perfectly healthy but quiet stream on a single missed 4s round trip
+   * — and the resulting reconnect flushed the queue. (That probe has since
+   * been throttled and confirmation-gated, but this guard is the one that
+   * actually makes a duplicate impossible.) The queue exists for
    * sends that never made it onto the wire, so those are the only ones
    * safe to replay unattended. Customer-reported #31.
    */

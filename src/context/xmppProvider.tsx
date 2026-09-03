@@ -557,7 +557,9 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
         devPushLog('rn', `watchdog: client ${client.status} → forceReconnect`);
         client.forceReconnect();
       } else {
-        client.ensureStreamAlive?.();
+        // The periodic health check is the probe's primary owner, so it
+        // bypasses the throttle that keeps send-path probes rare.
+        client.ensureStreamAlive?.({ force: true, reason: 'watchdog' });
       }
     }, 30000);
     return () => clearInterval(id);
@@ -792,7 +794,8 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
         devPushLog('rn', `NetInfo: reachable & client ${client.status} → forceReconnect`);
         client.forceReconnect();
       } else if (client.status === 'online') {
-        client.ensureStreamAlive?.();
+        // Connectivity just came back — worth an immediate check.
+        client.ensureStreamAlive?.({ force: true, reason: 'netinfo' });
       }
     });
     return () => unsub();

@@ -313,7 +313,10 @@ export const useSendMessage = (_configOverride?: IConfig) => {
         // markOutboundSentLive / flushOutboundSends. Customer-reported #31.
         markOutboundSentLive(optimisticId);
         try {
-          effectiveClient.ensureStreamAlive?.();
+          // Throttled + config-gated: a burst of sends starts at most one
+          // probe, and a single missed probe no longer tears the stream
+          // down. See ensureStreamAliveAfterSend / ensureStreamAlive.
+          effectiveClient.ensureStreamAliveAfterSend?.();
         } catch {}
         // Post-send notification ONLY. Deliberately outside the try below:
         // `handleMessageSent` re-throws whatever the host app's
@@ -602,7 +605,7 @@ export const useSendMessage = (_configOverride?: IConfig) => {
               id
             );
             try {
-              effectiveMediaClient.ensureStreamAlive?.();
+              effectiveMediaClient.ensureStreamAliveAfterSend?.();
             } catch {}
           } else {
             const anyMediaClient: any =
