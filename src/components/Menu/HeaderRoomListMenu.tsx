@@ -124,19 +124,32 @@ export const HeaderRoomListMenu: FC<HeaderRoomListMenuProps> = ({
   const sheetHeightRef = useRef(sheetHeight);
   sheetHeightRef.current = sheetHeight;
 
+  // closeDrawer is a fresh function each render; the responder is built
+  // once, so it reads the current one through a ref rather than the one it
+  // closed over on mount.
+  const closeDrawerRef = useRef(closeDrawer);
+  closeDrawerRef.current = closeDrawer;
+
   useEffect(() => {
     if (!isDrawerOpen) {
       dragY.setValue(0);
+      return;
     }
+    // Hand `dragY` to the native driver up front. The open/close value is
+    // already native (the parent animates it that way), and a transform
+    // that mixes a native node with a JS-only one drops the JS updates on
+    // the floor — which is exactly a drag that moves nothing.
+    Animated.timing(dragY, {
+      toValue: 0,
+      duration: 0,
+      useNativeDriver: true,
+    }).start();
   }, [isDrawerOpen, dragY]);
 
-  const sheetTranslateY = Animated.add(
-    drawerAnimation.interpolate({
-      inputRange: [0, 1],
-      outputRange: [sheetHeight, 0],
-    }),
-    dragY
-  );
+  const openTranslateY = drawerAnimation.interpolate({
+    inputRange: [0, 1],
+    outputRange: [sheetHeight, 0],
+  });
 
   const dismissByDrag = () => {
     Animated.timing(dragY, {
@@ -144,15 +157,23 @@ export const HeaderRoomListMenu: FC<HeaderRoomListMenuProps> = ({
       duration: 180,
       useNativeDriver: true,
     }).start();
-    closeDrawer();
+    closeDrawerRef.current();
   };
 
-  const pan = useRef(
+  const makeDragResponder = (claimOnStart: boolean) =>
     PanResponder.create({
-      // Taps belong to the rows; only a clear downward pull is ours.
-      onStartShouldSetPanResponder: () => false,
+      // The grab area claims on touch-DOWN: nothing to negotiate against,
+      // so a pull on the handle always drags.
+      onStartShouldSetPanResponder: () => claimOnStart,
+      // CAPTURE matters on the body: a drag that starts on a row makes
+      // that row's Touchable the responder on touch-down, and a plain
+      // `onMoveShouldSetPanResponder` is never consulted afterwards.
+      // Capturing on the first clearly-vertical movement takes the gesture
+      // back, while a tap (dy ≈ 0) still reaches the row.
+      onMoveShouldSetPanResponderCapture: (_evt, g) =>
+        claimOnStart || shouldClaimVerticalDrag(g.dy, g.dx),
       onMoveShouldSetPanResponder: (_evt, g) =>
-        shouldClaimVerticalDrag(g.dy, g.dx),
+        claimOnStart || shouldClaimVerticalDrag(g.dy, g.dx),
       onPanResponderTerminationRequest: () => false,
       onPanResponderMove: (_evt, g) => {
         dragY.setValue(Math.max(0, g.dy));
@@ -177,8 +198,16 @@ export const HeaderRoomListMenu: FC<HeaderRoomListMenuProps> = ({
           useNativeDriver: true,
         }).start();
       },
-    })
-  ).current;
+    });
+
+  // Built once — `useRef(expr)` would re-run PanResponder.create every
+  // render and throw the result away.
+  const bodyPanRef = useRef<ReturnType<typeof makeDragResponder> | null>(null);
+  const handlePanRef = useRef<ReturnType<typeof makeDragResponder> | null>(null);
+  if (!bodyPanRef.current) {bodyPanRef.current = makeDragResponder(false);}
+  if (!handlePanRef.current) {handlePanRef.current = makeDragResponder(true);}
+  const pan = bodyPanRef.current;
+  const handlePan = handlePanRef.current;
 
   const menuOptions = useMemo(() => {
     const options: {
@@ -261,12 +290,23 @@ export const HeaderRoomListMenu: FC<HeaderRoomListMenuProps> = ({
           styles.sheet,
           {
             paddingBottom: insets.bottom + 20,
-            transform: [{ translateY: sheetTranslateY }],
+            // Two entries rather than Animated.add: the parent's value is
+            // driven natively, and stacking the transforms keeps each node
+            // on its own driver instead of mixing them in one expression.
+            transform: [{ translateY: openTranslateY }, { translateY: dragY }],
           },
         ]}
         {...pan.panHandlers}
       >
-        <View style={styles.grabber} />
+        {/* Full-width grab area, not just the 40pt pill: it claims the
+          * gesture the moment it is touched. */}
+        <View
+          testID="header-menu-grabber"
+          style={styles.grabArea}
+          {...handlePan.panHandlers}
+        >
+          <View style={styles.grabber} />
+        </View>
         <View style={styles.card}>
           {menuOptions.map((option, index) => (
             <View key={index} style={styles.menuItemWrapper}>
@@ -340,13 +380,16 @@ const styles = StyleSheet.create({
     elevation: 12,
     zIndex: 999,
   },
+  grabArea: {
+    alignItems: 'center',
+    paddingTop: 6,
+    paddingBottom: 12,
+  },
   grabber: {
-    alignSelf: 'center',
     width: 40,
     height: 4,
     borderRadius: 2,
     backgroundColor: '#C9CBD1',
-    marginBottom: 12,
   },
   card: {
     overflow: 'hidden',

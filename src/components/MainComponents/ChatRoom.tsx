@@ -20,6 +20,7 @@ import NewChatModal from '../Modals/NewChatModal/NewChatModal';
 import { EditWrapper } from './EditWrapper';
 import { EmptyChatIllustration } from '../../assets/EmptyChatIllustration';
 import { getIconColor } from '../../helpers/getIconColor';
+import { getChatBackgroundColor } from '../../helpers/getChatBackground';
 import { ChooseChatMessage } from './ChooseChatMessage';
 import { useRoomUrl } from '../../hooks/useRoomUrl';
 import { useSendMessage } from '../../hooks/useSendMessage';
@@ -340,7 +341,20 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
       ? KeyboardStickyView
       : View;
     const inputDockProps: any = {
-      style: { paddingBottom: inputDockPaddingBottom, backgroundColor: '#fff' },
+      // The dock carries the composer's white surface all the way to the
+      // bottom edge, so it needs the same rounded top and upward shadow —
+      // a square white block behind a rounded composer just hid the corners.
+      style: {
+        paddingBottom: inputDockPaddingBottom,
+        backgroundColor: '#fff',
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        shadowColor: '#101828',
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.06,
+        shadowRadius: 12,
+        elevation: 8,
+      },
       ...(stickyInput
         ? { offset: { closed: 0, opened: keyboardVerticalOffset } }
         : {}),
@@ -349,11 +363,15 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
     return (
       <KeyboardWrapper {...keyboardWrapperProps}>
         <ChatContainer
-          style={
-            configWithEventHandlers?.chatRoomStyles
-              ? (configWithEventHandlers.chatRoomStyles as import('react-native').ViewStyle)
-              : undefined
-          }
+          // The conversation's own colour, not white: the header's rounded
+          // bottom corners and the composer's rounded top corners reveal
+          // THIS view, so a white parent made both look square.
+          style={[
+            { backgroundColor: getChatBackgroundColor(configWithEventHandlers) },
+            configWithEventHandlers?.chatRoomStyles as
+              | import('react-native').ViewStyle
+              | undefined,
+          ]}
         >
           {!configWithEventHandlers?.disableHeader && (
             <ChatHeader
@@ -392,7 +410,11 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
                   flex: 1,
                   justifyContent: 'center',
                   alignItems: 'center',
-                  backgroundColor: '#ffffff',
+                  // Empty rooms used to flip to white, which broke the
+                  // header's rounded corners in exactly the same way.
+                  backgroundColor: getChatBackgroundColor(
+                    configWithEventHandlers
+                  ),
                 }}
               >
                 <NoMessagesPlaceholder />

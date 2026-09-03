@@ -28,6 +28,7 @@ import Loader from '../styled/Loader';
 import { ArowDownIcon } from '../../assets/icons';
 import CustomTypingIndicator from '../styled/StyledInputComponents/CustomTypingIndicator';
 import { getIconColor } from '../../helpers/getIconColor';
+import { getChatBackgroundColor } from '../../helpers/getChatBackground';
 
 interface MessageListProps<TMessage extends IMessage> {
   CustomMessage?: React.ComponentType<{
@@ -428,7 +429,7 @@ const MessageList = <TMessage extends IMessage>({
     <View
       style={[
         styles.container,
-        { backgroundColor: config?.backgroundChat?.color || '#F3F6FC' },
+        { backgroundColor: getChatBackgroundColor(config) },
       ]}
     >
       <View style={styles.backgroundImageContainer}>{BackgroundImage}</View>

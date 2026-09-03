@@ -121,6 +121,30 @@ describe('HeaderRoomListMenu — bottom sheet', () => {
     expect(modal.props.statusBarTranslucent).toBe(true);
   });
 
+  it('has a grab area that claims the drag on touch-down', async () => {
+    const { tree } = await renderMenu({});
+    const grab = tree.root.find(
+      (n) => n.props?.testID === 'header-menu-grabber'
+    );
+    expect(grab.props.onStartShouldSetResponder()).toBe(true);
+    expect(typeof grab.props.onResponderRelease).toBe('function');
+  });
+
+  it('stacks the open and drag transforms instead of adding them', async () => {
+    const { tree } = await renderMenu({});
+    const sheet = tree.root.find((n) => n.props?.testID === 'header-menu-sheet');
+    const style = (Array.isArray(sheet.props.style)
+      ? sheet.props.style
+      : [sheet.props.style]
+    ).flat();
+    const flat = Object.assign({}, ...style.filter(Boolean));
+    // The parent's value runs on the native driver; mixing it into one
+    // Animated.add expression with the JS-written drag value is what
+    // silently froze the sheet.
+    expect(flat.transform).toHaveLength(2);
+    expect(flat.transform.every((t: any) => 'translateY' in t)).toBe(true);
+  });
+
   it('can be pulled down to dismiss, without stealing row taps', async () => {
     const { tree } = await renderMenu({});
     const sheet = tree.root.find((n) => n.props?.testID === 'header-menu-sheet');
@@ -128,6 +152,10 @@ describe('HeaderRoomListMenu — bottom sheet', () => {
     expect(typeof sheet.props.onResponderRelease).toBe('function');
     // …and only claim a clear downward pull, so a tap still hits the row.
     expect(sheet.props.onStartShouldSetResponder()).toBe(false);
+    // Captured from the rows: without this the sheet could only be dragged
+    // by the blank points between them.
+    const capture = sheet.props.onMoveShouldSetResponderCapture;
+    expect(typeof capture).toBe('function');
     expect(shouldClaimVerticalDrag(30, 0)).toBe(true);
     expect(shouldClaimVerticalDrag(3, 0)).toBe(false);
     expect(shouldDismissOnDrag(120, 0)).toBe(true);

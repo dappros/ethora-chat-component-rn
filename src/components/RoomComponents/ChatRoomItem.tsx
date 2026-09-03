@@ -104,7 +104,9 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
           paddingVertical: 8,
           paddingRight: 8,
           borderBottomWidth: 1,
-          borderBottomColor: '#F0F0F0',
+          // Reads against the list's #E8EDF2 ground; #F0F0F0 was lighter
+          // than the ground itself, so the row separators vanished.
+          borderBottomColor: '#C6CFDA',
         }}
       >
         <View
@@ -215,8 +217,11 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
           ) : null}
         </View>
         {isDriver && (
+          // Darker than the list's own ground (#E8EDF2), otherwise the
+          // separator disappears into it — white and the old #0052CD0D
+          // hairline both did.
           <View
-            style={{ height: 1, backgroundColor: '#0052CD0D', marginTop: 8 }}
+            style={{ height: 1, backgroundColor: '#C6CFDA', marginTop: 8 }}
           />
         )}
       </View>

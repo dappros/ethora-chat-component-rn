@@ -28,9 +28,15 @@ export const ChatContainerHeader = styled.View`
   background-color: #ffffff;
   align-items: center;
   justify-content: space-between;
-  border-bottom-width: 1px;
-  border-bottom-color: #e5e7eb;
-  border-style: solid;
+  /* Rounded bottom corners + a soft drop shadow instead of the hairline
+   * rule, so the header reads as a card over the conversation. */
+  border-bottom-left-radius: 20px;
+  border-bottom-right-radius: 20px;
+  shadow-color: #101828;
+  shadow-offset: 0px 4px;
+  shadow-opacity: 0.06;
+  shadow-radius: 12px;
+  elevation: 4;
   z-index: 1000;
 `;
 

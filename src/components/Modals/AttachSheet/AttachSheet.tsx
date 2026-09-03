@@ -188,6 +188,10 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
   const makeDragResponder = (claimOnStart: boolean) =>
     PanResponder.create({
       onStartShouldSetPanResponder: () => claimOnStart,
+      // Capture, so a pull that starts on a row (whose Touchable grabbed
+      // the responder on touch-down) still drags the sheet.
+      onMoveShouldSetPanResponderCapture: (_evt, g) =>
+        claimOnStart || shouldClaimVerticalDrag(g.dy, g.dx),
       onMoveShouldSetPanResponder: (_evt, g) =>
         claimOnStart || shouldClaimVerticalDrag(g.dy, g.dx),
       onPanResponderTerminationRequest: () => false,

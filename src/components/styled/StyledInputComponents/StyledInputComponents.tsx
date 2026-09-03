@@ -13,14 +13,21 @@ const colors = {
 
 export const InputContainer = styled.View<{ isText?: boolean }>`
   flex-direction: column;
-  padding: 8px 16px 4px 16px;
-  background-color: ${colors.white};
+  padding: 12px 16px 8px 16px;
+  /* Transparent, so the dock's white surface — and its rounded top
+   * corners — are what shows. An opaque child painted straight over those
+   * corners (a parent's border radius does not clip children without
+   * overflow:hidden, and that would clip the dock's shadow too). */
+  background-color: transparent;
   z-index: 100;
   width: 100%;
   bottom: 0;
   left: 0;
-  border-top-width: 1px;
-  border-top-color: #e5e7eb;
+  /* No radius or shadow here: the dock this sits in (ChatRoom's
+   * InputDockTag) is the composer's outer surface and carries both. Having
+   * them on this inner view too drew its shadow onto the dock's white
+   * background — the faint seam that made the strip below look like a
+   * different colour. */
 `;
 
 export const MediaContainer = styled.View`

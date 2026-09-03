@@ -35,6 +35,14 @@ interface RoomListProps {
   onRoomClick?: (chat: IRoom) => void;
 }
 
+/** Page ground behind the room list, the search field and the header's
+ * rounded bottom corners. */
+const LIST_BACKGROUND = '#E8EDF2';
+
+/** First-paint fallback until the floating search strip reports its real
+ * height; the list's top padding follows the measurement after that. */
+const SEARCH_BAR_ESTIMATE = 60;
+
 const RoomList: React.FC<RoomListProps> = ({
   chats,
   burgerMenu = false,
@@ -120,6 +128,10 @@ const RoomList: React.FC<RoomListProps> = ({
     }
   }, [burgerMenu]);
 
+  // Measured, so the list's top padding always matches the floating
+  // search strip — including when a larger font or a taller field grows it.
+  const [searchBarHeight, setSearchBarHeight] = useState(SEARCH_BAR_ESTIMATE);
+
   const toggleDrawer = () => {
     if (isDrawerOpen) {
       closeDrawer();
@@ -180,39 +192,50 @@ const RoomList: React.FC<RoomListProps> = ({
           <>
             <View style={styles.scrollContainer}>
               <HeaderRoomList setDrawerOpen={toggleDrawer} />
-              {/* Search sits ABOVE the list rather than in its
-                  ListHeaderComponent. As a list header it was simply the
-                  first scrolling row, so the moment you scrolled the rooms
-                  it slid up and disappeared behind the opaque header band.
-                  Fixed here it stays reachable, which is the entire point
-                  of a search field over a long list. */}
-              <View style={styles.searchBar}>
-                <SearchInput
-                  icon={<SearchIcon height={20} />}
-                  value={searchTerm}
-                  onChangeText={handleSearchChange}
-                  placeholder={t('search.placeholder')}
+              {/* The search field floats OVER the list rather than
+                  sitting above it in the column: its strip is transparent
+                  and the rooms scroll underneath, which is what the design
+                  shows. It is still fixed (not a ListHeaderComponent), so
+                  it stays reachable however far the list is scrolled — as a
+                  list header it scrolled away behind the opaque header. */}
+              <View style={styles.listArea}>
+                <FlatList
+                  data={filteredChats}
+                  keyExtractor={(item) => item.jid}
+                  // Clears the floating field on first paint; scrolling
+                  // then slides the rooms under it.
+                  contentContainerStyle={{ paddingTop: searchBarHeight }}
+                  renderItem={({ item }) => (
+                    <Pressable
+                      // Stable testID so e2e drivers can target a room
+                      // row by its jid local-part (e.g. Main chat under
+                      // app id `..._...759` → testID `room-...759`).
+                      testID={`room-${(item.jid || '').split('@')[0]}`}
+                      accessibilityLabel={`room-${item.title || item.name}`}
+                      onPress={() => performClick(item)}
+                      onPressIn={handlePressIn}
+                      onPressOut={handlePressOut}
+                    >
+                      <ChatRoomItem chat={item} config={config} />
+                    </Pressable>
+                  )}
+                  style={styles.chatList}
                 />
+                <View
+                  testID="room-list-search"
+                  style={styles.searchBar}
+                  onLayout={(e) =>
+                    setSearchBarHeight(e.nativeEvent.layout.height)
+                  }
+                >
+                  <SearchInput
+                    icon={<SearchIcon height={20} />}
+                    value={searchTerm}
+                    onChangeText={handleSearchChange}
+                    placeholder={t('search.placeholder')}
+                  />
+                </View>
               </View>
-              <FlatList
-                data={filteredChats}
-                keyExtractor={(item) => item.jid}
-                renderItem={({ item }) => (
-                  <Pressable
-                    // Stable testID so e2e drivers can target a room
-                    // row by its jid local-part (e.g. Main chat under
-                    // app id `..._...759` → testID `room-...759`).
-                    testID={`room-${(item.jid || '').split('@')[0]}`}
-                    accessibilityLabel={`room-${item.title || item.name}`}
-                    onPress={() => performClick(item)}
-                    onPressIn={handlePressIn}
-                    onPressOut={handlePressOut}
-                  >
-                    <ChatRoomItem chat={item} config={config} />
-                  </Pressable>
-                )}
-                style={styles.chatList}
-              />
 
               <HeaderRoomListMenu
                 closeDrawer={closeDrawer}
@@ -238,7 +261,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: LIST_BACKGROUND,
   },
   scrollContainer: {
     flexGrow: 1,
@@ -249,6 +272,9 @@ const styles = StyleSheet.create({
     padding: 16,
     justifyContent: 'space-between',
   },
+  listArea: {
+    flex: 1,
+  },
   searchBar: {
     // `row` matters: SearchInputWrapper is `flex: 1` plus a fixed 44px
     // height. In a column parent that flex resolves VERTICALLY against a
@@ -256,14 +282,19 @@ const styles = StyleSheet.create({
     // but its magnifier. As a row it resolves to width, which is what it
     // meant back when the field was a list-header child.
     flexDirection: 'row',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
     paddingTop: 8,
+    paddingBottom: 8,
     paddingHorizontal: 16,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: 'transparent',
   },
   chatList: {
     flex: 1,
     paddingHorizontal: 16,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: LIST_BACKGROUND,
   },
 });
 
