@@ -215,25 +215,30 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
     // Tracks what the user actually saw: `null` while they're at the
     // bottom (safe to mark everything read), or the timestamp of the
     // newest message visible when they scrolled away from it. Reported
-    // by MessageList via onReadBoundaryChange. Without this, leaving a
+    // published by MessageList into the store. Without this, leaving a
     // room (or backgrounding) while scrolled up stamped `now()` as read
     // and silently discarded genuinely-unread messages. Customer-
     // reported #33.
-    const readBoundaryRef = useRef<number | null>(null);
-    const handleReadBoundaryChange = useCallback((boundaryTs: number | null) => {
-      readBoundaryRef.current = boundaryTs;
-    }, []);
+    // MessageList publishes the boundary straight into the store, so the
+    // cleanup below reads it from there rather than keeping a second copy
+    // in a ref — the out-of-component paths (AppState background, the
+    // `isVisible` signal, useChatRoomFocus, logout) read the same field.
+    const getReadBoundary = useCallback(
+      (jid: string): number | null =>
+        store.getState().rooms?.rooms?.[jid]?.readBoundaryTs ?? null,
+      []
+    );
 
     useEffect(() => {
       if (!activeRoomJID) {
         return;
       }
 
-      readBoundaryRef.current = null;
       dispatch(setVisibleRoom({ roomJID: activeRoomJID }));
       setIsLoadingMore(false);
       return () => {
-        const timestamp = readBoundaryRef.current ?? new Date().getTime();
+        const boundaryTs = getReadBoundary(activeRoomJID);
+        const timestamp = boundaryTs ?? new Date().getTime();
         dispatch(
           setLastViewedTimestamp({
             chatJID: activeRoomJID,
@@ -251,7 +256,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
               // room, so messages the user never scrolled down to come
               // back as read on the next login — the local count was
               // right but the server overrode it.
-              visibleRoomTs: readBoundaryRef.current,
+              visibleRoomTs: boundaryTs,
             })
             .catch(() => {});
         }
@@ -465,7 +470,6 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
                 config={configWithEventHandlers}
                 loading={isLoadingMore}
                 isReply={false}
-                onReadBoundaryChange={handleReadBoundaryChange}
               />
             )}
           </View>

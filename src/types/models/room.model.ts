@@ -50,6 +50,21 @@ export interface IRoom {
   composingList?: string[];
   lastViewedTimestamp?: number;
   unreadMessages?: number;
+  /**
+   * Timestamp of the newest message the user had actually reached when
+   * they scrolled away from the bottom of this room, or null/undefined
+   * while they are at the bottom (everything on screen is read).
+   *
+   * Lives in the store rather than in ChatRoom's local state because
+   * several code paths outside the component mark a room read — the
+   * AppState background handler, the `isVisible` consumer signal, the
+   * visible-room auto-advance, `useChatRoomFocus` — and all of them must
+   * stamp what the user actually saw instead of `Date.now()`. Stamping
+   * "now" while they are scrolled up silently destroys unread messages,
+   * and because those paths also flush to the server-side private store
+   * the loss survives an app restart. Customer-reported #33.
+   */
+  readBoundaryTs?: number | null;
   noMessages?: boolean;
   role?: string;
 

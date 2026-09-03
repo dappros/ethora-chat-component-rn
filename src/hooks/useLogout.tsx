@@ -63,6 +63,13 @@ const logoutService = {
         await Promise.race([
           client.flushLastViewedToPrivateStoreStanza(rooms, {
             visibleRoomJID,
+            // `onlyIfNoUnread` deliberately exempts the visible room, so
+            // without this the open-but-scrolled-up room would still be
+            // stamped "read up to now" on logout and come back read on
+            // the next login. Customer-reported #33.
+            visibleRoomTs: visibleRoomJID
+              ? rooms?.[visibleRoomJID]?.readBoundaryTs ?? null
+              : null,
             onlyIfNoUnread: true,
           }),
           new Promise((res) => setTimeout(res, 2000)),

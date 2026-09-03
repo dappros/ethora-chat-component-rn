@@ -33,6 +33,21 @@ export interface IRoom {
   composingList?: string[];
   lastViewedTimestamp?: number;
   unreadMessages?: number;
+  /**
+   * Timestamp of the newest message the user had actually reached when
+   * they scrolled away from the bottom of this room; null/undefined while
+   * they are at the bottom (everything on screen is read).
+   *
+   * Written only by MessageList as the user scrolls. Every path that marks
+   * a room read must prefer this over `Date.now()` — the AppState
+   * background handler, the `isVisible` consumer signal, the visible-room
+   * auto-advance, `useChatRoomFocus` and logout all flush to the
+   * server-side private store, so stamping "now" while the user is
+   * scrolled up destroys unread messages permanently (survives an app
+   * restart, because the bad marker comes back from the server).
+   * Customer-reported #33.
+   */
+  readBoundaryTs?: number | null;
   noMessages?: boolean;
   role?: string;
   createdAt?: string | number | Date;

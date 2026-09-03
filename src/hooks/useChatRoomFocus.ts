@@ -59,12 +59,20 @@ export const useChatRoomFocus = ({
   });
 
   const leaveRoom = (jid: string) => {
-    const timestamp = Date.now();
+    const rooms = store.getState().rooms?.rooms;
+    // Only mark read as far as the user actually scrolled. Blindly
+    // stamping `Date.now()` here clears messages they never reached, and
+    // the server flush below makes that permanent across a restart.
+    // Customer-reported #33.
+    const boundaryTs = rooms?.[jid]?.readBoundaryTs ?? null;
+    const timestamp = boundaryTs ?? Date.now();
     dispatch(setLastViewedTimestamp({ chatJID: jid, timestamp }));
     dispatch(clearVisibleRoom());
-    const rooms = store.getState().rooms?.rooms;
     (store.getState().chatSettingStore as any)?.client
-      ?.flushLastViewedToPrivateStoreStanza(rooms, { visibleRoomJID: jid })
+      ?.flushLastViewedToPrivateStoreStanza(rooms, {
+        visibleRoomJID: jid,
+        visibleRoomTs: boundaryTs,
+      })
       .catch(() => {});
   };
 

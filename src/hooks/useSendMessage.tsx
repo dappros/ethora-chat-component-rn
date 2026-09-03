@@ -10,7 +10,11 @@ import {
   markMessageFailed,
 } from '../roomStore/roomHeapSlice';
 import { uploadFileV2 } from '../networking/api-requests/auth.api';
-import { enqueueOutboundSend, removeOutboundSend } from '../networking/outboundQueue';
+import {
+  enqueueOutboundSend,
+  markOutboundSentLive,
+  removeOutboundSend,
+} from '../networking/outboundQueue';
 import { RootState, store } from '../roomStore';
 import { getGlobalXmppClient } from '../utils/clientRegistry';
 import { useEventHandlers } from './useEventHandlers';
@@ -304,15 +308,33 @@ export const useSendMessage = (_configOverride?: IConfig) => {
         }
 
         replaySend(effectiveClient);
+        // The stanza is on the wire from here on. Mark the buffered copy
+        // so a later reconnect flush won't blind-replay it — see
+        // markOutboundSentLive / flushOutboundSends. Customer-reported #31.
+        markOutboundSentLive(optimisticId);
         try {
           effectiveClient.ensureStreamAlive?.();
         } catch {}
-        await handleMessageSent({
-          message,
-          roomJID: activeRoomJID,
-          user,
-          messageType: 'text',
-        });
+        // Post-send notification ONLY. Deliberately outside the try below:
+        // `handleMessageSent` re-throws whatever the host app's
+        // `eventHandlers.onMessageSent` callback throws, and this runs
+        // AFTER the stanza was already delivered — letting that reach the
+        // catch marked a delivered message "Failed → tap to retry" purely
+        // because a consumer's analytics/webhook hook was slow or errored.
+        // Customer-reported #31 ("delivered but shows as failed").
+        try {
+          await handleMessageSent({
+            message,
+            roomJID: activeRoomJID,
+            user,
+            messageType: 'text',
+          });
+        } catch (notifyError) {
+          console.warn(
+            'onMessageSent handler threw after a successful send; not failing the message',
+            notifyError
+          );
+        }
       } catch (error) {
         clearTimeout(watchdogTimer);
         // Same reasoning as the watchdog: once the bubble shows failed,
@@ -603,21 +625,32 @@ export const useSendMessage = (_configOverride?: IConfig) => {
           }
         }
 
-        await handleMessageSent({
-          message: 'media',
-          roomJID: activeRoomJID,
-          user,
-          messageType: 'media',
-          metadata: {
-            isReply,
-            isChecked,
-            mainMessage,
-            fileData: data,
-            fileType: type,
-            messageId: id,
-            uploadResults: response.data.results,
-          },
-        });
+        // Post-send notification ONLY — see the text path: the upload and
+        // stanza send have already succeeded here, so a throw from the
+        // host's `onMessageSent` callback must not flip this to "Failed".
+        // Customer-reported #31.
+        try {
+          await handleMessageSent({
+            message: 'media',
+            roomJID: activeRoomJID,
+            user,
+            messageType: 'media',
+            metadata: {
+              isReply,
+              isChecked,
+              mainMessage,
+              fileData: data,
+              fileType: type,
+              messageId: id,
+              uploadResults: response.data.results,
+            },
+          });
+        } catch (notifyError) {
+          console.warn(
+            'onMessageSent handler threw after a successful media send; not failing the message',
+            notifyError
+          );
+        }
       } catch (error: any) {
         // Upload (or stanza send) threw an explicit error. Clear the
         // watchdog so it doesn't double-fire `markMessageFailed`.

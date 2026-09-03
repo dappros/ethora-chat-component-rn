@@ -543,6 +543,25 @@ const reducers = {
     ) => {
       state.isUnreadSyncing = action.payload;
     },
+    /**
+     * Records how far the user has actually read in a room: the timestamp
+     * of the newest message they had reached when they scrolled away from
+     * the bottom, or `null` while they are at the bottom.
+     *
+     * Written only by MessageList as the user scrolls. Deliberately does
+     * NOT touch `unreadMessages` or `lastViewedTimestamp` — it only tells
+     * the various "mark this room read" paths what value to stamp instead
+     * of `Date.now()`. Customer-reported #33.
+     */
+    setReadBoundary: (
+      state: WritableDraft<RoomMessagesState>,
+      action: PayloadAction<{ chatJID: string; boundaryTs: number | null }>
+    ) => {
+      const { chatJID, boundaryTs } = action.payload;
+      if (state.rooms[chatJID]) {
+        state.rooms[chatJID].readBoundaryTs = boundaryTs;
+      }
+    },
     setLastViewedTimestamp: (
       state: WritableDraft<RoomMessagesState>,
       action: PayloadAction<{ chatJID: string; timestamp: number }>
@@ -899,6 +918,7 @@ export const {
   setIsLoading,
   setUnreadSyncing,
   setLastViewedTimestamp,
+  setReadBoundary,
   applyPrivateStoreMarkers,
   setRoomNoMessages,
   setCurrentRoom,

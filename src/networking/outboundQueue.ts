@@ -46,6 +46,19 @@ export interface QueuedSend {
    * OUTBOUND_QUEUE_TTL_MS when omitted.
    */
   ttlMs?: number;
+  /**
+   * True once the stanza was actually written to a live, online stream.
+   *
+   * Such a send has most likely reached the server already — only its
+   * echo may still be in flight. Blind-replaying it on the next 'online'
+   * event is what produced real duplicates on the recipient side: a send
+   * is followed by `ensureStreamAlive()`, whose 4s "did any stanza come
+   * back" probe force-reconnects a perfectly healthy but quiet stream,
+   * and the resulting reconnect flushed the queue. The queue exists for
+   * sends that never made it onto the wire, so those are the only ones
+   * safe to replay unattended. Customer-reported #31.
+   */
+  sentLive?: boolean;
   /** Replays the original send against a live, online client. */
   send: (client: OutboundQueueClient) => void;
 }
@@ -88,6 +101,14 @@ export function flushOutboundSends(
       // Stale — the send watchdog owns the failure; don't duplicate.
       continue;
     }
+    if (item.sentLive) {
+      // Already written to a live stream: the server very likely has it
+      // and we'd be sending a second copy. Let the pending watchdog own
+      // this one — if no echo ever arrives it surfaces as "Failed → tap
+      // to retry" and the USER decides, which is what the customer asked
+      // for ("a message the server accepted is never sent again").
+      continue;
+    }
     try {
       item.send(client);
     } catch (err) {
@@ -103,6 +124,12 @@ export function flushOutboundSends(
  * the send went through, so the buffered replay is no longer needed and must
  * not fire on a later reconnect. No-op if the id isn't queued.
  */
+export function markOutboundSentLive(optimisticId: string): void {
+  if (!optimisticId) {return;}
+  const item = queue.find((q) => q.optimisticId === optimisticId);
+  if (item) {item.sentLive = true;}
+}
+
 export function removeOutboundSend(optimisticId: string): void {
   if (!optimisticId) {return;}
   const idx = queue.findIndex((q) => q.optimisticId === optimisticId);

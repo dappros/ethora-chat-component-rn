@@ -246,7 +246,15 @@ const onMessageHistory = async (stanza: any) => {
       mergedAttrs,
       body,
       id,
-      stanza.attrs.from,
+      // `innerFrom` (the forwarded message's own `room@conference/nick`),
+      // NOT the outer MAM envelope's `from` — for an archive query the
+      // envelope is the BARE room jid with no resource, so passing it here
+      // stripped the sender out of `xmppFrom` and left `roomJid` derived
+      // from a value that carries no occupant identity. The correct
+      // occupant jid is already computed above for the senderJID fallback;
+      // use the same one so the archived copy carries the same sender
+      // identity the realtime path produces. Customer-reported #32.
+      innerFrom,
       !!deleted
     );
 

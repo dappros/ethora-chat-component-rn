@@ -18,8 +18,9 @@ import {
   TouchableOpacity,
   ImageSourcePropType,
 } from 'react-native';
+import { useDispatch } from 'react-redux';
 import { IMessage, User, IConfig, IRoom } from '../../types/types';
-import { msgSortableMs } from '../../roomStore/roomsSlice';
+import { msgSortableMs, setReadBoundary } from '../../roomStore/roomsSlice';
 import Composing from '../styled/StyledInputComponents/Composing';
 import TreadLabel from '../styled/TreadLabel';
 import { MessageContainer } from './MessageContainer';
@@ -77,6 +78,7 @@ const MessageList = <TMessage extends IMessage>({
   activeMessage,
   onReadBoundaryChange,
 }: MessageListProps<TMessage>) => {
+  const dispatch = useDispatch();
   const { composing, messages, composingList } = useRoomState(roomJID)
     .room! as IRoom;
   const [isUserAtBottom, setIsUserAtBottom] = useState(true);
@@ -101,6 +103,21 @@ const MessageList = <TMessage extends IMessage>({
   const hasUserScrolledRef = useRef(false);
 
   const flatListRef = useRef<FlatList<IMessage>>(null);
+
+  // Single writer for the read boundary. Publishes to the store (so the
+  // out-of-component paths that mark a room read — AppState background,
+  // the `isVisible` signal, the visible-room auto-advance, focus hooks,
+  // logout — can stamp what the user actually saw) AND to the optional
+  // host callback. Customer-reported #33.
+  const reportReadBoundary = useCallback(
+    (boundaryTs: number | null) => {
+      if (roomJID) {
+        dispatch(setReadBoundary({ chatJID: roomJID, boundaryTs }));
+      }
+      onReadBoundaryChange?.(boundaryTs);
+    },
+    [dispatch, roomJID, onReadBoundaryChange]
+  );
 
   const addReplyMessages = useMemo(() => {
     return messages.map((message: IMessage) => {
@@ -342,7 +359,7 @@ const MessageList = <TMessage extends IMessage>({
         // counter so the badge disappears with the arrow.
         setUnreadWhileScrolledUp(0);
         newestSeenTsRef.current = null;
-        onReadBoundaryChange?.(null);
+        reportReadBoundary(null);
       } else {
         isUserAtBottomRef.current = false;
         if (hasUserScrolledRef.current) {
@@ -360,12 +377,12 @@ const MessageList = <TMessage extends IMessage>({
             },
             0
           );
-          onReadBoundaryChange?.(newestSeenTsRef.current);
+          reportReadBoundary(newestSeenTsRef.current);
         }
         setIsUserAtBottom(false);
       }
     },
-    [memoizedMessages, onReadBoundaryChange]
+    [memoizedMessages, reportReadBoundary]
   );
 
   // Keep the badge in sync with messages that arrive while the user is
@@ -394,7 +411,7 @@ const MessageList = <TMessage extends IMessage>({
     setIsUserAtBottom(true);
     setUnreadWhileScrolledUp(0);
     newestSeenTsRef.current = null;
-    onReadBoundaryChange?.(null);
+    reportReadBoundary(null);
     scrollToBottom();
   };
 
@@ -405,7 +422,7 @@ const MessageList = <TMessage extends IMessage>({
     setIsUserAtBottom(true);
     setUnreadWhileScrolledUp(0);
     newestSeenTsRef.current = null;
-    onReadBoundaryChange?.(null);
+    reportReadBoundary(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomJID]);
 

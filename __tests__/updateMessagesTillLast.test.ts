@@ -30,7 +30,7 @@ jest.mock('../src/roomStore', () => {
 
 import { updateMessagesTillLast } from '../src/helpers/updateMessagesTillLast';
 import { store as sharedStore } from '../src/roomStore';
-import { addRoom, setRoomMessages } from '../src/roomStore/roomsSlice';
+import { addRoom } from '../src/roomStore/roomsSlice';
 import type { IMessage } from '../src/types/types';
 import { checkUniqueUsers } from '../src/helpers/checkUniqueUsers';
 
@@ -117,7 +117,7 @@ describe('updateMessagesTillLast', () => {
     expect(client.getHistoryStanza).toHaveBeenCalledTimes(1);
   });
 
-  it('retries up to maxFetchAttempts then dispatches setRoomMessages with the accumulated batch', async () => {
+  it('retries up to maxFetchAttempts then dispatches the accumulated batch', async () => {
     const TARGET_TS = 9999999999999;
     sharedStore.dispatch(
       addRoom({
@@ -144,16 +144,57 @@ describe('updateMessagesTillLast', () => {
       1
     );
     expect(client.getHistoryStanza).toHaveBeenCalledTimes(4);
-    // The setRoomMessages dispatch happens once retries exhaust.
-    const setRoomCall = dispatchSpy.mock.calls.find(
-      ([action]) => (action as any)?.type === 'roomMessages/setRoomMessages'
+    // Publishes through applyRoomsPreloadBatch (merge, "fetched wins")
+    // rather than the old setRoomMessages array-replace, so the reconnect
+    // catch-up lands the same way the startup preload does (#32).
+    const batchCall = dispatchSpy.mock.calls.find(
+      ([action]) =>
+        (action as any)?.type === 'roomMessages/applyRoomsPreloadBatch'
     );
-    expect(setRoomCall).toBeDefined();
-    expect((setRoomCall![0] as any).payload.roomJID).toBe('a@h');
-    expect((setRoomCall![0] as any).payload.messages).toHaveLength(4);
+    expect(batchCall).toBeDefined();
+    expect((batchCall![0] as any).payload.rooms[0].jid).toBe('a@h');
+    expect((batchCall![0] as any).payload.rooms[0].messages).toHaveLength(4);
 
     // checkUniqueUsers was called on the final batch.
     expect(checkUniqueUsers).toHaveBeenCalled();
+    dispatchSpy.mockRestore();
+  });
+
+  // Regression for #32: the dispatch used to sit inside the retry loop
+  // behind `!isMessageFound && !(counter <= maxFetchAttempts - 1)`, so the
+  // COMMON case — anchor found on the very first fetch — dispatched
+  // nothing at all. The messages then only reached the store via the
+  // always-on onMessageHistory stanza handler, which parses the same
+  // stanza differently (wrong sender identity, excluded from unread).
+  it('dispatches the batch even when the anchor is found on the first fetch', async () => {
+    const TARGET_TS = 1700000000000;
+    sharedStore.dispatch(
+      addRoom({
+        roomData: makeRoom('a@h', { lastMessageTimestamp: TARGET_TS }) as any,
+      })
+    );
+    const client = makeClient({
+      getHistoryStanza: jest
+        .fn()
+        .mockResolvedValueOnce([
+          makeMsg(String(TARGET_TS)),
+          makeMsg('1700000001000'),
+        ]),
+    });
+
+    const dispatchSpy = jest.spyOn(sharedStore, 'dispatch');
+    await updateMessagesTillLast({ 'a@h': makeRoom('a@h') as any }, client, 1);
+
+    // Only one fetch was needed...
+    expect(client.getHistoryStanza).toHaveBeenCalledTimes(1);
+    // ...and the result MUST still be published.
+    const batchCall = dispatchSpy.mock.calls.find(
+      ([action]) =>
+        (action as any)?.type === 'roomMessages/applyRoomsPreloadBatch'
+    );
+    expect(batchCall).toBeDefined();
+    expect((batchCall![0] as any).payload.rooms[0].jid).toBe('a@h');
+    expect((batchCall![0] as any).payload.rooms[0].messages).toHaveLength(2);
     dispatchSpy.mockRestore();
   });
 
