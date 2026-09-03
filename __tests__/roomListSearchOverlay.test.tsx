@@ -1,10 +1,13 @@
 import React from 'react';
 import renderer, { act } from 'react-test-renderer';
-import { FlatList } from 'react-native';
+import { Animated, FlatList } from 'react-native';
 import { Provider } from 'react-redux';
 import { store } from '../src/roomStore';
 import { setConfig, setUser } from '../src/roomStore/chatSettingsSlice';
-import RoomList from '../src/components/MainComponents/RoomList';
+import RoomList, {
+  searchRevealStyle,
+} from '../src/components/MainComponents/RoomList';
+import { SearchInput } from '../src/components/InputComponents/Search';
 
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 47, bottom: 34, left: 0, right: 0 }),
@@ -38,6 +41,10 @@ const CHATS = [
 
 const SEARCH_H = 64;
 const LIST_H = 600;
+/** The strip is only scrolled up to its empty tail, so the first room
+ * keeps a gap from the header. */
+const REST_GAP = 16;
+const HIDDEN = SEARCH_H - REST_GAP;
 
 const render = async () => {
   await act(async () => {
@@ -58,7 +65,9 @@ const render = async () => {
       ...(Array.isArray(style) ? style : [style]).flat().filter(Boolean)
     );
   const list = () => tree.root.findByType(FlatList);
-  const strip = () => tree.root.find((n) => n.props?.testID === 'room-list-search');
+  const strip = () =>
+    tree.root.find((n) => n.props?.testID === 'room-list-search');
+  const field = () => tree.root.findByType(SearchInput);
 
   /** Feed the measurements the component waits for before it can tuck the
    * search away: strip height, viewport height and content height. */
@@ -76,7 +85,7 @@ const render = async () => {
     });
   };
 
-  return { tree, flatStyle, list, strip, measure, scroll };
+  return { tree, flatStyle, list, strip, field, measure, scroll };
 };
 
 describe('Room list search strip', () => {
@@ -111,14 +120,22 @@ describe('Room list search strip', () => {
     const { measure } = await render();
     await measure(2000);
     expect(scrollToOffset).toHaveBeenCalledWith({
-      offset: SEARCH_H,
+      offset: HIDDEN,
       animated: false,
     });
   });
 
+  it('stops short of the strip, leaving the first room clear of the header', async () => {
+    const { measure } = await render();
+    await measure(2000);
+    const { offset } = scrollToOffset.mock.calls[0][0];
+    expect(offset).toBeLessThan(SEARCH_H);
+    expect(SEARCH_H - offset).toBe(REST_GAP);
+  });
+
   it('leaves the search in view when there are too few chats to scroll it away', async () => {
     const { measure } = await render();
-    await measure(LIST_H + SEARCH_H - 10);
+    await measure(LIST_H + HIDDEN - 10);
     expect(scrollToOffset).not.toHaveBeenCalled();
   });
 
@@ -133,9 +150,9 @@ describe('Room list search strip', () => {
     const { measure, scroll } = await render();
     await measure(2000);
     scrollToOffset.mockClear();
-    await scroll('onMomentumScrollEnd', SEARCH_H * 0.7);
+    await scroll('onMomentumScrollEnd', HIDDEN * 0.7);
     expect(scrollToOffset).toHaveBeenCalledWith({
-      offset: SEARCH_H,
+      offset: HIDDEN,
       animated: true,
     });
   });
@@ -144,7 +161,7 @@ describe('Room list search strip', () => {
     const { measure, scroll } = await render();
     await measure(2000);
     scrollToOffset.mockClear();
-    await scroll('onMomentumScrollEnd', SEARCH_H * 0.3);
+    await scroll('onMomentumScrollEnd', HIDDEN * 0.3);
     expect(scrollToOffset).toHaveBeenCalledWith({ offset: 0, animated: true });
   });
 
@@ -153,30 +170,45 @@ describe('Room list search strip', () => {
     await measure(2000);
     scrollToOffset.mockClear();
     await scroll('onMomentumScrollEnd', 0);
-    await scroll('onMomentumScrollEnd', SEARCH_H * 4);
+    await scroll('onMomentumScrollEnd', HIDDEN * 4);
     expect(scrollToOffset).not.toHaveBeenCalled();
   });
 
   it('keeps the search open while it is being typed in', async () => {
-    const { measure, scroll, strip } = await render();
+    const { measure, scroll, field } = await render();
     await measure(2000);
     await act(async () => {
-      strip().props.children.props.onChangeText('on');
+      field().props.onChangeText('on');
     });
     scrollToOffset.mockClear();
     // Past the middle, which would normally hide it.
-    await scroll('onMomentumScrollEnd', SEARCH_H * 0.7);
+    await scroll('onMomentumScrollEnd', HIDDEN * 0.7);
     expect(scrollToOffset).toHaveBeenCalledWith({ offset: 0, animated: true });
   });
 
   it('pulls the search fully into view when the field takes focus', async () => {
-    const { measure, strip } = await render();
+    const { measure, field } = await render();
     await measure(2000);
     scrollToOffset.mockClear();
     await act(async () => {
-      strip().props.children.props.onFocus();
+      field().props.onFocus();
     });
     expect(scrollToOffset).toHaveBeenCalledWith({ offset: 0, animated: true });
+  });
+
+  it('drives the field from the scroll position, natively', async () => {
+    const { measure, list, tree } = await render();
+    await measure(2000);
+    // The animated wrapper around the field carries the reveal style...
+    const wrapper = tree.root.find(
+      (n) => n.props?.testID === 'room-list-search-field'
+    );
+    const style = Object.assign({}, ...[wrapper.props.style].flat());
+    expect(style.opacity).toBeDefined();
+    expect(style.transform[0].scale).toBeDefined();
+    // ...and the list feeds it the offset off the native thread.
+    expect(list().props.onScroll).toBeDefined();
+    expect(list().props.scrollEventThrottle).toBe(16);
   });
 
   describe('release without momentum', () => {
@@ -187,13 +219,13 @@ describe('Room list search strip', () => {
       const { measure, scroll } = await render();
       await measure(2000);
       scrollToOffset.mockClear();
-      await scroll('onScrollEndDrag', SEARCH_H * 0.7);
+      await scroll('onScrollEndDrag', HIDDEN * 0.7);
       expect(scrollToOffset).not.toHaveBeenCalled();
       await act(async () => {
         jest.advanceTimersByTime(100);
       });
       expect(scrollToOffset).toHaveBeenCalledWith({
-        offset: SEARCH_H,
+        offset: HIDDEN,
         animated: true,
       });
     });
@@ -202,7 +234,7 @@ describe('Room list search strip', () => {
       const { measure, scroll, list } = await render();
       await measure(2000);
       scrollToOffset.mockClear();
-      await scroll('onScrollEndDrag', SEARCH_H * 0.7);
+      await scroll('onScrollEndDrag', HIDDEN * 0.7);
       await act(async () => {
         list().props.onMomentumScrollBegin();
         jest.advanceTimersByTime(100);
@@ -272,5 +304,51 @@ describe('Room list header burger', () => {
   it('stays hidden when disableRoomMenu is set', async () => {
     const { has } = await renderWith({ headerMenu: true, disableRoomMenu: true });
     expect(has('room-list-burger')).toBe(false);
+  });
+});
+
+describe('Search field reveal', () => {
+  // The travel the field animates over is the strip's resting offset.
+  const BAR = SEARCH_H - REST_GAP;
+
+  const readAt = (offset: number) => {
+    const scrollY = new Animated.Value(offset);
+    const style = searchRevealStyle(scrollY, BAR);
+    return {
+      opacity: (style.opacity as any).__getValue(),
+      scale: (style.transform[0].scale as any).__getValue(),
+    };
+  };
+
+  it('has faded out by the time the strip comes to rest, not a moment later', () => {
+    expect(readAt(BAR).opacity).toBe(0);
+  });
+
+  it('is full size and solid while the strip is out', () => {
+    expect(readAt(0)).toEqual({ opacity: 1, scale: 1 });
+  });
+
+  it('has shrunk and faded away by the time the strip is tucked under', () => {
+    const { opacity, scale } = readAt(BAR);
+    expect(opacity).toBe(0);
+    expect(scale).toBeLessThan(1);
+  });
+
+  it('grows and fades through the travel rather than jumping at the ends', () => {
+    const half = readAt(BAR / 2);
+    expect(half.opacity).toBeGreaterThan(0);
+    expect(half.opacity).toBeLessThan(1);
+    expect(half.scale).toBeGreaterThan(readAt(BAR).scale);
+    expect(half.scale).toBeLessThan(1);
+  });
+
+  it('holds at the ends instead of overshooting past them', () => {
+    expect(readAt(-200)).toEqual({ opacity: 1, scale: 1 });
+    expect(readAt(BAR * 5)).toEqual(readAt(BAR));
+  });
+
+  it('survives a strip that has not been measured yet', () => {
+    const scrollY = new Animated.Value(0);
+    expect(() => searchRevealStyle(scrollY, 0)).not.toThrow();
   });
 });

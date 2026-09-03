@@ -44,6 +44,33 @@ const LIST_BACKGROUND = '#E8EDF2';
  * us first whether the finger threw the list (momentum) or just let go. */
 const SNAP_SETTLE_DELAY = 60;
 
+const COLLAPSED_SCALE = 0.86;
+
+const SEARCH_REST_GAP = 16;
+
+export const searchRevealStyle = (
+  scrollY: Animated.Value,
+  hiddenOffset: number
+) => {
+  const travel = Math.max(hiddenOffset, 1);
+  return {
+    opacity: scrollY.interpolate({
+      inputRange: [0, travel * 0.85],
+      outputRange: [1, 0],
+      extrapolate: 'clamp' as const,
+    }),
+    transform: [
+      {
+        scale: scrollY.interpolate({
+          inputRange: [0, travel],
+          outputRange: [1, COLLAPSED_SCALE],
+          extrapolate: 'clamp' as const,
+        }),
+      },
+    ],
+  };
+};
+
 const RoomList: React.FC<RoomListProps> = ({
   chats,
   burgerMenu = false,
@@ -60,7 +87,8 @@ const RoomList: React.FC<RoomListProps> = ({
 
   const pressTimer = useRef<NodeJS.Timeout | null>(null);
   const containerRef = useRef<View>(null);
-  const listRef = useRef<FlatList<IRoom>>(null);
+  const listRef = useRef<FlatList<IRoom> | null>(null);
+  const scrollY = useRef(new Animated.Value(0)).current;
 
   const drawerAnimation = useRef(new Animated.Value(0)).current;
   const overlayAnimation = useRef(new Animated.Value(0)).current;
@@ -138,6 +166,7 @@ const RoomList: React.FC<RoomListProps> = ({
   // Telegram's chat list behaves. A pinned bar could not do this on
   // Android, where a list sitting at offset 0 has nothing left to drag.
   const searchBarHeight = useRef(0);
+  const [measuredBarHeight, setMeasuredBarHeight] = useState(0);
   const listHeight = useRef(0);
   const contentHeight = useRef(0);
   /** The list starts hidden-search only once, and only before the user
@@ -156,23 +185,29 @@ const RoomList: React.FC<RoomListProps> = ({
    * when the rooms below it are tall enough to take its place. */
   const maxOffset = () => contentHeight.current - listHeight.current;
 
+  const hiddenOffset = () =>
+    Math.max(searchBarHeight.current - SEARCH_REST_GAP, 0);
+
   const hideSearchInitially = useCallback(() => {
     if (didInitialHide.current || hasDragged.current) return;
-    const bar = searchBarHeight.current;
-    if (!bar || !listHeight.current || !contentHeight.current) return;
-    if (maxOffset() < bar) return;
+    const hidden = hiddenOffset();
+    if (!hidden || !listHeight.current || !contentHeight.current) return;
+    if (maxOffset() < hidden) return;
     didInitialHide.current = true;
-    listRef.current?.scrollToOffset({ offset: bar, animated: false });
+    listRef.current?.scrollToOffset({ offset: hidden, animated: false });
   }, []);
 
   /** The magnet: a strip left half-way in or out settles to whichever
    * end it is closer to. */
   const snapSearch = useCallback((offset: number) => {
-    const bar = searchBarHeight.current;
-    if (!bar || maxOffset() < bar) return;
-    if (offset <= 0 || offset >= bar) return;
-    const hide = !searchIsActive.current && offset > bar / 2;
-    listRef.current?.scrollToOffset({ offset: hide ? bar : 0, animated: true });
+    const hidden = hiddenOffset();
+    if (!hidden || maxOffset() < hidden) return;
+    if (offset <= 0 || offset >= hidden) return;
+    const hide = !searchIsActive.current && offset > hidden / 2;
+    listRef.current?.scrollToOffset({
+      offset: hide ? hidden : 0,
+      animated: true,
+    });
   }, []);
 
   const clearSettleTimer = () => {
@@ -183,6 +218,23 @@ const RoomList: React.FC<RoomListProps> = ({
   };
 
   useEffect(() => clearSettleTimer, []);
+
+  const handleScroll = useMemo(
+    () =>
+      Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
+        useNativeDriver: true,
+      }),
+    [scrollY]
+  );
+
+  const revealStyle = useMemo(
+    () =>
+      searchRevealStyle(
+        scrollY,
+        Math.max(measuredBarHeight - SEARCH_REST_GAP, 0)
+      ),
+    [scrollY, measuredBarHeight]
+  );
 
   const handleScrollBeginDrag = useCallback(() => {
     hasDragged.current = true;
@@ -267,18 +319,25 @@ const RoomList: React.FC<RoomListProps> = ({
       testID="room-list-search"
       style={styles.searchBar}
       onLayout={(e) => {
-        searchBarHeight.current = e.nativeEvent.layout.height;
+        const height = e.nativeEvent.layout.height;
+        searchBarHeight.current = height;
+        setMeasuredBarHeight((prev) => (prev === height ? prev : height));
         hideSearchInitially();
       }}
     >
-      <SearchInput
-        icon={<SearchIcon height={20} />}
-        value={searchTerm}
-        onChangeText={handleSearchChange}
-        onFocus={() => setSearchFocused(true)}
-        onBlur={() => setSearchFocused(false)}
-        placeholder={t('search.placeholder')}
-      />
+      <Animated.View
+        testID="room-list-search-field"
+        style={[styles.searchField, revealStyle]}
+      >
+        <SearchInput
+          icon={<SearchIcon height={20} />}
+          value={searchTerm}
+          onChangeText={handleSearchChange}
+          onFocus={() => setSearchFocused(true)}
+          onBlur={() => setSearchFocused(false)}
+          placeholder={t('search.placeholder')}
+        />
+      </Animated.View>
     </View>
   );
 
@@ -306,7 +365,9 @@ const RoomList: React.FC<RoomListProps> = ({
             <View style={styles.scrollContainer}>
               <HeaderRoomList setDrawerOpen={toggleDrawer} />
               <View style={styles.listArea}>
-                <FlatList
+                {/* Animated.FlatList, so the reveal runs on the native
+                    thread off the very same scroll it follows. */}
+                <Animated.FlatList
                   ref={listRef}
                   data={filteredChats}
                   keyExtractor={(item) => item.jid}
@@ -319,6 +380,8 @@ const RoomList: React.FC<RoomListProps> = ({
                     contentHeight.current = h;
                     hideSearchInitially();
                   }}
+                  onScroll={handleScroll}
+                  scrollEventThrottle={16}
                   onScrollBeginDrag={handleScrollBeginDrag}
                   onScrollEndDrag={handleScrollEndDrag}
                   onMomentumScrollBegin={handleMomentumBegin}
@@ -381,6 +444,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   searchBar: {
+    paddingBottom: 4,
     // `row` matters: SearchInputWrapper is `flex: 1` plus a fixed 44px
     // height. In a column parent that flex resolves VERTICALLY against a
     // parent with no height of its own and collapses the field to nothing
@@ -388,6 +452,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingTop: 8,
     backgroundColor: 'transparent',
+  },
+  searchField: {
+    flexDirection: 'row',
+    flex: 1,
   },
   chatList: {
     flex: 1,
