@@ -397,6 +397,16 @@ export interface IConfig {
      * value takes effect.
      */
     height?: number;
+    /**
+     * Extend the header cards (room list + chat) under the status bar:
+     * each pads its top by the safe-area inset and paints it white, so
+     * the card and the status-bar band are one surface. Use this instead
+     * of wrapping `<Chat>` in a top-edge SafeAreaView: a host-side white
+     * band above the card shows a hairline seam where the card's
+     * shadow/elevation starts. Off by default (hosts that already pad the
+     * top keep their layout).
+     */
+    safeAreaTop?: boolean;
   };
   disableHeader?: boolean;
   disableMedia?: boolean;

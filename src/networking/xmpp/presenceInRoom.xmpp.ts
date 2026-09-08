@@ -70,7 +70,12 @@ export const presenceInRoom = async (
       try {
         await createTimeoutPromise(2000, unsubscribe);
       } catch (err) {
-        reject(err);
+        // The room's reply schedules resolve() `delay` ms later (2000 by
+        // default) — the same length as this timeout, so the timeout used
+        // to win the race and reject a join that had actually succeeded
+        // (allRoomPresences "failed" with undefined on every bootstrap).
+        // Only a join that never got an answer is a failure.
+        if (!settled) {reject(err);}
       }
     })();
   });

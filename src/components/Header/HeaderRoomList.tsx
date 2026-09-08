@@ -1,5 +1,6 @@
 /** @format */
 
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import React, { FC, useMemo } from 'react';
 import { View, StyleSheet, Image, Text } from 'react-native';
 import { ProfileImagePlaceholder } from '../MainComponents/ProfileImagePlaceholder';
@@ -13,6 +14,8 @@ interface HeaderRoomListProps {
 
 export const HeaderRoomList: FC<HeaderRoomListProps> = ({ setDrawerOpen }) => {
   const { config, user, selectedUser } = useChatSettingState();
+  const insets = useSafeAreaInsets();
+  const topInset = config?.headerLayout?.safeAreaTop ? insets.top : 0;
 
   const modalUser: any = selectedUser ?? user;
 
@@ -34,7 +37,7 @@ export const HeaderRoomList: FC<HeaderRoomListProps> = ({ setDrawerOpen }) => {
   }, [config?.backgroundChat?.image]);
 
   return (
-    <View style={styles.headerContainer}>
+    <View style={[styles.headerContainer, topInset ? { paddingTop: 16 + topInset } : null]}>
       {!config?.disableRoomMenu && config?.headerMenu ? (
         <View style={styles.leftContainer}>
           <Button

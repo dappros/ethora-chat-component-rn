@@ -37,6 +37,7 @@ import {
 import { ensureScopedChatCache } from '../helpers/ensureScopedChatCache';
 import { getRooms as prefetchRoomsViaRest } from '../networking/api-requests/rooms.api';
 import { allRoomPresences } from '../networking/xmpp/allRoomPresences.xmpp';
+import { pushSubscriptionService } from '../services/pushSubscriptionService';
 import { store } from '../roomStore';
 import { logout, setStoreClient, setConfig } from '../roomStore/chatSettingsSlice';
 import {
@@ -82,6 +83,16 @@ interface XmppProviderProps {
 }
 
 const LOGOUT_EVENT = 'ethora-xmpp-logout';
+
+const subscribeAllRoomsForPush = (client: any, reason: string) => {
+  const rooms = Object.keys(store.getState().rooms.rooms || {});
+  if (!client || !rooms.length) {return;}
+  const nick = client.jid?.getLocal();
+  pushSubscriptionService
+    .subscribeToRooms(client, rooms, nick)
+    .then(() => devPushLog('xmpp', `${reason}: mucsub ok for ${rooms.length} rooms`))
+    .catch((e) => devPushLog('warn', `${reason}: mucsub subscribe failed`, e));
+};
 
 export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, isVisible }) => {
   const [client, setClient] = useState<XmppClient | null>(null);
@@ -229,9 +240,11 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
       created.setOnOnline(() => {
         const underlying = (created as any).client;
         if (!underlying) {return;}
-        allRoomPresences(underlying).catch((e) =>
-          devPushLog('warn', 'reconnect: allRoomPresences re-join failed', e)
-        );
+        allRoomPresences(underlying)
+          .catch((e) =>
+            devPushLog('warn', 'reconnect: allRoomPresences re-join failed', e)
+          )
+          .finally(() => subscribeAllRoomsForPush(underlying, 'reconnect'));
         // Also refresh the private store so unread / lastViewed markers
         // are accurate after a long reconnect — the MUC re-join above only
         // restores delivery, not unread state. Idempotent on first connect.
@@ -436,6 +449,7 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
         } catch (e) {
           devPushLog('warn', 'initBeforeLoad: allRoomPresences failed', e);
         }
+        subscribeAllRoomsForPush((c as any).client, 'initBeforeLoad');
 
         store.dispatch(setStoreClient(c));
         completedBootstrapKeyRef.current = key;

@@ -1,6 +1,7 @@
 /** @format */
 
 import React, { useCallback } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   CenterContainer,
   ChatContainerHeader,
@@ -87,12 +88,14 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   // here so `height` defines the band exactly (content centers via the
   // styled `align-items: center`); the styled 12px vertical padding would
   // otherwise add on top of it.
-  const headerHeight = resolveHeaderHeight(config?.headerLayout?.height);
+  const insets = useSafeAreaInsets();
+  const topInset = config?.headerLayout?.safeAreaTop ? insets.top : 0;
+  const headerHeight = resolveHeaderHeight(config?.headerLayout?.height) + topInset;
 
   return (
     <>
       <ChatContainerHeader
-        style={{ height: headerHeight, paddingTop: 0, paddingBottom: 0 }}
+        style={{ height: headerHeight, paddingTop: topInset, paddingBottom: 0 }}
       >
         {handleBackClick && !config?.headerChatMenu ? (
           <View style={styles.leftContainer}>
