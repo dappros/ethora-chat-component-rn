@@ -2,12 +2,14 @@ import { Client, xml } from '@xmpp/client';
 import { Element } from '@xmpp/xml';
 import { createTimeoutPromise } from './createTimeoutPromise.xmpp';
 
+let subscribeIdCounter = 0;
+
 export async function subscribeToRoomMessages(
   client: Client,
   roomJID: string,
   userNick?: string
 ): Promise<boolean> {
-  const id = `newSubscription:${Date.now().toString()}`;
+  const id = `newSubscription:${Date.now().toString(36)}-${(++subscribeIdCounter).toString(36)}`;
   let stanzaHandler: (stanza: Element) => void;
 
   const unsubscribe = () => {
@@ -33,6 +35,15 @@ export async function subscribeToRoomMessages(
         if (stanza.attrs.type === 'result') {
           finish(resolve, true);
         } else if (stanza.attrs.type === 'error') {
+          const errorEl = typeof stanza.getChild === 'function' ? stanza.getChild('error') : null;
+          const condition = errorEl?.children?.find(
+            (c: any) => c?.name && c.name !== 'text'
+          ) as Element | undefined;
+          console.warn(
+            '[PushService] MucSub subscribe error for',
+            roomJID,
+            condition?.name ?? 'unknown'
+          );
           finish(resolve, false);
         }
       }

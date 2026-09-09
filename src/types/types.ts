@@ -151,6 +151,7 @@ export interface xmppSettingsInterface {
   disableLastRead?: boolean;
   xmppPingOnSendEnabled?: boolean;
   historyQoS?: HistoryQoSConfig;
+  keepAliveInBackground?: boolean;
 }
 
 export interface InAppNotificationConfig {

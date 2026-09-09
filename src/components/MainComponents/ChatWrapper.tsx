@@ -30,6 +30,7 @@ import Modal from '../Modals/Modal/Modal';
 import ThreadWrapper from '../Thread/ThreadWrapper';
 import {ModalWrapper} from '../Modals/ModalWrapper/ModalWrapper';
 import {useChatSettingState} from '../../hooks/useChatSettingState';
+import { usePendingNotification } from '../../hooks/usePendingNotification';
 import {DeviceEventEmitter, Pressable, Text, View} from 'react-native';
 import {pushLog as devPushLog} from '../../utils/devLogger';
 import {normalizeRoomJid} from '../../helpers/normalizeRoomJid';
@@ -60,6 +61,8 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
     deleteModal,
     client: storedClient,
   } = useChatSettingState();
+
+  usePendingNotification();
 
   const [isInited, setInited] = useState(false);
   const [showModal, setShowModal] = useState(false);

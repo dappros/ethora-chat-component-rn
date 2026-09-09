@@ -31,6 +31,9 @@ export { XmppProvider } from './context/xmppProvider';
 
 // Hooks that consumers usually need (badge counts, logout, push, etc.).
 export { useUnread } from './hooks/useUnreadMessagesCounter';
+
+export { handlePushPayload, openRoomFromPush } from './helpers/pushPayload';
+export type { PushPayloadOutcome } from './helpers/pushPayload';
 export { useChatRoomFocus } from './hooks/useChatRoomFocus';
 export { logoutService, useLogout } from './hooks/useLogout';
 export { useQRCodeChat, handleQRChatId } from './hooks/useQRCodeChatHandler';

@@ -342,6 +342,7 @@ export class XmppClient {
   }
 
   initializeClient() {
+    this.clientAlreadyStopped = false;
     try {
       const devServer = this.devServer || DEFAULT_DEV_SERVER;
       const url = `wss://${devServer}/ws`;
@@ -752,7 +753,10 @@ export class XmppClient {
       // `this.client` still points at the old client — i.e. before
       // initializeClient() reassigns it.
       const old = this.client;
-      if (old) {
+      if (old && this.clientAlreadyStopped) {
+        this.detachEventListeners();
+        this.clientAlreadyStopped = false;
+      } else if (old) {
         this.detachEventListeners();
         // NEVER await a bare stop(): on a half-dead socket (the exact case
         // we're reconnecting for) @xmpp/client's stop() can hang forever
@@ -767,6 +771,9 @@ export class XmppClient {
         await withTimeout(old.stop(), STOP_TIMEOUT_MS);
       }
       this.initializeClient();
+      if (this.suspendedForBackground) {
+        await this.stopClientQuietly();
+      }
     } finally {
       this.reconnecting = false;
     }
@@ -802,6 +809,56 @@ export class XmppClient {
       }
     })();
     return this.credentialsRefreshInFlight;
+  }
+
+  private suspendedForBackground = false;
+  private clientAlreadyStopped = false;
+
+  private async stopClientQuietly(): Promise<void> {
+    const c: any = this.client;
+    if (c) {
+      const sock = c.socket;
+      if (sock && typeof sock.end === 'function') {
+        try {
+          sock.end();
+        } catch {}
+        try {
+          if (c.status !== 'offline') c._status?.('offline');
+        } catch {}
+      } else {
+        await withTimeout(
+          Promise.resolve(c.stop()).catch(() => undefined),
+          STOP_TIMEOUT_MS
+        );
+      }
+      this.clientAlreadyStopped = true;
+    }
+    this.status = 'offline';
+    this.presencesReady = false;
+  }
+
+  async suspend(): Promise<void> {
+    if (this.suspendedForBackground) {return;}
+    this.suspendedForBackground = true;
+    this.suppressReconnect = true;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    await this.stopClientQuietly();
+    console.log('XMPP suspended (background).');
+  }
+
+  /** Back in the foreground: allow reconnects again and reconnect at once. */
+  resume(): void {
+    if (!this.suspendedForBackground) {return;}
+    this.suspendedForBackground = false;
+    this.suppressReconnect = false;
+    this.forceReconnect();
+  }
+
+  get isSuspended(): boolean {
+    return this.suspendedForBackground;
   }
 
   async disconnect(options?: { suppressReconnect?: boolean }): Promise<void> {

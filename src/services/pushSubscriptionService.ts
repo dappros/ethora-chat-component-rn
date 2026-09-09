@@ -81,7 +81,9 @@ export class PushSubscriptionService {
         this.subscribedRooms.add(roomJID);
         await this.saveSubscribedRoomsToStorage();
       }
-      console.log('Successfully Subscribed to room', roomJID);
+      if (!result) {
+        console.warn('[PushService] MucSub subscribe refused for', roomJID);
+      }
       return result;
     } catch (error) {
       console.error(`[PushService] Failed to subscribe to room ${roomJID}:`, error);
@@ -92,30 +94,33 @@ export class PushSubscriptionService {
   async subscribeToRooms(
     client: Client,
     roomJIDs: string[],
-    userNick?: string
+    userNick?: string,
+    concurrency = 8
   ): Promise<void> {
     let successful = 0;
     let failed = 0;
 
-    console.log('test roomJIDs', roomJIDs);
+    await this.loadSubscribedRoomsFromStorage();
+    const pending = roomJIDs.filter((jid) => !this.subscribedRooms.has(jid));
+    if (!pending.length) {
+      return;
+    }
 
-    for (const roomJID of roomJIDs) {
-      try {
-        const result = await this.subscribeToRoom(client, roomJID, userNick);
-        console.log('test roomJID-1', result);
-        if (result) {
+    for (let i = 0; i < pending.length; i += concurrency) {
+      const batch = pending.slice(i, i + concurrency);
+      const results = await Promise.allSettled(
+        batch.map((roomJID) => this.subscribeToRoom(client, roomJID, userNick))
+      );
+      for (const r of results) {
+        if (r.status === 'fulfilled' && r.value) {
           successful++;
         } else {
           failed++;
         }
-        await new Promise(resolve => setTimeout(resolve, 100));
-      } catch (error) {
-        failed++;
-        console.error(`Failed to subscribe to room ${roomJID}:`, error);
       }
     }
 
-    console.log(`Subscribed to ${successful} rooms, ${failed} failed`);
+    console.log(`[PushService] MucSub: ${successful} rooms subscribed, ${failed} failed`);
   }
 
   async reset(): Promise<void> {

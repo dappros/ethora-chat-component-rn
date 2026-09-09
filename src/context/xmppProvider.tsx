@@ -594,9 +594,14 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
     // be re-marked visible on return. Lives in the effect closure (one per
     // client) — persists across the listener's many invocations.
     let visibleBeforeBackground: string | null = null;
+    const suspendInBackground = !config?.xmppSettings?.keepAliveInBackground;
     const sub = AppState.addEventListener('change', (next) => {
       const c = client;
       if (next === 'active') {
+        if (c?.isSuspended) {
+          devPushLog('rn', 'AppState active: resuming suspended XMPP client');
+          c.resume();
+        }
         // Returned to foreground. If the socket died while backgrounded
         // (iOS suspends the WebSocket; long background kills it), the
         // status may still read 'online' until xmpp.js notices the dead
@@ -624,6 +629,9 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
       }
       // Going to background/inactive (sleep / app switcher / tray):
       if (!c) {return;}
+      if (next === 'background' && suspendInBackground) {
+        c.suspend().catch(() => undefined);
+      }
       const state = store.getState();
       const rooms = state.rooms?.rooms;
       const visibleRoomJID = state.rooms?.visibleRoomJID || null;
@@ -655,7 +663,7 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
       );
     });
     return () => sub.remove();
-  }, [client]);
+  }, [client, config?.xmppSettings?.keepAliveInBackground]);
 
   // -----------------------------------------------------------
   // Consumer visibility signal (`isVisible` prop). For hosts that keep

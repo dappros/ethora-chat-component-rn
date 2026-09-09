@@ -120,7 +120,7 @@ describe('subscribeToRoomMessages', () => {
     expect(stanza.name).toBe('iq');
     expect(stanza.attrs.type).toBe('set');
     expect(stanza.attrs.to).toBe('r@h');
-    expect(stanza.attrs.id).toMatch(/^newSubscription:\d+$/);
+    expect(stanza.attrs.id).toMatch(/^newSubscription:[0-9a-z]+-[0-9a-z]+$/);
     const sub = stanza.getChild('subscribe');
     expect(sub?.attrs?.xmlns).toBe('urn:xmpp:mucsub:0');
     expect(sub?.attrs?.nick).toBe('me');
