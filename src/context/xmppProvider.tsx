@@ -46,9 +46,9 @@ import {
   clearVisibleRoom,
   setLastViewedTimestamp,
   deleteRoomMessage,
-  msgSortableMs,
   setUnreadSyncing,
 } from '../roomStore/roomsSlice';
+import { getServerReadTimestamp } from '../helpers/getServerReadTimestamp';
 import { runHistoryPreloadScheduler } from '../helpers/historyPreloadScheduler';
 import { updateMessagesTillLast } from '../helpers/updateMessagesTillLast';
 import { secureUserStorage } from '../helpers/secureUserStorage';
@@ -638,16 +638,30 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
       // Mark the open room "not visible" while backgrounded so messages
       // that arrive (or MAM-replay on reconnect) count as unread instead
       // of being silently treated as read — the "mounted == visible ==
-      // read" gap. Stamp lastViewed=now as the read baseline, clear
-      // visibility, then flush that marker to the server private store.
-      // Restored on the next 'active' transition above. Handled here in
-      // the provider so consumers using the component as a package get
-      // correct unread without reaching into the chat store themselves.
+      // read" gap. Stamp lastViewed=<newest server-acked message>, not
+      // Date.now(), as the read baseline: a device clock running ahead
+      // would otherwise write a future marker that the forward-only
+      // private-store merge can never correct again (bug #38). Then
+      // clear visibility and flush that marker to the server private
+      // store. Restored on the next 'active' transition above. Handled
+      // here in the provider so consumers using the component as a
+      // package get correct unread without reaching into the chat store
+      // themselves.
       visibleBeforeBackground = visibleRoomJID;
       if (visibleRoomJID) {
-        store.dispatch(
-          setLastViewedTimestamp({ chatJID: visibleRoomJID, timestamp: Date.now() })
+        const readTs = getServerReadTimestamp(
+          rooms?.[visibleRoomJID],
+          state.roomHeapSlice
         );
+        // Nothing to anchor to yet (no known messages, no prior marker)
+        // - skip the local stamp rather than fall back to the device
+        // clock. The flush below still runs so the visibility clear
+        // isn't blocked on this.
+        if (readTs > 0) {
+          store.dispatch(
+            setLastViewedTimestamp({ chatJID: visibleRoomJID, timestamp: readTs })
+          );
+        }
         // Drop the "New messages" divider for the room we're leaving so it
         // doesn't linger when the user comes back (mirrors ChatRoom's
         // unmount cleanup, which never runs while the pane stays mounted).
@@ -672,11 +686,11 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
   // "shown" from "hidden", so the unread middleware would keep the open
   // room's badge at 0 and messages arriving while you're elsewhere look
   // already-read. When the host passes `isVisible`, mirror the AppState
-  // background/foreground handling: hidden → stamp lastViewed=now + clear
-  // room visibility (so later messages count) + flush; shown → restore
-  // visibility for the open room. Doing it here means consumers never
-  // touch the chat store themselves. (Undefined = host unmounts on hide,
-  // nothing to do.)
+  // background/foreground handling: hidden → stamp lastViewed=<newest
+  // server-acked message> + clear room visibility (so later messages
+  // count) + flush; shown → restore visibility for the open room. Doing
+  // it here means consumers never touch the chat store themselves.
+  // (Undefined = host unmounts on hide, nothing to do.)
   // -----------------------------------------------------------
   const chatWasVisibleRef = useRef(false);
   useEffect(() => {
@@ -692,9 +706,18 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
       }
     } else {
       if (wasVisible && activeRoomJID) {
-        store.dispatch(
-          setLastViewedTimestamp({ chatJID: activeRoomJID, timestamp: Date.now() })
+        // Never Date.now(): a fast device clock would write a future
+        // marker that the forward-only private-store merge could then
+        // never correct (bug #38).
+        const readTs = getServerReadTimestamp(
+          rooms?.[activeRoomJID],
+          state.roomHeapSlice
         );
+        if (readTs > 0) {
+          store.dispatch(
+            setLastViewedTimestamp({ chatJID: activeRoomJID, timestamp: readTs })
+          );
+        }
         // Drop the "New messages" divider so it's gone when the user
         // returns to the chat (mirrors ChatRoom's unmount cleanup).
         store.dispatch(
@@ -726,18 +749,18 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
       if (room.messages === lastMessagesRef) {return;}
       lastMessagesRef = room.messages;
 
-      let newest = 0;
-      const list = room.messages || [];
-      for (const m of list) {
-        if (!m || m.id === 'delimiter-new') {continue;}
-        const ms = msgSortableMs(m);
-        if (ms > newest) {newest = ms;}
-      }
-      if (newest <= lastStampedMs) {return;}
+      // getServerReadTimestamp (not a hand-rolled scan + Date.now()):
+      // it excludes pending/optimistic messages, which carry the DEVICE
+      // send time via `date` until the server echoes them back - a
+      // manual scan without that exclusion could pick up a pending
+      // message's device timestamp here and write a future marker the
+      // same way a raw Date.now() would (bug #38).
+      const newest = getServerReadTimestamp(room, s.roomHeapSlice);
+      if (!newest || newest <= lastStampedMs) {return;}
       lastStampedMs = newest;
 
       store.dispatch(
-        setLastViewedTimestamp({ chatJID: jid, timestamp: Date.now() })
+        setLastViewedTimestamp({ chatJID: jid, timestamp: newest })
       );
 
       if (flushTimer) {clearTimeout(flushTimer);}

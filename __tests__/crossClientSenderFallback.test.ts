@@ -34,10 +34,14 @@ jest.mock('../src/roomStore', () => {
 import { xml } from '@xmpp/client';
 import { store } from '../src/roomStore';
 import { addRoom } from '../src/roomStore/roomsSlice';
+import { setUser } from '../src/roomStore/chatSettingsSlice';
 import { onRealtimeMessage, onMessageHistory } from '../src/networking/stanzaHandlers';
+import { isOwnMessage } from '../src/helpers/isOwnMessage';
 
 const ROOM = 'room@conference.h';
 const OCCUPANT_FROM = `${ROOM}/John`;
+const SELF_WALLET = 'self-wallet-999';
+const OTHER_WALLET = 'other-wallet-111';
 
 beforeEach(() => {
   store.dispatch(
@@ -116,5 +120,77 @@ describe('onMessageHistory — sender fallback for data without senderJID', () =
 
     const room = store.getState().rooms.rooms[ROOM];
     expect(room.messages.some((m: any) => m.body === 'Spanish to translate')).toBe(true);
+    const msg = room.messages.find((m: any) => m.body === 'Spanish to translate');
+    // Bug #41: this used to fall back to splitting the *room's own* JID
+    // local part (from the MUC occupant `from`) on '@', since createMessageFromXml
+    // never got a resource-bearing `from` for the MAM/positional path. It
+    // must resolve the actual sender ("John", the occupant resource) -
+    // same as the onRealtimeMessage sibling test above - not the room id.
+    expect(msg.user.id).toContain('John');
+    expect(msg.user.id).not.toBe(ROOM.split('@')[0]);
+  });
+});
+
+describe('onMessageHistory - bug #41 (reconnect catch-up must not render as own)', () => {
+  it('a MAM catch-up message from another user gets a non-empty sender id that never equals the current user', async () => {
+    store.dispatch(
+      setUser({ walletAddress: SELF_WALLET, xmppUsername: '' } as any)
+    );
+
+    const otherOccupantFrom = `${ROOM}/${OTHER_WALLET}`;
+    const stanza = xml(
+      'message',
+      { from: ROOM },
+      xml(
+        'result',
+        { id: 'archive-catchup-1', xmlns: 'urn:xmpp:mam:2' },
+        xml(
+          'forwarded',
+          { xmlns: 'urn:xmpp:forward:0' },
+          xml(
+            'message',
+            {
+              from: otherOccupantFrom,
+              type: 'groupchat',
+              id: 'send-message:catchup-1',
+            },
+            xml('data', {
+              senderFirstName: 'Other',
+              senderLastName: 'User',
+              senderJID: `${OTHER_WALLET}@h/theirSessionResource`,
+              senderWalletAddress: OTHER_WALLET,
+              roomJid: ROOM,
+              isSystemMessage: 'false',
+            }),
+            xml('body', {}, 'hello while you were offline')
+          ),
+          xml('delay', { stamp: '2026-01-01T00:00:00Z' })
+        )
+      )
+    );
+
+    await onMessageHistory(stanza as any);
+
+    const room = store.getState().rooms.rooms[ROOM];
+    const msg = room.messages.find(
+      (m: any) => m.body === 'hello while you were offline'
+    );
+    expect(msg).toBeTruthy();
+    // Non-empty and correctly attributed to the actual sender...
+    expect(msg.user.id).toBeTruthy();
+    expect(msg.user.id).toContain(OTHER_WALLET);
+    // ...and never equal to the current user, from the very first
+    // render - no flip from "own" (right) to "other" (left) needed.
+    expect(msg.user.id).not.toBe(SELF_WALLET);
+    expect(
+      isOwnMessage(msg, store.getState().chatSettingStore.user)
+    ).toBe(false);
+  });
+
+  it('isOwnMessage never treats two blank ids as a match (the actual bug #41 symptom)', () => {
+    const blankMessage = { user: { id: '' } } as any;
+    const blankCurrentUser = { xmppUsername: '', walletAddress: '' };
+    expect(isOwnMessage(blankMessage, blankCurrentUser)).toBe(false);
+    expect(isOwnMessage(undefined, undefined)).toBe(false);
   });
 });

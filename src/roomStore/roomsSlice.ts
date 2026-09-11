@@ -142,7 +142,6 @@ function mergeHistoryIntoCache(
   const ex = stripCallSignals(existing);
   const fe = stripCallSignals(fetched);
 
-  const pending = ex.filter((m) => m?.pending);
   const realExisting = ex.filter(
     (m) => m && !m.pending && m.id !== 'delimiter-new'
   );
@@ -150,6 +149,29 @@ function mergeHistoryIntoCache(
 
   // Nothing usable came back → keep the cache exactly as it was.
   if (realFetched.length === 0) {return ex;}
+
+  // Optimistic sends are preserved across a history merge - EXCEPT the
+  // ones the fetched page proves the server already has. That happens
+  // whenever a send reached the server but its echo did not reach us
+  // before the process died: the optimistic bubble is restored from disk
+  // still `pending: true` (and, since bug #39, flagged failed at boot),
+  // while MAM hands back the very same message under its ARCHIVE id.
+  // Keying only on `id` never matched those two, so the room ended up
+  // showing the message twice - once for real and once as a bubble stuck
+  // on "sending…"/"Failed" that nothing could ever clear. The archived
+  // copy carries our original stanza id as `xmppId` (getDataFromXml), so
+  // match on that too and drop the local ghost.
+  const fetchedKeys = new Set<string>();
+  for (const m of realFetched) {
+    if (m?.id != null) {fetchedKeys.add(String(m.id));}
+    if ((m as any)?.xmppId) {fetchedKeys.add(String((m as any).xmppId));}
+  }
+  const pending = ex.filter(
+    (m) =>
+      m?.pending &&
+      !fetchedKeys.has(String(m.id)) &&
+      !(m.xmppId && fetchedKeys.has(String(m.xmppId)))
+  );
 
   const byMs = (a: IMessage, b: IMessage) =>
     msgSortableMs(a) - msgSortableMs(b);
@@ -580,7 +602,19 @@ const reducers = {
      *
      * Monotonic: a marker only ever moves a baseline FORWARD, so a stale
      * server value can't resurrect already-read messages and a more-recent
-     * local read (tab blur stamping Date.now()) always wins.
+     * local read (tab blur stamping the server read timestamp) always wins.
+     *
+     * Bug #38 self-heal: forward-only is correct for a SANE existing
+     * value, but a device whose clock was ahead may have already stamped
+     * a marker in the future (either persisted locally from a previous
+     * session, or fetched from the server before this fix existed). To
+     * "only ever move forward" from a corrupt future value is to never
+     * move at all - the room would stay stuck at `unreadMessages: 0`
+     * forever. When the room is loaded, detect a marker that sits well
+     * past the newest message we actually know it has and waive the
+     * forward-only check for that one comparison, so the incoming
+     * (already-clamped, see xmppClient.getChatsPrivateStoreRequestStanza)
+     * value can correct it even though it's numerically smaller.
      */
     applyPrivateStoreMarkers: (
       state: WritableDraft<RoomMessagesState>,
@@ -592,15 +626,34 @@ const reducers = {
       for (const jid of Object.keys(markers)) {
         const ts = Number(markers[jid]);
         if (!jid || !Number.isFinite(ts) || ts <= 0) {continue;}
+
+        const room = state.rooms[jid];
+        const newestKnownMs = room ? newestAckedMessageMs(room.messages) : 0;
+        // Mirrors isCorruptFutureReadMarker in helpers/getServerReadTimestamp.ts
+        // (duplicated to avoid a roomStore <-> helpers import cycle):
+        // BOTH signals are required. "Further ahead than the newest
+        // message this room has locally" happens all the time on a room
+        // whose history hasn't synced yet, and healing on that alone
+        // would drop a legitimate marker another device wrote after
+        // reading newer messages. A real read marker can never be ahead
+        // of real time, so that second signal is what distinguishes a
+        // stale cache from a wrong clock.
+        const nowMs = Date.now();
+        const looksCorrupt = (existing: number) =>
+          newestKnownMs > 0 &&
+          existing > newestKnownMs + FUTURE_MARKER_TOLERANCE_MS &&
+          existing > nowMs + FUTURE_MARKER_TOLERANCE_MS;
+
         // Remember the marker so rooms that load LATER (via addRoom)
         // inherit it even though they don't exist in the store yet.
-        if (ts > (state.privateStoreMarkers[jid] || 0)) {
+        const cachedMarker = state.privateStoreMarkers[jid] || 0;
+        if (ts > cachedMarker || looksCorrupt(cachedMarker)) {
           state.privateStoreMarkers[jid] = ts;
         }
         // Upgrade an already-loaded room's baseline + recompute its badge.
-        // Only ever forward, so a later local read isn't clobbered.
-        const room = state.rooms[jid];
-        if (room && ts > (room.lastViewedTimestamp || 0)) {
+        // Forward-only, unless the room's CURRENT baseline is itself the
+        // corrupt value being corrected.
+        if (room && (ts > (room.lastViewedTimestamp || 0) || looksCorrupt(room.lastViewedTimestamp || 0))) {
           room.lastViewedTimestamp = ts;
           room.unreadMessages = countNewerMessages(room.messages, ts);
         }
@@ -870,6 +923,31 @@ const isOwn = (
     if (self.has(c)) {return true;}
   }
   return false;
+};
+
+// Bug #38 tolerance: a stored read marker more than this far past the
+// newest message a room actually has is not "the user is a little
+// ahead" - it's a leftover from a device whose clock was wrong when it
+// stamped the marker. Kept in sync with (but duplicated from, to avoid
+// a roomStore ↔ helpers import cycle) FUTURE_READ_MARKER_TOLERANCE_MS
+// in helpers/getServerReadTimestamp.ts.
+const FUTURE_MARKER_TOLERANCE_MS = 5 * 60 * 1000;
+
+// Newest message in `messages` this room actually has proof the server
+// accepted - used only to sanity-check an already-stored read marker
+// against reality (see applyPrivateStoreMarkers's self-heal). Excludes
+// pending/optimistic sends via the `pending` flag alone: unlike
+// getServerReadTimestamp, this runs inside a reducer and can't reach
+// across to the roomHeapSlice slice, but `pending` already identifies
+// every optimistic send that matters for this comparison.
+const newestAckedMessageMs = (messages: IMessage[] | undefined): number => {
+  let newest = 0;
+  for (const m of messages || []) {
+    if (!m || m.id === 'delimiter-new' || m.pending) {continue;}
+    const ms = msgSortableMs(m);
+    if (ms > newest) {newest = ms;}
+  }
+  return newest;
 };
 
 const countNewerMessages = (

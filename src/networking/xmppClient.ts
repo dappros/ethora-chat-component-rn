@@ -32,6 +32,10 @@ import {
   enqueueOutboundSend,
   flushOutboundSends,
 } from './outboundQueue';
+import {
+  getServerReadTimestamp,
+  isCorruptFutureReadMarker,
+} from '../helpers/getServerReadTimestamp';
 
 // Canonical production XMPP WSS endpoint (standard wss/443, no port suffix).
 const DEFAULT_DEV_SERVER = 'xmpp.chat.ethora.com';
@@ -1060,9 +1064,37 @@ export class XmppClient {
       // `getChatsPrivateStoreRequest` directly and intentionally skip this.
       if (markers && typeof markers === 'object') {
         const normalized: Record<string, number> = {};
+        const roomsState = store.getState().rooms?.rooms || {};
+        const heapState = store.getState().roomHeapSlice;
         for (const jid of Object.keys(markers as Record<string, unknown>)) {
           const n = Number((markers as Record<string, unknown>)[jid]);
-          if (jid && Number.isFinite(n) && n > 0) {normalized[jid] = n;}
+          if (!jid || !Number.isFinite(n) || n <= 0) {continue;}
+          // Defensive clamp (bug #38): a marker written while some
+          // device's clock was ahead can land in the future relative to
+          // the newest message the server actually has for this room.
+          // The redux merge (applyPrivateStoreMarkers) and the
+          // server-side merge (flushLastViewedToPrivateStore) both treat
+          // "newer" as "better", so an uncorrected future value would
+          // block every later correct write forever - useUnread() would
+          // report 0 for that room on every cold start. When we already
+          // know this room's messages locally, clamp an implausible
+          // marker down to the newest one we actually have instead of
+          // trusting the server value verbatim.
+          //
+          // "Implausible" needs BOTH "past the newest message we know
+          // about" AND "past real time" (isCorruptFutureReadMarker):
+          // this device's cache for a room is routinely stale, and
+          // clamping on staleness alone would drag a perfectly good
+          // marker written by another device backwards.
+          const room = roomsState[jid];
+          const newestKnownMs = room
+            ? getServerReadTimestamp(room, heapState)
+            : 0;
+          if (isCorruptFutureReadMarker(n, newestKnownMs)) {
+            normalized[jid] = newestKnownMs;
+          } else {
+            normalized[jid] = n;
+          }
         }
         if (Object.keys(normalized).length > 0) {
           store.dispatch(applyPrivateStoreMarkers(normalized));
@@ -1104,7 +1136,14 @@ export class XmppClient {
   ) {
     if (this.disableLastRead) {return false;}
     try {
-      return await flushLastViewedToPrivateStore(this, rooms, opts);
+      // Auto-inject the pending/failed-send heap so every caller gets
+      // getServerReadTimestamp's exclusion of optimistic messages for
+      // free, without needing to reach into the redux store themselves.
+      const heapState = store.getState().roomHeapSlice;
+      return await flushLastViewedToPrivateStore(this, rooms, {
+        ...opts,
+        heapState,
+      });
     } catch {
       return false;
     }

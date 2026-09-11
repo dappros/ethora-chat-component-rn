@@ -22,6 +22,12 @@ interface CustomMessageImageProps {
   /** Full-size file. Opened in the preview modal, NOT rendered inline. */
   fileURL: string;
   fileName: string;
+  /**
+   * The sender's original file name (bug #40) - kept alongside `fileName`
+   * so the preview modal's save/share/download logic can prefer it over
+   * the server's stored/hashed name.
+   */
+  originalName?: string;
   mimetype: string;
   /**
    * Server-generated thumbnail — what the bubble actually renders, same
@@ -42,6 +48,7 @@ const FALLBACK_IMAGE =
 const CustomMessageImage: React.FC<CustomMessageImageProps> = ({
   fileURL,
   fileName,
+  originalName,
   mimetype,
   locationPreview,
 }) => {
@@ -84,7 +91,7 @@ const CustomMessageImage: React.FC<CustomMessageImageProps> = ({
   }, [displayURL]);
 
   const handleOpen = () => {
-    dispatch(setActiveFile({ fileName, fileURL, mimetype }));
+    dispatch(setActiveFile({ fileName, fileURL, mimetype, originalName }));
     dispatch(setActiveModal(MODAL_TYPES.FILE_PREVIEW));
   };
 

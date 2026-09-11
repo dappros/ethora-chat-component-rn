@@ -11,7 +11,8 @@ import {
   Text,
   View,
 } from 'react-native';
-import { deriveDisplayFilename, isLikelyAudio } from '../../helpers/mimeToExtension';
+import { isLikelyAudio } from '../../helpers/mimeToExtension';
+import { getDisplayFileName } from '../../helpers/getDisplayFileName';
 import { FileIcon, PlayIcon } from '../../assets/icons';
 import { defaultMediaDims } from '../../helpers/mediaDimensions';
 import { useChatSettingState } from '../../hooks/useChatSettingState';
@@ -148,11 +149,11 @@ const MediaMessage: React.FC<MediaMessageProps> = ({
   const messageText = appendFileToken(rawMessageText, fileToken);
 
   if (mimeType) {
-    const displayName = deriveDisplayFilename({
-      fileName: message?.fileName,
+    const displayName = getDisplayFileName({
       originalName: (message as any)?.originalName,
-      url: rawLocation || rawMessageText,
-      mime: mimeType,
+      fileName: message?.fileName,
+      location: rawLocation || rawMessageText,
+      mimetype: mimeType,
     });
     const isAudioPayload = isLikelyAudio(
       mimeType,
@@ -180,6 +181,7 @@ const MediaMessage: React.FC<MediaMessageProps> = ({
         return (
           <CustomMessageImage
             fileName={displayName}
+            originalName={(message as any)?.originalName}
             // Full-size original: opened by the preview modal.
             fileURL={location || messageText || ''}
             // ...and the thumbnail the bubble actually renders, which is
@@ -192,6 +194,7 @@ const MediaMessage: React.FC<MediaMessageProps> = ({
         return (
           <CustomMessageVideo
             fileName={displayName}
+            originalName={(message as any)?.originalName}
             fileURL={location || ''}
             // `messageText` is the message's locationPreview — the poster
             // frame the backend generated for this video. Handing it over

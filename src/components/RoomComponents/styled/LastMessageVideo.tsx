@@ -10,6 +10,7 @@ import {
   ShadeWrapper,
 } from './StyledRoomComponents';
 import { Text, View } from 'react-native';
+import { getDisplayFileName } from '../../../helpers/getDisplayFileName';
 
 const VideoContainer = styled.View`
   position: relative;
@@ -40,14 +41,25 @@ const PlayButton = styled.View`
 `;
 
 interface LastMessageVideoProps
-  extends Pick<LastMessage, 'user' | 'location' | 'originalName'> {}
+  extends Pick<
+    LastMessage,
+    'user' | 'location' | 'originalName' | 'fileName' | 'mimetype'
+  > {}
 
 const LastMessageVideo: FC<LastMessageVideoProps> = ({
   user,
   location,
   originalName,
+  fileName,
+  mimetype,
 }) => {
   const fileToken = useFileToken();
+  // Bug #40: prefer the sender's original name over the stored hash
+  // name; only fall back to the generic "file" label when neither is
+  // present at all (avoids a synthetic "media_<timestamp>.bin" here).
+  const displayName = originalName || fileName
+    ? getDisplayFileName({ originalName, fileName, mimetype })
+    : 'file';
   return (
     <LastRoomMessageContainer>
       <LastRoomMessageName>{user?.name || ''}:</LastRoomMessageName>
@@ -64,7 +76,7 @@ const LastMessageVideo: FC<LastMessageVideoProps> = ({
           </ShadeWrapper>
           <PlayButton><Text>▶</Text></PlayButton>
         </VideoContainer>
-        <LastRoomMessageText>{originalName || 'file'}</LastRoomMessageText>
+        <LastRoomMessageText>{displayName}</LastRoomMessageText>
       </View>
     </LastRoomMessageContainer>
   );

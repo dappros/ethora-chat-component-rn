@@ -7,6 +7,7 @@ import {
   setVisibleRoom,
 } from '../roomStore/roomsSlice';
 import { store } from '../roomStore';
+import { getServerReadTimestamp } from '../helpers/getServerReadTimestamp';
 
 interface UseChatRoomFocusOptions {
   /** The room JID that the consumer's tab/screen is currently showing. */
@@ -32,7 +33,10 @@ interface UseChatRoomFocusOptions {
  * Without this hook, `useUnread()` will always return 0 for the chat
  * room because the SDK assumes "mounted == active". With this hook,
  * focus marks the room visible (clearing the badge) and blur stamps
- * `lastViewedTimestamp = Date.now()` so future messages count as unread.
+ * `lastViewedTimestamp` to the newest SERVER-acknowledged message so
+ * future messages count as unread. Deliberately not `Date.now()`: a
+ * device clock running ahead would write a future marker that the
+ * forward-only private-store merge could never correct again (bug #38).
  *
  * Usage with React Navigation:
  *
@@ -59,11 +63,16 @@ export const useChatRoomFocus = ({
   });
 
   const leaveRoom = (jid: string) => {
-    const timestamp = Date.now();
-    dispatch(setLastViewedTimestamp({ chatJID: jid, timestamp }));
+    const state = store.getState();
+    const rooms = state.rooms?.rooms;
+    const timestamp = getServerReadTimestamp(rooms?.[jid], state.roomHeapSlice);
+    // Only stamp when we actually have something to anchor to - skip
+    // rather than fall back to the device clock (bug #38).
+    if (timestamp > 0) {
+      dispatch(setLastViewedTimestamp({ chatJID: jid, timestamp }));
+    }
     dispatch(clearVisibleRoom());
-    const rooms = store.getState().rooms?.rooms;
-    (store.getState().chatSettingStore as any)?.client
+    (state.chatSettingStore as any)?.client
       ?.flushLastViewedToPrivateStoreStanza(rooms, { visibleRoomJID: jid })
       .catch(() => {});
   };

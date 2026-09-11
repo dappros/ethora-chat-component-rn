@@ -29,6 +29,7 @@ import { ArowDownIcon } from '../../assets/icons';
 import CustomTypingIndicator from '../styled/StyledInputComponents/CustomTypingIndicator';
 import { getIconColor } from '../../helpers/getIconColor';
 import { getChatBackgroundColor } from '../../helpers/getChatBackground';
+import { isOwnMessage } from '../../helpers/isOwnMessage';
 
 interface MessageListProps<TMessage extends IMessage> {
   CustomMessage?: React.ComponentType<{
@@ -438,7 +439,7 @@ const MessageList = <TMessage extends IMessage>({
           {CustomMessage && (
             <CustomMessage
               message={activeMessage}
-              isUser={activeMessage.user.id === user.walletAddress}
+              isUser={isOwnMessage(activeMessage, user)}
               isReply={isReply}
             />
           )}

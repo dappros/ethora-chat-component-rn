@@ -14,9 +14,13 @@ import {
   isSecureFileUrl,
   requestFileTokenRecovery,
 } from '../../../helpers/secureFileUrl';
+import { getDisplayFileName } from '../../../helpers/getDisplayFileName';
 
 interface LastMessageFileProps
-  extends Pick<LastMessage, 'user' | 'originalName' | 'locationPreview'> {}
+  extends Pick<
+    LastMessage,
+    'user' | 'originalName' | 'fileName' | 'mimetype' | 'locationPreview'
+  > {}
 
 const fallbackImage =
   'https://as2.ftcdn.net/v2/jpg/02/51/95/53/1000_F_251955356_FAQH0U1y1TZw3ZcdPGybwUkH90a3VAhb.jpg';
@@ -24,10 +28,18 @@ const fallbackImage =
 const LastMessageFile: FC<LastMessageFileProps> = ({
   user,
   originalName,
+  fileName,
+  mimetype,
   locationPreview,
 }) => {
   const [imgSrc, setImgSrc] = useState(locationPreview);
   const fileToken = useFileToken();
+  // Bug #40: prefer the sender's original name over the stored hash
+  // name; only fall back to the generic "file" label when neither is
+  // present at all (avoids a synthetic "media_<timestamp>.bin" here).
+  const displayName = originalName || fileName
+    ? getDisplayFileName({ originalName, fileName, mimetype })
+    : 'file';
 
   return (
     <LastRoomMessageContainer>
@@ -57,7 +69,7 @@ const LastMessageFile: FC<LastMessageFileProps> = ({
         ) : (
           <FileIcon style={{ width: '20px', height: '20px' }} />
         )}
-        <LastRoomMessageText>{originalName || 'file'}</LastRoomMessageText>
+        <LastRoomMessageText>{displayName}</LastRoomMessageText>
       </View>
     </LastRoomMessageContainer>
   );

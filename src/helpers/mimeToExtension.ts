@@ -289,25 +289,9 @@ export function ensureFilenameHasExtension(
   return `${base}${getExtensionForMime(mime)}`;
 }
 
-/**
- * Best-effort filename derivation for a message bubble:
- *   - server-provided `fileName`
- *   - server-provided `originalName`
- *   - URL pathname
- *   - generic `media_<timestamp>` so we never render an empty label
- *
- * Always returns a string with a valid extension.
- */
-export function deriveDisplayFilename(opts: {
-  fileName?: string | null;
-  originalName?: string | null;
-  url?: string | null;
-  mime?: string | null;
-}): string {
-  const candidate =
-    (opts.fileName && opts.fileName.trim()) ||
-    (opts.originalName && opts.originalName.trim()) ||
-    filenameFromUrl(opts.url) ||
-    '';
-  return ensureFilenameHasExtension(candidate, opts.mime);
-}
+// NOTE: the "which name wins" decision (originalName vs the stored
+// fileName vs the URL) lives in helpers/getDisplayFileName.ts - that is
+// the single source of truth used across display, save, share and
+// download call sites (bug #40: this used to be duplicated here with
+// the priority backwards, so attachments showed/saved under the
+// server's hash name instead of the sender's original one).

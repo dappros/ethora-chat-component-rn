@@ -2,7 +2,6 @@ import {
   getExtensionForMime,
   filenameFromUrl,
   ensureFilenameHasExtension,
-  deriveDisplayFilename,
   getIosAudioPlaybackCacheExtension,
   isUnsupportedAudioForIosPlayback,
   shouldCacheAudioForIosPlayback,
@@ -99,52 +98,12 @@ describe('ensureFilenameHasExtension', () => {
   });
 });
 
-describe('deriveDisplayFilename', () => {
-  it('prefers fileName over originalName over URL', () => {
-    expect(
-      deriveDisplayFilename({
-        fileName: 'preferred.pdf',
-        originalName: 'orig.pdf',
-        url: 'https://cdn.example.com/url-name.pdf',
-        mime: 'application/pdf',
-      })
-    ).toBe('preferred.pdf');
-  });
-
-  it('falls back to originalName when fileName empty', () => {
-    expect(
-      deriveDisplayFilename({
-        fileName: '',
-        originalName: 'orig.docx',
-        url: undefined,
-        mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      })
-    ).toBe('orig.docx');
-  });
-
-  it('parses URL when both names missing', () => {
-    expect(
-      deriveDisplayFilename({
-        url: 'https://cdn.example.com/files/Some%20Doc.docx',
-        mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      })
-    ).toBe('Some Doc.docx');
-  });
-
-  it('produces a media_<ts> fallback when nothing is usable', () => {
-    const out = deriveDisplayFilename({ mime: 'video/mp4' });
-    expect(out).toMatch(/^media_\d+\.mp4$/);
-  });
-
-  it('appends extension when URL segment has no extension', () => {
-    expect(
-      deriveDisplayFilename({
-        url: 'https://cdn.example.com/abc123',
-        mime: 'audio/wav',
-      })
-    ).toBe('abc123.wav');
-  });
-});
+// The "which name wins" logic previously lived here as
+// `deriveDisplayFilename` (with the priority backwards - fileName over
+// originalName, which WAS bug #40: attachments displayed/saved under
+// the server's hash name instead of the sender's original one). It has
+// moved to helpers/getDisplayFileName.ts with the priority fixed
+// (originalName wins) - see __tests__/getDisplayFileName.test.ts.
 
 describe('iOS audio playback fallback', () => {
   it('caches remote octet-stream voice files so AVFoundation gets an audio extension', () => {

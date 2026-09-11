@@ -227,11 +227,11 @@ const onMessageHistory = async (stanza: any) => {
     // what senderJID would have held — fall back to it. createMessageFromXml
     // already derives a display name from the jid when senderFirstName/
     // senderLastName are absent.
-    const innerFrom =
-      stanza
-        .getChild('result')
-        ?.getChild('forwarded')
-        ?.getChild('message')?.attrs?.from || stanza.attrs.from;
+    const forwardedMessage = stanza
+      .getChild('result')
+      ?.getChild('forwarded')
+      ?.getChild('message');
+    const innerFrom = forwardedMessage?.attrs?.from || stanza.attrs.from;
     const senderJID = data?.attrs?.senderJID || innerFrom;
     if (!data?.attrs || !senderJID) {
       // console.log(
@@ -242,11 +242,25 @@ const onMessageHistory = async (stanza: any) => {
     }
     const mergedAttrs = { ...data.attrs };
     if (!mergedAttrs.senderJID) {mergedAttrs.senderJID = senderJID;}
+    // The forwarded <message>'s own stanza id is our original send id
+    // (what `xmppId` holds on the live/wrapped paths) - capture it so
+    // this MAM-replayed message dedupes against its live echo /
+    // optimistic pending bubble the same way, instead of never carrying
+    // an xmppId at all.
+    if (forwardedMessage?.attrs?.id) {mergedAttrs.xmppId = forwardedMessage.attrs.id;}
     const rawMessage = await createMessageFromXml(
       mergedAttrs,
       body,
       id,
-      stanza.attrs.from,
+      // Bug #41: pass the resource-bearing occupant `from`
+      // (room@conference/sender-id) here, not the outer envelope's
+      // `stanza.attrs.from` (which has no resource for a MAM result).
+      // createMessageFromXml derives `user.id` from this field's
+      // resource - the same authoritative source getDataFromXml uses
+      // for live messages - so catch-up rows resolve the correct
+      // sender from the very first render instead of needing a later
+      // correction once the "official" history fetch lands.
+      innerFrom,
       !!deleted
     );
 

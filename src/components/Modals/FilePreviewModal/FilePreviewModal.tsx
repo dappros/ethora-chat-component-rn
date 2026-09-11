@@ -31,7 +31,12 @@ import { useToast } from '../../../context/ToastContext';
 import PdfViewer from './PdfView';
 import DocumentViewer from './DocumentViewer';
 import AudioMessage from '../../styled/AudioMessage';
-import { ensureFilenameHasExtension, isLikelyAudio } from '../../../helpers/mimeToExtension';
+import { isLikelyAudio } from '../../../helpers/mimeToExtension';
+import {
+  getDisplayFileName,
+  getUniqueFileName,
+  sanitizeFileNameForPath,
+} from '../../../helpers/getDisplayFileName';
 
 // MIME types Google's gview embed renders reliably. Everything else
 // falls through to the info-card so the user can still download.
@@ -128,6 +133,19 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
 
   if (!activeFile) {return null;}
 
+  // Bug #40: prefer the sender's original name over the server's stored
+  // hash name everywhere this modal shows or saves/shares the file.
+  // Sanitized so it's safe to use as an actual path segment (strips path
+  // separators/control chars) when writing to disk below.
+  const displayFileName = sanitizeFileNameForPath(
+    getDisplayFileName({
+      originalName: activeFile.originalName,
+      fileName: activeFile.fileName,
+      location: activeFile.fileURL,
+      mimetype: activeFile.mimetype,
+    })
+  );
+
   const requestStoragePermission = async () => {
     const MediaLibrary = getMediaLibrary();
     if (!MediaLibrary?.requestPermissionsAsync) {return false;}
@@ -151,12 +169,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
     }
 
     try {
-      const fileName = ensureFilenameHasExtension(
-        activeFile.fileName,
-        activeFile.mimetype
-      );
-
-      const filePath = FileSystem.cacheDirectory + fileName;
+      const filePath = FileSystem.cacheDirectory + displayFileName;
       const download = await FileSystem.downloadAsync(withFileToken(activeFile.fileURL), filePath);
 
       if (download.status === 200) {
@@ -171,17 +184,39 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
         Alert.alert('Error', 'Failed to save the file.');
       }
     } catch (err) {
-      Alert.alert('Error', `Failed to save the file: ${activeFile.fileName}`);
+      Alert.alert('Error', `Failed to save the file: ${displayFileName}`);
+    }
+  };
+
+  // Best-effort existing-name lookup for the Android SAF branch below: SAF
+  // hands back content URIs, not plain names, so this decodes each one and
+  // takes its last path segment. If the provider's URI shape doesn't match
+  // what we expect, we fail open (empty set) rather than block the save -
+  // worst case we skip de-duplication, we never crash the save flow.
+  const listSafDirectoryNames = async (
+    saf: any,
+    dirUri: string
+  ): Promise<Set<string>> => {
+    try {
+      const uris: string[] = await saf.readDirectoryAsync(dirUri);
+      const names = uris.map((uri) => {
+        try {
+          const decoded = decodeURIComponent(uri);
+          const last = decoded.split('/').pop() || '';
+          return last.includes(':') ? last.split(':').pop() || '' : last;
+        } catch {
+          return '';
+        }
+      });
+      return new Set(names.filter(Boolean));
+    } catch {
+      return new Set<string>();
     }
   };
 
   const saveFileToDownloads = async () => {
     try {
-      const fileName = ensureFilenameHasExtension(
-        activeFile.fileName,
-        activeFile.mimetype
-      );
-      const filePath = FileSystem.cacheDirectory + fileName;
+      const filePath = FileSystem.cacheDirectory + displayFileName;
       const download = await FileSystem.downloadAsync(withFileToken(activeFile.fileURL), filePath);
 
       if (download.status !== 200) {
@@ -205,7 +240,16 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           safDirUriRef.current = dirUri;
         }
 
-        const baseName = fileName.replace(/\.[^/.]+$/, '');
+        // Avoid silently overwriting a different attachment that happens
+        // to share the same display name (common now that we prefer the
+        // human-picked name over the unique server hash - bug #40) by
+        // suffixing " (1)", " (2)", ... on a collision.
+        const existingNames = await listSafDirectoryNames(saf, dirUri as string);
+        const uniqueName = await getUniqueFileName(
+          displayFileName,
+          async (candidate) => existingNames.has(candidate)
+        );
+        const baseName = uniqueName.replace(/\.[^/.]+$/, '');
         const mime = activeFile.mimetype || 'application/octet-stream';
         const base64 = await FileSystem.readAsStringAsync(download.uri, {
           encoding: FileSystem.EncodingType.Base64,
@@ -232,7 +276,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
       // user may cancel), so we don't show a "Save successful" toast here.
       await Share.share({
         url: download.uri,
-        title: fileName,
+        title: displayFileName,
       });
     } catch (err) {
       console.error('Error saving file:', err);
@@ -279,7 +323,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                 'https://as2.ftcdn.net/v2/jpg/02/51/95/53/1000_F_251955356_FAQH0U1y1TZw3ZcdPGybwUkH90a3VAhb.jpg',
             }}
             resizeMode="contain"
-            accessibilityLabel={activeFile.fileName}
+            accessibilityLabel={displayFileName}
           />
         );
       case activeFile.mimetype.startsWith('video/'):
@@ -333,10 +377,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
             }}
           >
             <Text style={{ fontSize: 16, fontWeight: '600' }}>
-              {ensureFilenameHasExtension(
-                activeFile.originalName || activeFile.fileName,
-                activeFile.mimetype
-              )}
+              {displayFileName}
             </Text>
             <AudioMessage
               src={withFileToken(activeFile.fileURL)}
@@ -351,10 +392,6 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
       case activeFile.mimetype === 'application/pdf':
         return <PdfViewer pdfUrl={withFileToken(activeFile.fileURL)} />;
       default: {
-        const displayName = ensureFilenameHasExtension(
-          activeFile.fileName,
-          activeFile.mimetype
-        );
         // Office docs (.docx / .xlsx / .pptx / .doc / .xls / .ppt /
         // .txt / .csv / .rtf) → render inline via Google's gview embed
         // — fixes the "blank preview" complaint for docs (bug #9).
@@ -362,7 +399,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           return (
             <DocumentViewer
               url={activeFile.fileURL}
-              fileName={displayName}
+              fileName={displayFileName}
             />
           );
         }
@@ -379,7 +416,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
             }}
           >
             <Text style={{ fontSize: 16, fontWeight: '600' }}>
-              {displayName}
+              {displayFileName}
             </Text>
             <Text style={{ color: '#666' }}>
               {activeFile.mimetype || 'unknown type'}

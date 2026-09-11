@@ -28,6 +28,7 @@ import { IConfig } from '../../types/models/config.model';
 import { useRoomInitialization } from '../../hooks/useRoomInitialization';
 import { useRoomState } from '../../hooks/useRoomState';
 import { useChatSettingState } from '../../hooks/useChatSettingState';
+import { isOwnMessage } from '../../helpers/isOwnMessage';
 import CustomTypingIndicator from '../styled/StyledInputComponents/CustomTypingIndicator';
 // import {PanGestureHandler} from 'react-native-gesture-handler';
 import { FlatList } from 'react-native';
@@ -46,6 +47,7 @@ import {
 } from 'react-native-keyboard-controller';
 import useComposing from '../../hooks/useComposing';
 import { store } from '../../roomStore';
+import { getServerReadTimestamp } from '../../helpers/getServerReadTimestamp';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   getInputDockPaddingBottom,
@@ -234,21 +236,30 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
       dispatch(setVisibleRoom({ roomJID: activeRoomJID }));
       setIsLoadingMore(false);
       return () => {
-        const timestamp = readBoundaryRef.current ?? new Date().getTime();
-        dispatch(
-          setLastViewedTimestamp({
-            chatJID: activeRoomJID,
-            timestamp,
-          }),
-        );
+        const rooms = store.getState().rooms?.rooms;
+        const heapState = store.getState().roomHeapSlice;
+        // Fall back to the newest server-acked message, never the device
+        // clock: a fast device clock would write a future marker that the
+        // forward-only private-store merge could never correct (bug #38).
+        const timestamp =
+          readBoundaryRef.current ??
+          getServerReadTimestamp(rooms?.[activeRoomJID], heapState);
+        if (timestamp > 0) {
+          dispatch(
+            setLastViewedTimestamp({
+              chatJID: activeRoomJID,
+              timestamp,
+            }),
+          );
+        }
         dispatch(clearVisibleRoom());
         const liveClient = clientRef.current;
         if (liveClient) {
           liveClient
-            .flushLastViewedToPrivateStoreStanza(store.getState().rooms?.rooms, {
+            .flushLastViewedToPrivateStoreStanza(rooms, {
               visibleRoomJID: activeRoomJID,
               // Carry the same boundary to the SERVER marker. Without
-              // this the flush defaults to Date.now() for the visible
+              // this the flush defaults to "everything" for the visible
               // room, so messages the user never scrolled down to come
               // back as read on the next login — the local count was
               // right but the server overrode it.
@@ -440,7 +451,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
                   CustomMessageComponent ? (
                     <CustomMessageComponent
                       message={decorated.message}
-                      isUser={decorated.message.user.id === user.xmppUsername}
+                      isUser={isOwnMessage(decorated.message, user)}
                       isReply={false}
                     />
                   ) : null

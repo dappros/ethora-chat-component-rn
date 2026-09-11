@@ -18,6 +18,7 @@ import { ActivityIndicator, View } from 'react-native';
 import { useChatSettingState } from '../../hooks/useChatSettingState';
 import { FileIcon } from '../../assets/icons';
 import { getExtensionForMime } from '../../helpers/mimeToExtension';
+import { getDisplayFileName } from '../../helpers/getDisplayFileName';
 
 interface FileDownloadProps {
   fileName: string;
@@ -46,6 +47,15 @@ const FileDownload: React.FC<FileDownloadProps> = ({
 }) => {
   const dispatch = useDispatch();
   const { config } = useChatSettingState();
+
+  // Bug #40: prefer the sender's original name over the server's stored
+  // hash name for both the visible label and the extension badge below.
+  const displayName = getDisplayFileName({
+    originalName,
+    fileName,
+    location: fileURL,
+    mimetype,
+  });
 
   const formatFileSize = (sizeInBytes: string): string => {
     const size = parseInt(sizeInBytes, 10);
@@ -101,9 +111,9 @@ const FileDownload: React.FC<FileDownloadProps> = ({
   };
 
   const extensionLabel = (() => {
-    const dotIndex = fileName.lastIndexOf('.');
-    if (dotIndex !== -1 && dotIndex < fileName.length - 1) {
-      return fileName.slice(dotIndex + 1).toUpperCase();
+    const dotIndex = displayName.lastIndexOf('.');
+    if (dotIndex !== -1 && dotIndex < displayName.length - 1) {
+      return displayName.slice(dotIndex + 1).toUpperCase();
     }
     return getExtensionForMime(mimetype).replace('.', '').toUpperCase();
   })();
@@ -123,7 +133,7 @@ const FileDownload: React.FC<FileDownloadProps> = ({
           isUser={isUser}
           colorIsUser={config?.colors?.primary}
           colorUsers={config?.colors?.secondary}
-        >{formatFileName(fileName, 20)}</FileName>
+        >{formatFileName(displayName, 20)}</FileName>
         {(pending || size) && (
           <FileSizeContainer>
             {pending ? (

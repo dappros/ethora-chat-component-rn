@@ -699,6 +699,43 @@ describe('roomsSlice — re-entry history merge (no cache wipe)', () => {
     expect(ids).toContain('1780000000002'); // merged settled message
     expect(ids).toContain('1780000000005'); // pending send kept
   });
+
+  it('drops a pending send the fetched page already confirms (matched by xmppId)', () => {
+    // The send reached the server but its echo was lost before the app
+    // died, so the optimistic bubble came back from disk still pending
+    // (and, per bug #39, flagged failed at boot). MAM returns the same
+    // message under its ARCHIVE id, carrying our stanza id as xmppId.
+    // Keeping both would render the message twice, one copy stuck on
+    // "sending…"/"Failed" with nothing able to clear it.
+    let state = withCachedRoom([
+      M(1),
+      makeMessage('send-text-message:local-1', {
+        roomJid: JID,
+        pending: true,
+        xmppId: 'send-text-message:local-1',
+      } as any),
+    ]);
+    state = roomsReducer(
+      state,
+      applyRoomsPreloadBatch({
+        rooms: [
+          {
+            jid: JID,
+            messages: [
+              M(1),
+              makeMessage('1780000000006', {
+                roomJid: JID,
+                xmppId: 'send-text-message:local-1',
+              } as any),
+            ],
+          },
+        ],
+      })
+    );
+    const ids = idsOf(state);
+    expect(ids).toContain('1780000000006'); // the real, archived copy
+    expect(ids).not.toContain('send-text-message:local-1'); // ghost gone
+  });
 });
 
 // ---------- Private-store read markers → unread baseline -------------
@@ -776,6 +813,84 @@ describe('roomsSlice — private-store read markers (unread baseline)', () => {
       applyPrivateStoreMarkers({ [JID]: 1_780_000_000_002 })
     );
     expect(state.rooms[JID].lastViewedTimestamp).toBe(1_780_000_000_900);
+  });
+
+  // Bug #38: a device with a fast clock previously stamped a read marker
+  // in the future (persisted locally from a past session, or fetched
+  // from the server before this fix existed). Forward-only logic would
+  // treat that future value as "the freshest read" and refuse to ever
+  // move it again, so the room would stay stuck at unreadMessages: 0
+  // forever. A corrupt-future marker must be self-healed instead.
+  it('self-heals a corrupt future local baseline instead of protecting it as "freshest"', () => {
+    // Anchored to real time: "corrupt" means ahead of BOTH the newest
+    // message the room has AND the wall clock. A value that is merely
+    // ahead of the local messages is a stale cache, not a bad clock.
+    const farFuture = Date.now() + 365 * 24 * 60 * 60 * 1000; // +1 year
+    let state = roomsReducer(
+      initial(),
+      addRoom({
+        roomData: makeRoom(JID, {
+          messages: [M(1), M(2), M(3)],
+          lastViewedTimestamp: farFuture,
+          unreadMessages: 0,
+        }),
+      })
+    );
+    expect(state.rooms[JID].lastViewedTimestamp).toBe(farFuture);
+
+    // The corrected value is SMALLER than the corrupt one - a plain
+    // forward-only check would reject it.
+    state = roomsReducer(
+      state,
+      applyPrivateStoreMarkers({ [JID]: 1_780_000_000_002 })
+    );
+    expect(state.rooms[JID].lastViewedTimestamp).toBe(1_780_000_000_002);
+    expect(state.rooms[JID].unreadMessages).toBe(1);
+    expect(state.privateStoreMarkers[JID]).toBe(1_780_000_000_002);
+  });
+
+  it('does not treat a baseline only slightly ahead of the newest message as corrupt', () => {
+    // Same shape as the "is monotonic" case just above: lastViewedTimestamp
+    // is a few hundred ms past the newest message id, which is normal
+    // (the read marker is stamped after the message is received) and
+    // must NOT trigger the corruption self-heal.
+    let state = roomsReducer(
+      initial(),
+      addRoom({
+        roomData: makeRoom(JID, {
+          messages: [M(1), M(2), M(3)],
+          lastViewedTimestamp: 1_780_000_000_900,
+        }),
+      })
+    );
+    state = roomsReducer(
+      state,
+      applyPrivateStoreMarkers({ [JID]: 1_780_000_000_002 })
+    );
+    expect(state.rooms[JID].lastViewedTimestamp).toBe(1_780_000_000_900);
+  });
+
+  it('does not treat a baseline far ahead of a STALE local cache as corrupt', () => {
+    // Multi-device: another device read up to an hour ago, well past
+    // anything this device has locally because this room's history has
+    // not synced yet. That is a stale cache, not a broken clock (the
+    // baseline is in the PAST), so forward-only protection must hold -
+    // otherwise every stale device drags the shared marker backwards.
+    const anHourAgo = Date.now() - 60 * 60 * 1000;
+    let state = roomsReducer(
+      initial(),
+      addRoom({
+        roomData: makeRoom(JID, {
+          messages: [M(1), M(2), M(3)],
+          lastViewedTimestamp: anHourAgo,
+        }),
+      })
+    );
+    state = roomsReducer(
+      state,
+      applyPrivateStoreMarkers({ [JID]: 1_780_000_000_002 })
+    );
+    expect(state.rooms[JID].lastViewedTimestamp).toBe(anHourAgo);
   });
 
   it('logout clears remembered markers so the next user does not inherit them', () => {

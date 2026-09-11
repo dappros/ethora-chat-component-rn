@@ -8,7 +8,6 @@ import { AppDispatch, RootState } from '../roomStore';
 import { useXmppClient } from '../context/xmppProvider';
 import { chatAutoEnterer } from '../helpers/chatAutoEnterer';
 import { initRoomsPresence } from '../helpers/initRoomsPresence';
-import { updatedChatLastTimestamps } from '../helpers/updatedChatLastTimestamps';
 import { updateMessagesTillLast } from '../helpers/updateMessagesTillLast';
 import { refreshAuthTokensQuietly } from '../networking/authRefresh';
 import { setLangSource, setConfig } from '../roomStore/chatSettingsSlice';
@@ -170,15 +169,21 @@ const useChatWrapperInit = ({
                 }
               }
               try {
+                // getChatsPrivateStoreRequestStanza hydrates redux itself
+                // (dispatch(applyPrivateStoreMarkers(...)) internally,
+                // clamped + forward-only) - do not also apply the raw
+                // return value here. That used to double-dispatch via
+                // updatedChatLastTimestamps' unconditional
+                // setLastViewedTimestamp, which has neither the
+                // forward-only guard nor the future-marker clamp, so on
+                // every reconnect it could silently re-clobber a value
+                // the clamp had just corrected (bug #38).
                 const roomTimestampObject: any =
                   await newClient.getChatsPrivateStoreRequestStanza();
                 console.log(
                   'Got chats private store',
                   roomTimestampObject?.length || 0
                 );
-                if (roomTimestampObject) {
-                  updatedChatLastTimestamps(roomTimestampObject, dispatch);
-                }
                 if (!hasSyncedHistoryRef.current) {
                   console.log('Updating messages till last');
                   await updateMessagesTillLast(rooms, newClient);
@@ -220,15 +225,15 @@ const useChatWrapperInit = ({
             setInited(true);
             console.log(' Getting chats private store for existing client');
             try {
+              // See the "new client" branch above: getChatsPrivateStoreRequestStanza
+              // already hydrates redux (clamped + forward-only); do not
+              // also apply the raw return value here.
               const roomTimestampObject: any =
                 await client.getChatsPrivateStoreRequestStanza();
               console.log(
                 'Got chats private store for existing client',
                 roomTimestampObject?.length || 0
               );
-              if (roomTimestampObject) {
-                updatedChatLastTimestamps(roomTimestampObject, dispatch);
-              }
               if (!hasSyncedHistoryRef.current) {
                 console.log(
                   'Updating messages till last for existing client'
