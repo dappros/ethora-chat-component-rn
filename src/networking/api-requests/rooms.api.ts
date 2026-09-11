@@ -130,6 +130,7 @@ function dispatchRoomsFromRestItems(items: ApiRoom[]): void {
       icon: item.picture || item.icon,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
+      muted: item.muted === true,
       description: (item as any).description,
       type: (item as any).type,
       // ChatProfileModal renders this list under the description/type
@@ -252,6 +253,14 @@ export async function postPrivateRoom(
   } catch (error) {
     throw new Error('Error updating profile');
   }
+}
+
+export async function setRoomMuted(chatName: string, muted: boolean): Promise<boolean> {
+  const token = store.getState().chatSettingStore.user.token || '';
+  const url = `/v1/chats/my/${encodeURIComponent(chatName)}/mute`;
+  const config = { headers: { Authorization: token } };
+  const response = muted ? await http.put(url, {}, config) : await http.delete(url, config);
+  return response.data?.result?.muted ?? muted;
 }
 
 export async function postReportRoom(data: PostReportRoom) {

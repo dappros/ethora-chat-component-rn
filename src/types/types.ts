@@ -34,6 +34,7 @@ export interface IRoom {
   lastViewedTimestamp?: number;
   unreadMessages?: number;
   noMessages?: boolean;
+  muted?: boolean;
   role?: string;
   createdAt?: string | number | Date;
   updatedAt?: string | number | Date;

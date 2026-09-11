@@ -174,7 +174,7 @@ describe('Chat profile screen', () => {
     expect(tree.root.findAllByType(Image).length).toBeGreaterThanOrEqual(0);
   });
 
-  it('offers Search, Leave and Report in that order, and only one magnifier', async () => {
+  it('offers Mute, Search, Leave and Report in that order, and only one magnifier', async () => {
     await seedRoom();
     const { tree, texts } = await renderProfile();
     const order = tree.root
@@ -186,9 +186,28 @@ describe('Chat profile screen', () => {
       )
       .map((n) => n.props.testID.replace('chat-profile-action-', ''));
     // Composite + host node both carry the testID, hence the dedupe.
-    expect(Array.from(new Set(order))).toEqual(['search', 'leave', 'report']);
+    expect(Array.from(new Set(order))).toEqual(['mute', 'search', 'leave', 'report']);
     // The members card used to carry a second magnifier of its own.
     expect(texts().filter((label) => label === 'Search')).toHaveLength(1);
+  });
+
+  it('mute button reflects room.muted and toggles it through the REST API', async () => {
+    await seedRoom();
+    const roomsApi = require('../src/networking/api-requests/rooms.api');
+    const spy = jest
+      .spyOn(roomsApi, 'setRoomMuted')
+      .mockImplementation(async (_name: string, muted: boolean) => muted);
+    const { tree, texts } = await renderProfile();
+    expect(texts()).toContain('Unmuted');
+    const button = tree.root.findAll(
+      (n) => n.props?.testID === 'chat-profile-action-mute' && typeof n.props?.onPress === 'function'
+    )[0];
+    await act(async () => {
+      button.props.onPress();
+    });
+    expect(spy).toHaveBeenCalledWith(expect.any(String), true);
+    expect(texts()).toContain('Muted');
+    spy.mockRestore();
   });
 
   it('collapses the header for search only when it is still expanded', () => {

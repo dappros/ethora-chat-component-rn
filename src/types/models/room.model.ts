@@ -79,6 +79,7 @@ export interface ApiRoom {
   jid?: string;
   participants?: number;
   icon?: string;
+  muted?: boolean;
 }
 
 export interface PostRoom {

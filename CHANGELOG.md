@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this pr
 
 ### Added
 
+- **Mute / unmute a chat from its profile.** A bell button joins Search, Leave and Report in the chat-profile hero (first in the row, per the design): "Unmuted" with a bell, "Muted" with a crossed bell. It toggles the caller's own membership flag through `PUT` / `DELETE /v1/chats/my/{chatName}/mute` and reads the initial state from `muted` in `/chats/my` (new `IRoom.muted`). The flip is optimistic and rolls back with an error toast if the request fails. This is a stored preference only — the server does not change push delivery by itself yet.
+
 - **`handlePushPayload(data)` / `openRoomFromPush(jid)` are exported from the package root.** The host owns the native push side (token, permission, tap listeners) and hands the tapped notification's `data` to `handlePushPayload`: a call push rings, a message push (`data.jid` / `chatJid` / `roomJid`) opens its room — immediately when the room list is loaded, otherwise as soon as it is (`usePendingNotification` is now mounted in `ChatWrapper` and actually opens the room; it used to find it and do nothing). The pending jid is also persisted (with a 5-minute TTL), so a tap handled by a JS context that gets replaced right after (cold-start races) still opens the room on the next mount.
 - **`config.headerLayout.safeAreaTop`** — the room-list and chat header cards pad their top by the safe-area inset and run under the status bar as one white surface. Hosts used to wrap `<Chat>` in a top-edge `SafeAreaView`, which painted its own white band above the card; on Android the card's elevation drew a hairline seam where the two met. Off by default, so existing hosts keep their layout; when on, drop the host-side top inset.
 

@@ -26,6 +26,8 @@ import { deleteRoom, updateRoom } from '../../../roomStore/roomsSlice';
 import Loader from '../../styled/Loader';
 import {
   AddNewIcon,
+  BellIcon,
+  BellOffIcon,
   DeleteIcon,
   EditIcon,
   LeaveIcon,
@@ -36,7 +38,7 @@ import { useChatSettingState } from '../../../hooks/useChatSettingState';
 import { chatTextStyle } from '../../../helpers/typography';
 import { getElementFont } from '../../../helpers/getElementFont';
 import { getIconColor } from '../../../helpers/getIconColor';
-import { deleteRoomMember } from '../../../networking/api-requests/rooms.api';
+import { deleteRoomMember, setRoomMuted } from '../../../networking/api-requests/rooms.api';
 import { RoomMember } from '../../../types/models/room.model';
 import { setActiveModal, setSelectedUser } from '../../../roomStore/chatSettingsSlice';
 import { MODAL_TYPES } from '../../../helpers/constants/MODAL_TYPES';
@@ -355,8 +357,40 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
     return () => sub.remove();
   }, [isSearchOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const muteInFlightRef = useRef(false);
+  const toggleMuted = async () => {
+    if (!activeRoom?.jid || !activeRoom?.name || muteInFlightRef.current) {return;}
+    const next = !activeRoom.muted;
+    muteInFlightRef.current = true;
+    dispatch(updateRoom({ jid: activeRoom.jid, updates: { muted: next } }));
+    try {
+      const confirmed = await setRoomMuted(activeRoom.name, next);
+      if (confirmed !== next) {
+        dispatch(updateRoom({ jid: activeRoom.jid, updates: { muted: confirmed } }));
+      }
+    } catch (error) {
+      dispatch(updateRoom({ jid: activeRoom.jid, updates: { muted: !next } }));
+      console.warn('[ethora-rn] mute toggle failed', error);
+      showToast({
+        id: Date.now().toString(),
+        title: 'Error',
+        message: t('toast.muteFailed'),
+        type: 'error',
+      });
+    } finally {
+      muteInFlightRef.current = false;
+    }
+  };
+
   const heroActions: HeroAction[] = useMemo(
     () => [
+      {
+        key: 'mute',
+        label: activeRoom?.muted ? t('action.muted') : t('action.unmuted'),
+        icon: (color: string) =>
+          activeRoom?.muted ? <BellOffIcon color={color} /> : <BellIcon color={color} />,
+        onPress: toggleMuted,
+      },
       {
         key: 'search',
         label: t('action.search'),
@@ -376,7 +410,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
         onPress: () => setIsReportOpen(true),
       },
     ],
-    [t, activeRoom?.jid] // eslint-disable-line react-hooks/exhaustive-deps
+    [t, activeRoom?.jid, activeRoom?.muted] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   // "…" menu. Edit is the chat picture — the only chat detail this SDK can
