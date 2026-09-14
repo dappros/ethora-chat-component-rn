@@ -184,3 +184,74 @@ describe('insertMessageWithDelimiter — "New Messages" divider', () => {
     expect(list.some((m) => m.id === 'delimiter-new')).toBe(false);
   });
 });
+
+describe('insertMessageWithDelimiter - numeric marker source (bug #42)', () => {
+  // Server-assigned id: 13-digit ms prefix, the same source msgSortableMs
+  // (unreadMiddleware, countNewerMessages, getServerReadTimestamp) reads.
+  // `date` is set independently of the id's ms so these tests can prove
+  // the divider is positioned off msgSortableMs, not off a `.date`
+  // string comparison (the pre-fix behaviour).
+  const serverMsg = (idMs: number, dateMs: number, id = `${idMs}`): IMessage =>
+    ({
+      id,
+      user: { id: 'u', name: 'u', token: '', refreshToken: '' } as any,
+      date: new Date(dateMs).toISOString(),
+      body: `body-${id}`,
+      roomJid: 'r@h',
+    } as IMessage);
+
+  it('accepts a plain number marker (not just a Date object)', () => {
+    const list: IMessage[] = [
+      serverMsg(1_700_000_000_000, 1_700_000_000_000, 'old'),
+    ];
+    insertMessageWithDelimiter(
+      list,
+      serverMsg(1_700_000_002_000, 1_700_000_002_000, 'new'),
+      1_700_000_000_000 // raw number, not `new Date(...)`
+    );
+    expect(list.map((m) => m.id)).toEqual(['old', 'delimiter-new', 'new']);
+  });
+
+  it('a numeric-string marker is read as epoch-ms, not silently parsed as Invalid Date', () => {
+    // `new Date("1700000000000")` is Invalid Date (the string is parsed
+    // as a date, and a bare 13-digit string matches no recognized
+    // format) - every `isDateAfter` comparison against it used to
+    // silently evaluate false, which is exactly what the old
+    // date-string-comparison code in this file did when handed a raw
+    // numeric-string marker instead of a Date object.
+    const list: IMessage[] = [
+      serverMsg(1_700_000_000_000, 1_700_000_000_000, 'old'),
+    ];
+    insertMessageWithDelimiter(
+      list,
+      serverMsg(1_700_000_002_000, 1_700_000_002_000, 'new'),
+      { toString: () => '1700000000000' } as any
+    );
+    expect(list.map((m) => m.id)).toEqual(['old', 'delimiter-new', 'new']);
+  });
+
+  it("when the marker equals the last read message's own id-encoded ms exactly, the divider lands between it and the first unread - not above it (bug #42)", () => {
+    const N_MS = 1_700_000_000_000;
+    // N's `.date` lags its id-encoded ms by 10ms - real-world drift
+    // between the server timestamp embedded in the id and the `date`
+    // field. Comparing the marker against `.date` (the old behaviour)
+    // risks exactly this kind of message landing on the wrong side of
+    // the cut; comparing via msgSortableMs on both sides does not.
+    const list: IMessage[] = [
+      serverMsg(N_MS - 5000, N_MS - 5000, 'read-1'),
+      serverMsg(N_MS, N_MS - 10, 'N'), // the last message the user reached
+    ];
+    insertMessageWithDelimiter(
+      list,
+      serverMsg(N_MS + 1000, N_MS + 1000, 'N+1'),
+      N_MS
+    );
+    // N stays on the READ side (divider comes AFTER it), not above it.
+    expect(list.map((m) => m.id)).toEqual([
+      'read-1',
+      'N',
+      'delimiter-new',
+      'N+1',
+    ]);
+  });
+});

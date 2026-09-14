@@ -585,6 +585,20 @@ export interface IConfig {
   // `disableKeyboardAvoidingView` is set. Needs on-device tuning of any
   // `keyboardVerticalOffset`.
   keyboardStickyInput?: boolean;
+  // Bottom padding applied to the input dock (the composer's outer
+  // wrapper), on both iOS and Android. When a number is provided (0 is
+  // allowed) it is used verbatim on both platforms, overriding the
+  // built-in default below.
+  //
+  // Left unset, the default is:
+  //  - 0 when `disableKeyboardAvoidingView` is set, since the host owns
+  //    layout entirely and typically already places the chat above its
+  //    own chrome (e.g. a tab bar) - the built-in padding would just add
+  //    an extra gap between the composer and that chrome.
+  //  - otherwise unchanged: the iOS safe-area bottom inset, or a fixed
+  //    12dp gap on Android (`ANDROID_INPUT_DOCK_GAP`).
+  // Customer-reported #44.
+  inputDockPaddingBottom?: number;
   // The message list's FlatList uses keyboardDismissMode="interactive" by
   // default, so a drag can be used to pull the keyboard closed. Because
   // the list is `inverted`, an ordinary scroll gesture through history can

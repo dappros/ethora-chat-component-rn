@@ -8,8 +8,15 @@
  * messages it is supposed to introduce.
  */
 
+import { configureStore } from '@reduxjs/toolkit';
 import { insertMessageWithDelimiter } from '../src/helpers/insertMessageWithDelimiter';
-import { IMessage } from '../src/types/types';
+import roomsReducer, {
+  addRoom,
+  addRoomMessage,
+} from '../src/roomStore/roomsSlice';
+import chatSettingsReducer from '../src/roomStore/chatSettingsSlice';
+import { unreadMiddleware } from '../src/roomStore/Middleware/unreadMidlleware';
+import { IMessage, IRoom } from '../src/types/types';
 
 const at = (iso: string, id: string): any => ({
   id,
@@ -70,5 +77,88 @@ describe('unread divider ordering', () => {
     // ids ended `[..., 'unread-2', 'delimiter-new']`.
     expect(ids).toEqual(['read-1', 'delimiter-new', 'unread-1', 'unread-2']);
     expect(ids[ids.length - 1]).not.toBe('delimiter-new');
+  });
+});
+
+/**
+ * End-to-end through the real redux pipeline (bug #42): since #38 made
+ * the marker equal to a real message's own server timestamp rather than
+ * always strictly after every read message, the divider and the unread
+ * count both have to agree on exactly the same cut - one message too
+ * high (or too low) on either side is the regression.
+ */
+describe('unread divider + count agree at an EXACT marker boundary (bug #42)', () => {
+  const ROOM = 'divider@conference.xmpp.chat.ethora.com';
+  // 13-digit-ms-prefixed ids, exactly what msgSortableMs / the unread
+  // middleware / getServerReadTimestamp all read.
+  const N_MS = 1_780_000_000_000;
+  const serverMsg = (idMs: number): IMessage =>
+    ({
+      id: String(idMs),
+      user: { id: 'other', name: 'Other', token: '', refreshToken: '' } as any,
+      date: new Date(idMs).toISOString(),
+      body: `m-${idMs}`,
+      roomJid: ROOM,
+      showInChannel: 'true',
+    } as any);
+
+  const makeStore = () =>
+    configureStore({
+      reducer: { chatSettingStore: chatSettingsReducer, rooms: roomsReducer },
+      middleware: (g) =>
+        g({ serializableCheck: false }).concat(unreadMiddleware),
+    });
+
+  it('marker == N\'s own timestamp: divider sits between N and N+1, and unread count == messages after N', () => {
+    const store = makeStore();
+    // Room NOT visible (no setVisibleRoom/setCurrentRoom dispatched), with
+    // lastViewedTimestamp stamped to N's own id-ms - exactly what leaving
+    // the room while having reached message N (bug #42's scenario) now
+    // stamps via getReadMarkerTimestamp.
+    store.dispatch(
+      addRoom({
+        roomData: {
+          id: ROOM,
+          name: 'Room',
+          jid: ROOM,
+          title: 'Room',
+          usersCnt: 2,
+          messages: [
+            serverMsg(N_MS - 5000), // read-1
+            serverMsg(N_MS), // N - the last message the user reached
+          ],
+          isLoading: false,
+          roomBg: '',
+          lastViewedTimestamp: N_MS,
+        } as IRoom,
+      })
+    );
+    // N itself must not be counted - only messages strictly after it.
+    expect(store.getState().rooms.rooms[ROOM].unreadMessages).toBe(0);
+
+    // A new message arrives (N+1) while the room stays not-visible.
+    store.dispatch(
+      addRoomMessage({ roomJID: ROOM, message: serverMsg(N_MS + 1000) })
+    );
+
+    const room = store.getState().rooms.rooms[ROOM];
+    const ids = room.messages.map((m) => m.id);
+    expect(ids).toEqual([
+      String(N_MS - 5000),
+      String(N_MS),
+      'delimiter-new',
+      String(N_MS + 1000),
+    ]);
+    // Exactly the one message after N counts as unread - agreeing with
+    // where the divider landed.
+    expect(room.unreadMessages).toBe(1);
+
+    // A second new message (N+2) keeps both in lockstep.
+    store.dispatch(
+      addRoomMessage({ roomJID: ROOM, message: serverMsg(N_MS + 2000) })
+    );
+    const room2 = store.getState().rooms.rooms[ROOM];
+    expect(room2.messages.filter((m) => m.id === 'delimiter-new')).toHaveLength(1);
+    expect(room2.unreadMessages).toBe(2);
   });
 });

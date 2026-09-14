@@ -42,4 +42,69 @@ describe('keyboardLayout', () => {
       })
     ).toBe(ANDROID_INPUT_DOCK_GAP);
   });
+
+  it('uses an explicit configuredPadding of 0 verbatim on iOS', () => {
+    expect(
+      getInputDockPaddingBottom({
+        platform: 'ios',
+        bottomInset: 34,
+        configuredPadding: 0,
+      })
+    ).toBe(0);
+  });
+
+  it('uses an explicit configuredPadding of 0 verbatim on Android', () => {
+    expect(
+      getInputDockPaddingBottom({
+        platform: 'android',
+        bottomInset: 34,
+        configuredPadding: 0,
+      })
+    ).toBe(0);
+  });
+
+  it('uses an explicit non-zero configuredPadding verbatim on both platforms', () => {
+    expect(
+      getInputDockPaddingBottom({
+        platform: 'ios',
+        bottomInset: 34,
+        configuredPadding: 8,
+      })
+    ).toBe(8);
+    expect(
+      getInputDockPaddingBottom({
+        platform: 'android',
+        bottomInset: 34,
+        configuredPadding: 8,
+      })
+    ).toBe(8);
+  });
+
+  it('pads with 0 when the host owns layout (disableKeyboardAvoidingView) and no explicit padding is given', () => {
+    expect(
+      getInputDockPaddingBottom({
+        platform: 'ios',
+        bottomInset: 34,
+        hostOwnsLayout: true,
+      })
+    ).toBe(0);
+    expect(
+      getInputDockPaddingBottom({
+        platform: 'android',
+        bottomInset: 34,
+        hostOwnsLayout: true,
+      })
+    ).toBe(0);
+  });
+
+  it('prefers an explicit configuredPadding over hostOwnsLayout', () => {
+    expect(
+      getInputDockPaddingBottom({
+        platform: 'ios',
+        bottomInset: 34,
+        hostOwnsLayout: true,
+        configuredPadding: 6,
+      })
+    ).toBe(6);
+  });
 });

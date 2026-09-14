@@ -6,10 +6,12 @@ import { useDispatch } from 'react-redux';
 import MessageList from './MessageList';
 import SendInput from '../styled/SendInput';
 import {
+  clearReadBoundary,
   clearVisibleRoom,
   deleteRoomMessage,
   setEditAction,
   setLastViewedTimestamp,
+  setReadBoundary,
   setVisibleRoom,
 } from '../../roomStore/roomsSlice';
 import Loader from '../styled/Loader';
@@ -47,7 +49,10 @@ import {
 } from 'react-native-keyboard-controller';
 import useComposing from '../../hooks/useComposing';
 import { store } from '../../roomStore';
-import { getServerReadTimestamp } from '../../helpers/getServerReadTimestamp';
+import {
+  getFlushBoundaryTs,
+  getReadMarkerTimestamp,
+} from '../../helpers/getServerReadTimestamp';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   getInputDockPaddingBottom,
@@ -218,32 +223,62 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
     // Tracks what the user actually saw: `null` while they're at the
     // bottom (safe to mark everything read), or the timestamp of the
     // newest message visible when they scrolled away from it. Reported
-    // by MessageList via onReadBoundaryChange. Without this, leaving a
-    // room (or backgrounding) while scrolled up stamped `now()` as read
-    // and silently discarded genuinely-unread messages. Customer-
-    // reported #33.
-    const readBoundaryRef = useRef<number | null>(null);
+    // by MessageList via onReadBoundaryChange, and mirrored into redux
+    // (`rooms.readBoundaries`) rather than kept only in a local ref - it
+    // is the single source of truth every "leaving this room" path
+    // consults (xmppProvider's AppState background handler, its
+    // `isVisible=false` handler, the live `advance()` effect, and
+    // `useChatRoomFocus`'s `leaveRoom`), not just this component's own
+    // unmount cleanup below. Without a boundary, leaving a room (or
+    // backgrounding) while scrolled up stamped `now()` (bug #33) or,
+    // after the #38 fix, the newest acked message regardless of scroll
+    // position (bug #42) - both silently discard genuinely-unread
+    // messages.
+    //
+    // MessageList reports the boundary from onScroll, which fires on
+    // every frame of a drag (the "back at the bottom" branch re-reports
+    // `null` each time). Mirror only actual CHANGES into redux: an
+    // unconditional dispatch per scroll frame would run the whole
+    // middleware chain and, worse, reset persistenceMiddleware's 200 ms
+    // debounce on every frame, starving the persisted write for as long
+    // as the user keeps scrolling.
+    const lastBoundarySentRef = useRef<number | null>(null);
     const handleReadBoundaryChange = useCallback((boundaryTs: number | null) => {
-      readBoundaryRef.current = boundaryTs;
-    }, []);
+      if (!activeRoomJID) {
+        return;
+      }
+      const next = boundaryTs && boundaryTs > 0 ? boundaryTs : null;
+      if (lastBoundarySentRef.current === next) {
+        return;
+      }
+      lastBoundarySentRef.current = next;
+      dispatch(setReadBoundary({ jid: activeRoomJID, ts: next }));
+    }, [activeRoomJID, dispatch]);
 
     useEffect(() => {
       if (!activeRoomJID) {
         return;
       }
 
-      readBoundaryRef.current = null;
+      lastBoundarySentRef.current = null;
+      dispatch(setReadBoundary({ jid: activeRoomJID, ts: null }));
       dispatch(setVisibleRoom({ roomJID: activeRoomJID }));
       setIsLoadingMore(false);
       return () => {
-        const rooms = store.getState().rooms?.rooms;
-        const heapState = store.getState().roomHeapSlice;
-        // Fall back to the newest server-acked message, never the device
+        const state = store.getState();
+        const rooms = state.rooms?.rooms;
+        const heapState = state.roomHeapSlice;
+        const boundaryTs = state.rooms?.readBoundaries?.[activeRoomJID] ?? null;
+        // getReadMarkerTimestamp honours the boundary (the newest message
+        // the user actually reached) when one is set, and otherwise falls
+        // back to the newest server-acked message - never the device
         // clock: a fast device clock would write a future marker that the
         // forward-only private-store merge could never correct (bug #38).
-        const timestamp =
-          readBoundaryRef.current ??
-          getServerReadTimestamp(rooms?.[activeRoomJID], heapState);
+        const timestamp = getReadMarkerTimestamp(
+          rooms?.[activeRoomJID],
+          heapState,
+          boundaryTs,
+        );
         if (timestamp > 0) {
           dispatch(
             setLastViewedTimestamp({
@@ -261,13 +296,27 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
               // Carry the same boundary to the SERVER marker. Without
               // this the flush defaults to "everything" for the visible
               // room, so messages the user never scrolled down to come
-              // back as read on the next login — the local count was
+              // back as read on the next login - the local count was
               // right but the server overrode it.
-              visibleRoomTs: readBoundaryRef.current,
+              // Clamped through the same helper as the local stamp -
+              // an unclamped boundary would bypass the newest-acked
+              // ceiling on the one path where a bad value is permanent
+              // (the private-store merge is forward-only, bug #38).
+              visibleRoomTs: getFlushBoundaryTs(
+                rooms?.[activeRoomJID],
+                heapState,
+                boundaryTs,
+              ),
             })
             .catch(() => {});
         }
         dispatch(deleteRoomMessage({ roomJID: activeRoomJID, messageId: 'delimiter-new' }));
+        // The room is genuinely being left (unmount, or activeRoomJID
+        // changed to a different room) - release the boundary now that
+        // it's been consumed, so a stale value can't leak into the next
+        // time this room becomes visible.
+        dispatch(clearReadBoundary({ jid: activeRoomJID }));
+        lastBoundarySentRef.current = null;
         setIsLoadingMore(false);
       };
     }, [activeRoomJID, dispatch]);
@@ -303,6 +352,8 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
     const inputDockPaddingBottom = getInputDockPaddingBottom({
       platform: Platform.OS,
       bottomInset: insets.bottom,
+      configuredPadding: configWithEventHandlers?.inputDockPaddingBottom,
+      hostOwnsLayout: !!configWithEventHandlers?.disableKeyboardAvoidingView,
     });
 
     // Keyboard avoidance is delegated to react-native-keyboard-controller's

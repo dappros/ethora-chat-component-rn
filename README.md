@@ -18,6 +18,7 @@ React Native chat UI + chat core for iOS and Android, powered by the Ethora plat
 - [Unread tracking in tab-based hosts](#unread-tracking-in-tab-based-hosts)
 - [Logging out](#logging-out)
 - [Customization flags worth knowing](#customization-flags-worth-knowing)
+- [Keyboard handling](#keyboard-handling)
 - [Header height & font sizing](#header-height--font-sizing)
 - [Quality & test coverage](#quality--test-coverage)
 - [Local development](#local-development)
@@ -313,6 +314,15 @@ Why awaitable: the persistence layer debounces writes by 200 ms, and the chat sl
 | `hideMemberCopyIdAction` | Hides only the "Copy User Id" button, keeps everything else. |
 | `disableConnectionErrorOverlay` | Replaces the full-screen "Connection error" overlay with a small, non-blocking `ConnectionBanner`. Set this when a transient reconnect shouldn't take over the whole screen. |
 | `eventHandlers.onMessageRetry` | `(event) => void` fired when the user taps the "Failed — tap to retry" indicator on a stuck send. Use for telemetry / surfacing a retry banner. |
+
+## Keyboard handling
+
+| Flag | What it does |
+| --- | --- |
+| `disableKeyboardAvoidingView` | Opts out of the built-in `KeyboardAvoidingView`, so a host app that already wraps `<Chat>` in its own keyboard handling doesn't get a second one avoiding the keyboard on top of it. |
+| `keyboardStickyInput` | Wraps only the input dock in a `KeyboardStickyView` instead of avoiding the keyboard for the whole chat tree, so the message list never resizes. Ignored when `disableKeyboardAvoidingView` is set. |
+| `keyboardVerticalOffset` | Pass-through offset added on top of the iOS safe-area inset when avoiding the keyboard. |
+| `inputDockPaddingBottom` | Bottom padding on the input dock (the composer's outer wrapper). When a number is given (0 allowed), it is used verbatim on both platforms. Left unset, it defaults to `0` when `disableKeyboardAvoidingView` is set, since the host then owns layout and the chat is typically already placed above the host's own chrome (e.g. a tab bar) - the built-in padding would otherwise add an extra gap. Otherwise it is unchanged: the iOS safe-area inset, or a fixed 12dp gap on Android. |
 
 ## Header height & font sizing
 

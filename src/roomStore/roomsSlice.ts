@@ -2,6 +2,7 @@ import { createAsyncThunk, createSlice, PayloadAction, type Slice } from '@redux
 import type { WritableDraft } from 'immer';
 import { EditAction, HistoryPreloadState, IMessage, IRoom } from '../types/types';
 import { insertMessageWithDelimiter } from '../helpers/insertMessageWithDelimiter';
+import { msgSortableMs } from '../helpers/msgSortableMs';
 import type XmppClient from '../networking/xmppClient';
 
 // Per-room runtime message cap. Mirrors the persistence layer's
@@ -236,6 +237,33 @@ export interface RoomMessagesState {
   // — see `applyPrivateStoreMarkers`. Re-fetched every init/reconnect,
   // so it is intentionally NOT persisted.
   privateStoreMarkers: Record<string, number>;
+  // The single source of truth for "read up to here, but the user
+  // hasn't reached the bottom yet" (`{ roomJID: boundaryMs }`).
+  // Set by MessageList (via ChatRoom's `onReadBoundaryChange`) the
+  // moment the user first scrolls away from the bottom, to the
+  // msgSortableMs of the newest message they'd actually seen. Every
+  // path that stamps a read marker for a room the user is leaving
+  // (ChatRoom unmount, xmppProvider's AppState background handler and
+  // `isVisible=false` handler, the live `advance()` effect, and
+  // `useChatRoomFocus`'s `leaveRoom`) must consult this instead of
+  // unconditionally stamping "the newest acked message" - otherwise
+  // leaving a room while scrolled up marks messages the user never
+  // reached as read (customer #42, a regression of #33 reintroduced by
+  // #38's server-timestamp marker). See `getReadMarkerTimestamp` in
+  // helpers/getServerReadTimestamp.ts.
+  //
+  // Cleared when the boundary no longer applies: the user scrolls back
+  // to the bottom, the visible room changes, or the room is truly left
+  // (ChatRoom unmounts, or a tab-navigator focus hook releases the
+  // room). NOT cleared merely because the app backgrounds or a host's
+  // `isVisible` flips false - MessageList typically stays mounted
+  // through those, so its own scroll-tracking ref (the only thing that
+  // could re-derive this value) is still intact and the boundary must
+  // stay in sync with it. Deliberately NOT persisted (this key isn't
+  // read by `persistence.ts`, which only ever picks `rooms` back out of
+  // this slice) - it's meaningless across a process restart, where
+  // MessageList always mounts fresh at the bottom.
+  readBoundaries: Record<string, number>;
 }
 
 const initialState: RoomMessagesState = {
@@ -252,6 +280,7 @@ const initialState: RoomMessagesState = {
   },
   pendingNotificationJid: null,
   privateStoreMarkers: {},
+  readBoundaries: {},
 };
 
 const isValidRoomJid = (jid: unknown): jid is string => {
@@ -518,7 +547,7 @@ const reducers = {
           state.visibleRoomJID === roomJID
             ? null
             : lastViewedValue
-              ? new Date(lastViewedValue)
+              ? lastViewedValue
               : null;
 
         insertMessageWithDelimiter(roomMessages, message, lastViewedTimestamp);
@@ -536,6 +565,7 @@ const reducers = {
       state.rooms = {};
       state.visibleRoomJID = null;
       state.privateStoreMarkers = {};
+      state.readBoundaries = {};
       state.isUnreadSyncing = false;
     },
     setComposing(
@@ -659,6 +689,39 @@ const reducers = {
         }
       }
     },
+    /**
+     * Set (or clear) the "read up to here, but not further" boundary for
+     * a room - see `readBoundaries` on `RoomMessagesState` for the full
+     * contract. `ts` is the msgSortableMs of the newest message the user
+     * actually reached before scrolling away from the bottom; `null`/`0`
+     * clears it (the user is at the bottom, or nothing was reached yet).
+     */
+    setReadBoundary: (
+      state: WritableDraft<RoomMessagesState>,
+      action: PayloadAction<{ jid: string; ts: number | null }>
+    ) => {
+      const { jid, ts } = action.payload;
+      if (!jid) {return;}
+      if (!state.readBoundaries) {state.readBoundaries = {};}
+      if (typeof ts === 'number' && Number.isFinite(ts) && ts > 0) {
+        state.readBoundaries[jid] = ts;
+      } else {
+        delete state.readBoundaries[jid];
+      }
+    },
+    /**
+     * Release a room's read boundary once it has been consumed by a
+     * genuine "leave" (ChatRoom unmount, or a tab-navigator focus hook
+     * switching to a different room) - see `readBoundaries` for why the
+     * background/`isVisible=false` paths deliberately do NOT call this.
+     */
+    clearReadBoundary: (
+      state: WritableDraft<RoomMessagesState>,
+      action: PayloadAction<{ jid: string }>
+    ) => {
+      const { jid } = action.payload;
+      if (jid && state.readBoundaries) {delete state.readBoundaries[jid];}
+    },
     setRoomRole: (
       state: WritableDraft<RoomMessagesState>,
       action: PayloadAction<{ chatJID: string; role: string }>
@@ -752,6 +815,7 @@ const reducers = {
       state.isLoading = false;
       state.isUnreadSyncing = false;
       state.privateStoreMarkers = {};
+      state.readBoundaries = {};
     },
     setActiveMessage: (
       state: WritableDraft<RoomMessagesState>,
@@ -873,27 +937,13 @@ export const roomsStore: Slice<RoomMessagesState, typeof reducers, 'roomMessages
   reducers,
 });
 
-// Count messages strictly newer than the given millisecond timestamp.
-// Uses `msg.id` (server-authoritative microsecond timestamp prefixed by
-// 13-digit millis — see helpers/dateComparison `getHighResolutionTimestamp`)
-// because `msg.date` can be derived client-side (createMessageFromXml
-// falls back to `Date.now()` for realtime stanzas without a `date`
-// attr), which makes the comparison drift vs what the server assigned.
-// Excludes the "delimiter-new" sentinel, pending sends, and the current
-// user's own messages (parity with unreadMiddleware's isOwnMessage
-// filter — without this, the reducer and the middleware disagree about
-// the count and we get a flicker as the badge gets written twice with
-// different values on every message).
-export const msgSortableMs = (msg: any): number => {
-  const id = String(msg?.id || '');
-  const m = /^(\d{13})/.exec(id);
-  if (m) {return Number(m[1]);}
-  if (msg?.date) {
-    const t = new Date(msg.date as any).getTime();
-    if (Number.isFinite(t)) {return t;}
-  }
-  return 0;
-};
+// Re-exported for backward compatibility - every existing call site
+// imports `msgSortableMs` from here. The implementation now lives in
+// helpers/msgSortableMs.ts (imported above), so insertMessageWithDelimiter.ts
+// (which this file itself imports) can use the SAME ordering source
+// without a roomStore <-> helpers import cycle. See that file for the
+// full rationale (server id vs. client `date`).
+export { msgSortableMs };
 
 const norm = (s: any): string => {
   if (s == null) {return '';}
@@ -980,6 +1030,8 @@ export const {
   setUnreadSyncing,
   setLastViewedTimestamp,
   applyPrivateStoreMarkers,
+  setReadBoundary,
+  clearReadBoundary,
   setRoomNoMessages,
   setCurrentRoom,
   setVisibleRoom,

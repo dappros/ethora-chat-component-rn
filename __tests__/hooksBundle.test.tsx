@@ -313,6 +313,23 @@ describe('usePendingNotification', () => {
 
   it('reads + clears the AsyncStorage pending jid on mount when redux value is absent', async () => {
     const store = makeStore();
+    // The hook only consumes (and clears) the pending jid once the room
+    // exists in redux; until then the value must survive so a later room
+    // load can still open it (cold-start race, see usePendingNotification).
+    store.dispatch(
+      addRoom({
+        roomData: {
+          id: 'pending-room@h',
+          name: 'pending-room',
+          jid: 'pending-room@h',
+          title: 'Pending',
+          usersCnt: 0,
+          messages: [],
+          isLoading: false,
+          roomBg: '',
+        } as any,
+      })
+    );
     await AsyncStorage.setItem(
       'ethora_pending_notification_jid',
       'pending-room@h'
@@ -333,6 +350,32 @@ describe('usePendingNotification', () => {
     expect(
       await AsyncStorage.getItem('ethora_pending_notification_jid')
     ).toBeNull();
+    expect(store.getState().rooms.activeRoomJID).toBe('pending-room@h');
+    tree!.unmount();
+  });
+
+  it('keeps the AsyncStorage pending jid until the room is loaded', async () => {
+    const store = makeStore();
+    await AsyncStorage.setItem(
+      'ethora_pending_notification_jid',
+      'pending-room@h'
+    );
+    let tree: renderer.ReactTestRenderer | undefined;
+    await act(async () => {
+      tree = renderer.create(
+        <Provider store={store}>
+          <PendingProbe onReady={() => {}} />
+        </Provider>
+      );
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(
+      await AsyncStorage.getItem('ethora_pending_notification_jid')
+    ).toBe('pending-room@h');
+    expect(store.getState().rooms.activeRoomJID).toBeFalsy();
     tree!.unmount();
   });
 

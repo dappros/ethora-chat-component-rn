@@ -1,5 +1,5 @@
 import type { IMessage, IRoom } from '../types/types';
-import { msgSortableMs } from '../roomStore/roomsSlice';
+import { msgSortableMs } from './msgSortableMs';
 
 // A stored/stamped read marker more than this far past the newest
 // message we actually know about for a room is not "the user is a
@@ -42,7 +42,7 @@ type RoomForReadTimestamp = Pick<IRoom, 'jid' | 'messages' | 'lastViewedTimestam
  *    `heapState.failedMessages` (a send that never reached the server
  *    at all).
  *
- * `msgSortableMs` (roomsSlice.ts) reads the server-assigned microsecond
+ * `msgSortableMs` (helpers/msgSortableMs.ts) reads the server-assigned microsecond
  * timestamp encoded in the first 13 digits of the message id - the same
  * source already used for message ordering and unread counting - so
  * this stays consistent with the rest of the read/unread pipeline.
@@ -117,4 +117,81 @@ export function isCorruptFutureReadMarker(
   if (!(newestAckedMs > 0)) {return false;}
   if (marker <= newestAckedMs + FUTURE_READ_MARKER_TOLERANCE_MS) {return false;}
   return marker > Date.now() + FUTURE_READ_MARKER_TOLERANCE_MS;
+}
+
+/**
+ * Resolve the marker to STAMP (locally and to the server) for `room`,
+ * honouring an explicit read boundary when one is set.
+ *
+ * Bug #42 (a regression of #33, reintroduced by #38): #38 made every
+ * caller stamp the newest server-acknowledged message unconditionally.
+ * That is correct for a user who is at the bottom of the room, but wrong
+ * for a user who scrolled up, received messages, and left without
+ * scrolling back down - stamping "newest" there silently marks
+ * messages they never saw as read, both locally and (because the
+ * private-store merge is forward-only) permanently on the server.
+ *
+ * `boundaryTs` is the msgSortableMs of the newest message the user
+ * actually reached (see `readBoundaries` on `RoomMessagesState`,
+ * populated by MessageList's `onReadBoundaryChange`). When it's set and
+ * positive, it wins - but is still clamped to never exceed the newest
+ * server-acknowledged message, so a stale/corrupt boundary can't stamp a
+ * marker further ahead than the room's own history supports. When no
+ * boundary is set (the common case - the user is at the bottom), this is
+ * exactly `getServerReadTimestamp`.
+ *
+ * Never returns `Date.now()`, directly or indirectly - same rule as
+ * `getServerReadTimestamp` (bug #38).
+ */
+export function getReadMarkerTimestamp(
+  room: RoomForReadTimestamp | null | undefined,
+  heapState?: ReadTimestampHeapState | null,
+  boundaryTs?: number | null
+): number {
+  const newestAcked = getServerReadTimestamp(room, heapState);
+  if (
+    typeof boundaryTs === 'number' &&
+    Number.isFinite(boundaryTs) &&
+    boundaryTs > 0
+  ) {
+    // `newestAcked === 0` means this room has NOTHING server-acked and no
+    // prior marker, so there is nothing to clamp the boundary against -
+    // and MessageList derives the boundary from the rendered list, which
+    // at that point can only contain pending/failed sends carrying the
+    // DEVICE clock via `date`. Returning it here would smuggle a
+    // device-clock marker back in through the boundary (bug #38). Return
+    // 0 = "nothing to anchor to, skip the write", same contract as
+    // getServerReadTimestamp.
+    return newestAcked > 0 ? Math.min(boundaryTs, newestAcked) : 0;
+  }
+  return newestAcked;
+}
+
+/**
+ * The value to hand `flushLastViewedToPrivateStore` as `visibleRoomTs`
+ * for a room being left, or `undefined` when no boundary applies (the
+ * flush then uses its own newest-acked default).
+ *
+ * Exists so the SERVER write goes through the SAME clamp as the local
+ * stamp. Passing the raw redux boundary straight through would bypass
+ * `getReadMarkerTimestamp`'s clamp on exactly the path where a bad value
+ * is permanent: the private-store merge is forward-only, so a boundary
+ * that (through a pending own message's device `date`, or a stale
+ * readBoundaries entry) sat ahead of the room's real history would be
+ * written verbatim and could never be corrected again (bug #38).
+ */
+export function getFlushBoundaryTs(
+  room: RoomForReadTimestamp | null | undefined,
+  heapState?: ReadTimestampHeapState | null,
+  boundaryTs?: number | null
+): number | undefined {
+  if (
+    typeof boundaryTs !== 'number' ||
+    !Number.isFinite(boundaryTs) ||
+    boundaryTs <= 0
+  ) {
+    return undefined;
+  }
+  const clamped = getReadMarkerTimestamp(room, heapState, boundaryTs);
+  return clamped > 0 ? clamped : undefined;
 }

@@ -259,6 +259,9 @@ Native push on RN uses FCM/APNs through Firebase. The host app owns the FCM/APNs
 | `roomListStyles` | `ViewStyle` | RN style overrides for the room-list pane. |
 | `chatRoomStyles` | `ViewStyle` | RN style overrides for the chat pane. |
 | `keyboardVerticalOffset` | `number` | Pass-through to `KeyboardAvoidingView`. Default `iOS: 130 / Android: 100` in the testbed. |
+| `disableKeyboardAvoidingView` | `boolean` | Opt out of the built-in `KeyboardAvoidingView` so a host app's own keyboard handling isn't doubled up. |
+| `keyboardStickyInput` | `boolean` | Wrap only the input dock in a `KeyboardStickyView` instead of avoiding the keyboard for the whole chat tree. Ignored when `disableKeyboardAvoidingView` is set. |
+| `inputDockPaddingBottom` | `number` | Bottom padding on the input dock, used verbatim on both platforms (0 allowed) when set. Defaults to 0 when `disableKeyboardAvoidingView` is set (the host owns layout, e.g. it already sits above the host's tab bar); otherwise the iOS safe-area inset or a fixed 12dp gap on Android, unchanged. |
 
 ### Translations
 

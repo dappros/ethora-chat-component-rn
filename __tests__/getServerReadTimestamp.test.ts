@@ -5,7 +5,11 @@
  * (bug #38).
  */
 
-import { getServerReadTimestamp } from '../src/helpers/getServerReadTimestamp';
+import {
+  getServerReadTimestamp,
+  getReadMarkerTimestamp,
+  getFlushBoundaryTs,
+} from '../src/helpers/getServerReadTimestamp';
 import type { IMessage, IRoom } from '../src/types/types';
 
 function makeRoom(overrides: Partial<IRoom> = {}): IRoom {
@@ -157,5 +161,138 @@ describe('getServerReadTimestamp', () => {
       lastViewedTimestamp: 1_700_000_000_000,
     });
     expect(getServerReadTimestamp(room)).toBe(1_700_000_000_000);
+  });
+});
+
+/**
+ * getReadMarkerTimestamp - the boundary-aware wrapper introduced for bug
+ * #42 (a regression of #33 reintroduced by #38). Every path that stamps
+ * a "leaving this room" read marker must go through this instead of
+ * getServerReadTimestamp directly, so leaving a room while scrolled up
+ * doesn't stamp "everything read".
+ */
+describe('getReadMarkerTimestamp', () => {
+  it('matches getServerReadTimestamp when no boundary is given', () => {
+    const room = makeRoom({
+      messages: [serverMsg(1_700_000_000_000), serverMsg(1_700_000_050_000)],
+    });
+    expect(getReadMarkerTimestamp(room)).toBe(1_700_000_050_000);
+    expect(getReadMarkerTimestamp(room, null, null)).toBe(1_700_000_050_000);
+    expect(getReadMarkerTimestamp(room, null, undefined)).toBe(1_700_000_050_000);
+  });
+
+  it('matches getServerReadTimestamp when the boundary is 0 or negative (treated as unset)', () => {
+    const room = makeRoom({
+      messages: [serverMsg(1_700_000_000_000), serverMsg(1_700_000_050_000)],
+    });
+    expect(getReadMarkerTimestamp(room, null, 0)).toBe(1_700_000_050_000);
+    expect(getReadMarkerTimestamp(room, null, -1)).toBe(1_700_000_050_000);
+  });
+
+  it('uses the boundary (the newest message the user actually reached) instead of the newest acked message when the user is scrolled up', () => {
+    const room = makeRoom({
+      messages: [
+        serverMsg(1_700_000_000_000), // last message the user reached
+        serverMsg(1_700_000_010_000), // received while scrolled up - unread
+        serverMsg(1_700_000_020_000), // received while scrolled up - unread
+      ],
+    });
+    // Without a boundary this would be 1_700_000_020_000 (newest) - which
+    // is exactly bug #42: it would mark the two unread messages as read.
+    expect(getReadMarkerTimestamp(room, null, 1_700_000_000_000)).toBe(
+      1_700_000_000_000
+    );
+  });
+
+  it('clamps the boundary so it can never exceed the newest server-acked message', () => {
+    const room = makeRoom({
+      messages: [serverMsg(1_700_000_000_000)],
+    });
+    // A stale/corrupt boundary further ahead than anything this room
+    // actually has must not be trusted outright.
+    expect(getReadMarkerTimestamp(room, null, 1_700_000_999_000)).toBe(
+      1_700_000_000_000
+    );
+  });
+
+  it('returns 0 (skip the write) when there is no known acked message to clamp the boundary against', () => {
+    // A brand new / not-yet-synced room. The boundary can only have come
+    // from the rendered list, which here holds nothing server-acked - so
+    // trusting it would smuggle a device-clock value into the marker,
+    // which is exactly what bug #38 forbids. 0 means "nothing to anchor
+    // to, skip the write".
+    const room = makeRoom({ messages: [] });
+    expect(getReadMarkerTimestamp(room, null, 1_700_000_000_000)).toBe(0);
+  });
+
+  it('never falls back to Date.now() - an unresolvable room + boundary returns 0', () => {
+    expect(getReadMarkerTimestamp(null, null, null)).toBe(0);
+    expect(getReadMarkerTimestamp(undefined, null, 0)).toBe(0);
+    // Even with a boundary: no acked message, nothing to anchor to.
+    expect(getReadMarkerTimestamp(null, null, 1_700_000_000_000)).toBe(0);
+  });
+
+  it('a pending own message can never push the boundary into the future', () => {
+    // The room has ONLY a pending send (device clock, far ahead). The
+    // boundary MessageList derives from the rendered list would carry
+    // that device timestamp - it must not become the marker.
+    const room = makeRoom({
+      messages: [pendingMsg(1_700_999_000_000, 'send-text-message-1-1')],
+    });
+    expect(getReadMarkerTimestamp(room, null, 1_700_999_000_000)).toBe(0);
+  });
+});
+
+/**
+ * getFlushBoundaryTs - what the SERVER write gets. Must go through the
+ * same clamp as the local stamp: the private-store merge is forward-only,
+ * so an unclamped future value written there is permanent (bug #38).
+ */
+describe('getFlushBoundaryTs', () => {
+  it('is undefined when no boundary applies, so the flush uses its own default', () => {
+    const room = makeRoom({ messages: [serverMsg(1_700_000_000_000)] });
+    expect(getFlushBoundaryTs(room, null, null)).toBeUndefined();
+    expect(getFlushBoundaryTs(room, null, undefined)).toBeUndefined();
+    expect(getFlushBoundaryTs(room, null, 0)).toBeUndefined();
+    expect(getFlushBoundaryTs(room, null, -5)).toBeUndefined();
+  });
+
+  it('passes a sane boundary through', () => {
+    const room = makeRoom({
+      messages: [serverMsg(1_700_000_000_000), serverMsg(1_700_000_050_000)],
+    });
+    expect(getFlushBoundaryTs(room, null, 1_700_000_000_000)).toBe(
+      1_700_000_000_000
+    );
+  });
+
+  it('clamps a boundary that sits past the newest acked message', () => {
+    const room = makeRoom({ messages: [serverMsg(1_700_000_000_000)] });
+    expect(getFlushBoundaryTs(room, null, 1_700_999_000_000)).toBe(
+      1_700_000_000_000
+    );
+  });
+
+  it('is undefined when there is nothing acked to clamp against', () => {
+    const room = makeRoom({
+      messages: [pendingMsg(1_700_999_000_000, 'send-text-message-1-1')],
+    });
+    expect(getFlushBoundaryTs(room, null, 1_700_999_000_000)).toBeUndefined();
+    expect(getFlushBoundaryTs(null, null, 1_700_999_000_000)).toBeUndefined();
+  });
+
+  it('ignores a pending message even with a boundary set (bug #38 exclusion still applies)', () => {
+    const room = makeRoom({
+      messages: [
+        serverMsg(1_700_000_000_000),
+        pendingMsg(1_700_999_000_000, 'send-text-message-1700999000000-1'),
+      ],
+    });
+    // Boundary sits ahead of the real newest acked message (1_700_000_000_000)
+    // but behind the pending message's device-clock date - must clamp to
+    // the real acked message, never trust the pending device timestamp.
+    expect(getReadMarkerTimestamp(room, null, 1_700_000_500_000)).toBe(
+      1_700_000_000_000
+    );
   });
 });

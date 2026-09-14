@@ -48,7 +48,10 @@ import {
   deleteRoomMessage,
   setUnreadSyncing,
 } from '../roomStore/roomsSlice';
-import { getServerReadTimestamp } from '../helpers/getServerReadTimestamp';
+import {
+  getFlushBoundaryTs,
+  getReadMarkerTimestamp,
+} from '../helpers/getServerReadTimestamp';
 import { runHistoryPreloadScheduler } from '../helpers/historyPreloadScheduler';
 import { updateMessagesTillLast } from '../helpers/updateMessagesTillLast';
 import { secureUserStorage } from '../helpers/secureUserStorage';
@@ -638,7 +641,8 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
       // Mark the open room "not visible" while backgrounded so messages
       // that arrive (or MAM-replay on reconnect) count as unread instead
       // of being silently treated as read — the "mounted == visible ==
-      // read" gap. Stamp lastViewed=<newest server-acked message>, not
+      // read" gap. Stamp lastViewed=<the read boundary, if the user left
+      // scrolled up, else the newest server-acked message>, not
       // Date.now(), as the read baseline: a device clock running ahead
       // would otherwise write a future marker that the forward-only
       // private-store merge can never correct again (bug #38). Then
@@ -647,11 +651,23 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
       // here in the provider so consumers using the component as a
       // package get correct unread without reaching into the chat store
       // themselves.
+      //
+      // The read boundary (rooms.readBoundaries) is deliberately left
+      // untouched here - MessageList normally stays mounted through a
+      // simple background/foreground cycle, so its own scroll-tracking
+      // ref (the only thing that could re-derive this value) is still
+      // intact, and clearing the redux copy would desync the two. It's
+      // only USED here for the one-shot stamp+flush, matching customer
+      // #42: leaving (or backgrounding) a room while scrolled up must not
+      // mark messages the user never reached as read.
       visibleBeforeBackground = visibleRoomJID;
+      let boundaryTs: number | null = null;
       if (visibleRoomJID) {
-        const readTs = getServerReadTimestamp(
+        boundaryTs = state.rooms?.readBoundaries?.[visibleRoomJID] ?? null;
+        const readTs = getReadMarkerTimestamp(
           rooms?.[visibleRoomJID],
-          state.roomHeapSlice
+          state.roomHeapSlice,
+          boundaryTs
         );
         // Nothing to anchor to yet (no known messages, no prior marker)
         // - skip the local stamp rather than fall back to the device
@@ -671,10 +687,21 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
         store.dispatch(clearVisibleRoom());
       }
       // Fire-and-forget — we're going to the background and don't
-      // care about the resolution path.
-      c.flushLastViewedToPrivateStoreStanza(rooms, { visibleRoomJID }).catch(
-        () => {}
-      );
+      // care about the resolution path. `visibleRoomTs` carries the same
+      // boundary to the SERVER marker - without it the flush defaults to
+      // "everything" for the visible room, overriding a correct smaller
+      // local count.
+      c.flushLastViewedToPrivateStoreStanza(rooms, {
+        visibleRoomJID,
+        // Clamped through the same helper as the local stamp above.
+        visibleRoomTs: visibleRoomJID
+          ? getFlushBoundaryTs(
+              rooms?.[visibleRoomJID],
+              state.roomHeapSlice,
+              boundaryTs
+            )
+          : undefined,
+      }).catch(() => {});
     });
     return () => sub.remove();
   }, [client, config?.xmppSettings?.keepAliveInBackground]);
@@ -705,13 +732,24 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
         store.dispatch(setVisibleRoom({ roomJID: activeRoomJID }));
       }
     } else {
+      // The read boundary (rooms.readBoundaries) is USED for the stamp
+      // and flush below but deliberately left in place - a host using
+      // `isVisible` keeps <Chat> mounted while hidden, so MessageList's
+      // own scroll-tracking ref is still intact and the redux copy must
+      // stay in sync with it. Only consumed, never Date.now(): a fast
+      // device clock would write a future marker that the forward-only
+      // private-store merge could then never correct (bug #38). And
+      // never "the newest acked message" unconditionally either - that
+      // silently marks messages the user scrolled past and never reached
+      // as read (bug #42, a regression of #33).
+      const boundaryTs = activeRoomJID
+        ? state.rooms?.readBoundaries?.[activeRoomJID] ?? null
+        : null;
       if (wasVisible && activeRoomJID) {
-        // Never Date.now(): a fast device clock would write a future
-        // marker that the forward-only private-store merge could then
-        // never correct (bug #38).
-        const readTs = getServerReadTimestamp(
+        const readTs = getReadMarkerTimestamp(
           rooms?.[activeRoomJID],
-          state.roomHeapSlice
+          state.roomHeapSlice,
+          boundaryTs
         );
         if (readTs > 0) {
           store.dispatch(
@@ -728,7 +766,19 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
       store.dispatch(clearVisibleRoom());
       if (wasVisible && client?.flushLastViewedToPrivateStoreStanza) {
         client
-          .flushLastViewedToPrivateStoreStanza(rooms, { visibleRoomJID: activeRoomJID })
+          .flushLastViewedToPrivateStoreStanza(rooms, {
+            visibleRoomJID: activeRoomJID,
+            // Carry the same boundary to the SERVER marker - without it
+            // the flush defaults to "everything" for the visible room.
+            // Clamped exactly like the local stamp above.
+            visibleRoomTs: activeRoomJID
+              ? getFlushBoundaryTs(
+                  rooms?.[activeRoomJID],
+                  state.roomHeapSlice,
+                  boundaryTs
+                )
+              : undefined,
+          })
           .catch(() => {});
       }
     }
@@ -749,13 +799,21 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
       if (room.messages === lastMessagesRef) {return;}
       lastMessagesRef = room.messages;
 
-      // getServerReadTimestamp (not a hand-rolled scan + Date.now()):
+      // getReadMarkerTimestamp (not a hand-rolled scan + Date.now()):
       // it excludes pending/optimistic messages, which carry the DEVICE
       // send time via `date` until the server echoes them back - a
       // manual scan without that exclusion could pick up a pending
       // message's device timestamp here and write a future marker the
-      // same way a raw Date.now() would (bug #38).
-      const newest = getServerReadTimestamp(room, s.roomHeapSlice);
+      // same way a raw Date.now() would (bug #38). And when the user has
+      // scrolled up (a boundary is set for this room), it clamps to that
+      // boundary instead of the newest message - without this, every
+      // incoming message while scrolled up advanced the marker to
+      // "newest" regardless of scroll position, and the later, smaller
+      // boundary write on leave was rejected by the forward-only
+      // private-store merge, leaving 0 unread even after a restart
+      // (customer #42, a regression of #33 reintroduced by #38).
+      const boundaryTs = s.rooms?.readBoundaries?.[jid] ?? null;
+      const newest = getReadMarkerTimestamp(room, s.roomHeapSlice, boundaryTs);
       if (!newest || newest <= lastStampedMs) {return;}
       lastStampedMs = newest;
 
@@ -766,9 +824,20 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
       if (flushTimer) {clearTimeout(flushTimer);}
       if (client?.flushLastViewedToPrivateStoreStanza) {
         flushTimer = setTimeout(() => {
+          // Re-read fresh state rather than closing over `boundaryTs`:
+          // the user may have scrolled back to the bottom (clearing the
+          // boundary) in the 2s between the stamp and this flush, and
+          // the flush should reflect that.
+          const freshState = store.getState();
+          const freshBoundaryTs = freshState.rooms?.readBoundaries?.[jid] ?? null;
           client
-            .flushLastViewedToPrivateStoreStanza(store.getState().rooms?.rooms, {
+            .flushLastViewedToPrivateStoreStanza(freshState.rooms?.rooms, {
               visibleRoomJID: jid,
+              visibleRoomTs: getFlushBoundaryTs(
+                freshState.rooms?.rooms?.[jid],
+                freshState.roomHeapSlice,
+                freshBoundaryTs
+              ),
             })
             .catch(() => {});
         }, 2000);
