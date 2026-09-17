@@ -18,6 +18,7 @@ import {
 import { CameraIcon, DocumentIcon } from '../../../assets/icons';
 import { useChatSettingState } from '../../../hooks/useChatSettingState';
 import { chatTextStyle } from '../../../helpers/typography';
+import { useT } from '../../../i18n/useT';
 import { getMediaLibrary } from '../../../helpers/mediaLibraryRuntime';
 import {
   shouldClaimVerticalDrag,
@@ -103,6 +104,7 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
 }) => {
   const { config } = useChatSettingState();
   const ts = config?.typography?.attachSheet;
+  const t = useT();
   const pendingRef = useRef<(() => void) | null>(null);
   const runPending = () => {
     const fn = pendingRef.current;
@@ -304,7 +306,7 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
   }[] = [
     {
       id: 'Document',
-      label: 'Upload a File',
+      label: t('attach.uploadFile'),
       Icon: DocumentIcon,
       handler: onDocument,
     },
@@ -350,7 +352,7 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
           {/* Photos & Videos ------------------------------------------------ */}
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, chatTextStyle(ts?.title)]}>
-              Photos & Videos
+              {t('attach.photosAndVideos')}
             </Text>
             <TouchableOpacity
               testID="attach-view-library"
@@ -365,7 +367,7 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
                   chatTextStyle(ts?.viewLibrary),
                 ]}
               >
-                View Library
+                {t('attach.viewLibrary')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -379,6 +381,8 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
             {/* Camera tile — always first, works without library access. */}
             <TouchableOpacity
               testID="attach-row-Camera"
+              accessibilityRole="button"
+              accessibilityLabel={t('attach.takePhoto')}
               activeOpacity={0.7}
               style={styles.cameraTile}
               onPress={trigger(onCamera)}

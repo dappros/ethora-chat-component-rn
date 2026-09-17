@@ -63,6 +63,23 @@ jest.mock('react-native', () => {
     Dimensions: {
       get: () => ({ width: 390, height: 844 }),
     },
+    // jest-expo's own setup imports expo-modules-core, which calls
+    // `Platform.select` at module scope. This factory replaces the WHOLE
+    // react-native module, so leaving Platform out made that call read
+    // `.select` off undefined and the suite died before a single test ran.
+    Platform: {
+      OS: 'ios',
+      Version: 17,
+      isPad: false,
+      isTV: false,
+      select: (spec: any) =>
+        'ios' in spec ? spec.ios : spec.native ?? spec.default,
+    },
+    Keyboard: {
+      addListener: () => ({ remove: () => {} }),
+      removeAllListeners: () => {},
+      dismiss: () => {},
+    },
     FlatList,
   };
 });

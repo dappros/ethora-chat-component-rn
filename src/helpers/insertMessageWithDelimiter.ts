@@ -33,6 +33,19 @@ function resolveMarkerMs(
 
 function deepMerge(target: any, source: any): any {
   for (const key in source) {
+    if (source[key] === undefined) {
+      // `for...in` visits a key even when its value is `undefined` — every
+      // stanza parser (getDataFromXml/createMessageFromXml) returns an
+      // object literal with `translations` always present, explicitly
+      // `undefined` whenever the wire message didn't carry a
+      // <translations> element. Without this guard, merging THAT message
+      // over an existing row would blow away a translation the row
+      // already had (e.g. a MAM/live echo of a message arriving without
+      // its translation re-attached) — a real message flips from
+      // translated back to original text for no reason. Absence on the
+      // incoming side must mean "leave it alone", never "clear it".
+      continue;
+    }
     if (
       source[key] &&
       typeof source[key] === 'object' &&

@@ -16,6 +16,7 @@ import { getDataFromXml } from '../helpers/getDataFromXml';
 import { setDeleteModal } from '../roomStore/chatSettingsSlice';
 import { messageNotificationManager } from '../utils/messageNotificationManager';
 import { transformCallLogMessage } from '../helpers/callLogMessage';
+import { translateKey } from '../i18n/strings';
 
 // TO DO: we are thinking to refactor this code in the following way:
 // each stanza will be parsed for 'type'
@@ -120,13 +121,24 @@ const onRealtimeMessage = async (stanza: Element) => {
       }
       const room = state.rooms.rooms[roomJID];
       const roomName = room?.title || room?.name || '';
+      // Fallback when we don't have a display name for the sender. This is
+      // user-visible — it renders as the sender line in the in-app
+      // notification toast (see MessageNotificationContext's ToastRow:
+      // `{senderName}: {message.body}`) — so it goes through the static
+      // i18n table like any other UI caption. We're outside React here
+      // (stanza handler, not a component), so resolve the locale from the
+      // store directly and call `translateKey` instead of `useT()`.
+      const locale =
+        state.chatSettingStore.config?.i18n?.locale ||
+        state.chatSettingStore.langSource;
+      const overrides = state.chatSettingStore.config?.i18n?.strings;
       const senderName = [
         data.attrs.senderFirstName,
         data.attrs.senderLastName,
       ]
         .filter(Boolean)
         .join(' ')
-        .trim() || 'New message';
+        .trim() || translateKey('notification.senderFallback', locale, overrides);
       messageNotificationManager.showNotification(
         message,
         roomName,

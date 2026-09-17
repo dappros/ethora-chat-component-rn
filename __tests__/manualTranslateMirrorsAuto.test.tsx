@@ -145,13 +145,58 @@ describe('manual translate mirrors auto', () => {
     });
   });
 
-  it('toggles back to the original', async () => {
+  it('toggles back to the original by collapsing, not by printing it twice', async () => {
+    // The bubble body ABOVE this component is already the original text in
+    // manual mode (Message.tsx only translates inline in AUTO mode, see
+    // showInlineTranslation). The regression: "Show original" swapped the
+    // original into the revealed block as well, so the same sentence showed
+    // twice - once in the body, once under the divider. Collapsing the block
+    // is what the label actually promises.
     const tree = await render(translated);
     await tapLink(tree, 'Translate');
+    expect(textsOf(tree)).toContain('salut, ce message est en anglais');
     expect(textsOf(tree)).toContain('Show original');
 
     await tapLink(tree, 'Show original');
-    expect(textsOf(tree)).toContain('hi, this message is in english');
+
+    const after = textsOf(tree);
+    // No second copy of the original - the bubble body owns the only one.
+    expect(after).not.toContain('hi, this message is in english');
+    // The translation is hidden and the link offers to bring it back.
+    expect(after).not.toContain('salut, ce message est en anglais');
+    expect(after).toContain('Translate');
+    expect(after).not.toContain('Show original');
+
+    // And it re-reveals on a second tap.
+    await tapLink(tree, 'Translate');
+    expect(textsOf(tree)).toContain('salut, ce message est en anglais');
+
+    await act(async () => {
+      tree.unmount();
+    });
+  });
+
+  it('collapses a host translation without re-running the host translator', async () => {
+    const onTranslate = jest.fn(async () => 'traduit par hote');
+    const tree = await render(untranslated, {
+      translates: { enabled: true, onTranslate },
+    } as Partial<IConfig>);
+
+    await tapLink(tree, 'Translate');
+    expect(onTranslate).toHaveBeenCalledTimes(1);
+    expect(textsOf(tree)).toContain('traduit par hote');
+
+    await tapLink(tree, 'Show original');
+    const after = textsOf(tree);
+    expect(after).not.toContain('traduit par hote');
+    expect(after).not.toContain('hi, this message is in english');
+    expect(after).toContain('Translate');
+
+    // Re-revealing serves the cached text, it does not pay for the host's
+    // translator a second time.
+    await tapLink(tree, 'Translate');
+    expect(onTranslate).toHaveBeenCalledTimes(1);
+    expect(textsOf(tree)).toContain('traduit par hote');
 
     await act(async () => {
       tree.unmount();

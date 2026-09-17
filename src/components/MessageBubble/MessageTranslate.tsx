@@ -68,7 +68,6 @@ const MessageTranslate: FC<MessageTranslateProps> = ({
   const attached = useMessageTranslation(message, targetLocale, true);
 
   const [revealed, setRevealed] = useState(false);
-  const [showOriginal, setShowOriginal] = useState(false);
   const [hostPhase, setHostPhase] = useState<HostPhase>('idle');
   const [hostText, setHostText] = useState<string | null>(null);
   const linkColor = config?.colors?.primary || '#0052CD';
@@ -129,20 +128,22 @@ const MessageTranslate: FC<MessageTranslateProps> = ({
     </TouchableOpacity>
   );
 
-  const renderRevealed = (translatedText: string) => (
+  // "Show original" COLLAPSES the block — it does not swap a second copy of
+  // the original in. The bubble body directly above this link is already the
+  // original text (manual mode never translates it inline; that's auto
+  // mode's job, see Message.tsx's showInlineTranslation). Rendering
+  // `originalText` here too printed the same sentence twice, once in the
+  // body and once under the divider. Hiding the revealed block leaves
+  // exactly one original on screen, which is what the label promises.
+  const renderRevealed = (translatedText: string, onHide: () => void) => (
     <View>
       <CustomDivider
         configColor={
           isUser ? config?.colors?.secondary : config?.colors?.primary
         }
       />
-      <CustomMessageText colorUser="">
-        {showOriginal ? originalText : translatedText}
-      </CustomMessageText>
-      {renderLink(
-        showOriginal ? t('action.translate') : t('action.showOriginal'),
-        () => setShowOriginal((v) => !v)
-      )}
+      <CustomMessageText colorUser="">{translatedText}</CustomMessageText>
+      {renderLink(t('action.showOriginal'), onHide)}
     </View>
   );
 
@@ -159,16 +160,20 @@ const MessageTranslate: FC<MessageTranslateProps> = ({
       return renderLink(t('translation.failed'), runHostTranslate);
     }
     if (hostPhase === 'done' && hostText) {
-      return renderRevealed(hostText);
+      // Keep hostText: re-tapping "Translate" re-reveals what we already
+      // have instead of paying for the host's translator a second time.
+      return renderRevealed(hostText, () => setHostPhase('idle'));
     }
-    return renderLink(t('action.translate'), runHostTranslate);
+    return renderLink(t('action.translate'), () =>
+      hostText ? setHostPhase('done') : runHostTranslate()
+    );
   }
 
   // Stanza-attached: nothing to await, nothing to fail.
   if (!revealed) {
     return renderLink(t('action.translate'), () => setRevealed(true));
   }
-  return renderRevealed(attached.displayText);
+  return renderRevealed(attached.displayText, () => setRevealed(false));
 };
 
 const styles = StyleSheet.create({

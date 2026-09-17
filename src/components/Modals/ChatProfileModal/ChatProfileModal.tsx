@@ -145,8 +145,8 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) {
         Alert.alert(
-          'Permission required',
-          'Photo library permission is needed to select images.',
+          t('permission.requiredTitle'),
+          t('permission.photoLibrary'),
           [
             {
               text: t('action.cancel'),
@@ -154,7 +154,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
               style: 'cancel',
             },
             {
-              text: 'Open Settings',
+              text: t('action.openSettings'),
               onPress: () => Linking.openSettings(),
             },
           ]
@@ -193,8 +193,8 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
 
         showToast({
           id: Date.now().toString(),
-          title: 'Success',
-          message: 'Room image updated successfully',
+          title: t('toast.successTitle'),
+          message: t('toast.roomImageUpdated'),
           type: 'success',
         });
       }
@@ -207,8 +207,8 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
       console.error('File upload failed or location is missing:', error);
       showToast({
         id: Date.now().toString(),
-        title: 'Error',
-        message: 'Failed to upload image',
+        title: t('toast.error'),
+        message: t('toast.failedToUploadImage'),
         type: 'error',
       });
     } finally {
@@ -244,16 +244,16 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
 
       showToast({
         id: Date.now().toString(),
-        title: 'Success',
-        message: `${userId} has been removed from the room.`,
+        title: t('toast.successTitle'),
+        message: t('toast.userRemovedFromRoom', { userId }),
         type: 'success',
       });
     } catch (error) {
       console.error('Failed to delete user:', error);
       showToast({
         id: Date.now().toString(),
-        title: 'Error',
-        message: 'Failed to delete user.',
+        title: t('toast.error'),
+        message: t('toast.failedToDeleteUser'),
         type: 'error',
       });
     }

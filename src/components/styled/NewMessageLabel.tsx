@@ -1,6 +1,7 @@
 import React from 'react';
 import styled from 'styled-components/native';
 import { Line } from './StyledComponents';
+import { useT } from '../../i18n/useT';
 
 const Container = styled.View`
   flex-direction: row;
@@ -39,11 +40,12 @@ interface NewMessageLabelProps {
 }
 
 const NewMessageLabel: React.FC<NewMessageLabelProps> = () => {
+  const t = useT();
   return (
     <Container>
       <Line />
       <StyledLabel>
-        <StyledLabelText>New messages</StyledLabelText>
+        <StyledLabelText>{t('message.newMessages')}</StyledLabelText>
       </StyledLabel>
       <Line />
     </Container>
