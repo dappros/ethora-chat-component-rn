@@ -114,6 +114,66 @@ describe('insertMessageWithDelimiter — dedup', () => {
   });
 });
 
+describe('insertMessageWithDelimiter — merge does not drop translations', () => {
+  it('keeps an existing translation when the incoming update has no <translations> element', () => {
+    // Mirrors exactly what getDataFromXml/createMessageFromXml hand back
+    // for a stanza that didn't carry a <translations> element: the field
+    // is present on the object, explicitly `undefined` (see
+    // src/helpers/getDataFromXml.ts) — not simply absent. `for...in`
+    // still visits an explicit-`undefined` key, so a naive merge would
+    // read `source.translations === undefined` and overwrite the
+    // existing value with it, silently erasing a translation the row
+    // already had (e.g. a MAM catch-up echo, or a live update that only
+    // carries a reaction/edit) — a message flipping from translated back
+    // to the original for no reason.
+    const list: IMessage[] = [
+      makeMsg('a', '2026-05-01T10:00:00Z', {
+        langSource: 'en',
+        translations: {
+          es: {
+            translatedText: 'hola',
+            language: 'es',
+            languageName: 'Spanish',
+          },
+        },
+      } as any),
+    ];
+
+    const incoming = makeMsg('a', '2026-05-01T10:00:00Z', {
+      body: 'hi (edited)',
+    }) as any;
+    incoming.translations = undefined; // explicit key, not simply omitted
+
+    insertMessageWithDelimiter(list, incoming, null);
+
+    expect(list).toHaveLength(1);
+    expect(list[0].body).toBe('hi (edited)');
+    expect((list[0] as any).translations?.es?.translatedText).toBe('hola');
+  });
+
+  it('still lets a real translations payload overwrite the old one', () => {
+    const list: IMessage[] = [
+      makeMsg('a', '2026-05-01T10:00:00Z', {
+        translations: {
+          es: { translatedText: 'stale', language: 'es', languageName: 'Spanish' },
+        },
+      } as any),
+    ];
+
+    insertMessageWithDelimiter(
+      list,
+      makeMsg('a', '2026-05-01T10:00:00Z', {
+        translations: {
+          es: { translatedText: 'fresh', language: 'es', languageName: 'Spanish' },
+        },
+      } as any),
+      null
+    );
+
+    expect((list[0] as any).translations?.es?.translatedText).toBe('fresh');
+  });
+});
+
 describe('insertMessageWithDelimiter — "New Messages" divider', () => {
   it('injects the divider when the newer message crosses lastViewedTimestamp', () => {
     const list: IMessage[] = [makeMsg('old', '2026-05-01T10:00:00Z')];

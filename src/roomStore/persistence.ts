@@ -75,12 +75,22 @@ const PERSISTED_MESSAGE_FIELDS: (keyof IMessage)[] = [
   'originalName',
   'size',
   'langSource',
-  // `translations` is deliberately NOT here — same as the web SDK's
-  // persist list (web src/roomStore/index.ts PERSISTED_MESSAGE_FIELDS):
-  // MAM re-hydration restores it on the next history page, now that the
-  // history parser reads the <translations> element at all (see
-  // onMessageHistory). Cached messages therefore show their translation
-  // again after the first MAM sync, exactly like web.
+  // `translations` MUST be here. A previous version of this list dropped
+  // it, on the theory that it mirrored the web SDK's persist contract —
+  // it doesn't: web's redux-persist config (web/src/roomStore/index.ts)
+  // has no per-field message whitelist at all, it persists whatever is in
+  // `room.messages` (capped to the last 50) and that includes
+  // `translations` verbatim. Field-picking is an RN-only mechanism, so
+  // "same as web" was never true for this key.
+  //
+  // Dropping it meant every cold start painted the cached transcript in
+  // the ORIGINAL language and only flipped to the translation once MAM
+  // re-sent the history a few seconds later (onMessageHistory re-parses
+  // <translations> off the wire) — visible on every launch, for every
+  // translated message, since the cache never had a translation to show
+  // in the first place. Persisting it here is what lets the very first
+  // paint already be translated, the way the live path already is.
+  'translations',
   'callLog',
 ];
 

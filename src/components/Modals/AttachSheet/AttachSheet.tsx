@@ -14,6 +14,7 @@ import {
 import { CameraIcon, DocumentIcon, MediaIcon } from '../../../assets/icons';
 import { useChatSettingState } from '../../../hooks/useChatSettingState';
 import { chatTextStyle } from '../../../helpers/typography';
+import { useT } from '../../../i18n/useT';
 
 interface AttachSheetProps {
   visible: boolean;
@@ -39,6 +40,7 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
 }) => {
   const { config } = useChatSettingState();
   const ts = config?.typography?.attachSheet;
+  const t = useT();
   // Pending handler captured on row tap — runs once the EXIT animation
   // finishes so iOS doesn't try to present an image picker over a
   // still-dismissing modal (was the original reason for the
@@ -136,20 +138,20 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
     handler: () => void;
   }[] = [
     {
-      label: 'Take photo',
-      hint: 'Capture with the camera',
+      label: t('attach.takePhoto'),
+      hint: t('attach.takePhotoHint'),
       Icon: CameraIcon,
       handler: onCamera,
     },
     {
-      label: 'Photo or video',
-      hint: 'Pick from your library',
+      label: t('attach.photoOrVideo'),
+      hint: t('attach.photoOrVideoHint'),
       Icon: MediaIcon,
       handler: onGallery,
     },
     {
-      label: 'Document',
-      hint: 'Choose a file',
+      label: t('attach.document'),
+      hint: t('attach.documentHint'),
       Icon: DocumentIcon,
       handler: onDocument,
     },
@@ -183,7 +185,7 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
         >
           <TouchableOpacity activeOpacity={1}>
             <View style={styles.grabber} />
-            <Text style={[styles.title, chatTextStyle(ts?.title)]}>Attach</Text>
+            <Text style={[styles.title, chatTextStyle(ts?.title)]}>{t('attach.title')}</Text>
             {rows.map(({ label, hint, Icon, handler }, idx) => (
               <TouchableOpacity
                 key={label}
@@ -213,7 +215,7 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
               style={styles.cancelRow}
               onPress={onClose}
             >
-              <Text style={[styles.cancelLabel, chatTextStyle(ts?.cancelButton)]}>Cancel</Text>
+              <Text style={[styles.cancelLabel, chatTextStyle(ts?.cancelButton)]}>{t('action.cancel')}</Text>
             </TouchableOpacity>
           </TouchableOpacity>
         </Animated.View>
