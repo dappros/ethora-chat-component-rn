@@ -135,6 +135,7 @@
     "fix-prebuild-deps": "node scripts/fix-prebuild-deps.js",
     "lint": "eslint .",
     "test": "jest",
+    "version": "node scripts/sync-version.mjs",
     "build": "bob build",
     "clean": "rm -rf lib",
     "prepack": "npm run clean && npm run build",
