@@ -3,6 +3,7 @@ import styled from 'styled-components/native';
 import { Line } from './StyledComponents';
 import { Text } from 'react-native';
 import { getDateLabelColor } from '../../helpers/getDateLabelColor';
+import { useT, useUiLocale } from '../../i18n/useT';
 
 interface DateLabelProps {
   date: Date;
@@ -40,6 +41,10 @@ export const StyledDateText = styled.Text<{ color?: string }>`
 `;
 
 const DateLabel: React.FC<DateLabelProps> = ({ date, colors }) => {
+  const t = useT();
+  // The reader's locale, so the fallback branch formats the date the way
+  // their language writes it ("15 septembre" and not "September 15").
+  const uiLocale = useUiLocale();
   const today = new Date();
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
@@ -54,14 +59,16 @@ const DateLabel: React.FC<DateLabelProps> = ({ date, colors }) => {
 
   let label: string;
   if (sameDay(date, today)) {
-    label = 'Today';
+    label = t('date.today');
   } else if (sameDay(date, yesterday)) {
-    label = 'Yesterday';
+    label = t('date.yesterday');
   } else {
     const options: Intl.DateTimeFormatOptions = sameYear(date, today)
       ? { month: 'long', day: 'numeric' }
       : { month: 'long', day: 'numeric', year: 'numeric' };
-    label = date.toLocaleDateString('en-US', options);
+    // `undefined` means "the runtime's own locale", which is the right
+    // default when the host has pinned nothing — never a hardcoded 'en-US'.
+    label = date.toLocaleDateString(uiLocale, options);
   }
 
   const textColor = getDateLabelColor({ colors });
