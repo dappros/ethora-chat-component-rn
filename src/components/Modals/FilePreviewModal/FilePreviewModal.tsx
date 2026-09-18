@@ -82,7 +82,9 @@ const ModalVideo: React.FC<{ uri: string }> = ({ uri }) => {
         contentFit="contain"
         nativeControls
         surfaceType="textureView"
-        allowsFullscreen
+        // expo-video 3 replaced the boolean `allowsFullscreen` prop with
+        // `fullscreenOptions`; `enable` is that boolean's direct successor.
+        fullscreenOptions={{ enable: true }}
       />
       {/* Play affordance shown immediately on open; tapping starts
           playback and the native controls take over. */}
@@ -90,7 +92,7 @@ const ModalVideo: React.FC<{ uri: string }> = ({ uri }) => {
         <TouchableOpacity
           activeOpacity={0.8}
           onPress={handlePlay}
-          style={StyleSheet.absoluteFillObject}
+          style={StyleSheet.absoluteFill}
         >
           <View style={styles.playOverlay}>
             <View style={styles.playButton}>
@@ -426,7 +428,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
 
 const styles = StyleSheet.create({
   playOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: 'center',
     alignItems: 'center',
   },

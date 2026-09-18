@@ -235,7 +235,7 @@ export default MessageInteractions;
 
 const styles = StyleSheet.create({
   overlayFill: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'transparent',
   },
   contextMenu: {

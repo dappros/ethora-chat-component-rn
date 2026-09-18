@@ -22,6 +22,7 @@ import { postRoom } from '../../../networking/api-requests/rooms.api';
 import { useAppDispatch, useAppSelector } from '../../../hooks/hooks';
 import { useChatSettingState } from '../../../hooks/useChatSettingState';
 import { useToast } from '../../../context/ToastContext';
+import { useT } from '../../../i18n/useT';
 
 interface NewChatModalProps {
   handleCloseModal?: any;
@@ -42,6 +43,7 @@ const NewChatModal: React.FC<NewChatModalProps> = ({
   const { client } = useXmppClient();
   const { user } = useChatSettingState();
   const { showToast } = useToast();
+  const t = useT();
 
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
@@ -112,11 +114,14 @@ const NewChatModal: React.FC<NewChatModalProps> = ({
 
       if (status !== 'granted') {
         Alert.alert(
-          'Permission required',
-          'Photo library permission is needed to select images.',
+          t('permission.requiredTitle'),
+          t('permission.photoLibrary'),
           [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Open Settings', onPress: () => Linking.openSettings() },
+            { text: t('action.cancel'), style: 'cancel' },
+            {
+              text: t('action.openSettings'),
+              onPress: () => Linking.openSettings(),
+            },
           ]
         );
         return;

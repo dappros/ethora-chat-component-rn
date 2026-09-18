@@ -169,16 +169,16 @@ const SendInput: React.FC<SendInputProps> = ({
   // rolled check/request flow.
 
   const promptOpenSettings = (message: string) => {
-    Alert.alert('Permission required', message, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Open Settings', onPress: () => Linking.openSettings() },
+    Alert.alert(t('permission.requiredTitle'), message, [
+      { text: t('action.cancel'), style: 'cancel' },
+      { text: t('action.openSettings'), onPress: () => Linking.openSettings() },
     ]);
   };
 
   const handleCameraSelection = async () => {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) {
-      promptOpenSettings('Camera permission is needed to take photos and videos.');
+      promptOpenSettings(t('permission.camera'));
       return;
     }
 
@@ -218,7 +218,7 @@ const SendInput: React.FC<SendInputProps> = ({
   const handleGallerySelection = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      promptOpenSettings('Gallery permission is needed to select photos and videos.');
+      promptOpenSettings(t('permission.gallery'));
       return;
     }
 
@@ -335,9 +335,7 @@ const SendInput: React.FC<SendInputProps> = ({
     try {
       const perm = await requestRecordingPermissionsAsync();
       if (!perm.granted) {
-        promptOpenSettings(
-          'Microphone permission is needed to record voice messages.'
-        );
+        promptOpenSettings(t('permission.microphone'));
         return;
       }
       // `allowsRecording` is not just an iOS session flag: expo-audio's
