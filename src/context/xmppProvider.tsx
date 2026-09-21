@@ -330,6 +330,13 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
 
       if (completedBootstrapKeyRef.current === key) {
         devPushLog('rn', 'initBeforeLoad: already completed (same key) — skip');
+        // This run does no work, so it must not leave the budget it armed
+        // above running: 45 s later it would flip an already-'ready'
+        // provider to 'failed' and surface "Could not authenticate" over a
+        // healthy connection. Any dep change that leaves the key intact
+        // triggers this - e.g. a rotated `userLogin.user.token`.
+        reachedReady = true;
+        clearBudget();
         return;
       }
       if (inflightBootstrapKeyRef.current === key) {
