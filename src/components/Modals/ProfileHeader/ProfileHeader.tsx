@@ -326,7 +326,12 @@ export const ProfileHero: React.FC<
                 >
                   {action.icon(iconColor)}
                 </View>
-                <Text style={[styles.actionLabel, { color: contentColor }]}>
+                <Text
+                  style={[styles.actionLabel, { color: contentColor }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}
+                >
                   {action.label}
                 </Text>
               </TouchableOpacity>
@@ -534,9 +539,13 @@ const styles = StyleSheet.create({
     marginTop: 20,
     gap: 16,
   },
+  // minWidth, not a fixed width: translated labels ("Rechercher",
+  // "Denunciar") don't fit 64pt and used to wrap mid-word. English labels
+  // are shorter than 64pt, so their layout is unchanged.
   action: {
     alignItems: 'center',
-    width: 64,
+    minWidth: 64,
+    maxWidth: 96,
   },
   actionCircle: {
     width: 56,

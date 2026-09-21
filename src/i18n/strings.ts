@@ -15,6 +15,7 @@ export type UiStringTable = Record<string, string>;
 
 const en: UiStringTable = {
   'search.placeholder': 'Search...',
+  'roomList.title': 'Chats',
   'search.members': 'Search members',
   'search.noResults': 'Nobody found',
   'input.placeholder': 'Type message',
@@ -262,6 +263,7 @@ const en: UiStringTable = {
 
 const fr: UiStringTable = {
   'search.placeholder': 'Rechercher...',
+  'roomList.title': 'Discussions',
   'search.members': 'Rechercher des membres',
   'search.noResults': 'Personne trouvée',
   'input.placeholder': 'Écrire un message',
@@ -509,6 +511,7 @@ const fr: UiStringTable = {
 
 const es: UiStringTable = {
   'search.placeholder': 'Buscar...',
+  'roomList.title': 'Chats',
   'search.members': 'Buscar miembros',
   'search.noResults': 'No se encontró a nadie',
   'input.placeholder': 'Escribe un mensaje',
@@ -756,6 +759,7 @@ const es: UiStringTable = {
 
 const pt: UiStringTable = {
   'search.placeholder': 'Pesquisar...',
+  'roomList.title': 'Conversas',
   'search.members': 'Pesquisar membros',
   'search.noResults': 'Ninguém encontrado',
   'input.placeholder': 'Escreva uma mensagem',
@@ -1003,6 +1007,7 @@ const pt: UiStringTable = {
 
 const ht: UiStringTable = {
   'search.placeholder': 'Chèche...',
+  'roomList.title': 'Chat yo',
   'search.members': 'Chèche manm',
   'search.noResults': 'Pa jwenn pèsonn',
   'input.placeholder': 'Ekri yon mesaj',
@@ -1250,6 +1255,7 @@ const ht: UiStringTable = {
 
 const zh: UiStringTable = {
   'search.placeholder': '搜索...',
+  'roomList.title': '聊天',
   'search.members': '搜索成员',
   'search.noResults': '未找到成员',
   'input.placeholder': '输入消息',
