@@ -45,9 +45,11 @@ const makeStore = () =>
 // The persist middleware debounces writes by 200ms.
 const flushWrites = async () => {
   jest.advanceTimersByTime(300);
-  await Promise.resolve();
-  await Promise.resolve();
-  await Promise.resolve();
+  // Debounce, then the at-rest cipher (SecureStore key + AES) before the
+  // multiSet - a deeper async chain than a bare write.
+  for (let i = 0; i < 20; i++) {
+    await Promise.resolve();
+  }
 };
 
 const room = (): IRoom =>

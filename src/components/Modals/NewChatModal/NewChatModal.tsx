@@ -26,7 +26,6 @@ import { postRoom } from '../../../networking/api-requests/rooms.api';
 import { useAppDispatch, useAppSelector } from '../../../hooks/hooks';
 import { useChatSettingState } from '../../../hooks/useChatSettingState';
 import { useToast } from '../../../context/ToastContext';
-import { useT } from '../../../i18n/useT';
 
 interface NewChatModalProps {
   handleCloseModal?: () => void;
@@ -47,7 +46,6 @@ const NewChatModal: React.FC<NewChatModalProps> = ({
   const { client } = useXmppClient();
   const { user } = useChatSettingState();
   const { showToast } = useToast();
-  const t = useT();
 
   const [loading, setLoading] = useState<boolean>(false);
 

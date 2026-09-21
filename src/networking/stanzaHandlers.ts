@@ -8,9 +8,8 @@ import {
   setComposing,
   setCurrentRoom,
   setRoomRole,
-  updateRoom,
 } from '../roomStore/roomsSlice';
-import { IRoom, RoomMember } from '../types/types';
+import { IRoom } from '../types/types';
 import { createMessageFromXml } from '../helpers/createMessageFromXml';
 import { getDataFromXml } from '../helpers/getDataFromXml';
 import { setDeleteModal } from '../roomStore/chatSettingsSlice';

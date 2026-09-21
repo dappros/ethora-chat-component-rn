@@ -27,6 +27,7 @@ import {
   readPersistedState,
 } from '../src/roomStore/persistence';
 import type { IRoom } from '../src/types/types';
+import { decryptFromPersist } from '../src/helpers/persistCrypto';
 
 beforeEach(async () => {
   await AsyncStorage.clear();
@@ -43,10 +44,22 @@ const makeStore = () =>
       g({ serializableCheck: false }).concat(persistenceMiddleware),
   });
 
+// The write is debounced (200 ms) and then goes through the at-rest cipher
+// (SecureStore-backed key, then AES) before the multiSet, so drain a deep
+// microtask chain rather than a couple of turns.
 const flush = async () => {
   jest.advanceTimersByTime(250);
-  await Promise.resolve();
-  await Promise.resolve();
+  for (let i = 0; i < 20; i++) {
+    await Promise.resolve();
+  }
+};
+
+// Stored values are AES envelopes, not plain JSON - decrypt before reading.
+const readDecrypted = async (key: string): Promise<any> => {
+  const raw = await AsyncStorage.getItem(key);
+  if (!raw) {return null;}
+  const plain = await decryptFromPersist(raw);
+  return plain ? JSON.parse(plain) : null;
 };
 
 const translatedMessage = () => ({
@@ -78,9 +91,7 @@ describe('persisted message fields', () => {
     store.dispatch(addRoom({ roomData: room }));
     await flush();
 
-    const persisted = JSON.parse(
-      (await AsyncStorage.getItem(PERSIST_KEYS.KEY_ROOMS))!
-    );
+    const persisted = await readDecrypted(PERSIST_KEYS.KEY_ROOMS);
     const restored = persisted.rooms['r@h'].messages[0];
 
     expect(restored.langSource).toBe('en-CA');
