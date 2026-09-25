@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TextInput, StyleSheet } from 'react-native';
+import { useTheme } from '../../hooks/useTheme';
 
 interface StyledInputProps {
   label?: string;
@@ -13,9 +14,12 @@ const InputWrapper = ({ children }: { children: React.ReactNode }) => {
   return <View style={styles.inputWrapper}>{children}</View>;
 };
 
-const Label = ({ children }: { children: React.ReactNode }) => (
-  <Text style={styles.label}>{children}</Text>
-);
+const Label = ({ children }: { children: React.ReactNode }) => {
+  const theme = useTheme();
+  return (
+    <Text style={[styles.label, { color: theme.textSecondary }]}>{children}</Text>
+  );
+};
 
 const StyledInput = ({
   color,
@@ -23,18 +27,24 @@ const StyledInput = ({
   ...props
 }: { color?: string; error?: boolean } & React.ComponentProps<
   typeof TextInput
->) => (
-  <TextInput
-    style={[
-      styles.input,
-      {
-        borderColor: error ? 'red' : color || '#0052CD',
-        backgroundColor: '#F5F7F9',
-      },
-    ]}
-    {...props}
-  />
-);
+>) => {
+  const theme = useTheme();
+  return (
+    <TextInput
+      placeholderTextColor={theme.textMuted}
+      keyboardAppearance={theme.dark ? 'dark' : 'light'}
+      style={[
+        styles.input,
+        {
+          borderColor: error ? 'red' : color || theme.primary,
+          backgroundColor: theme.surfaceSecondary,
+          color: theme.text,
+        },
+      ]}
+      {...props}
+    />
+  );
+};
 
 const HelperText = ({
   children,
@@ -42,11 +52,16 @@ const HelperText = ({
 }: {
   children: React.ReactNode;
   error?: boolean;
-}) => (
-  <Text style={[styles.helperText, { color: error ? 'red' : '#8c8c8c' }]}>
-    {children}
-  </Text>
-);
+}) => {
+  const theme = useTheme();
+  return (
+    <Text
+      style={[styles.helperText, { color: error ? 'red' : theme.textSecondary }]}
+    >
+      {children}
+    </Text>
+  );
+};
 
 const InputWithLabel: React.FC<StyledInputProps> = ({
   label,
@@ -77,7 +92,6 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    color: '#8c8c8c',
     marginBottom: 4,
     marginLeft: 8,
   },

@@ -39,7 +39,7 @@ export const RowWrapper = styled.View`
 export const SharedSettingsLabelData = styled(Label)`
   font-size: 12px;
   text-align: start;
-  color: #8c8c8c;
+  color: ${({theme}) => theme.textSecondary};
 `;
 
 export const SharedSettingsStyledButton = styled(Button)<{
@@ -57,10 +57,10 @@ export const SharedSettingsStyledButton = styled(Button)<{
   border: 1px solid ${({borderColor}) => borderColor};
 `;
 
-export const SharedSettingsInfoPanel = styled.View<{bgColor: string | undefined}>`
+export const SharedSettingsInfoPanel = styled.View<{bgColor?: string}>`
   display: flex;
   align-items: flex-start;
-  background-color: ${({bgColor}) => bgColor};
+  background-color: ${({bgColor}) => bgColor || 'transparent'};
   padding: 16px;
   border-radius: 8px;
   gap: 8px;
@@ -68,7 +68,7 @@ export const SharedSettingsInfoPanel = styled.View<{bgColor: string | undefined}
 
 export const SharedSettingsInfoText = styled.Text`
   font-size: 12px;
-  color: #141414;
+  color: ${({theme}) => theme.text};
   display: flex;
   text-align: start;
 `;

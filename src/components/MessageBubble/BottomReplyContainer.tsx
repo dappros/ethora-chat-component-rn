@@ -3,6 +3,7 @@ import { IReply, IUser } from '../../types/types';
 import { Avatar } from './Avatar';
 import { styled } from 'styled-components/native';
 import { Platform, Text, View } from 'react-native';
+import { useTheme } from '../../hooks/useTheme';
 
 interface BottomReplyContainerProps {
   isUser: boolean;
@@ -11,7 +12,7 @@ interface BottomReplyContainerProps {
 }
 
 const ReplyContainer = styled.TouchableOpacity<{ isUser: boolean }>`
-  background-color: #ffffff;
+  background-color: ${({ theme }) => theme.surface};
   left: ${(props) => (!props.isUser ? '10px' : 'auto')};
   right: ${(props) => (props.isUser ? '10px' : 'auto')};
   padding: 4px 8px 4px 16px;
@@ -21,17 +22,20 @@ const ReplyContainer = styled.TouchableOpacity<{ isUser: boolean }>`
   gap: 6px;
   margin: 8px 8px 0;
 
-  ${Platform.select({
-    ios: `
-      shadow-color: rgba(185, 198, 199, 1);
+  ${({ theme }) =>
+    Platform.select({
+      // The light shadow is a soft bluish-grey tuned for a white card; on
+      // the dark palette that would read as a glow, so use the theme shadow.
+      ios: `
+      shadow-color: ${theme.dark ? theme.shadow : 'rgba(185, 198, 199, 1)'};
       shadow-offset: 0px 0px;
       shadow-opacity: 1;
       shadow-radius: 8px;
     `,
-    android: `
+      android: `
       elevation: 8;
     `,
-  })}
+    })}
 `;
 
 const AvatarCircle = styled.View`
@@ -46,20 +50,20 @@ const CircleCurrent = styled.View`
   display: flex;
   justify-content: center;
   align-items: center;
-  border: 1px solid #f0f0f0;
+  border: 1px solid ${({ theme }) => theme.border};
   border-radius: 50%;
-  background-color: #ffffff;
+  background-color: ${({ theme }) => theme.surface};
 `;
 
 const CircleCurrentText = styled.Text`
-  color: #8c8c8c;
+  color: ${({ theme }) => theme.textSecondary};
   font-size: 10px;
   font-weight: 100;
 `;
 
 const CounterRepliesText = styled.Text`
   font-size: 12px;
-  color: #0052cd;
+  color: ${({ theme }) => theme.primary};
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -70,6 +74,7 @@ export const BottomReplyContainer: FC<BottomReplyContainerProps> = ({
   reply,
   onClick,
 }) => {
+  const theme = useTheme();
   const uniqueUsers: IUser[] = useMemo(() => {
     return Object.values(
       reply.reduce<Record<string, IUser>>((acc, item) => {
@@ -94,7 +99,7 @@ export const BottomReplyContainer: FC<BottomReplyContainerProps> = ({
                 height: '100%',
                 width: '100%',
                 borderWidth: 1,
-                borderColor: '#F0F0F0',
+                borderColor: theme.border,
                 borderStyle: 'solid',
                 fontSize: 10,
               }}

@@ -7,6 +7,7 @@ import {
   TextStyle,
 } from 'react-native';
 import { getTintedColor } from '../../../helpers/getTintedColor';
+import { useTheme } from '../../../hooks/useTheme';
 
 // Container with burger menu support
 export const Container = ({
@@ -17,24 +18,34 @@ export const Container = ({
   burgerMenu?: boolean;
   open?: boolean;
   children: React.ReactNode;
-}) => (
-  <View
-    style={[
-      styles.container,
-      burgerMenu && open ? styles.containerOpen : styles.containerClosed,
-      burgerMenu && styles.burgerMenu,
-    ]}
-  >
-    {children}
-  </View>
-);
+}) => {
+  const theme = useTheme();
+  return (
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: theme.surface },
+        burgerMenu && open ? styles.containerOpen : styles.containerClosed,
+        burgerMenu && [
+          styles.burgerMenu,
+          { backgroundColor: theme.surface, borderRightColor: theme.border },
+        ],
+      ]}
+    >
+      {children}
+    </View>
+  );
+};
 
 // Button for the burger menu
-export const BurgerButton = ({ onPress }: { onPress: () => void }) => (
-  <TouchableOpacity style={styles.burgerButton} onPress={onPress}>
-    <Text style={styles.burgerButtonText}>☰</Text>
-  </TouchableOpacity>
-);
+export const BurgerButton = ({ onPress }: { onPress: () => void }) => {
+  const theme = useTheme();
+  return (
+    <TouchableOpacity style={styles.burgerButton} onPress={onPress}>
+      <Text style={[styles.burgerButtonText, { color: theme.text }]}>☰</Text>
+    </TouchableOpacity>
+  );
+};
 
 // Chat item
 const ColorContext = createContext<string | undefined>(undefined);
@@ -71,17 +82,31 @@ export const ChatInfo = ({ children }: { children: React.ReactNode }) => (
 // One line, ellipsised. Without this a long room title (or a display name
 // that happens to be an email) wrapped to three or four lines and pushed
 // the whole row's height around.
-export const ChatName = ({ text }: { text: string }) => (
-  <Text style={styles.chatName} numberOfLines={1} ellipsizeMode="tail">
-    {text}
-  </Text>
-);
+export const ChatName = ({ text }: { text: string }) => {
+  const theme = useTheme();
+  return (
+    <Text
+      style={[styles.chatName, { color: theme.text }]}
+      numberOfLines={1}
+      ellipsizeMode="tail"
+    >
+      {text}
+    </Text>
+  );
+};
 
-export const LastMessage = ({ children }: { children: React.ReactNode }) => (
-  <Text style={styles.lastMessage} numberOfLines={1} ellipsizeMode="tail">
-    {children}
-  </Text>
-);
+export const LastMessage = ({ children }: { children: React.ReactNode }) => {
+  const theme = useTheme();
+  return (
+    <Text
+      style={[styles.lastMessage, { color: theme.textMuted }]}
+      numberOfLines={1}
+      ellipsizeMode="tail"
+    >
+      {children}
+    </Text>
+  );
+};
 
 // User count display for the chat
 export const UserCount = ({
@@ -92,13 +117,19 @@ export const UserCount = ({
   style: TextStyle;
 }) => <Text style={[styles.userCount, style]}>{text}</Text>;
 
-export const Viewider = () => <View style={styles.viewider} />;
+export const Viewider = () => {
+  const theme = useTheme();
+  return (
+    <View
+      style={[styles.viewider, { backgroundColor: theme.surfaceHighlight }]}
+    />
+  );
+};
 
 const styles = StyleSheet.create({
   container: {
     padding: 16,
     paddingTop: 0,
-    backgroundColor: '#fff',
     overflow: 'hidden',
   },
   burgerMenu: {
@@ -110,10 +141,8 @@ const styles = StyleSheet.create({
     transform: [{ translateX: -300 }],
     display: 'flex',
     flexDirection: 'column',
-    backgroundColor: '#fff',
     padding: 16,
     borderRightWidth: 1,
-    borderRightColor: '#f0f0f0',
   },
   containerOpen: {
     transform: [{ translateX: 0 }],
@@ -129,7 +158,6 @@ const styles = StyleSheet.create({
   },
   burgerButtonText: {
     fontSize: 24,
-    color: '#333',
   },
   chatItem: {
     borderRadius: 16,
@@ -162,15 +190,12 @@ const styles = StyleSheet.create({
   chatName: {
     fontWeight: 'bold',
   },
-  lastMessage: {
-    color: '#999',
-  },
+  lastMessage: {},
   userCount: {
     marginLeft: 'auto',
   },
   viewider: {
     height: 1,
     width: '100%',
-    backgroundColor: '#0052cd0d',
   },
 });

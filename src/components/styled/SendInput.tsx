@@ -14,6 +14,7 @@ import AttachSheet, { PickedMedia } from '../Modals/AttachSheet/AttachSheet';
 import { MediaFilePreview } from './MediaFilePreview';
 import { getIconColor } from '../../helpers/getIconColor';
 import { getElementFont } from '../../helpers/getElementFont';
+import { useTheme } from '../../hooks/useTheme';
 import { useT } from '../../i18n/useT';
 import { getMediaLibrary } from '../../helpers/mediaLibraryRuntime';
 import * as ImagePicker from 'expo-image-picker';
@@ -99,6 +100,7 @@ const SendInput: React.FC<SendInputProps> = ({
   isMessageProcessing,
 }) => {
   const t = useT();
+  const theme = useTheme();
   const [message, setMessage] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   // Live counter (seconds) for the recording overlay. Updated by a
@@ -632,7 +634,8 @@ const SendInput: React.FC<SendInputProps> = ({
                 fontSize={config?.typography?.input?.fontSize}
                 fontWeight={config?.typography?.input?.fontWeight as any}
                 placeholder={t('input.placeholder')}
-                placeholderTextColor="#999"
+                placeholderTextColor={theme.textMuted}
+                keyboardAppearance={theme.dark ? 'dark' : 'light'}
                 value={message}
                 onChangeText={(text) => {
                   messageRef.current = text;
@@ -680,11 +683,21 @@ const SendInput: React.FC<SendInputProps> = ({
                   borderRadius: 20,
                   alignItems: 'center',
                   justifyContent: 'center',
-                  backgroundColor: '#FEE2E2',
+                  // Light keeps its pale-red chip; on a dark ground the
+                  // danger tint on the glyph alone carries the meaning.
+                  backgroundColor: theme.dark ? theme.surfaceSecondary : '#FEE2E2',
                 }}
                 activeOpacity={0.7}
               >
-                <Text style={{ color: '#B91C1C', fontWeight: '700', fontSize: 18 }}>×</Text>
+                <Text
+                  style={{
+                    color: theme.dark ? theme.danger : '#B91C1C',
+                    fontWeight: '700',
+                    fontSize: 18,
+                  }}
+                >
+                  ×
+                </Text>
               </TouchableOpacity>
               {/* Live elapsed time + red recording dot. flex:1 so it
                 * occupies the middle slot the input used to have. */}
@@ -703,14 +716,14 @@ const SendInput: React.FC<SendInputProps> = ({
                     width: 10,
                     height: 10,
                     borderRadius: 5,
-                    backgroundColor: '#EF4444',
+                    backgroundColor: theme.dark ? theme.danger : '#EF4444',
                   }}
                 />
-                <Text style={{ fontSize: 16, color: '#1F2937', fontWeight: '500' }}>
+                <Text style={{ fontSize: 16, color: theme.text, fontWeight: '500' }}>
                   {Math.floor(recordingDuration / 60)}:
                   {(recordingDuration % 60).toString().padStart(2, '0')}
                 </Text>
-                <Text style={{ fontSize: 13, color: '#6B7280' }}>Recording…</Text>
+                <Text style={{ fontSize: 13, color: theme.textSecondary }}>Recording…</Text>
               </View>
             </>
           )}
@@ -744,9 +757,11 @@ const SendInput: React.FC<SendInputProps> = ({
                 disabled={disabled}
                 EndIcon={
                   showMic ? (
-                    <RecordIcon color="#FFFFFF" />
+                    <RecordIcon color={theme.textOnPrimary} />
                   ) : (
-                    <SendIcon color={filled ? '#FFFFFF' : '#D4D4D8'} />
+                    <SendIcon
+                      color={filled ? theme.textOnPrimary : theme.textMuted}
+                    />
                   )
                 }
                 style={{

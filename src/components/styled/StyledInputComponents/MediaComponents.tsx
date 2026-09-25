@@ -59,9 +59,19 @@ export const UnsupportedContainer = styled.TouchableOpacity<{ isUser?: boolean }
   margin: 8px;
   cursor: pointer;
   gap: 8px;
-  background-color: ${({ isUser }) => (isUser ? '#EDF5FF' : '#F7F9FC')};
+  /* Light keeps its own tints (not in the palette); dark sits the card on
+     the bubble colours so it reads on a dark ground. */
+  background-color: ${({ isUser, theme }) =>
+    theme.dark
+      ? isUser
+        ? theme.messageBackgroundUser
+        : theme.surfaceSecondary
+      : isUser
+        ? '#EDF5FF'
+        : '#F7F9FC'};
   border-width: 1px;
-  border-color: ${({ isUser }) => (isUser ? '#D7E6FF' : '#E7ECF3')};
+  border-color: ${({ isUser, theme }) =>
+    theme.dark ? theme.border : isUser ? '#D7E6FF' : '#E7ECF3'};
   min-width: 196px;
   max-width: 260px;
 `;
@@ -71,7 +81,8 @@ export const BackgroundFile = styled.View`
   height: 54px;
   align-items: center;
   justify-content: center;
-  background-color: #F3EAFB;
+  background-color: ${({ theme }) =>
+    theme.dark ? theme.surfaceHighlight : '#F3EAFB'};
   border-radius: 10px;
 `;
 
@@ -90,20 +101,22 @@ export const FileName = styled.Text<{
   font-size: 14px;
   font-weight: 600;
   flex-shrink: 1;
-  color: ${({ isUser, colorIsUser }) =>
-    isUser ? colorIsUser || '#1D4ED8' : '#1F2937'};
+  color: ${({ isUser, colorIsUser, theme }) =>
+    isUser
+      ? colorIsUser || (theme.dark ? theme.senderName : '#1D4ED8')
+      : theme.text};
 `;
 
 export const FileSizeContainer = styled.View`
   align-items: flex-start;
   flex-direction: row;
-  background-color: #FFFFFF;
+  background-color: ${({ theme }) => theme.surface};
   padding: 3px 8px;
   border-radius: 999px;
 `;
 
 export const FileSize = styled.Text`
-  color: #667085;
+  color: ${({ theme }) => (theme.dark ? theme.textSecondary : '#667085')};
   overflow: hidden;
   text-align: left;
   font-size: 12px;

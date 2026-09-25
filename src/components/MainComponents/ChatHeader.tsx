@@ -33,6 +33,7 @@ import { useFileToken } from '../../hooks/useFileToken';
 import { appendFileToken } from '../../helpers/secureFileUrl';
 import { View, StyleSheet, Text, Keyboard } from 'react-native';
 import { getIconColor } from '../../helpers/getIconColor';
+import { useTheme } from '../../hooks/useTheme';
 import { resolveHeaderHeight } from '../../helpers/headerLayout';
 import { getElementFont } from '../../helpers/getElementFont';
 import { useT } from '../../i18n/useT';
@@ -54,6 +55,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   const roomState = useRoomState(currentRoom.jid).room;
   const composing = roomState?.composing;
   const { config } = useChatSettingState();
+  const theme = useTheme();
   const t = useT();
 
   const handleChangeChat = (chat: IRoom) => {
@@ -100,7 +102,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
         {handleBackClick && !config?.headerChatMenu ? (
           <View style={styles.leftContainer}>
             <Button
-              EndIcon={<BackIcon />}
+              EndIcon={<BackIcon color={theme.textSecondary} />}
               onPress={() => handleBackClick(false)}
             />
           </View>
@@ -108,7 +110,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
           <View style={styles.leftContainer}>
             <Button
               style={styles.menuButton}
-              color="black"
+              color={theme.text}
               unstyled
               EndIcon={<BurgerMenuIcon color={getIconColor(config)} />}
               onPress={handleHeaderChatMenu}
@@ -180,7 +182,11 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                   <Composing usersTyping={currentRoom?.composingList} />
                 ) : config?.disableUserCount ? undefined : (
                   <ChatContainerHeaderLabel
-                    style={[styles.subLabel, getElementFont(config, 'headerSubtitle')]}
+                    style={[
+                      styles.subLabel,
+                      { color: theme.textSecondary },
+                      getElementFont(config, 'headerSubtitle'),
+                    ]}
                   >
                     <Text>
                       {t(

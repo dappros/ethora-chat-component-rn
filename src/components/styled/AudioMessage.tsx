@@ -17,7 +17,7 @@ import {
 import * as FileSystem from 'expo-file-system/legacy';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import { PauseIcon, PlayIcon } from '../../assets/icons';
-import { useChatSettingState } from '../../hooks/useChatSettingState';
+import { useTheme } from '../../hooks/useTheme';
 import { getIosAudioPlaybackCacheExtension } from '../../helpers/mimeToExtension';
 import { pushLog as devPushLog } from '../../utils/devLogger';
 
@@ -319,7 +319,7 @@ const AudioMessage = ({
   fileName,
   originalName,
 }: AudioMessageProps) => {
-  const { config } = useChatSettingState();
+  const theme = useTheme();
   const soundRef = useRef<AudioPlayer | null>(null);
   // expo-audio delivers progress through an event subscription instead of
   // expo-av's `onPlaybackStatusUpdate` callback argument, so the handle has
@@ -339,7 +339,10 @@ const AudioMessage = ({
   const [position, setPosition] = useState(0);
   const [duration, setDuration] = useState(0);
   const [webViewEnabled, setWebViewEnabled] = useState(false);
-  const primaryColor = config?.colors?.primary || '#0A84FF';
+  const primaryColor = theme.primary;
+  const onPrimary = theme.textOnPrimary;
+  const trackStyle = { backgroundColor: theme.border };
+  const timeStyle = { color: theme.textSecondary };
 
   const clearLoadingGuard = () => {
     if (loadingTimerRef.current) {
@@ -760,19 +763,19 @@ const AudioMessage = ({
           activeOpacity={0.85}
         >
           {isLoading ? (
-            <ActivityIndicator size="small" color="#fff" />
+            <ActivityIndicator size="small" color={onPrimary} />
           ) : (
             <View style={styles.iconWrap}>
               {isPlaying ? (
-                <PauseIcon width={18} height={18} color="#fff" />
+                <PauseIcon width={18} height={18} color={onPrimary} />
               ) : (
-                <PlayIcon width={18} height={18} color="#fff" />
+                <PlayIcon width={18} height={18} color={onPrimary} />
               )}
             </View>
           )}
         </TouchableOpacity>
         <View style={styles.progressContainer}>
-          <View style={styles.progressTrack}>
+          <View style={[styles.progressTrack, trackStyle]}>
             <View
               style={[
                 styles.progressFill,
@@ -781,12 +784,12 @@ const AudioMessage = ({
             />
           </View>
           <View style={styles.progressRow}>
-            <Text style={styles.time}>
+            <Text style={[styles.time, timeStyle]}>
               {playbackError ? 'Audio unavailable' : formatTime(position)}
             </Text>
             {/* Always render the right slot (empty until known) so the row
                 never reflows when the duration appears after decoding. */}
-            <Text style={styles.time}>
+            <Text style={[styles.time, timeStyle]}>
               {!playbackError && duration > 0 ? formatTime(duration) : ''}
             </Text>
           </View>

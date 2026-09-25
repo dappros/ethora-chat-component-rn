@@ -10,8 +10,28 @@ import {
   ViewStyle,
   TextStyle,
 } from 'react-native';
+import type { ChatThemeColors } from '../theme/theme';
 
 let elementKeyCounter = 0;
+
+/**
+ * Colours the parser needs. Helpers can't call hooks, so the caller passes
+ * the resolved theme (Message.tsx does); with nothing passed the historical
+ * hard-coded values apply, so the output is unchanged for other callers.
+ */
+export type MessageBodyTheme = Pick<
+  ChatThemeColors,
+  'primary' | 'text' | 'surface' | 'surfaceSecondary' | 'surfaceHighlight' | 'border'
+>;
+
+const DEFAULT_BODY_COLORS: MessageBodyTheme = {
+  primary: '#0a66c2',
+  text: '#24292f',
+  surface: '#fff',
+  surfaceSecondary: '#f6f8fa',
+  surfaceHighlight: '#e8f3ff',
+  border: '#e1e4e8',
+};
 
 export const decodeHTMLEntities = (text: string) => {
   const entities: Record<string, string> = {
@@ -29,14 +49,19 @@ export const decodeHTMLEntities = (text: string) => {
   return text.replace(/&[a-zA-Z0-9#]+;/g, (m) => entities[m] || m);
 };
 
-const styles = {
+// Only the colour-bearing entries read from `c`; the rest is static layout.
+// Historical light values that were slightly off-token (#f1f3f4 inline code
+// ground, #333 inline code ink, #d0d7de / #e7e9ec / #eef0f2 table hairlines)
+// are kept when no theme is passed and collapse onto the theme tokens
+// otherwise.
+const buildStyles = (c: MessageBodyTheme, themed: boolean) => ({
   bold: { fontWeight: 'bold' as const },
   italic: { fontStyle: 'italic' as const },
   strike: { textDecorationLine: 'line-through' as const },
-  link: { color: '#0a66c2', textDecorationLine: 'underline' as const },
+  link: { color: c.primary, textDecorationLine: 'underline' as const },
 
   codeInlineBox: {
-    backgroundColor: '#f1f3f4',
+    backgroundColor: themed ? c.surfaceSecondary : '#f1f3f4',
     borderRadius: 3,
     paddingVertical: 1,
     paddingHorizontal: 4,
@@ -44,43 +69,43 @@ const styles = {
   codeInlineText: {
     fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
     fontSize: 13,
-    color: '#333',
+    color: themed ? c.text : '#333',
   },
 
   codeBlock: {
-    backgroundColor: '#f6f8fa',
+    backgroundColor: c.surfaceSecondary,
     padding: 12,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#e1e4e8',
+    borderColor: c.border,
     marginVertical: 8,
   } as const,
   codeBlockText: {
     fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
     fontSize: 14,
-    color: '#24292f',
+    color: c.text,
     lineHeight: 20,
   },
 
   h: [
-    { fontWeight: 'bold' as const, fontSize: 32, marginTop: 24, marginBottom: 16 },
-    { fontWeight: 'bold' as const, fontSize: 24, marginTop: 20, marginBottom: 14 },
-    { fontWeight: 'bold' as const, fontSize: 20, marginTop: 16, marginBottom: 12 },
-    { fontWeight: 'bold' as const, fontSize: 18, marginTop: 14, marginBottom: 10 },
-    { fontWeight: 'bold' as const, fontSize: 16, marginTop: 12, marginBottom: 8 },
+    { ...(themed ? { color: c.text } : null), fontWeight: 'bold' as const, fontSize: 32, marginTop: 24, marginBottom: 16 },
+    { ...(themed ? { color: c.text } : null), fontWeight: 'bold' as const, fontSize: 24, marginTop: 20, marginBottom: 14 },
+    { ...(themed ? { color: c.text } : null), fontWeight: 'bold' as const, fontSize: 20, marginTop: 16, marginBottom: 12 },
+    { ...(themed ? { color: c.text } : null), fontWeight: 'bold' as const, fontSize: 18, marginTop: 14, marginBottom: 10 },
+    { ...(themed ? { color: c.text } : null), fontWeight: 'bold' as const, fontSize: 16, marginTop: 12, marginBottom: 8 },
     { fontWeight: 'bold' as const, fontSize: 14, marginTop: 12, marginBottom: 8 },
   ],
 
   quote: {
     borderLeftWidth: 3,
-    borderLeftColor: '#ccc',
+    borderLeftColor: themed ? c.border : '#ccc',
     paddingLeft: 10,
     marginVertical: 4,
   },
 
   paragraph: { marginVertical: 6 },
 
-  hr: { height: 1, backgroundColor: '#e1e4e8', marginVertical: 20 },
+  hr: { height: 1, backgroundColor: c.border, marginVertical: 20 },
 
   listItemRow: { flexDirection: 'row' as const, alignItems: 'flex-start' as const },
   listMarker: { minWidth: 22, paddingTop: 2 },
@@ -93,41 +118,67 @@ const styles = {
     marginTop: 2,
     borderRadius: 3,
     borderWidth: 1,
-    borderColor: '#bbb',
-    backgroundColor: '#fff',
+    borderColor: themed ? c.border : '#bbb',
+    backgroundColor: c.surface,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
-  checkboxTick: { fontSize: 12, color: '#0a66c2' },
+  checkboxBoxChecked: {
+    backgroundColor: c.surfaceHighlight,
+    borderColor: c.primary,
+  },
+  checkboxTick: { fontSize: 12, color: c.primary },
 
   tableContainer: { marginVertical: 12 } as StyleProp<ViewStyle>,
   tableInner: {
     borderWidth: 1,
-    borderColor: '#d0d7de',
+    borderColor: themed ? c.border : '#d0d7de',
     borderRadius: 6,
     overflow: 'hidden' as const,
-    backgroundColor: '#fff',
+    backgroundColor: c.surface,
   },
   tableRow: { flexDirection: 'row' as const },
   th: {
     flex: 1,
     paddingVertical: 10,
     paddingHorizontal: 12,
-    backgroundColor: '#f6f8fa',
+    backgroundColor: c.surfaceSecondary,
     borderRightWidth: 1,
-    borderRightColor: '#d0d7de',
+    borderRightColor: themed ? c.border : '#d0d7de',
   },
   td: {
     flex: 1,
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderTopWidth: 1,
-    borderTopColor: '#e7e9ec',
+    borderTopColor: themed ? c.border : '#e7e9ec',
     borderRightWidth: 1,
-    borderRightColor: '#eef0f2',
+    borderRightColor: themed ? c.border : '#eef0f2',
   },
   lastCell: { borderRightWidth: 0 },
-  cellText: { color: '#24292f', fontSize: 14, lineHeight: 20 } as const,
+  cellText: { color: c.text, fontSize: 14, lineHeight: 20 } as const,
+});
+
+const DEFAULT_STYLES = buildStyles(DEFAULT_BODY_COLORS, false);
+
+// Module-level like `elementKeyCounter`: parseMessageBody is synchronous,
+// so setting this at entry is safe, and it keeps the render helpers below
+// signature-free. The theme object from useTheme is memoized, so the
+// one-entry cache means styles are rebuilt only when the palette changes,
+// not per message.
+let styles = DEFAULT_STYLES;
+let cachedTheme: MessageBodyTheme | undefined;
+let cachedStyles = DEFAULT_STYLES;
+
+const resolveStyles = (theme?: MessageBodyTheme) => {
+  if (!theme) {
+    return DEFAULT_STYLES;
+  }
+  if (theme !== cachedTheme) {
+    cachedTheme = theme;
+    cachedStyles = buildStyles(theme, true);
+  }
+  return cachedStyles;
 };
 
 const renderTextWithLinks = (text: string) => {
@@ -300,7 +351,8 @@ const renderMarkdownTableRN = (
 // on the leaf <Text>s here rather than on the bubble wrapper.
 export const parseMessageBody = (
   text: string,
-  baseStyle?: TextStyle
+  baseStyle?: TextStyle,
+  theme?: MessageBodyTheme
 ): JSX.Element => {
   if (typeof text !== 'string') {
     return <View />;
@@ -309,6 +361,7 @@ export const parseMessageBody = (
   const lines = text.split('\n');
   const elements: JSX.Element[] = [];
   elementKeyCounter = 0;
+  styles = resolveStyles(theme);
 
   let listBuffer: Array<{
     type: 'ul' | 'checkbox';
@@ -345,7 +398,7 @@ export const parseMessageBody = (
           if (item.type === 'checkbox') {
             contentEl = (
               <View key={`checkbox-${elementKeyCounter++}`} style={styles.checkboxRow}>
-                <View style={[styles.checkboxBox, item.checked && { backgroundColor: '#e8f3ff', borderColor: '#0a66c2' }]}>
+                <View style={[styles.checkboxBox, item.checked && styles.checkboxBoxChecked]}>
                   {item.checked ? <Text style={styles.checkboxTick}>✓</Text> : null}
                 </View>
                 <Text style={[{ flex: 1 }, baseStyle]}>{parseInline(item.content)}</Text>

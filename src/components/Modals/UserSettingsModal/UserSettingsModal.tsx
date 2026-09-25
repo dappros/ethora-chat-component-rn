@@ -11,6 +11,8 @@ import { MODAL_TYPES } from '../../../helpers/constants/MODAL_TYPES';
 import { useChatSettingState } from '../../../hooks/useChatSettingState';
 import { chatTextStyle } from '../../../helpers/typography';
 import { useT } from '../../../i18n/useT';
+import { useTheme } from '../../../hooks/useTheme';
+import type { ChatTheme } from '../../../theme/theme';
 
 interface UserSettingsModalProps {
   handleCloseModal: any;
@@ -22,6 +24,8 @@ const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   const t = useT();
   const dispatch = useDispatch();
   const { config } = useChatSettingState();
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const options = useMemo(
     () => [
@@ -58,7 +62,12 @@ const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
             onPress={() => handleClick(option.key)}
           >
             <Text style={styles.label}>{option.label}</Text>
-            <ArowDownIcon color="#8C8C8C" width={20} height={20} style={styles.chevron} />
+            <ArowDownIcon
+              color={theme.textSecondary}
+              width={20}
+              height={20}
+              style={styles.chevron}
+            />
           </TouchableOpacity>
         ))}
       </View>
@@ -66,9 +75,9 @@ const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: ChatTheme) => StyleSheet.create({
   screen: {
-    backgroundColor: '#E8EDF2',
+    backgroundColor: theme.listBackground,
   },
   body: {
     width: '100%',
@@ -79,11 +88,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.surface,
     borderRadius: 20,
     paddingHorizontal: 20,
     paddingVertical: 22,
-    shadowColor: '#101828',
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.06,
     shadowRadius: 12,
@@ -92,7 +101,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 17,
     fontWeight: '500',
-    color: '#141414',
+    color: theme.text,
   },
   chevron: {
     transform: [{ rotate: '-90deg' }],

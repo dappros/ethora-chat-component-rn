@@ -30,6 +30,7 @@ import Modal from '../Modals/Modal/Modal';
 import ThreadWrapper from '../Thread/ThreadWrapper';
 import {ModalWrapper} from '../Modals/ModalWrapper/ModalWrapper';
 import {useChatSettingState} from '../../hooks/useChatSettingState';
+import {useTheme} from '../../hooks/useTheme';
 import { usePendingNotification } from '../../hooks/usePendingNotification';
 import {DeviceEventEmitter, Pressable, Text, View} from 'react-native';
 import {pushLog as devPushLog} from '../../utils/devLogger';
@@ -63,6 +64,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
   } = useChatSettingState();
 
   usePendingNotification();
+  const theme = useTheme();
 
   const [isInited, setInited] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -404,7 +406,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
           <View
             style={{
               padding: 20,
-              backgroundColor: '#fff',
+              backgroundColor: theme.surface,
               borderRadius: 12,
               maxWidth: 320,
               alignItems: 'stretch',
@@ -414,11 +416,11 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
                 fontSize: 16,
                 fontWeight: '600',
                 marginBottom: 8,
-                color: '#222',
+                color: theme.text,
               }}>
               Connection error
             </Text>
-            <Text style={{fontSize: 13, color: '#444', marginBottom: 16}}>
+            <Text style={{fontSize: 13, color: theme.textSecondary, marginBottom: 16}}>
               {errorMsg ?? 'Something went wrong while connecting to chat.'}
             </Text>
             <Pressable
@@ -435,10 +437,10 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
                 paddingVertical: 10,
                 paddingHorizontal: 16,
                 borderRadius: 6,
-                backgroundColor: pressed ? '#0040A0' : '#0052CD',
+                backgroundColor: pressed ? '#0040A0' : theme.primary,
                 alignItems: 'center',
               })}>
-              <Text style={{color: '#fff', fontWeight: '600'}}>Retry</Text>
+              <Text style={{color: theme.textOnPrimary, fontWeight: '600'}}>Retry</Text>
             </Pressable>
           </View>
         </Overlay>
@@ -488,7 +490,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
                 title="Delete Message"
                 description="Are you sure you want to delete this message?"
                 buttonText="Delete"
-                backgroundColorButton="#E53935"
+                backgroundColorButton={theme.danger}
                 handleClick={handleDeleteClick}
                 handleCloseModal={handleCloseDeleteModal}
                 compact

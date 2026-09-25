@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import { MoreIcon } from '../../../assets/icons';
+import { useTheme } from '../../../hooks/useTheme';
 
 export interface ProfileMenuItem {
   key: string;
@@ -44,6 +45,7 @@ const ProfileMenu: React.FC<{
   items: ProfileMenuItem[];
   testIDPrefix?: string;
 }> = ({ items, testIDPrefix = 'chat-profile' }) => {
+  const theme = useTheme();
   const buttonRef = useRef<View>(null);
   const [open, setOpen] = useState(false);
   const [anchor, setAnchor] = useState({ top: DEFAULT_TOP, right: EDGE });
@@ -131,6 +133,8 @@ const ProfileMenu: React.FC<{
           style={[
             styles.card,
             {
+              backgroundColor: theme.surface,
+              shadowColor: theme.shadow,
               top: anchor.top,
               right: anchor.right,
               opacity: progress,
@@ -151,11 +155,19 @@ const ProfileMenu: React.FC<{
               key={item.key}
               testID={`${testIDPrefix}-menu-${item.key}`}
               activeOpacity={0.6}
-              style={[styles.row, index > 0 && styles.rowDivider]}
+              style={[
+                styles.row,
+                index > 0 && styles.rowDivider,
+                index > 0 && theme.dark && { borderTopColor: theme.divider },
+              ]}
               onPress={() => closeMenu(item.onPress)}
             >
               <Text
-                style={[styles.label, item.destructive && styles.destructive]}
+                style={[
+                  styles.label,
+                  { color: theme.text },
+                  item.destructive && { color: theme.danger },
+                ]}
               >
                 {item.label}
               </Text>
@@ -180,10 +192,8 @@ const styles = StyleSheet.create({
   card: {
     position: 'absolute',
     minWidth: 200,
-    backgroundColor: '#FFFFFF',
     borderRadius: 14,
     paddingVertical: 4,
-    shadowColor: '#121219',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.18,
     shadowRadius: 16,
@@ -199,14 +209,11 @@ const styles = StyleSheet.create({
   },
   rowDivider: {
     borderTopWidth: StyleSheet.hairlineWidth,
+    // Light hairline; swapped for theme.divider in dark mode.
     borderTopColor: '#EFEFF2',
   },
   label: {
     fontSize: 16,
-    color: '#141414',
-  },
-  destructive: {
-    color: '#E53935',
   },
   icon: {
     width: 22,

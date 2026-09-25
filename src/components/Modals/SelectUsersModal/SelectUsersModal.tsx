@@ -4,6 +4,7 @@ import { getActiveRoom, RootState } from '../../../roomStore';
 import {
   ActionButton,
   CloseButton,
+  CloseButtonText,
   GroupContainer,
   ModalBackground,
   ModalContainer,
@@ -15,7 +16,6 @@ import Loader from '../../styled/Loader';
 import { postAddRoomMember } from '../../../networking/api-requests/rooms.api';
 import { useToast } from '../../../context/ToastContext';
 import { updateRoom } from '../../../roomStore/roomsSlice';
-import { Text } from 'react-native';
 
 interface SelectUsersModalProps {
   /** Render the opener yourself (the chat profile uses an "Add Members"
@@ -92,8 +92,7 @@ const SelectUsersModal: React.FC<SelectUsersModalProps> = ({ trigger }) => {
         <ModalBackground>
           <ModalContainer>
             <CloseButton onPress={handleCloseModal}>
-              <Text style={{ fontSize: 24 }}>&times;</Text>
-              &times;
+              <CloseButtonText>&times;</CloseButtonText>
             </CloseButton>
             <GroupContainer
               style={{

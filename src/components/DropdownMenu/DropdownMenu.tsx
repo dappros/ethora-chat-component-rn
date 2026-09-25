@@ -13,6 +13,7 @@ import { BurgerMenuIcon } from '../../assets/icons';
 import { IConfig } from '../../types/types';
 import Button from '../styled/Button';
 import { getIconColor } from '../../helpers/getIconColor';
+import { useTheme } from '../../hooks/useTheme';
 
 const positionMenu = {
   right: { top: 95, right: 10 },
@@ -45,6 +46,7 @@ const DropdownMenu: React.FC<DropdownMenuProps> = ({
   config,
   onClose,
 }) => {
+  const theme = useTheme();
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<View>(null);
 
@@ -119,7 +121,7 @@ const DropdownMenu: React.FC<DropdownMenuProps> = ({
           }}
         >
           <TouchableOpacity
-            style={styles.overlay}
+            style={[styles.overlay, { backgroundColor: theme.overlay }]}
             activeOpacity={1}
             onPress={() => {
               setIsOpen(false);
@@ -134,9 +136,11 @@ const DropdownMenu: React.FC<DropdownMenuProps> = ({
                     styles.menu,
                     positionMenu[position],
                     {
+                      shadowColor: theme.shadow,
                       opacity: fadeAnim,
                       transform: [{ translateY: translateYAnim }],
                     },
+                    theme.dark && { backgroundColor: theme.surface },
                   ]}
                 >
               {options.map((option, index) => (
@@ -163,12 +167,19 @@ const DropdownMenu: React.FC<DropdownMenuProps> = ({
                     >
                       {option.icon}
                     </View>
-                    <Text style={[styles.label, option?.styles]}>
+                    <Text
+                      style={[styles.label, { color: theme.text }, option?.styles]}
+                    >
                       {option.label}
                     </Text>
                   </TouchableOpacity>
                   {index < options.length - 1 && (
-                    <View style={styles.divider} />
+                    <View
+                      style={[
+                        styles.divider,
+                        { backgroundColor: theme.surfaceHighlight },
+                      ]}
+                    />
                   )}
                 </View>
               ))}
@@ -193,7 +204,6 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
     height: '100%',
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
   },
   menuContainer: {
     flex: 1,
@@ -219,7 +229,6 @@ const styles = StyleSheet.create({
     minWidth: 150,
     zIndex: 1000,
     elevation: 10, // Android
-    shadowColor: '#121219', // iOS
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 6,
@@ -240,6 +249,5 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     width: '100%',
-    backgroundColor: '#0052cd0d',
   },
 });

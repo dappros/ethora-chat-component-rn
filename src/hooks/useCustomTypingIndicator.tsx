@@ -6,6 +6,7 @@ import {
   generateProcessingText,
 } from '../components/styled/StyledInputComponents/CustomTypingIndicator';
 import { RootState } from '../roomStore';
+import { useTheme } from './useTheme';
 
 /**
  * Hook for managing custom typing indicator functionality
@@ -13,6 +14,7 @@ import { RootState } from '../roomStore';
  */
 export const useCustomTypingIndicator = (roomJID: string) => {
   const { config } = useChatSettingState();
+  const theme = useTheme();
   const { rooms } = useSelector((state: RootState) => ({
     rooms: state.rooms.rooms,
   }));
@@ -68,7 +70,8 @@ export const useCustomTypingIndicator = (roomJID: string) => {
             top: '8px',
             left: '16px',
             right: '16px',
-            background: 'rgba(255, 255, 255, 0.95)',
+            background: theme.surface,
+            color: theme.text,
             padding: '8px 12px',
             borderRadius: '8px',
             boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
@@ -93,7 +96,8 @@ export const useCustomTypingIndicator = (roomJID: string) => {
             position: 'fixed',
             bottom: '80px',
             right: '20px',
-            background: 'rgba(255, 255, 255, 0.95)',
+            background: theme.surface,
+            color: theme.text,
             padding: '12px 16px',
             borderRadius: '20px',
             boxShadow: '0 4px 16px rgba(0, 0, 0, 0.15)',
@@ -108,7 +112,7 @@ export const useCustomTypingIndicator = (roomJID: string) => {
           };
       }
     },
-    [typingConfig?.styles]
+    [typingConfig?.styles, theme]
   );
 
   return {

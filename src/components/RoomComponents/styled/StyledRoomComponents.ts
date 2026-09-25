@@ -12,9 +12,11 @@ export const LastRoomMessageContainer = styled.View`
 export const LastRoomMessageName = styled.Text`
   font-weight: 600;
   max-width: 190px;
+  color: ${({ theme }) => theme.text};
 `;
 
 export const LastRoomMessageText = styled.Text`
+  color: ${({ theme }) => theme.textSecondary};
   max-width: 190px;
   flex-shrink: 1;
   flex-wrap: nowrap;

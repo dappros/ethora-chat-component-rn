@@ -38,6 +38,8 @@ import { useChatSettingState } from '../../../hooks/useChatSettingState';
 import { chatTextStyle } from '../../../helpers/typography';
 import { getElementFont } from '../../../helpers/getElementFont';
 import { getIconColor } from '../../../helpers/getIconColor';
+import { useTheme } from '../../../hooks/useTheme';
+import type { ChatTheme } from '../../../theme/theme';
 import { deleteRoomMember, setRoomMuted } from '../../../networking/api-requests/rooms.api';
 import { RoomMember } from '../../../types/models/room.model';
 import { setActiveModal, setSelectedUser } from '../../../roomStore/chatSettingsSlice';
@@ -98,6 +100,8 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
   const dispatch = useDispatch();
   const { client } = useXmppClient();
   const { user: stateUser, config } = useChatSettingState();
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const activeRoom = useSelector((state: RootState) => getActiveRoom(state));
   const fileToken = useFileToken();
 
@@ -422,7 +426,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
       items.push({
         key: 'edit',
         label: t('action.edit'),
-        icon: <EditIcon color="#141414" width={18} height={18} />,
+        icon: <EditIcon color={theme.text} width={18} height={18} />,
         onPress: onUpload,
       });
       if (hasIcon) {
@@ -440,14 +444,14 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
       items.push({
         key: 'search',
         label: t('action.search'),
-        icon: <SearchIcon color="#141414" width={18} height={18} />,
+        icon: <SearchIcon color={theme.text} width={18} height={18} />,
         onPress: openMemberSearch,
       });
     }
     items.push({
       key: 'report',
       label: t('action.report'),
-      icon: <ReportIcon color="#141414" width={18} height={18} />,
+      icon: <ReportIcon color={theme.text} width={18} height={18} />,
       onPress: () => setIsReportOpen(true),
     });
     if (canDeleteChat) {
@@ -460,7 +464,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
       });
     }
     return items;
-  }, [canEditIcon, canDeleteChat, hasIcon, isCollapsed, t]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [canEditIcon, canDeleteChat, hasIcon, isCollapsed, t, theme.text]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!activeRoom) {
     return null;
@@ -581,7 +585,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
 
               {isSearchOpen && (
                 <View style={styles.searchRow}>
-                  <SearchIcon color="#8C8C8C" width={18} height={18} />
+                  <SearchIcon color={theme.textSecondary} width={18} height={18} />
                   <TextInput
                     testID="chat-profile-member-search"
                     ref={searchInputRef}
@@ -589,7 +593,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
                     value={memberQuery}
                     onChangeText={setMemberQuery}
                     placeholder={t('search.members')}
-                    placeholderTextColor="#8C8C8C"
+                    placeholderTextColor={theme.textMuted}
                     autoCorrect={false}
                     returnKeyType="search"
                   />
@@ -721,10 +725,10 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: ChatTheme) => StyleSheet.create({
   screen: {
     position: 'relative',
-    backgroundColor: '#F2F3F5',
+    backgroundColor: theme.listBackground,
   },
   scroll: {
     width: '100%',
@@ -738,21 +742,21 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.surface,
     borderRadius: 14,
     padding: 16,
-    shadowColor: '#000',
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 1,
   },
   cardLabel: {
-    color: '#8C8C8C',
+    color: theme.textSecondary,
     fontSize: 14,
   },
   cardValue: {
-    color: '#141414',
+    color: theme.text,
     fontSize: 16,
     marginTop: 4,
   },
@@ -763,12 +767,12 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
     marginBottom: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#EFEFF2',
+    borderBottomColor: theme.border,
   },
   addMembersLabel: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#141414',
+    color: theme.text,
   },
   searchRow: {
     flexDirection: 'row',
@@ -778,24 +782,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     height: 40,
     borderRadius: 12,
-    backgroundColor: '#F2F3F5',
+    backgroundColor: theme.surfaceSecondary,
   },
   searchInput: {
     flex: 1,
     fontSize: 15,
-    color: '#141414',
+    color: theme.text,
     padding: 0,
   },
   searchClose: {
     fontSize: 22,
     lineHeight: 24,
-    color: '#8C8C8C',
+    color: theme.textSecondary,
   },
   emptyMembers: {
     opacity: 0.6,
     textAlign: 'center',
     paddingVertical: 8,
-    color: '#141414',
+    color: theme.text,
   },
   memberRow: {
     flexDirection: 'row',
@@ -804,7 +808,7 @@ const styles = StyleSheet.create({
   },
   memberDivider: {
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#EFEFF2',
+    borderTopColor: theme.border,
   },
   memberMain: {
     flex: 1,
@@ -818,20 +822,20 @@ const styles = StyleSheet.create({
   memberName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#141414',
+    color: theme.text,
   },
   memberStatus: {
     fontSize: 13,
-    color: '#8C8C8C',
+    color: theme.textSecondary,
     marginTop: 2,
   },
   memberRole: {
     fontSize: 13,
-    color: '#8C8C8C',
+    color: theme.textSecondary,
     marginLeft: 8,
   },
   memberBanned: {
-    color: '#E53935',
+    color: theme.danger,
   },
   memberRemove: {
     marginLeft: 12,

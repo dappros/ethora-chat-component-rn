@@ -22,6 +22,7 @@ import { useSelector } from 'react-redux';
 import { RootState } from '../../../../roomStore';
 import { View, Text } from 'react-native';
 import Animated from 'react-native-reanimated';
+import { useTheme } from '../../../../hooks/useTheme';
 
 interface ReferralsModalProps {
   handleCloseModal: any;
@@ -31,6 +32,7 @@ const ReferralsModal: React.FC<ReferralsModalProps> = ({
   handleCloseModal,
 }) => {
   const { config } = useSelector((state: RootState) => state.chatSettingStore);
+  const theme = useTheme();
 
   return (
     <ModalContainerFullScreen>
@@ -45,7 +47,7 @@ const ReferralsModal: React.FC<ReferralsModalProps> = ({
           <SendCoinIcon style={{ width: 24, height: 24 }} />
           <SharedSettingsStyledLabel>and receive 25</SharedSettingsStyledLabel>
           <SendCoinIcon style={{ width: 24, height: 24 }} />
-          <Text>.</Text>
+          <Text style={{ color: theme.text }}>.</Text>
           <SharedSettingsStyledLabel>
             Send friends invite with your personal invitation code.
           </SharedSettingsStyledLabel>
@@ -55,7 +57,7 @@ const ReferralsModal: React.FC<ReferralsModalProps> = ({
             Your invitation code
           </SharedSettingsStyledLabel>
           <StyledInput
-            {...{ color: config?.colors?.primary || '' } as any}
+            {...{ color: config?.colors?.primary || theme.primary } as any}
             placeholder="Your invitation code"
             // label={'About'}
             // value={message}
@@ -71,7 +73,7 @@ const ReferralsModal: React.FC<ReferralsModalProps> = ({
             Or enter your referral code to earn coins
           </SharedSettingsStyledLabel>
           <StyledInput
-            {...{ color: config?.colors?.primary || '' } as any}
+            {...{ color: config?.colors?.primary || theme.primary } as any}
             placeholder="Your referral code"
             // label={'About'}
             // value={message}

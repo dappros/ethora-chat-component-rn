@@ -54,7 +54,7 @@ const BaseWrapper = styled.View<{ $position: NonNullable<CustomTypingIndicatorPr
   /* основная типографика */
   /* (цвета текста задаём на текстовых нодах) */
 
-  ${({ $position }) => {
+  ${({ $position, theme }) => {
     switch ($position) {
       case 'top':
         return css`
@@ -62,11 +62,11 @@ const BaseWrapper = styled.View<{ $position: NonNullable<CustomTypingIndicatorPr
           top: 8px;
           left: 16px;
           right: 16px;
-          background-color: rgba(255, 255, 255, 0.95);
+          background-color: ${theme.surface};
           padding: 8px 12px;
           border-radius: 8px;
           /* тени (iOS/Android) */
-          shadow-color: #000;
+          shadow-color: ${theme.shadow};
           shadow-opacity: 0.1;
           shadow-radius: 8px;
           shadow-offset: 0px 2px;
@@ -79,7 +79,7 @@ const BaseWrapper = styled.View<{ $position: NonNullable<CustomTypingIndicatorPr
           top: 0; left: 0; right: 0; bottom: 0;
           align-items: center;
           justify-content: center;
-          background-color: rgba(0, 0, 0, 0.4); /* лёгкая вуаль */
+          background-color: ${theme.overlay}; /* лёгкая вуаль */
           padding: 16px 24px;
         `;
       case 'floating':
@@ -87,10 +87,10 @@ const BaseWrapper = styled.View<{ $position: NonNullable<CustomTypingIndicatorPr
           position: absolute;
           right: 20px;
           bottom: 80px;
-          background-color: rgba(255, 255, 255, 0.95);
+          background-color: ${theme.surface};
           padding: 12px 16px;
           border-radius: 20px;
-          shadow-color: #000;
+          shadow-color: ${theme.shadow};
           shadow-opacity: 0.15;
           shadow-radius: 12px;
           shadow-offset: 0px 4px;
@@ -110,7 +110,7 @@ const Label = styled.Text`
   margin-right: 8px;
   font-weight: 500;
   font-size: 14px;
-  color: #555;
+  color: ${({ theme }) => theme.textSecondary};
 `;
 
 const DotsRow = styled.View`
@@ -195,7 +195,7 @@ const DotView = styled(Animated.View)`
   width: 6px;
   height: 6px;
   border-radius: 3px;
-  background-color: #666;
+  background-color: ${({ theme }) => theme.textSecondary};
   margin-right: 2px;
 `;
 

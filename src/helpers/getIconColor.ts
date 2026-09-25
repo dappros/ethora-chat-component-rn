@@ -1,3 +1,6 @@
-export const getIconColor = (config?: {
-  colors?: { primary?: string; secondary?: string; icon?: string };
-}) => config?.colors?.icon || config?.colors?.primary || '#0052CD';
+import { resolveTheme, type ThemeConfigInput } from '../theme/theme';
+
+/** Chrome icon tint (attach, mic/send, burger, back). Theme-aware: in dark
+ * mode it comes from `darkColors.icon` → `darkColors.primary` → default. */
+export const getIconColor = (config?: ThemeConfigInput | null) =>
+  resolveTheme(config).icon;

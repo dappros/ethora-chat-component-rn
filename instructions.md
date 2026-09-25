@@ -253,7 +253,9 @@ Native push on RN uses FCM/APNs through Firebase. The host app owns the FCM/APNs
 | `colors.senderName` | `string` | Color of the sender's name above incoming message bubbles (incl. threads). Falls back to `colors.primary`, then `#0052CD`. |
 | `colors.avatar` | `string` | Single background for initials avatars (message bubbles, chat header, profile modals). Initials auto-switch between dark/white based on contrast. Omit to keep the default per-user pastel palette (hash of the name). |
 | `colors.dateLabel` | `string` | Text color of the day-separator pill ("Today", "June 8"); the pill background is a light tint of it. Falls back to `colors.primary`, then `#0052CD`. |
-| `messageColor` | `{ backgroundMessage; backgroundMessageUser; colorUser; color }` | Bubble background and text colors for "them" and "me". |
+| `messageColor` | `{ backgroundMessage; backgroundMessageUser; colorUser; color }` | Bubble background and text colors for "them" and "me". Light mode only. |
+| `dark` | `boolean` | Switches every surface, text and accent to the dark palette (`DARK_THEME`). In dark mode `colors` (except `colors.avatar`), `messageColor` and `backgroundChat.color` are not applied — use `darkColors`. Default `false`. |
+| `darkColors` | `Partial<ChatThemeColors>` | Per-entry overrides of the dark palette (`primary`, `surface`, `surfaceSecondary`, `chatBackground`, `listBackground`, `text`, `textSecondary`, `border`, `messageBackground`, `messageBackgroundUser`, …). Anything omitted keeps its `DARK_THEME` default. `darkColors.primary` also drives `icon`, `senderName`, `dateLabel` unless set explicitly. |
 | `backgroundChat` | `{ color?: string; image?: string \| ImageSourcePropType }` | Chat-screen background. |
 | `bubleMessage` | `MessageBubble` | Bubble shape tokens — see `src/types/types.ts:MessageBubble`. |
 | `roomListStyles` | `ViewStyle` | RN style overrides for the room-list pane. |

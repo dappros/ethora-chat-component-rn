@@ -48,13 +48,22 @@ import axios from 'axios';
 // Android equally.
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-// Only the top edge is padded. Padding the bottom too left a blank white
-// band under the room list (and under any sheet the chat presents), which
-// is not how a messenger looks — content runs under the home indicator.
-const SAFE_EDGES = ['top', 'left', 'right'] as const;
+// The bottom is never padded: that left a blank white band under the room
+// list (and under any sheet the chat presents), which is not how a
+// messenger looks — content runs under the home indicator.
+// The root deliberately does NOT pad the top edge either: the chat header card
+// extends under the status bar and paints that band with its own colour
+// (`headerLayout.safeAreaTop`), so the card and the band are one surface.
+// A host-side white band above the card would show a seam where the
+// card's shadow starts. Setup/Logs panes have no such card, so they pad
+// the top themselves with a nested top-edge SafeAreaView.
+const SAFE_EDGES = ['left', 'right'] as const;
+const TOP_EDGE = ['top'] as const;
+const LOADING_EDGES = ['top', 'left', 'right'] as const;
 
 import { ReduxWrapper as Chat } from './src/components/MainComponents/ReduxWrapper';
 import { store as chatStore } from './src/roomStore';
+import { DARK_THEME } from './src/theme';
 import { logoutService } from './src/hooks/useLogout';
 import type { IConfig, IRoom } from './src/types/types';
 import { LANGUAGE_OPTIONS } from './src/helpers/constants/LANGUAGE_OPTIONS';
@@ -132,6 +141,8 @@ interface Creds {
   /** Reader language. Empty = follow whatever the reader picks in-app. */
   readerLocale: string;
   showGlobe: boolean;
+  // Theme
+  dark: boolean;
 }
 
 // Server fields default to the QA environment (chat-qa.ethora.com) so a
@@ -156,6 +167,7 @@ const DEFAULT_CREDS: Creds = {
   singleRoomJid: '',
   videoCalls: true,
   audioCalls: true,
+  dark: false,
   translates: true,
   // 'auto' renders the translation inline as the body (original quoted
   // above); 'manual' hides the same translation behind a Translate link.
@@ -189,13 +201,19 @@ const useTotalUnread = (): number => {
   }, [rooms]);
 };
 
-const TabBar: React.FC<{ active: Tab; onChange: (t: Tab) => void }> = ({
+const TabBar: React.FC<{ active: Tab; onChange: (t: Tab) => void; dark?: boolean }> = ({
   active,
   onChange,
+  dark,
 }) => {
   const unread = useTotalUnread();
   return (
-    <View style={styles.tabBar}>
+    <View
+      style={[
+        styles.tabBar,
+        dark && { backgroundColor: DARK_THEME.surface, borderBottomColor: DARK_THEME.border },
+      ]}
+    >
       {(['setup', 'chat', 'logs'] as const).map((t) => (
         <Pressable
           key={t}
@@ -262,6 +280,7 @@ const SetupTab: React.FC<{
   const [singleRoom, setSingleRoom] = useState<boolean>(initial.singleRoom);
   const [singleRoomJid, setSingleRoomJid] = useState<string>(initial.singleRoomJid);
   const [videoCalls, setVideoCalls] = useState<boolean>(initial.videoCalls);
+  const [dark, setDark] = useState<boolean>(initial.dark);
   const [audioCalls, setAudioCalls] = useState<boolean>(initial.audioCalls);
   const [translates, setTranslates] = useState<boolean>(initial.translates);
   const [translateMode, setTranslateMode] = useState<'auto' | 'manual'>(
@@ -293,6 +312,7 @@ const SetupTab: React.FC<{
     setConference(initial.conference || '');
     setSingleRoom(initial.singleRoom);
     setVideoCalls(initial.videoCalls);
+    setDark(initial.dark);
     setAudioCalls(initial.audioCalls);
     setTranslates(initial.translates);
     setTranslateMode(initial.translateMode);
@@ -330,6 +350,7 @@ const SetupTab: React.FC<{
     singleRoomJid: singleRoomJid.trim(),
     videoCalls,
     audioCalls,
+    dark,
     translates,
     translateMode,
     readerLocale: readerLocale.trim(),
@@ -609,6 +630,27 @@ const SetupTab: React.FC<{
                 {singleRoom
                   ? 'Chat will open the JID below directly.'
                   : 'Show a list of all rooms; tap one to open.'}
+              </Text>
+            </View>
+          </Pressable>
+        </View>
+
+        {/* ---- Theme -------------------------------------------------- */}
+        <View style={styles.mb12}>
+          <Pressable
+            testID="toggle-dark"
+            onPress={() => setDark((v) => !v)}
+            style={styles.toggleRow}
+          >
+            <View style={[styles.toggleTrack, dark && styles.toggleTrackOn]}>
+              <View style={[styles.toggleThumb, dark && styles.toggleThumbOn]} />
+            </View>
+            <View style={styles.toggleLabelBox}>
+              <Text style={styles.toggleLabel}>Dark theme</Text>
+              <Text style={styles.toggleHint}>
+                {dark
+                  ? 'config.dark: true — dark palette, default darkColors.'
+                  : 'config.dark omitted — light palette.'}
               </Text>
             </View>
           </Pressable>
@@ -900,6 +942,12 @@ const ChatPane: React.FC<{ creds: Creds | null; isVisible: boolean }> = ({ creds
         conference: creds.conference,
       },
       headerMenu: false as const,
+      // Header cards (room list + chat) extend under the status bar and
+      // paint it with the header colour — see SAFE_EDGES above.
+      headerLayout: { safeAreaTop: true },
+      // Dark theme is driven from the Setup tab. No `darkColors` here on
+      // purpose: exercises the default dark palette.
+      dark: creds.dark,
       colors: {
         primary: PRIMARY,
         secondary: SECONDARY,
@@ -1190,6 +1238,8 @@ const LogRow: React.FC<{
 const AppLoginChatsRn: React.FC = () => {
   const [tab, setTab] = useState<Tab>('setup');
   const [creds, setCreds] = useState<Creds | null>(null);
+  // Setup/Logs stay light; only the chat pane follows the theme toggle.
+  const darkChat = tab === 'chat' && !!creds?.dark;
   const [loading, setLoading] = useState(true);
   // Chat-tab visibility is signalled to <Chat> via its public `isVisible`
   // prop (see render below). The library clears/restores room visibility
@@ -1260,16 +1310,18 @@ const AppLoginChatsRn: React.FC = () => {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.root, styles.center]} edges={SAFE_EDGES}>
+      <SafeAreaView style={[styles.root, styles.center]} edges={LOADING_EDGES}>
         <ActivityIndicator color={PRIMARY} />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.root} edges={SAFE_EDGES}>
-      <StatusBar barStyle="dark-content" />
-      <TabBar active={tab} onChange={setTab} />
+    <SafeAreaView
+      style={[styles.root, darkChat && { backgroundColor: DARK_THEME.listBackground }]}
+      edges={SAFE_EDGES}
+    >
+      <StatusBar barStyle={darkChat ? 'light-content' : 'dark-content'} />
       <View style={styles.flex1}>
         {/*
           Render all three panels with display:flex/none so state is
@@ -1283,11 +1335,13 @@ const AppLoginChatsRn: React.FC = () => {
           ]}
           pointerEvents={tab === 'setup' ? 'auto' : 'none'}
         >
-          <SetupTab
-            initial={creds || DEFAULT_CREDS}
-            onSave={handleSave}
-            onLogout={handleLogout}
-          />
+          <SafeAreaView edges={TOP_EDGE} style={styles.flex1}>
+            <SetupTab
+              initial={creds || DEFAULT_CREDS}
+              onSave={handleSave}
+              onLogout={handleLogout}
+            />
+          </SafeAreaView>
         </View>
         <View
           style={[
@@ -1305,9 +1359,12 @@ const AppLoginChatsRn: React.FC = () => {
           ]}
           pointerEvents={tab === 'logs' ? 'auto' : 'none'}
         >
-          <LogsPane />
+          <SafeAreaView edges={TOP_EDGE} style={styles.flex1}>
+            <LogsPane />
+          </SafeAreaView>
         </View>
       </View>
+      <TabBar active={tab} onChange={setTab} dark={darkChat} />
     </SafeAreaView>
   );
 };

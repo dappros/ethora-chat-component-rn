@@ -20,6 +20,7 @@ import {
   SharedSettingsStyledLabel,
 } from '../SharedStyledComponents';
 import { View } from 'react-native';
+import { useTheme } from '../../../../hooks/useTheme';
 
 interface ManageDataModalProps {
   handleCloseModal: any;
@@ -37,6 +38,7 @@ const ManageDataModal: React.FC<ManageDataModalProps> = ({
   handleCloseModal,
 }) => {
   const { config } = useSelector((state: RootState) => state.chatSettingStore);
+  const theme = useTheme();
 
   const handleDownloadClick = async () => {
     // const exportedData = await getExportMyData();
@@ -76,10 +78,10 @@ const ManageDataModal: React.FC<ManageDataModalProps> = ({
             </LabelData>
           </SharedSettingsSectionContainer>
           <SharedSettingsStyledButton
-            borderColor={config?.colors?.primary || '#0052CD'}
+            borderColor={theme.primary}
             onPress={handleDownloadClick}
             text="Download your data"
-            color={config?.colors?.primary || '#0052CD'}
+            color={theme.primary}
           />
         </SharedSettingsColumnContainer>
         <SharedSettingsColumnContainer>
@@ -93,10 +95,10 @@ const ManageDataModal: React.FC<ManageDataModalProps> = ({
             </SharedSettingsLabelData>
           </SharedSettingsSectionContainer>
           <SharedSettingsInfoPanel
-            bgColor={config?.colors?.secondary || '#F3F6FC'}
+            bgColor={config?.colors?.secondary || theme.surfaceHighlight}
           >
             <View>
-              <InfoIcon color={config?.colors?.primary || '#0052CD'} />
+              <InfoIcon color={theme.primary} />
             </View>
             <SharedSettingsInfoText>
               Due to the immutable nature of distributed ledger technology,
@@ -108,9 +110,9 @@ const ManageDataModal: React.FC<ManageDataModalProps> = ({
             </SharedSettingsInfoText>
           </SharedSettingsInfoPanel>
           <SharedSettingsStyledButton
-            borderColor="#E53935"
+            borderColor={theme.danger}
             text="Delete My Account"
-            color="#E53935"
+            color={theme.danger}
           />
         </SharedSettingsColumnContainer>
       </SharedSettingsCenterContainer>

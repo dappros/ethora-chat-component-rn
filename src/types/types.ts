@@ -1,4 +1,5 @@
 import type { ViewStyle, ImageSourcePropType, TextStyle } from 'react-native';
+import type { ChatThemeOverrides } from '../theme/theme';
 import type { Iso639_1Codes } from './models/language.model';
 import type { IMessage, IReply } from './models/message.model';
 import type { RoomMember } from './models/room.model';
@@ -370,6 +371,18 @@ export interface IConfig {
      * back to `primary`, then `#0052CD`. */
     dateLabel?: string;
   };
+  /**
+   * Dark theme. `true` switches every surface, text and accent to the dark
+   * palette (DARK_THEME). Colours can be customised per entry through
+   * `darkColors`; anything omitted keeps its dark default. In dark mode the
+   * light-only knobs (`colors`, `messageColor`, `backgroundChat.color`) are
+   * not applied — pass brand colours via `darkColors` instead.
+   *
+   *   config: { dark: true, darkColors: { primary: '#7C3AED', surface: '#111' } }
+   */
+  dark?: boolean;
+  /** Per-entry overrides of the dark palette; see ChatThemeColors. */
+  darkColors?: ChatThemeOverrides;
   /** Configurable font family / weights for the chat UI. See TypographyConfig. */
   typography?: TypographyConfig;
   messageColor?: {

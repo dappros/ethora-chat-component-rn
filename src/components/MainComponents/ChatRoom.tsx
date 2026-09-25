@@ -28,6 +28,7 @@ import { IConfig } from '../../types/models/config.model';
 import { useRoomInitialization } from '../../hooks/useRoomInitialization';
 import { useRoomState } from '../../hooks/useRoomState';
 import { useChatSettingState } from '../../hooks/useChatSettingState';
+import { useTheme } from '../../hooks/useTheme';
 import CustomTypingIndicator from '../styled/StyledInputComponents/CustomTypingIndicator';
 // import {PanGestureHandler} from 'react-native-gesture-handler';
 import { FlatList } from 'react-native';
@@ -75,6 +76,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
     const { client } = useXmppClient();
     const dispatch = useDispatch();
     const insets = useSafeAreaInsets();
+    const theme = useTheme();
 
     const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
 
@@ -346,10 +348,10 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
       // a square white block behind a rounded composer just hid the corners.
       style: {
         paddingBottom: inputDockPaddingBottom,
-        backgroundColor: '#fff',
+        backgroundColor: theme.surface,
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
-        shadowColor: '#101828',
+        shadowColor: theme.shadow,
         shadowOffset: { width: 0, height: -4 },
         shadowOpacity: 0.06,
         shadowRadius: 12,
@@ -402,6 +404,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
               >
                 <EmptyChatIllustration
                   color={getIconColor(configWithEventHandlers)}
+                  panelColor={theme.dark ? theme.surfaceSecondary : undefined}
                 />
               </View>
             ) : !roomMessages || roomMessages.length === 0 ? (

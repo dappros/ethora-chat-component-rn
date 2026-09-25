@@ -24,6 +24,7 @@ import { setActiveModal } from '../../roomStore/chatSettingsSlice';
 import { MODAL_TYPES } from '../../helpers/constants/MODAL_TYPES';
 import { useChatSettingState } from '../../hooks/useChatSettingState';
 import { useLogout } from '../../hooks/useLogout';
+import { useTheme } from '../../hooks/useTheme';
 import {
   shouldClaimVerticalDrag,
   shouldDismissOnDrag,
@@ -112,7 +113,10 @@ export const HeaderRoomListMenu: FC<HeaderRoomListMenuProps> = ({
   const { config } = useChatSettingState();
   const performLogout = useLogout();
   const logoutConfig = config?.logout?.enabled ? config.logout : undefined;
-  const primaryColor = config?.colors?.primary ?? '#0052CD';
+  const theme = useTheme();
+  const primaryColor = theme.primary;
+  const iconColor = theme.icon;
+  const labelColor = theme.text;
 
   const insets = useSafeAreaInsets();
   // Measured, so the sheet is exactly as tall as its rows and starts
@@ -243,22 +247,22 @@ export const HeaderRoomListMenu: FC<HeaderRoomListMenuProps> = ({
     }[] = [
       {
         label: 'New Chat',
-        icon: <AddNewIcon color={primaryColor} />,
+        icon: <AddNewIcon color={iconColor} />,
         onClick: () => {
           dispatch(setActiveModal(MODAL_TYPES.NEW_CHAT));
         },
-        styles: { color: '#141414' },
+        styles: { color: labelColor },
       },
       {
         label: 'Profile',
-        icon: <ProfileIcon color={primaryColor} />,
+        icon: <ProfileIcon color={iconColor} />,
         onClick: () => {
           dispatch(setActiveModal(MODAL_TYPES.PROFILE));
         },
       },
       {
         label: 'Settings',
-        icon: <SettingIcon color={primaryColor} />,
+        icon: <SettingIcon color={iconColor} />,
         onClick: () => {
           dispatch(setActiveModal(MODAL_TYPES.SETTINGS));
         },
@@ -267,7 +271,7 @@ export const HeaderRoomListMenu: FC<HeaderRoomListMenuProps> = ({
     if (logoutConfig) {
       options.push({
         label: logoutConfig.label ?? DEFAULT_LOGOUT_LABEL,
-        icon: <LogoutIcon color={primaryColor} />,
+        icon: <LogoutIcon color={iconColor} />,
         styles: { color: primaryColor },
         onClick: () => {
           runLogoutFlow(logoutConfig, performLogout).catch(() => {});
@@ -275,7 +279,7 @@ export const HeaderRoomListMenu: FC<HeaderRoomListMenuProps> = ({
       });
     }
     return options;
-  }, [dispatch, logoutConfig, performLogout, primaryColor]);
+  }, [dispatch, logoutConfig, performLogout, primaryColor, iconColor, labelColor]);
 
   return (
     // Presented through a real <Modal>: as an in-tree overlay the sheet was
@@ -308,6 +312,8 @@ export const HeaderRoomListMenu: FC<HeaderRoomListMenuProps> = ({
         style={[
           styles.sheet,
           {
+            backgroundColor: theme.surface,
+            shadowColor: theme.shadow,
             paddingBottom: insets.bottom + 20,
             // Two entries rather than Animated.add: the parent's value is
             // driven natively, and stacking the transforms keeps each node
@@ -324,7 +330,12 @@ export const HeaderRoomListMenu: FC<HeaderRoomListMenuProps> = ({
           style={styles.grabArea}
           {...handlePan.panHandlers}
         >
-          <View style={styles.grabber} />
+          <View
+            style={[
+              styles.grabber,
+              theme.dark ? { backgroundColor: theme.textMuted } : null,
+            ]}
+          />
         </View>
         <View style={styles.card}>
           {menuOptions.map((option, index) => (
@@ -336,12 +347,19 @@ export const HeaderRoomListMenu: FC<HeaderRoomListMenuProps> = ({
                 onPress={() => handleOptionPress(option.onClick)}
               >
                 <View style={styles.iconSlot}>{option.icon}</View>
-                <Text style={[styles.label, option?.styles]}>
+                <Text
+                  style={[styles.label, { color: theme.text }, option?.styles]}
+                >
                   {option.label}
                 </Text>
               </TouchableOpacity>
               {index < menuOptions.length - 1 && (
-                <View style={styles.divider} />
+                <View
+                  style={[
+                    styles.divider,
+                    theme.dark ? { backgroundColor: theme.divider } : null,
+                  ]}
+                />
               )}
             </View>
           ))}
@@ -369,12 +387,12 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#141414',
     marginLeft: 12,
   },
   divider: {
     height: StyleSheet.hairlineWidth,
     marginLeft: 54,
+    // Light hairline; swapped for theme.divider in dark mode.
     backgroundColor: '#E4E4E9',
   },
   sheet: {
@@ -385,9 +403,7 @@ const styles = StyleSheet.create({
     right: 3,
     bottom: 3,
     paddingTop: 8,
-    backgroundColor: '#FFFFFF',
     borderRadius: 20,
-    shadowColor: '#000',
     shadowOpacity: 0.12,
     shadowOffset: { width: 0, height: -3 },
     shadowRadius: 12,
@@ -403,6 +419,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
+    // Light pill; swapped for theme.textMuted in dark mode.
     backgroundColor: '#C9CBD1',
   },
   card: {

@@ -22,6 +22,7 @@ import { useSendMessage } from '../../hooks/useSendMessage';
 import { createMainMessageForThread } from '../../helpers/createMainMessageForThread';
 import { useRoomState } from '../../hooks/useRoomState';
 import { useChatSettingState } from '../../hooks/useChatSettingState';
+import { useTheme } from '../../hooks/useTheme';
 import {
   Animated,
   Text,
@@ -51,6 +52,7 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
 
   const { loading, roomsList, editAction, activeRoomJID } = useRoomState();
   const { config } = useChatSettingState();
+  const theme = useTheme();
   const { sendMessage: sendMs, sendMedia: sendMessageMedia, sendEditMessage, isLastMessageFromUserAndProcessing } = useSendMessage();
 
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
@@ -179,6 +181,7 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
       {...panResponder.panHandlers}
       style={[
         styles.threadContainer,
+        { backgroundColor: theme.chatBackground },
         { transform: [{ translateX: slideAnim }] },
         // ...config?.chatRoomStyles,
       ]}
@@ -199,17 +202,15 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
       />
       <AlsoContainer onPress={() => setIsChecked((prev) => !prev)}>
         <AlsoCheckbox
-          accentColor={
-            isChecked ? config?.colors?.primary || '#0052CD' : '#fff'
-          }
+          accentColor={isChecked ? theme.primary : theme.surface}
           // checked={isChecked}
           // onPress={() => setIsChecked(!isChecked)}
         />
-        <Text>Also send to</Text>
+        <Text style={{ color: theme.text }}>Also send to</Text>
         <TouchableOpacity onPress={closeThread}>
           <Text
             style={{
-              color: config?.colors?.primary || '#0052CD',
+              color: theme.primary,
               fontWeight: 500,
             }}
           >

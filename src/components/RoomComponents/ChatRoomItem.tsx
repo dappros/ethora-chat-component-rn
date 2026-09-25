@@ -14,6 +14,8 @@ import Composing from '../styled/StyledInputComponents/Composing';
 import { Text, View } from 'react-native';
 import LastMessageItem from './LastMessageItem';
 import { LastRoomMessageText } from './styled/StyledRoomComponents';
+import { useTheme } from '../../hooks/useTheme';
+import { resolveTheme } from '../../theme/theme';
 
 interface ChatRoomItemProps {
   chat: IRoom;
@@ -28,6 +30,13 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
   isDriver,
   config,
 }) => {
+  // Rows can be rendered with an explicit `config` prop (tests, hosts
+  // composing their own list); honour its colours over the store's.
+  const storeTheme = useTheme();
+  const theme = useMemo(
+    () => (config ? resolveTheme(config) : storeTheme),
+    [config, storeTheme]
+  );
   // Room icons can live on the membership-gated secure-files host.
   const fileToken = useFileToken();
   const displayName = String(chat?.title || chat?.name || '').trim();
@@ -106,9 +115,9 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
           paddingVertical: 8,
           paddingRight: 8,
           borderBottomWidth: 1,
-          // Reads against the list's #E8EDF2 ground; #F0F0F0 was lighter
-          // than the ground itself, so the row separators vanished.
-          borderBottomColor: '#C6CFDA',
+          // `divider` reads against the list ground; the lighter border
+          // tone was paler than the ground itself, so the separators vanished.
+          borderBottomColor: theme.divider,
         }}
       >
         <View
@@ -123,7 +132,7 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
           {stamp ? (
             <UserCount
               style={{
-                color: '#8C8C8C',
+                color: theme.textSecondary,
                 fontSize: 12,
               }}
               text={stamp}
@@ -195,7 +204,7 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
             <View
               style={{
                 borderRadius: 8,
-                backgroundColor: config?.colors?.primary,
+                backgroundColor: theme.primary,
                 padding: 2,
                 minWidth: 24,
                 minHeight: 24,
@@ -208,7 +217,7 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
               <Text
                 style={{
                   // color: isChatActive ? "#141414" : "#fff",
-                  color: '#141414',
+                  color: theme.text,
                   fontSize: 14,
                   fontWeight: '600',
                 }}
@@ -219,11 +228,11 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
           ) : null}
         </View>
         {isDriver && (
-          // Darker than the list's own ground (#E8EDF2), otherwise the
-          // separator disappears into it — white and the old #0052CD0D
-          // hairline both did.
+          // Darker than the list's own ground, otherwise the separator
+          // disappears into it — white and the old highlight hairline both
+          // did.
           <View
-            style={{ height: 1, backgroundColor: '#C6CFDA', marginTop: 8 }}
+            style={{ height: 1, backgroundColor: theme.divider, marginTop: 8 }}
           />
         )}
       </View>

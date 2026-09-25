@@ -24,6 +24,7 @@ import {
 import { useT } from '../../i18n/useT';
 import { toBaseLanguage } from '../../i18n/strings';
 import { getIconColor } from '../../helpers/getIconColor';
+import { useTheme } from '../../hooks/useTheme';
 
 const TEXT_PRIMARY = '#141414';
 const TEXT_MUTED = '#8C8C8C';
@@ -73,6 +74,7 @@ export const LanguageSelectorModal: FC<{
   const dispatch = useDispatch();
   const t = useT();
   const { config, langSource, translateMode } = useChatSettingState();
+  const theme = useTheme();
 
   const translates = config?.translates;
   const effectiveMode = resolveTranslateMode(translates, translateMode);
@@ -97,16 +99,34 @@ export const LanguageSelectorModal: FC<{
     >
       {/* Backdrop closes on tap; the card swallows the press so a tap
           inside it doesn't dismiss. */}
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={styles.card} onPress={() => {}}>
-          <Text style={styles.title}>{t('language.select')}</Text>
+      <Pressable
+        style={[
+          styles.backdrop,
+          // Keep the historical 0.4 scrim in light; the dark palette's
+          // heavier overlay is needed to separate the card from the ground.
+          theme.dark && { backgroundColor: theme.overlay },
+        ]}
+        onPress={onClose}
+      >
+        <Pressable
+          style={[styles.card, { backgroundColor: theme.surface }]}
+          onPress={() => {}}
+        >
+          <Text style={[styles.title, { color: theme.text }]}>
+            {t('language.select')}
+          </Text>
 
           {showModeSwitcher && (
             <View style={styles.section}>
-              <Text style={styles.sectionLabel}>
+              <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>
                 {t('translation.modeLabel')}
               </Text>
-              <View style={styles.segmented}>
+              <View
+                style={[
+                  styles.segmented,
+                  { backgroundColor: theme.surfaceSecondary },
+                ]}
+              >
                 {(['auto', 'manual'] as const).map((mode) => {
                   const selected = effectiveMode === mode;
                   return (
@@ -118,12 +138,15 @@ export const LanguageSelectorModal: FC<{
                       style={[
                         styles.segment,
                         selected && styles.segmentSelected,
+                        selected && { backgroundColor: theme.surface },
                       ]}
                     >
                       <Text
                         style={[
                           styles.segmentText,
+                          { color: theme.textSecondary },
                           selected && styles.segmentTextSelected,
+                          selected && { color: theme.text },
                         ]}
                       >
                         {mode === 'auto'
@@ -139,7 +162,9 @@ export const LanguageSelectorModal: FC<{
 
           {showLanguageList && (
             <View style={styles.section}>
-              <Text style={styles.sectionLabel}>{t('language.select')}</Text>
+              <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>
+                {t('language.select')}
+              </Text>
               <ScrollView style={styles.list}>
                 {LANGUAGE_OPTIONS.map((option) => {
                   // Compare on the base language so a reader on "fr" still
@@ -153,11 +178,12 @@ export const LanguageSelectorModal: FC<{
                       accessibilityRole="radio"
                       accessibilityState={{ selected }}
                       onPress={() => selectLanguage(option.id)}
-                      style={styles.listRow}
+                      style={[styles.listRow, { borderBottomColor: theme.border }]}
                     >
                       <Text
                         style={[
                           styles.listRowText,
+                          { color: theme.text },
                           selected && styles.listRowTextSelected,
                         ]}
                       >

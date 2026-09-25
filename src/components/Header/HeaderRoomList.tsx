@@ -7,6 +7,7 @@ import { ProfileImagePlaceholder } from '../MainComponents/ProfileImagePlacehold
 import { useChatSettingState } from '../../hooks/useChatSettingState';
 import { BurgerMenuIcon } from '../../assets/icons';
 import Button from '../styled/Button';
+import { useTheme } from '../../hooks/useTheme';
 
 interface HeaderRoomListProps {
   setDrawerOpen: () => void;
@@ -14,6 +15,7 @@ interface HeaderRoomListProps {
 
 export const HeaderRoomList: FC<HeaderRoomListProps> = ({ setDrawerOpen }) => {
   const { config, user, selectedUser } = useChatSettingState();
+  const theme = useTheme();
   const insets = useSafeAreaInsets();
   const topInset = config?.headerLayout?.safeAreaTop ? insets.top : 0;
 
@@ -37,7 +39,13 @@ export const HeaderRoomList: FC<HeaderRoomListProps> = ({ setDrawerOpen }) => {
   }, [config?.backgroundChat?.image]);
 
   return (
-    <View style={[styles.headerContainer, topInset ? { paddingTop: 16 + topInset } : null]}>
+    <View
+      style={[
+        styles.headerContainer,
+        { backgroundColor: theme.surface, shadowColor: theme.shadow },
+        topInset ? { paddingTop: 16 + topInset } : null,
+      ]}
+    >
       {!config?.disableRoomMenu && config?.headerMenu ? (
         <View style={styles.leftContainer}>
           <Button
@@ -45,7 +53,7 @@ export const HeaderRoomList: FC<HeaderRoomListProps> = ({ setDrawerOpen }) => {
             style={styles.menuButton}
             color="black"
             unstyled
-            EndIcon={<BurgerMenuIcon color={config?.colors?.primary} />}
+            EndIcon={<BurgerMenuIcon color={theme.icon} />}
             onPress={() =>
               typeof config?.headerMenu === 'function'
                 ? config.headerMenu()
@@ -60,7 +68,9 @@ export const HeaderRoomList: FC<HeaderRoomListProps> = ({ setDrawerOpen }) => {
         {config?.headerLogo ? (
           HeaderLogo
         ) : (
-          <Text style={{ fontWeight: 500, fontSize: 18 }}>Chats</Text>
+          <Text style={{ fontWeight: 500, fontSize: 18, color: theme.text }}>
+            Chats
+          </Text>
         )}
       </View>
       <View style={styles.rightContainer}>
@@ -87,11 +97,8 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     minHeight: 56,
     justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
-    // Lifts the header off the page ground behind it.
-    shadowColor: '#101828',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.06,
     shadowRadius: 12,

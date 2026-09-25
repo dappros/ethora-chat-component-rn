@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { CameraIcon, DocumentIcon } from '../../../assets/icons';
 import { useChatSettingState } from '../../../hooks/useChatSettingState';
+import { useTheme } from '../../../hooks/useTheme';
 import { chatTextStyle } from '../../../helpers/typography';
 import { getMediaLibrary } from '../../../helpers/mediaLibraryRuntime';
 import {
@@ -99,10 +100,17 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
   onGallery,
   onDocument,
   onPickMedia,
-  primaryColor = '#0052CD',
+  primaryColor,
 }) => {
   const { config } = useChatSettingState();
+  const theme = useTheme();
   const ts = config?.typography?.attachSheet;
+  const accent = primaryColor || theme.primary;
+  // Sheet chrome tints. Light keeps the historical iOS-ish greys (not in
+  // the palette); dark reads everything off the theme.
+  const chromeText = theme.dark ? theme.text : '#1C1C1E';
+  const chromeMuted = theme.dark ? theme.textSecondary : '#8A8A8E';
+  const chromeHairline = theme.dark ? theme.divider : '#EFEFF2';
   const pendingRef = useRef<(() => void) | null>(null);
   const runPending = () => {
     const fn = pendingRef.current;
@@ -324,7 +332,13 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
       onDismiss={Platform.OS === 'ios' ? runPending : undefined}
     >
       <Animated.View
-        style={[styles.backdrop, { opacity: backdropOpacity }]}
+        style={[
+          styles.backdrop,
+          {
+            opacity: backdropOpacity,
+            backgroundColor: theme.dark ? theme.overlay : 'rgba(15,15,20,0.45)',
+          },
+        ]}
       >
         <TouchableOpacity
           testID="attach-backdrop"
@@ -335,7 +349,11 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
         <Animated.View
           style={[
             styles.sheet,
-            { transform: [{ translateY: sheetTranslateY }] },
+            {
+              backgroundColor: theme.surface,
+              shadowColor: theme.shadow,
+              transform: [{ translateY: sheetTranslateY }],
+            },
           ]}
           {...sheetPan.panHandlers}
         >
@@ -344,12 +362,23 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
             style={styles.grabberArea}
             {...grabberPan.panHandlers}
           >
-            <View style={styles.grabber} />
+            <View
+              style={[
+                styles.grabber,
+                { backgroundColor: theme.dark ? theme.border : '#D9D9DE' },
+              ]}
+            />
           </View>
 
           {/* Photos & Videos ------------------------------------------------ */}
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, chatTextStyle(ts?.title)]}>
+            <Text
+              style={[
+                styles.sectionTitle,
+                { color: chromeText },
+                chatTextStyle(ts?.title),
+              ]}
+            >
               Photos & Videos
             </Text>
             <TouchableOpacity
@@ -361,7 +390,7 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
               <Text
                 style={[
                   styles.sectionAction,
-                  { color: primaryColor },
+                  { color: accent },
                   chatTextStyle(ts?.viewLibrary),
                 ]}
               >
@@ -380,15 +409,21 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
             <TouchableOpacity
               testID="attach-row-Camera"
               activeOpacity={0.7}
-              style={styles.cameraTile}
+              style={[
+                styles.cameraTile,
+                {
+                  borderColor: theme.dark ? theme.border : '#E4E4E9',
+                  backgroundColor: theme.dark ? theme.surfaceSecondary : '#FAFAFC',
+                },
+              ]}
               onPress={trigger(onCamera)}
             >
-              <CameraIcon color="#8A8A8E" width={26} height={26} />
+              <CameraIcon color={chromeMuted} width={26} height={26} />
             </TouchableOpacity>
 
             {loadingRecents && recents.length === 0 && (
               <View style={styles.loadingTile}>
-                <ActivityIndicator color="#8A8A8E" />
+                <ActivityIndicator color={chromeMuted} />
               </View>
             )}
 
@@ -397,7 +432,7 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
                 key={item.id}
                 testID={`attach-recent-${item.id}`}
                 activeOpacity={0.8}
-                style={styles.thumbWrap}
+                style={[styles.thumbWrap, { backgroundColor: chromeHairline }]}
                 onPress={handleRecentPress(item)}
               >
                 <Image
@@ -415,7 +450,9 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
             ))}
           </ScrollView>
 
-          <View style={styles.rowsDivider} />
+          <View
+            style={[styles.rowsDivider, { backgroundColor: chromeHairline }]}
+          />
           {rows.map(({ id, label, Icon, handler }) => (
             <TouchableOpacity
               key={id}
@@ -425,9 +462,15 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
               onPress={trigger(handler)}
             >
               <View style={styles.rowIcon}>
-                <Icon color="#1C1C1E" width={20} height={20} />
+                <Icon color={chromeText} width={20} height={20} />
               </View>
-              <Text style={[styles.rowLabel, chatTextStyle(ts?.rowLabel)]}>
+              <Text
+                style={[
+                  styles.rowLabel,
+                  { color: chromeText },
+                  chatTextStyle(ts?.rowLabel),
+                ]}
+              >
                 {label}
               </Text>
             </TouchableOpacity>
@@ -439,18 +482,16 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
 };
 
 const styles = StyleSheet.create({
+  // Colours live inline (theme-dependent); only layout stays here.
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(15,15,20,0.45)',
     justifyContent: 'flex-end',
   },
   sheet: {
-    backgroundColor: '#fff',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingTop: 4,
     paddingBottom: Platform.OS === 'ios' ? 32 : 20,
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.08,
     shadowRadius: 12,
@@ -465,7 +506,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#D9D9DE',
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -477,7 +517,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#1C1C1E',
   },
   sectionAction: {
     fontSize: 15,
@@ -493,8 +532,6 @@ const styles = StyleSheet.create({
     height: THUMB_SIZE,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E4E4E9',
-    backgroundColor: '#FAFAFC',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -509,7 +546,6 @@ const styles = StyleSheet.create({
     height: THUMB_SIZE,
     borderRadius: 16,
     overflow: 'hidden',
-    backgroundColor: '#EFEFF2',
   },
   thumb: {
     width: '100%',
@@ -517,7 +553,6 @@ const styles = StyleSheet.create({
   },
   rowsDivider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: '#EFEFF2',
   },
   row: {
     flexDirection: 'row',
@@ -533,7 +568,6 @@ const styles = StyleSheet.create({
   rowLabel: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#1C1C1E',
   },
 });
 

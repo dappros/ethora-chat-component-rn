@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { IMessage } from '../../types/types';
 import FileDownload from '../styled/UnsupportedType';
 import CustomMessageImage from '../styled/MessageImage';
@@ -14,9 +14,9 @@ import {
 import { deriveDisplayFilename, isLikelyAudio } from '../../helpers/mimeToExtension';
 import { FileIcon, PlayIcon } from '../../assets/icons';
 import { defaultMediaDims } from '../../helpers/mediaDimensions';
-import { useChatSettingState } from '../../hooks/useChatSettingState';
 import { useFileToken } from '../../hooks/useFileToken';
 import { appendFileToken } from '../../helpers/secureFileUrl';
+import { useTheme } from '../../hooks/useTheme';
 
 interface MediaMessageProps {
   mimeType?: string;
@@ -51,23 +51,37 @@ const PendingMediaMessage: React.FC<{
   isUser: boolean;
   size?: string;
 }> = ({ fileName, mimeType, previewUri, isUser, size }) => {
-  const { config } = useChatSettingState();
+  const theme = useTheme();
   const statusLabel = getPendingStatusLabel(mimeType);
   const isImage = mimeType?.startsWith('image/');
   const isVideo = mimeType?.startsWith('video/');
   const isAudio =
     mimeType?.startsWith('audio/') ||
     mimeType?.includes('application/octet-stream');
-  const primaryColor = config?.colors?.primary || '#0A84FF';
+  const primaryColor = theme.primary;
+  // Colour overrides only; layout stays in the static StyleSheet below.
+  const t = useMemo(
+    () => ({
+      card: { backgroundColor: theme.surfaceSecondary },
+      preview: { backgroundColor: theme.surfaceHighlight },
+      text: { color: theme.text },
+      secondary: { color: theme.textSecondary },
+      track: { backgroundColor: theme.border },
+      pill: { backgroundColor: theme.surface },
+    }),
+    [theme]
+  );
 
   if (isImage && previewUri) {
     return (
-      <View style={styles.pendingImageWrapper}>
+      <View style={[styles.pendingImageWrapper, t.card]}>
         <Image
           source={{ uri: previewUri }}
           style={styles.pendingImage}
           resizeMode="cover"
         />
+        {/* Scrim + white label sit on top of the image itself, so they
+            stay hard-coded: they must read on the photo, not the theme. */}
         <View style={styles.pendingImageOverlay}>
           <ActivityIndicator size="small" color="#FFFFFF" />
           <Text style={styles.pendingOverlayText}>{statusLabel}</Text>
@@ -78,32 +92,34 @@ const PendingMediaMessage: React.FC<{
 
   if (isVideo) {
     return (
-      <View style={styles.pendingVideoCard}>
-        <View style={styles.pendingVideoPreview}>
+      <View style={[styles.pendingVideoCard, t.card]}>
+        <View style={[styles.pendingVideoPreview, t.preview]}>
           <View style={styles.pendingVideoIcon}>
             <PlayIcon width={24} height={24} />
           </View>
-          <ActivityIndicator size="small" color="#5B6B8C" />
+          <ActivityIndicator size="small" color={theme.textSecondary} />
         </View>
-        <Text style={styles.pendingVideoLabel}>{fileName}</Text>
-        <Text style={styles.pendingVideoStatus}>{statusLabel}</Text>
+        <Text style={[styles.pendingVideoLabel, t.text]}>{fileName}</Text>
+        <Text style={[styles.pendingVideoStatus, t.secondary]}>
+          {statusLabel}
+        </Text>
       </View>
     );
   }
 
   if (isAudio) {
     return (
-      <View style={styles.pendingAudioCard}>
+      <View style={[styles.pendingAudioCard, t.card]}>
         <View
           style={[
             styles.pendingAudioButton,
             { backgroundColor: primaryColor },
           ]}
         >
-          <PlayIcon width={18} height={18} color="#fff" />
+          <PlayIcon width={18} height={18} color={theme.textOnPrimary} />
         </View>
         <View style={styles.pendingAudioContent}>
-          <View style={styles.pendingAudioTrack}>
+          <View style={[styles.pendingAudioTrack, t.track]}>
             <View
               style={[
                 styles.pendingAudioTrackFill,
@@ -112,10 +128,12 @@ const PendingMediaMessage: React.FC<{
             />
           </View>
           <View style={styles.pendingAudioMeta}>
-            <Text style={styles.pendingAudioTime}>0:00</Text>
-            <View style={styles.pendingAudioStatusPill}>
-              <ActivityIndicator size="small" color="#5B6B8C" />
-              <Text style={styles.pendingAudioStatusText}>{statusLabel}</Text>
+            <Text style={[styles.pendingAudioTime, t.secondary]}>0:00</Text>
+            <View style={[styles.pendingAudioStatusPill, t.pill]}>
+              <ActivityIndicator size="small" color={theme.textSecondary} />
+              <Text style={[styles.pendingAudioStatusText, t.secondary]}>
+                {statusLabel}
+              </Text>
             </View>
           </View>
         </View>
@@ -144,6 +162,7 @@ const MediaMessage: React.FC<MediaMessageProps> = ({
   isUser,
 }) => {
   const fileToken = useFileToken();
+  const theme = useTheme();
   const location = appendFileToken(rawLocation, fileToken);
   const messageText = appendFileToken(rawMessageText, fileToken);
 
@@ -260,7 +279,7 @@ const MediaMessage: React.FC<MediaMessageProps> = ({
       }
     }
   }
-  return <Text>Unsupported media type</Text>;
+  return <Text style={{ color: theme.text }}>Unsupported media type</Text>;
 };
 
 export default MediaMessage;

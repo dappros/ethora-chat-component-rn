@@ -6,6 +6,7 @@ import { useXmppClient } from '../../../context/xmppProvider';
 import {
   ActionButton,
   CloseButton,
+  CloseButtonText,
   GroupContainer,
   ModalBackground,
   ModalContainer,
@@ -20,7 +21,6 @@ import { addRoomViaApi } from '../../../roomStore/roomsSlice';
 import { createRoomFromApi } from '../../../helpers/createRoomFromApi';
 import { useChatSettingState } from '../../../hooks/useChatSettingState';
 import { useAppDispatch } from '../../../hooks/hooks';
-import { Text } from 'react-native';
 import { useToast } from '../../../context/ToastContext';
 
 const AddMembersModal: React.FC = () => {
@@ -97,7 +97,7 @@ const AddMembersModal: React.FC = () => {
         <ModalBackground>
           <ModalContainer>
             <CloseButton onPress={handleCloseModal}>
-              <Text style={{ fontSize: 24 }}>&times;</Text>
+              <CloseButtonText>&times;</CloseButtonText>
             </CloseButton>
             <ModalTitle>Add New Member</ModalTitle>
             <GroupContainer

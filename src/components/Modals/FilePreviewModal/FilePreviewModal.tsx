@@ -8,6 +8,7 @@ import {
 import { SaveIcon } from '../../../assets/icons';
 import ModalHeaderComponent from '../ModalHeaderComponent';
 import { useChatSettingState } from '../../../hooks/useChatSettingState';
+import { useTheme } from '../../../hooks/useTheme';
 import { chatTextStyle } from '../../../helpers/typography';
 import { useDispatch, useSelector } from 'react-redux';
 import Button from '../../styled/Button';
@@ -117,6 +118,10 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   const dispatch = useDispatch();
   const { showToast } = useToast();
   const { config } = useChatSettingState();
+  const theme = useTheme();
+  // Info / audio cards: light keeps its warm tint (not in the palette),
+  // dark sits them on the secondary surface.
+  const cardBackground = theme.dark ? theme.surfaceSecondary : '#FFF8ED';
 
   // Cache the SAF directory the user granted so saving several documents
   // in a row doesn't re-prompt for a folder every time (Android only).
@@ -291,11 +296,11 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
               width: '100%',
               padding: 20,
               gap: 12,
-              backgroundColor: '#FFF8ED',
+              backgroundColor: cardBackground,
               borderRadius: 16,
             }}
           >
-            <Text style={{ fontSize: 16, fontWeight: '600' }}>
+            <Text style={{ fontSize: 16, fontWeight: '600', color: theme.text }}>
               Voice message
             </Text>
             <AudioMessage
@@ -328,11 +333,11 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
               width: '100%',
               padding: 20,
               gap: 12,
-              backgroundColor: '#FFF8ED',
+              backgroundColor: cardBackground,
               borderRadius: 16,
             }}
           >
-            <Text style={{ fontSize: 16, fontWeight: '600' }}>
+            <Text style={{ fontSize: 16, fontWeight: '600', color: theme.text }}>
               {ensureFilenameHasExtension(
                 activeFile.originalName || activeFile.fileName,
                 activeFile.mimetype
@@ -372,19 +377,19 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
         return (
           <View
             style={{
-              backgroundColor: '#FFF8ED',
+              backgroundColor: cardBackground,
               borderRadius: 16,
               padding: 20,
               gap: 8,
             }}
           >
-            <Text style={{ fontSize: 16, fontWeight: '600' }}>
+            <Text style={{ fontSize: 16, fontWeight: '600', color: theme.text }}>
               {displayName}
             </Text>
-            <Text style={{ color: '#666' }}>
+            <Text style={{ color: theme.textSecondary }}>
               {activeFile.mimetype || 'unknown type'}
             </Text>
-            <Text style={{ marginTop: 8 }}>
+            <Text style={{ marginTop: 8, color: theme.text }}>
               This file format can't be previewed inline. Tap the save icon
               above to download it.
             </Text>
@@ -403,7 +408,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
         rightMenu={
           <>
             <Button onPress={saveClick}>
-              <SaveIcon />
+              <SaveIcon color={theme.textSecondary} />
             </Button>
           </>
         }

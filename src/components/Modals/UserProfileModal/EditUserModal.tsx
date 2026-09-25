@@ -10,6 +10,7 @@ import { updateUser } from '../../../roomStore/chatSettingsSlice';
 import { View } from 'react-native';
 import { pickImageAsset, PickedImage } from '../../../helpers/pickImageAsset';
 import { AddPhotoIcon } from '../../../assets/icons';
+import { useTheme } from '../../../hooks/useTheme';
 // import { actionUpdateUser } from '../actions';
 
 interface EditUserModalProps {
@@ -24,6 +25,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   config,
 }) => {
   const dispatch = useDispatch();
+  const theme = useTheme();
 
   const [firstName, setFirstName] = useState(modalUser?.firstName || '');
   const [lastName, setLastName] = useState(modalUser?.lastName || '');
@@ -92,7 +94,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
             onPress={onSave}
             variant="outlined"
             style={{ width: 128 }}
-            color="#0052CD"
+            color={theme.primary}
             text="Save"
           />
         }

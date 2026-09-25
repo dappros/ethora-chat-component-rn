@@ -19,6 +19,7 @@ React Native chat UI + chat core for iOS and Android, powered by the Ethora plat
 - [Logging out](#logging-out)
 - [Customization flags worth knowing](#customization-flags-worth-knowing)
 - [Header height & font sizing](#header-height--font-sizing)
+- [Dark theme](#dark-theme)
 - [Quality & test coverage](#quality--test-coverage)
 - [Local development](#local-development)
 - [Changelog](CHANGELOG.md)
@@ -351,6 +352,31 @@ Individual labels accept a `{ fontSize?, fontWeight? }` override. Each only sets
 ```
 
 See the [`TypographyConfig`](src/types/types.ts) JSDoc for the full list of overridable elements and their defaults.
+
+## Dark theme
+
+Switch the whole component (room list, chat, composer, modals, sheets) to a dark palette with one flag. Colours come from the built-in `DARK_THEME`; any entry can be overridden through `darkColors`, and anything you omit keeps its dark default.
+
+```tsx
+<Chat
+  config={{
+    dark: true,
+    // Optional — omit the object entirely to use the default dark palette.
+    darkColors: {
+      primary: '#7C3AED',
+      surface: '#15171B',
+      chatBackground: '#0E1013',
+    },
+  }}
+/>
+```
+
+Notes:
+
+- In dark mode the light-only knobs (`colors`, `messageColor`, `backgroundChat.color`) are **not** applied — they were tuned for white surfaces. Pass brand colours via `darkColors` instead. `colors.avatar` still applies in both modes.
+- `darkColors.primary` also drives `icon`, `senderName` and `dateLabel` unless you set those explicitly, mirroring how `colors.primary` behaves in light mode.
+- The full key list (`surface`, `surfaceSecondary`, `text`, `textSecondary`, `border`, `messageBackground`, `messageBackgroundUser`, …) is the `ChatThemeColors` type, exported from the package together with `LIGHT_THEME`, `DARK_THEME`, `resolveTheme(config)` and the `useTheme()` hook, so a host can paint its own chrome (status bar, tab bar) with the same palette.
+- The status bar is host-owned: use `resolveTheme(config).statusBarStyle` (`'light-content'` in dark mode) for `<StatusBar barStyle>`.
 
 ## Quality & test coverage
 

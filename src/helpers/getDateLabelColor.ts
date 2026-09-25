@@ -1,3 +1,5 @@
-export const getDateLabelColor = (config?: {
-  colors?: { primary?: string; secondary?: string; dateLabel?: string };
-}) => config?.colors?.dateLabel || config?.colors?.primary || '#0052CD';
+import { resolveTheme, type ThemeConfigInput } from '../theme/theme';
+
+/** Day-separator pill colour; theme-aware (see getIconColor). */
+export const getDateLabelColor = (config?: ThemeConfigInput | null) =>
+  resolveTheme(config).dateLabel;

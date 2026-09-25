@@ -3,6 +3,7 @@ import React, { FC, useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, Animated } from 'react-native';
 import styled from 'styled-components/native';
 import { ReactionMessage } from '../../types/types';
+import { useTheme } from '../../hooks/useTheme';
 
 const ReactionContainer = styled.View`
   flex-direction: row;
@@ -13,7 +14,8 @@ const ReactionContainer = styled.View`
 const ReactionBox = styled(TouchableOpacity)<{ active: boolean; color: string }>`
   padding: 4px 8px;
   border-radius: 20px;
-  background-color: ${({ active, color }) => (active ? color : '#ffffff')};
+  background-color: ${({ active, color, theme }) =>
+    active ? color : theme.surface};
   flex-direction: row;
   align-items: center;
   justify-content: center;
@@ -42,6 +44,7 @@ export const MessageReaction: FC<MessageReactionProps> = ({
   changeReaction,
   userName,
 }) => {
+  const theme = useTheme();
   const [tooltipEmoji, setTooltipEmoji] = useState<string | null>(null);
   const fadeAnim = new Animated.Value(0);
 
@@ -104,7 +107,7 @@ export const MessageReaction: FC<MessageReactionProps> = ({
                 style={{
                   fontSize: 14,
                   fontWeight: '600',
-                  color: isUserReacted ? '#fff' : color,
+                  color: isUserReacted ? theme.textOnPrimary : color,
                 }}
               >
                 {details.count}
@@ -128,7 +131,9 @@ export const MessageReaction: FC<MessageReactionProps> = ({
                     },
                   ],
                   opacity: fadeAnim,
-                  backgroundColor: '#333',
+                  // Inverted pill: text colour as ground, surface as ink,
+                  // so it stays high-contrast on both palettes.
+                  backgroundColor: theme.text,
                   borderRadius: 6,
                   paddingHorizontal: 10,
                   paddingVertical: 6,
@@ -136,7 +141,7 @@ export const MessageReaction: FC<MessageReactionProps> = ({
                   zIndex: 999,
                 }}
               >
-                <Text style={{ color: '#fff', fontSize: 12 }}>
+                <Text style={{ color: theme.surface, fontSize: 12 }}>
                   {details.users.join(', ')}
                 </Text>
               </Animated.View>

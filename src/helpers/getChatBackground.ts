@@ -1,6 +1,7 @@
 /** @format */
 
 import type { IConfig } from '../types/types';
+import { resolveTheme } from '../theme/theme';
 
 /** Ground behind the conversation, and behind the rounded corners of the
  * header and the composer that sit over it. */
@@ -15,4 +16,5 @@ export const DEFAULT_CHAT_BACKGROUND = '#F3F6FC';
  * white parent, not the conversation.
  */
 export const getChatBackgroundColor = (config?: IConfig): string =>
-  config?.backgroundChat?.color || DEFAULT_CHAT_BACKGROUND;
+  // Theme-aware: dark mode ignores `backgroundChat.color` (see theme.ts).
+  resolveTheme(config).chatBackground;

@@ -6,7 +6,7 @@ import Button from '../styled/Button';
 export const ModalBackground = styled.View`
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.5);
+  background: ${({ theme }) => theme.overlay};
   flex: 1;
   justify-content: center;
   align-items: center;
@@ -20,14 +20,20 @@ export const CloseButton = styled.TouchableOpacity`
   border: none;
   font-size: 20px;
   cursor: pointer;
-  color: #888;
+  color: ${({ theme }) => theme.textMuted};
+`;
+
+/** The "×" glyph inside CloseButton — themed so it reads on dark surfaces. */
+export const CloseButtonText = styled.Text`
+  font-size: 24px;
+  color: ${({ theme }) => theme.text};
 `;
 
 export const ModalContainer = styled.View`
   // flex: 1;
   // width: 100%;
   // height: 100%;
-  background: white;
+  background: ${({ theme }) => theme.surface};
   padding: 32px 64px;
   box-shadow: 0px 4px 16px rgba(0, 0, 0, 0.2);
   display: flex;
@@ -39,12 +45,14 @@ export const ModalContainer = styled.View`
 `;
 
 export const ModalTitle = styled.Text`
+  color: ${({ theme }) => theme.text};
   font-size: 20px;
   margin: 0;
   font-weight: 400;
 `;
 
 export const ModalDescription = styled.Text`
+  color: ${({ theme }) => theme.text};
   font-size: 14px;
   margin: 0;
   font-weight: 400;
@@ -60,7 +68,7 @@ export const GroupContainer = styled.View`
 export const ModalContainerFullScreen = styled.View`
   width: 100%;
   height: 100%;
-  background-color: #fff;
+  background-color: ${({ theme }) => theme.surface};
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -85,12 +93,12 @@ export const HeaderContainer = styled.View`
    * 20px on an SE). Together that's status-bar + 8px above the back
    * button and 8px below — properly sized and properly centered. */
   padding: 8px 16px;
-  background-color: #fff;
+  background-color: ${({ theme }) => theme.surface};
   /* Same card treatment as the room-list header: rounded bottom corners
    * and a soft drop shadow instead of a hairline rule. */
   border-bottom-left-radius: 20px;
   border-bottom-right-radius: 20px;
-  shadow-color: #101828;
+  shadow-color: ${({ theme }) => theme.shadow};
   shadow-offset: 0px 4px;
   shadow-opacity: 0.06;
   shadow-radius: 12px;
@@ -124,7 +132,7 @@ export const ProfileImage = styled.View`
   width: 120px;
   height: 120px;
   border-radius: 10000px;
-  border: 1px solid #f0f0f0;
+  border: 1px solid ${({ theme }) => theme.border};
 `;
 
 export const UserInfo = styled.View`
@@ -139,13 +147,13 @@ export const UserName = styled.Text<{
   fontSize?: number;
   fontWeight?: string;
 }>`
-  color: #141414;
+  color: ${({ theme }) => theme.text};
   font-size: ${({ fontSize }) => fontSize ?? 24}px;
   font-weight: ${({ fontWeight }) => fontWeight ?? 400};
 `;
 
 export const UserStatus = styled.Text`
-  color: #8c8c8c;
+  color: ${({ theme }) => theme.textSecondary};
   font-size: 16px;
   font-weight: 400;
 `;
@@ -153,20 +161,20 @@ export const UserStatus = styled.Text`
 export const BorderedContainer = styled.View`
   width: 100%;
   border-radius: 8px;
-  border: 1px solid #f0f0f0;
+  border: 1px solid ${({ theme }) => theme.border};
   display: flex;
   flex-direction: column;
   padding: 16px;
 `;
 
 export const LabelData = styled.Text`
-  color: #8c8c8c;
+  color: ${({ theme }) => theme.textSecondary};
   font-size: 14px;
   font-weight: 400;
 `;
 
 export const Label = styled.Text`
-  color: #141414;
+  color: ${({ theme }) => theme.text};
   font-size: 16px;
 `;
 
@@ -176,7 +184,7 @@ export const ActionButton = styled(Button)`
 
 export const EmptySection = styled.View`
   height: 200px;
-  border: 1px solid #f0f0f0;
+  border: 1px solid ${({ theme }) => theme.border};
   border-radius: 8px;
   width: 100%;
   display: flex;
@@ -185,11 +193,11 @@ export const EmptySection = styled.View`
 export const Viewider = styled.View`
   height: 1px;
   width: 100%;
-  background-color: #0052cd0d;
+  background-color: ${({ theme }) => theme.surfaceHighlight};
 `;
 
 export const Divider = styled.View`
   height: 1px;
   width: 100%;
-  background-color: #0052cd0d;
+  background-color: ${({ theme }) => theme.surfaceHighlight};
 `;

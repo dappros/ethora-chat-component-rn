@@ -1,5 +1,5 @@
-import React, { ReactElement, ReactNode } from 'react';
-import styled from 'styled-components/native';
+import React, { ReactElement, ReactNode, useContext } from 'react';
+import styled, { ThemeContext } from 'styled-components/native';
 import {
   TouchableOpacity,
   View,
@@ -20,10 +20,10 @@ const CustomButton = styled(TouchableOpacity)<{
   variant?: 'default' | 'filled' | 'outlined';
 }>`
   border-width: ${({ variant }) => (variant === 'outlined' ? 1 : 0)}px;
-  border-color: ${({ borderColor }) => borderColor || '#0052CD'};
+  border-color: ${({ borderColor, theme }) => borderColor || theme.primary};
   border-radius: 20px;
-  background-color: ${({ variant, backgroundColor }) =>
-    variant === 'filled' ? backgroundColor || '#0052CD' : 'transparent'};
+  background-color: ${({ variant, backgroundColor, theme }) =>
+    variant === 'filled' ? backgroundColor || theme.primary : 'transparent'};
   flex-direction: row;
   justify-content: center;
   align-items: center;
@@ -38,8 +38,10 @@ const ButtonText = styled.Text<{
   variant?: 'default' | 'filled' | 'outlined';
   backgroundColor?: string;
 }>`
-  color: ${({ variant, backgroundColor }) =>
-    variant === 'filled' ? '#FFFFFF' : backgroundColor || '#0052CD'};
+  color: ${({ variant, backgroundColor, theme }) =>
+    variant === 'filled'
+      ? theme.textOnPrimary
+      : backgroundColor || theme.primary};
   font-size: ${PixelRatio.getFontScale() * 14}px;
   font-weight: bold;
 `;
@@ -83,6 +85,11 @@ const Button: React.FC<ButtonProps> = ({
   accessibilityLabel,
 }) => {
   const iconOnly = !loading && !children && !text && !StartIcon && !!EndIcon;
+  // Theme from the styled ThemeProvider. `useContext` (not styled's
+  // `useTheme`) so rendering outside the provider — isolated tests — does
+  // not throw; the inline label colour then falls back to the historical
+  // black.
+  const theme = useContext(ThemeContext);
 
   return (
     <CustomButton
@@ -100,7 +107,7 @@ const Button: React.FC<ButtonProps> = ({
       {!loading && children}
       {!loading && !children && typeof text !== 'undefined' && (
         <ButtonText
-          style={[{ color: color || 'black' }]}
+          style={[{ color: color || theme?.text || 'black' }]}
           variant={variant}
           backgroundColor={backgroundColor}
         >

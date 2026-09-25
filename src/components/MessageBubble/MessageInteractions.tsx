@@ -19,6 +19,7 @@ import {
 import * as Clipboard from 'expo-clipboard';
 import { useToast } from '../../context/ToastContext';
 import { useInteractionsOverlay } from './InteractionsOverlay';
+import { useTheme } from '../../hooks/useTheme';
 
 interface MessageInteractionsProps {
   isReply?: boolean;
@@ -50,6 +51,14 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
   const { showToast } = useToast();
   const { present, dismiss, originX, originY } = useInteractionsOverlay();
   const overlayId = useId();
+  const theme = useTheme();
+  const themedStyles = useMemo(
+    () => ({
+      menu: { backgroundColor: theme.surface, shadowColor: theme.shadow },
+      text: { color: theme.text },
+    }),
+    [theme]
+  );
 
   const config = useSelector(
     (state: RootState) => state.chatSettingStore.config
@@ -180,11 +189,13 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
       <View style={styles.overlayFill}>
         <Pressable style={StyleSheet.absoluteFill} onPress={closeMenu} />
         <View
-          style={[styles.contextMenu, localPosition]}
+          style={[styles.contextMenu, themedStyles.menu, localPosition]}
           onLayout={handleMenuLayout}
         >
           <MenuItem onPress={() => handleCopyMessage(message.body!)}>
-            <Text style={styles.menuText}>{MESSAGE_INTERACTIONS.COPY}</Text>
+            <Text style={[styles.menuText, themedStyles.text]}>
+              {MESSAGE_INTERACTIONS.COPY}
+            </Text>
             <MESSAGE_INTERACTIONS_ICONS.COPY />
           </MenuItem>
           {isUser && (
@@ -195,7 +206,7 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
                 <>
                   <Delimeter />
                   <MenuItem onPress={handleEditMessage}>
-                    <Text style={styles.menuText}>
+                    <Text style={[styles.menuText, themedStyles.text]}>
                       {MESSAGE_INTERACTIONS.EDIT}
                     </Text>
                     <MESSAGE_INTERACTIONS_ICONS.EDIT />
@@ -204,7 +215,9 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
               )}
               <Delimeter />
               <MenuItem onPress={handleDeleteMessage}>
-                <Text style={styles.menuText}>{MESSAGE_INTERACTIONS.DELETE}</Text>
+                <Text style={[styles.menuText, themedStyles.text]}>
+                  {MESSAGE_INTERACTIONS.DELETE}
+                </Text>
                 <MESSAGE_INTERACTIONS_ICONS.DELETE />
               </MenuItem>
             </>

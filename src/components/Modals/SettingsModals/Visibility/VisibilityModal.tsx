@@ -15,6 +15,7 @@ import {
   SharedSettingsStyledLabel,
 } from '../SharedStyledComponents';
 import { RadioInput } from './RadioInput';
+import { useTheme } from '../../../../hooks/useTheme';
 
 interface VisibilityModalProps {
   handleCloseModal: any;
@@ -24,9 +25,8 @@ const VisibilityModal: React.FC<VisibilityModalProps> = ({
   handleCloseModal,
 }) => {
   const dispatch = useDispatch();
-  const { user, config } = useSelector(
-    (state: RootState) => state.chatSettingStore
-  );
+  const { user } = useSelector((state: RootState) => state.chatSettingStore);
+  const theme = useTheme();
 
   const doUpdateUser = (user: User) => dispatch(setUser(user));
   const [isProfileOpen, setIsProfileOpen] = useState(user?.isProfileOpen);
@@ -78,7 +78,7 @@ const VisibilityModal: React.FC<VisibilityModalProps> = ({
             <RadioLabel>
               <RadioInput
                 option={{ label: 'Open (default)', value: isProfileOpen }}
-                radioColor={config?.colors?.primary}
+                radioColor={theme.primary}
                 checked={isProfileOpen === true}
                 onChange={() => setIsProfileOpen(true)}
               />
@@ -91,7 +91,7 @@ const VisibilityModal: React.FC<VisibilityModalProps> = ({
             <RadioLabel>
               <RadioInput
                 option={{ label: 'Restricted', value: isProfileOpen }}
-                radioColor={config?.colors?.primary}
+                radioColor={theme.primary}
                 checked={isProfileOpen === false}
                 onChange={() => setIsProfileOpen(false)}
               />
@@ -110,7 +110,7 @@ const VisibilityModal: React.FC<VisibilityModalProps> = ({
             <RadioLabel>
               <RadioInput
                 option={{ label: 'Full (default)', value: isAssetsOpen }}
-                radioColor={config?.colors?.primary}
+                radioColor={theme.primary}
                 checked={isAssetsOpen === true}
                 onChange={() => setIsAssetsOpen(true)}
               />
@@ -121,7 +121,7 @@ const VisibilityModal: React.FC<VisibilityModalProps> = ({
             <RadioLabel>
               <RadioInput
                 option={{ label: 'InViewidual', value: isAssetsOpen }}
-                radioColor={config?.colors?.primary}
+                radioColor={theme.primary}
                 checked={isAssetsOpen === false}
                 onChange={() => setIsAssetsOpen(false)}
               />

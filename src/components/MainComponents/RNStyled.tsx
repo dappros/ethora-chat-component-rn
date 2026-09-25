@@ -12,23 +12,23 @@ export const Container = styled.View`
 
 export const Message = styled.Text`
   font-size: 16px;
-  color: #333;
+  color: ${({theme}) => theme.text};
 `;
 
 export const OrDelimiter = styled.Text`
   font-size: 14px;
-  color: #666;
+  color: ${({theme}) => theme.textSecondary};
 `;
 
 export const CustomButton = styled.TouchableOpacity`
   width: 100%;
-  background-color: #007bff;
+  background-color: ${({theme}) => theme.primary};
   padding: 10px;
   border-radius: 4px;
   align-items: center;
 `;
 
 export const ButtonText = styled.Text`
-  color: #fff;
+  color: ${({theme}) => theme.textOnPrimary};
   font-size: 16px;
 `;

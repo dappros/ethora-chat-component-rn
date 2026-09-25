@@ -8,6 +8,7 @@ import {
   Keyboard,
 } from 'react-native';
 import { Iso639_1Codes } from '../../types/types';
+import { useTheme } from '../../hooks/useTheme';
 
 const SelectWrapper = styled.View`
   position: relative;
@@ -18,20 +19,21 @@ const SelectBox = styled.TouchableOpacity<{
   isOpen: boolean;
   borderColor?: string;
 }>`
-  border: ${({ borderColor }) =>
-    borderColor ? `1px solid ${borderColor}` : '1px solid #ccc'};
+  border: ${({ borderColor, theme }) =>
+    `1px solid ${borderColor || theme.border}`};
   padding: 10px;
   flex-direction: row;
   justify-content: space-between;
   align-items: center;
-  background-color: #fff;
+  background-color: ${({ theme }) => theme.surface};
   border-radius: 5px;
   box-shadow: ${({ isOpen }) =>
     isOpen ? '0px 4px 8px rgba(0, 0, 0, 0.1)' : 'none'};
 `;
 
+// Light keeps its original #aaa; dark uses the palette's muted text.
 const Placeholder = styled.Text`
-  color: #aaa;
+  color: ${({ theme }) => (theme.dark ? theme.textMuted : '#aaa')};
 `;
 
 const Icon = styled(Animated.Text)`
@@ -43,9 +45,9 @@ const Dropdown = styled.View`
   top: 100%;
   left: 0;
   right: 0;
-  background-color: #fff;
+  background-color: ${({ theme }) => theme.surface};
   max-height: 200px;
-  border: 1px solid #ccc;
+  border: 1px solid ${({ theme }) => theme.border};
   border-radius: 5px;
   z-index: 100;
 `;
@@ -54,7 +56,8 @@ const SearchBox = styled.TextInput`
   width: 100%;
   padding: 10px;
   border-bottom-width: 1px;
-  border-color: #ccc;
+  border-color: ${({ theme }) => theme.border};
+  color: ${({ theme }) => theme.text};
   box-sizing: border-box;
 `;
 
@@ -63,7 +66,7 @@ const DropdownItem = styled.TouchableOpacity`
 `;
 
 const DropdownItemText = styled.Text`
-  color: #000;
+  color: ${({ theme }) => theme.text};
 `;
 
 interface SelectProps {
@@ -81,6 +84,7 @@ const Select: React.FC<SelectProps> = ({
   accentColor,
   selectedValue = null,
 }) => {
+  const theme = useTheme();
   const [isOpen, setIsOpen] = useState(false);
   const [selected, setSelected] = useState<{ name: string; id: string } | null>(
     selectedValue
@@ -139,6 +143,7 @@ const Select: React.FC<SelectProps> = ({
         <Dropdown>
           <SearchBox
             placeholder="Search..."
+            placeholderTextColor={theme.textMuted}
             value={searchTerm}
             onChangeText={setSearchTerm}
           />

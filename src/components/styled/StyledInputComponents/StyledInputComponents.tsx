@@ -2,14 +2,9 @@
 
 import styled from 'styled-components/native';
 
-// Theme variables for reuse
-const colors = {
-  primary: '#141414',
-  secondary: '#f5f7f9',
-  border: '#ccc',
-  white: '#fff',
-  black: '#000',
-};
+// Colours come from the ThemeProvider mounted in ReduxWrapper
+// (`({ theme }) => theme.x`); the light palette holds the values that
+// used to be hard-coded here.
 
 export const InputContainer = styled.View<{ isText?: boolean }>`
   flex-direction: column;
@@ -58,12 +53,12 @@ export const MessageInput = styled.TextInput<{
   padding: 8px 14px;
   border-radius: 20px;
   border-width: 1px;
-  border-color: ${(props) =>
-    props.isFocused ? props.color || '#0052CD' : 'transparent'};
-  color: #141414;
+  border-color: ${({ isFocused, color, theme }) =>
+    isFocused ? color || theme.primary : 'transparent'};
+  color: ${({ theme }) => theme.text};
   font-size: ${({ fontSize }) => fontSize ?? 16}px;
   ${({ fontWeight }) => (fontWeight ? `font-weight: ${fontWeight};` : '')}
-  background-color: #f5f7f9;
+  background-color: ${({ theme }) => theme.surfaceSecondary};
   flex: 1;
   /* No explicit line-height: on iOS a line-height larger than the
      font's natural metrics drops the glyph to the bottom of the line
@@ -85,13 +80,13 @@ export const Timer = styled.Text`
 export const TimerText = styled.Text`
   font-size: 18px;
   font-weight: bold;
-  color: ${colors.black};
+  color: ${({ theme }) => theme.text};
 `;
 
 export const WaveformContainer = styled.View`
   width: 100%;
   height: 40px;
-  background-color: #f1f1f1;
+  background-color: ${({ theme }) => theme.surfaceSecondary};
 `;
 
 export const RecordContainer = styled.View`
@@ -114,9 +109,9 @@ export const FilePreview = styled.View`
   width: 100px;
   height: 100px;
   border-width: 1px;
-  border-color: ${colors.border};
+  border-color: ${({ theme }) => theme.border};
   border-radius: 8px;
-  background-color: #f9f9f9;
+  background-color: ${({ theme }) => theme.surfaceSecondary};
   overflow: hidden;
 `;
 
@@ -132,15 +127,16 @@ export const VideoPreview = styled.View`
 
 export const StyledInput = styled.TextInput`
   padding: 16px 12px;
-  background-color: ${colors.secondary};
+  background-color: ${({ theme }) => theme.surfaceSecondary};
+  color: ${({ theme }) => theme.text};
   font-size: 16px;
   border-radius: 16px;
 `;
 
 export const TextareaInput = styled.TextInput`
   padding: 16px 12px;
-  background-color: ${colors.secondary};
+  background-color: ${({ theme }) => theme.surfaceSecondary};
   font-size: 16px;
-  color: ${colors.black};
+  color: ${({ theme }) => theme.text};
   border-radius: 16px;
 `;

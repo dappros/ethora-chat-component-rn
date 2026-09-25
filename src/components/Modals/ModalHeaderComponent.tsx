@@ -10,6 +10,7 @@ import { Text, StyleProp, TextStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { resolveHeaderHeight } from '../../helpers/headerLayout';
 import { useChatSettingState } from '../../hooks/useChatSettingState';
+import { useTheme } from '../../hooks/useTheme';
 
 interface ModalHeaderComponentProps {
   handleCloseModal?: any;
@@ -34,6 +35,7 @@ const ModalHeaderComponent: React.FC<ModalHeaderComponentProps> = ({
   // (notch / Dynamic Island / nothing).
   const insets = useSafeAreaInsets();
   const { config } = useChatSettingState();
+  const theme = useTheme();
   // Same band height as the in-chat header, sitting BELOW the status-bar
   // inset. Total = inset + band; paddingTop carries the inset and the band
   // is the content area (centered via HeaderContainer's align-items:center),
@@ -52,8 +54,13 @@ const ModalHeaderComponent: React.FC<ModalHeaderComponentProps> = ({
           leftMenu
         ) : (
           <>
-            <Button EndIcon={<BackIcon />} onPress={handleCloseModal} />
-            <Text style={titleStyle}>{headerTitle ?? 'Go back'}</Text>
+            <Button
+              EndIcon={<BackIcon color={theme.textSecondary} />}
+              onPress={handleCloseModal}
+            />
+            <Text style={[{ color: theme.text }, titleStyle]}>
+              {headerTitle ?? 'Go back'}
+            </Text>
           </>
         )}
       </HeaderLeft>

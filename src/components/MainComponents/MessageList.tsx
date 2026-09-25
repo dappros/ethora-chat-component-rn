@@ -29,6 +29,7 @@ import { ArowDownIcon } from '../../assets/icons';
 import CustomTypingIndicator from '../styled/StyledInputComponents/CustomTypingIndicator';
 import { getIconColor } from '../../helpers/getIconColor';
 import { getChatBackgroundColor } from '../../helpers/getChatBackground';
+import { useTheme } from '../../hooks/useTheme';
 
 interface MessageListProps<TMessage extends IMessage> {
   CustomMessage?: React.ComponentType<{
@@ -80,6 +81,7 @@ const MessageList = <TMessage extends IMessage>({
 }: MessageListProps<TMessage>) => {
   const { composing, messages, composingList } = useRoomState(roomJID)
     .room! as IRoom;
+  const theme = useTheme();
   const [isUserAtBottom, setIsUserAtBottom] = useState(true);
   const [showNewMessageIndicator, setShowNewMessageIndicator] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -472,16 +474,24 @@ const MessageList = <TMessage extends IMessage>({
         <TouchableOpacity
           style={[
             styles.newMessageIndicator,
-            { backgroundColor: getIconColor(config) },
+            {
+              backgroundColor: getIconColor(config),
+              shadowColor: theme.shadow,
+            },
           ]}
           onPress={handleNewMessageIndicatorPress}
         >
           {/* White chevron on the saturated FAB. The icon's default
               color is white, which was invisible against the previous
               light `secondary` background — hence "no icon". */}
-          <ArowDownIcon color="#FFFFFF" width={22} height={22} />
+          <ArowDownIcon color={theme.textOnPrimary} width={22} height={22} />
           {unreadWhileScrolledUp > 0 && (
-            <View style={styles.newMessageBadge}>
+            <View
+              style={[
+                styles.newMessageBadge,
+                { backgroundColor: theme.danger, borderColor: theme.surface },
+              ]}
+            >
               <Text style={styles.newMessageBadgeText}>
                 {unreadWhileScrolledUp > 99 ? '99+' : unreadWhileScrolledUp}
               </Text>

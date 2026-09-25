@@ -90,3 +90,12 @@ export type {
   RefreshResult,
   RefreshOptions,
 } from './networking/authRefresh';
+
+export {
+  LIGHT_THEME,
+  DARK_THEME,
+  resolveTheme,
+  isDarkTheme,
+  useTheme,
+} from './theme';
+export type { ChatTheme, ChatThemeColors, ChatThemeOverrides } from './theme';

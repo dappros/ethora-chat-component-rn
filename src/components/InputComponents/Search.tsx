@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   TextInputProps,
 } from 'react-native';
+import { useTheme } from '../../hooks/useTheme';
 
 const shouldForwardProp = (prop: string) =>
   prop !== 'animated' && prop !== 'expanded' && prop !== 'direction';
@@ -18,7 +19,7 @@ const SearchInputWrapper = styled.View.withConfig({ shouldForwardProp })<{
   position: relative;
   flex-direction: row;
   align-items: center;
-  background-color: #fff;
+  background-color: ${({ theme }) => theme.surface};
   border-radius: 16px;
   height: 44px;
   padding: 0 12px;
@@ -40,7 +41,7 @@ const SearchIcon = styled(TouchableOpacity)<{
   margin-right: 8px;
   align-items: center;
   justify-content: center;
-  color: #999;
+  color: ${({ theme }) => theme.textMuted};
 `;
 
 const StyledInput = styled(TextInput)<{
@@ -51,7 +52,7 @@ const StyledInput = styled(TextInput)<{
   border: none;
   flex: 1;
   font-size: 16px;
-  color: #000;
+  color: ${({ theme }) => theme.text};
   opacity: ${({ animated, expanded }) => (animated && !expanded ? 0 : 1)};
   display: ${({ animated, expanded }) =>
     animated && !expanded ? 'none' : 'flex'};
@@ -77,6 +78,7 @@ const SearchInput: React.FC<SearchInputProps> = ({
   placeholder,
   ...props
 }) => {
+  const theme = useTheme();
   const [isExpanded, setIsExpanded] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const inputRef = useRef<TextInput | null>(null);
@@ -128,7 +130,8 @@ const SearchInput: React.FC<SearchInputProps> = ({
         expanded={isExpanded}
         onChangeText={handleInput}
         placeholder={placeholder}
-        placeholderTextColor="#999"
+        placeholderTextColor={theme.textMuted}
+        keyboardAppearance={theme.dark ? 'dark' : 'light'}
         {...props}
       />
     </SearchInputWrapper>

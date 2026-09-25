@@ -1,6 +1,7 @@
 import { FC, useRef, useState } from 'react';
 import {
   CloseButton,
+  CloseButtonText,
   GroupContainer,
   ModalBackground,
   ModalContainer,
@@ -9,9 +10,10 @@ import {
 } from '../styledModalComponents';
 import { TextareaInput } from '../../styled/StyledInputComponents/StyledInputComponents';
 import Button from '../../styled/Button';
-import { Modal, Text, TextInput, View, StyleSheet } from 'react-native';
+import { Modal, TextInput, View, StyleSheet } from 'react-native';
 import { useChatSettingState } from '../../../hooks/useChatSettingState';
 import { getIconColor } from '../../../helpers/getIconColor';
+import { useTheme } from '../../../hooks/useTheme';
 
 interface ModalWrapperProps {
   iconTitle?: any;
@@ -47,6 +49,7 @@ export const ModalWrapper: FC<ModalWrapperProps> = ({
 }) => {
   const textareaRef = useRef<TextInput>(null);
   const { config } = useChatSettingState();
+  const theme = useTheme();
 
   // const handleInput = () => {
   //   const textarea = textareaRef.current;
@@ -59,7 +62,7 @@ export const ModalWrapper: FC<ModalWrapperProps> = ({
   const inner = (
     <>
       <CloseButton onPress={handleCloseModal}>
-        <Text style={{ fontSize: 24 }}>&times;</Text>
+        <CloseButtonText>&times;</CloseButtonText>
       </CloseButton>
       {IconTitle ? <IconTitle /> : <ModalTitle>{title}</ModalTitle>}
       {description && <ModalDescription>{description}</ModalDescription>}
@@ -87,7 +90,7 @@ export const ModalWrapper: FC<ModalWrapperProps> = ({
             // White label on the filled (e.g. red Delete) button. Button
             // applies an inline `color: color || 'black'` that overrides
             // the filled-variant white, so pass it explicitly.
-            color="#FFFFFF"
+            color={theme.textOnPrimary}
             style={{
               width: '100%',
               backgroundColor: backgroundColorButton,
@@ -115,7 +118,14 @@ export const ModalWrapper: FC<ModalWrapperProps> = ({
           // their own bounded View instead — never full-screen (#14).
           // (Upstream also shrank this modal; this keeps that intent while
           // adding the white filled-button label via `inner` below.)
-          <View style={styles.compactDialog}>{inner}</View>
+          <View
+            style={[
+              styles.compactDialog,
+              { backgroundColor: theme.surface, shadowColor: theme.shadow },
+            ]}
+          >
+            {inner}
+          </View>
         ) : (
           <ModalContainer style={{ maxWidth: 640 }}>{inner}</ModalContainer>
         )}
@@ -129,11 +139,9 @@ const styles = StyleSheet.create({
     width: '85%',
     maxWidth: 360,
     alignSelf: 'center',
-    backgroundColor: '#fff',
     borderRadius: 16,
     padding: 24,
     gap: 16,
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 12,

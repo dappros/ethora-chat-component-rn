@@ -96,7 +96,7 @@ const Dot = styled(Animated.View)`
   width: 6px;
   height: 6px;
   border-radius: 3px;
-  background-color: #666;
+  background-color: ${({ theme }) => theme.textSecondary};
   margin: 0 2px;
 `;
 
@@ -132,7 +132,7 @@ export const MinimalTypingIndicator: React.FC<Props> = ({ isVisible }) => {
 };
 
 const Bubble = styled.View`
-  background-color: #f0f0f0;
+  background-color: ${({ theme }) => theme.surfaceSecondary};
   border-radius: 18px;
   padding: 8px 16px;
   margin: 4px 0;
@@ -142,7 +142,7 @@ const Bubble = styled.View`
 
 const BubbleText = styled.Text`
   font-size: 14px;
-  color: #666;
+  color: ${({ theme }) => theme.textSecondary};
 `;
 
 const BubbleTail = styled.View`
@@ -156,7 +156,7 @@ const BubbleTail = styled.View`
   border-top-width: 6px;
   border-left-color: transparent;
   border-right-color: transparent;
-  border-top-color: #f0f0f0;
+  border-top-color: ${({ theme }) => theme.surfaceSecondary};
 `;
 
 const BubbleWrapper = styled.View`
@@ -187,7 +187,7 @@ const ProgressWrap = styled.View`
 
 const ProgressLabel = styled.Text`
   font-size: 12px;
-  color: #666;
+  color: ${({ theme }) => theme.textSecondary};
   margin-right: 8px;
 `;
 
@@ -202,7 +202,7 @@ const Bar = styled.View`
 const Runner = styled(Animated.View)`
   width: 60px;
   height: 4px;
-  background-color: #007bff;
+  background-color: ${({ theme }) => theme.primary};
 `;
 
 export const ProgressTypingIndicator: React.FC<Props> = ({ text, isVisible }) => {

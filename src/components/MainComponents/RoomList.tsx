@@ -26,6 +26,7 @@ import { HeaderRoomList } from '../Header/HeaderRoomList';
 import { HeaderRoomListMenu } from '../Menu/HeaderRoomListMenu';
 import { getIconColor } from '../../helpers/getIconColor';
 import { useT } from '../../i18n/useT';
+import { useTheme } from '../../hooks/useTheme';
 
 const LONG_PRESS_THRESHOLD = 200;
 
@@ -35,9 +36,8 @@ interface RoomListProps {
   onRoomClick?: (chat: IRoom) => void;
 }
 
-/** Page ground behind the room list, the search field and the header's
- * rounded bottom corners. */
-const LIST_BACKGROUND = '#E8EDF2';
+// The page ground behind the room list, the search field and the header's
+// rounded bottom corners is `theme.listBackground` (applied inline below).
 
 /** A release that leaves the search strip in between is settled by
  * scrolling to whichever end is nearer; this delay lets the platform tell
@@ -78,6 +78,7 @@ const RoomList: React.FC<RoomListProps> = ({
 }) => {
   const { config } = useChatSettingState();
   const t = useT();
+  const theme = useTheme();
 
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -358,7 +359,11 @@ const RoomList: React.FC<RoomListProps> = ({
       )}
       <View
         ref={containerRef}
-        style={[styles.container, config?.roomListStyles]}
+        style={[
+          styles.container,
+          { backgroundColor: theme.listBackground },
+          config?.roomListStyles,
+        ]}
       >
         {(open || !burgerMenu) && (
           <>
@@ -401,7 +406,10 @@ const RoomList: React.FC<RoomListProps> = ({
                       <ChatRoomItem chat={item} config={config} />
                     </Pressable>
                   )}
-                  style={styles.chatList}
+                  style={[
+                    styles.chatList,
+                    { backgroundColor: theme.listBackground },
+                  ]}
                 />
               </View>
 
@@ -429,7 +437,6 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     flex: 1,
-    backgroundColor: LIST_BACKGROUND,
   },
   scrollContainer: {
     flexGrow: 1,
@@ -460,7 +467,6 @@ const styles = StyleSheet.create({
   chatList: {
     flex: 1,
     paddingHorizontal: 16,
-    backgroundColor: LIST_BACKGROUND,
   },
 });
 

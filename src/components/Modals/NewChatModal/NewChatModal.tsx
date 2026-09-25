@@ -26,6 +26,8 @@ import { postRoom } from '../../../networking/api-requests/rooms.api';
 import { useAppDispatch, useAppSelector } from '../../../hooks/hooks';
 import { useChatSettingState } from '../../../hooks/useChatSettingState';
 import { useToast } from '../../../context/ToastContext';
+import { useTheme } from '../../../hooks/useTheme';
+import type { ChatTheme } from '../../../theme/theme';
 
 interface NewChatModalProps {
   handleCloseModal?: () => void;
@@ -46,6 +48,8 @@ const NewChatModal: React.FC<NewChatModalProps> = ({
   const { client } = useXmppClient();
   const { user } = useChatSettingState();
   const { showToast } = useToast();
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const [loading, setLoading] = useState<boolean>(false);
 
@@ -311,7 +315,7 @@ const NewChatModal: React.FC<NewChatModalProps> = ({
             {pickedUri ? (
               <Image source={{ uri: pickedUri }} style={styles.pictureImage} />
             ) : (
-              <CameraIcon color="#FFFFFF" width={26} height={26} />
+              <CameraIcon color={theme.textOnPrimary} width={26} height={26} />
             )}
           </TouchableOpacity>
 
@@ -321,7 +325,7 @@ const NewChatModal: React.FC<NewChatModalProps> = ({
             value={roomName}
             onChangeText={handleRoomNameChange}
             placeholder={t('modal.newChat.roomNamePlaceholder')}
-            placeholderTextColor="#8C8C8C"
+            placeholderTextColor={theme.textMuted}
             returnKeyType="next"
           />
           {!!errors.name && roomName.length > 0 && (
@@ -336,7 +340,7 @@ const NewChatModal: React.FC<NewChatModalProps> = ({
             value={roomDescription}
             onChangeText={handleRoomDescriptionChange}
             placeholder={t('modal.newChat.descriptionPlaceholder')}
-            placeholderTextColor="#8C8C8C"
+            placeholderTextColor={theme.textMuted}
             multiline
           />
 
@@ -360,7 +364,7 @@ const NewChatModal: React.FC<NewChatModalProps> = ({
               onPress={handleCreateRoom}
             >
               {loading ? (
-                <ActivityIndicator color="#FFFFFF" />
+                <ActivityIndicator color={theme.textOnPrimary} />
               ) : (
                 <Text style={styles.submitLabel}>
                   {t('modal.newChat.createButton')}
@@ -374,12 +378,12 @@ const NewChatModal: React.FC<NewChatModalProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: ChatTheme) => StyleSheet.create({
   backdrop: {
     flex: 1,
     // Opaque, per the design: the chat list behind stays hidden rather
     // than showing through a translucent dim.
-    backgroundColor: '#E9EDF2',
+    backgroundColor: theme.listBackground,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
@@ -388,9 +392,9 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 380,
     borderRadius: 20,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.surface,
     padding: 20,
-    shadowColor: '#121219',
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.08,
     shadowRadius: 24,
@@ -399,7 +403,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#141414',
+    color: theme.text,
     textAlign: 'center',
   },
   picture: {
@@ -418,11 +422,11 @@ const styles = StyleSheet.create({
   },
   input: {
     borderRadius: 12,
-    backgroundColor: '#F4F5F7',
+    backgroundColor: theme.surfaceSecondary,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 15,
-    color: '#141414',
+    color: theme.text,
     marginTop: 10,
   },
   textArea: {
@@ -430,7 +434,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   error: {
-    color: '#E53935',
+    color: theme.danger,
     fontSize: 12,
     marginTop: 6,
     marginLeft: 4,
@@ -448,17 +452,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   cancel: {
-    backgroundColor: '#E7E8EA',
+    backgroundColor: theme.surfaceSecondary,
   },
   cancelLabel: {
     fontSize: 15,
     fontWeight: '500',
-    color: '#8C8C8C',
+    color: theme.textSecondary,
   },
   submitLabel: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: theme.textOnPrimary,
   },
 });
 

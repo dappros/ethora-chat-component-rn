@@ -13,8 +13,9 @@ export const MessageContainer = styled.View<{ isUser: boolean }>`
 `;
 
 export const MessageBubble = styled.View<{ isUser: boolean }>`
-  background-color: ${(props) => (!props.isUser ? '#f1f0f0' : '#0052CD')};
-  color: ${(props) => (!props.isUser ? '#000' : '#fff')};
+  background-color: ${({ isUser, theme }) =>
+    !isUser ? theme.surfaceSecondary : theme.primary};
+  color: ${({ isUser, theme }) => (!isUser ? theme.text : theme.textOnPrimary)};
   border-radius: 12px;
   padding: 10px;
   max-width: 60%;
@@ -27,14 +28,14 @@ export const MessageText = styled.View`
 
 export const UserName = styled.Text<{ isUser: boolean; color?: string }>`
   font-weight: bold;
-  color: ${(props) =>
-    props.color ? props.color : props.isUser ? '#0052CD' : '#333'};
+  color: ${({ color, isUser, theme }) =>
+    color ? color : isUser ? theme.primary : theme.text};
   margin-right: 8px;
 `;
 
 export const MessageTimestamp = styled.Text`
   font-size: 13px;
-  color: #999;
+  color: ${({ theme }) => theme.textMuted};
   margin-left: 8px;
 `;
 
@@ -50,8 +51,8 @@ export const MessagePhotoContainer = styled.Text`
 `;
 
 export const SystemMessage = styled.Text`
-  background-color: #e0e0e0;
-  color: #555;
+  background-color: ${({ theme }) => theme.systemMessageBackground};
+  color: ${({ theme }) => theme.textSecondary};
   text-align: center;
   padding: 8px;
   border-radius: 8px;
@@ -62,7 +63,7 @@ export const SystemMessage = styled.Text`
 export const SystemMessageText = styled.Text`
   margin: 0;
   font-size: 14px;
-  color: #333;
+  color: ${({ theme }) => theme.text};
 `;
 
 const CustomMessageExample = forwardRef<View, MessageProps>(

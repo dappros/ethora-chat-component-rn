@@ -29,6 +29,8 @@ import { useT } from '../../../i18n/useT';
 import { useFileToken } from '../../../hooks/useFileToken';
 import { appendFileToken } from '../../../helpers/secureFileUrl';
 import { getIconColor } from '../../../helpers/getIconColor';
+import { useTheme } from '../../../hooks/useTheme';
+import type { ChatTheme } from '../../../theme/theme';
 import { chatTextStyle } from '../../../helpers/typography';
 import { getElementFont } from '../../../helpers/getElementFont';
 import { LANGUAGE_OPTIONS } from '../../../helpers/constants/LANGUAGE_OPTIONS';
@@ -107,6 +109,8 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const { showToast } = useToast();
   const { config, user, selectedUser, langSource } = useChatSettingState();
   const fileToken = useFileToken();
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const [isEditing, setIsEditing] = useState(false);
   const [files, setFiles] = useState<UserFile[]>([]);
@@ -349,12 +353,12 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
         ? heroActions.map((action) => ({
             key: action.key,
             label: action.label,
-            icon: action.icon('#141414'),
+            icon: action.icon(theme.text),
             destructive: action.key === 'logout',
             onPress: action.onPress,
           }))
         : [],
-    [isCollapsed, heroActions]
+    [isCollapsed, heroActions, theme.text]
   );
 
   if (isEditing) {
@@ -591,10 +595,10 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: ChatTheme) => StyleSheet.create({
   screen: {
     position: 'relative',
-    backgroundColor: '#F2F3F5',
+    backgroundColor: theme.listBackground,
   },
   scroll: {
     width: '100%',
@@ -608,21 +612,21 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.surface,
     borderRadius: 14,
     padding: 16,
-    shadowColor: '#000',
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 1,
   },
   cardLabel: {
-    color: '#8C8C8C',
+    color: theme.textSecondary,
     fontSize: 14,
   },
   cardValue: {
-    color: '#141414',
+    color: theme.text,
     fontSize: 16,
     marginTop: 4,
   },
@@ -644,7 +648,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 20,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#EFEFF2',
+    borderBottomColor: theme.border,
     marginBottom: 12,
   },
   tab: {
@@ -658,7 +662,7 @@ const styles = StyleSheet.create({
   tabLabel: {
     fontSize: 15,
     fontWeight: '500',
-    color: '#8C8C8C',
+    color: theme.textSecondary,
   },
   tabBadge: {
     minWidth: 20,
@@ -668,7 +672,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   tabBadgeText: {
-    color: '#FFFFFF',
+    color: theme.textOnPrimary,
     fontSize: 11,
     fontWeight: '600',
   },
@@ -680,7 +684,7 @@ const styles = StyleSheet.create({
   },
   languageLabel: {
     fontSize: 16,
-    color: '#141414',
+    color: theme.text,
   },
   check: {
     fontSize: 16,
@@ -696,7 +700,7 @@ const styles = StyleSheet.create({
     aspectRatio: 1,
     borderRadius: 10,
     overflow: 'hidden',
-    backgroundColor: '#EFEFF2',
+    backgroundColor: theme.surfaceSecondary,
   },
   mediaImage: {
     width: '100%',
@@ -713,11 +717,11 @@ const styles = StyleSheet.create({
   },
   documentName: {
     fontSize: 16,
-    color: '#141414',
+    color: theme.text,
   },
   documentDate: {
     fontSize: 13,
-    color: '#8C8C8C',
+    color: theme.textSecondary,
     marginTop: 2,
   },
 });

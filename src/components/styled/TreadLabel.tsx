@@ -1,5 +1,6 @@
 import React from 'react';
 import styled from 'styled-components/native';
+import { useTheme } from '../../hooks/useTheme';
 import { Line } from './StyledComponents';
 
 interface DateLabelProps {
@@ -21,7 +22,7 @@ export const StyledDateLabel = styled.Text<{
   secondary?: string;
 }>`
   margin: 0;
-  color: ${(props) => props.primary || '#0052cd'};
+  color: ${(props) => props.primary || props.theme.dateLabel};
   border-radius: 118px;
   padding: 5px 8px;
   display: flex;
@@ -30,16 +31,21 @@ export const StyledDateLabel = styled.Text<{
   font-size: 12px;
   line-height: 14px;
   font-weight: 600;
-  background-color: ${(props) => props.secondary || '#e7edf9'};
+  background-color: ${(props) =>
+    props.theme.dark ? props.theme.surfaceSecondary : props.secondary || '#e7edf9'};
   height: 24px;
   white-space: nowrap;
 `;
 
 const TreadLabel: React.FC<DateLabelProps> = ({ reply, colors }) => {
+  const theme = useTheme();
   return (
     <Container>
       <Line />
-      <StyledDateLabel {...colors}>
+      <StyledDateLabel
+        primary={theme.dark ? undefined : colors?.primary}
+        secondary={colors?.secondary}
+      >
         {reply} {reply > 1 ? 'replies' : 'reply'}
       </StyledDateLabel>
       <Line />

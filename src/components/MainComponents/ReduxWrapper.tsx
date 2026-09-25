@@ -2,6 +2,8 @@ import React, {useMemo} from 'react';
 import {Provider} from 'react-redux';
 import {KeyboardProvider} from 'react-native-keyboard-controller';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
+import {ThemeProvider} from 'styled-components/native';
+import {resolveTheme} from '../../theme/theme';
 import {store} from '../../roomStore';
 import {ConfigUser, IConfig, MessageProps} from '../../types/types';
 import {XmppProvider} from '../../context/xmppProvider';
@@ -45,14 +47,21 @@ export const ReduxWrapper: React.FC<ChatWrapperProps> = React.memo(
     // KeyboardAvoidingView under the same flag).
     const ownKeyboardHandling = !memoizedConfig?.disableKeyboardAvoidingView;
 
+    // Light/dark palette (config.dark + config.darkColors). Styled
+    // components read it via `({ theme }) => theme.surface`; plain RN
+    // styles via the `useTheme()` hook.
+    const theme = useMemo(() => resolveTheme(memoizedConfig), [memoizedConfig]);
+
     const tree = (
-      <XmppProvider config={memoizedConfig} isVisible={props.isVisible}>
-        <ToastProvider>
-          <MessageNotificationProvider config={memoizedConfig}>
-            <LoginWrapper config={memoizedConfig} {...props} />
-          </MessageNotificationProvider>
-        </ToastProvider>
-      </XmppProvider>
+      <ThemeProvider theme={theme}>
+        <XmppProvider config={memoizedConfig} isVisible={props.isVisible}>
+          <ToastProvider>
+            <MessageNotificationProvider config={memoizedConfig}>
+              <LoginWrapper config={memoizedConfig} {...props} />
+            </MessageNotificationProvider>
+          </ToastProvider>
+        </XmppProvider>
+      </ThemeProvider>
     );
 
     return (

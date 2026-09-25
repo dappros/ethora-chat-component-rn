@@ -12,7 +12,7 @@ export const ReactionContainer = styled.View`
   gap: 8px;
   padding: 8px;
   justify-content: space-around;
-  background-color: #ffffff;
+  background-color: ${({ theme }) => theme.surface};
   border-radius: 12px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 `;
@@ -41,10 +41,10 @@ export const ArrowButton = styled.View<{ isRotated: boolean }>`
 export const ContextMenu = styled.View`
   position: absolute;
   z-index: 1000;
-  background-color: white;
+  background-color: ${({ theme }) => theme.surface};
   border-radius: 8px;
   elevation: 4;
-  shadow-color: #121219;
+  shadow-color: ${({ theme }) => theme.shadow};
   shadow-offset: 0px 4px;
   shadow-opacity: 0.1;
   shadow-radius: 6px;
@@ -79,7 +79,7 @@ export const Overlay = styled.Pressable`
 export const Delimeter = styled.View`
   height: 1px;
   align-self: stretch;
-  background-color: #0052cd1f;
+  background-color: ${({ theme }) => theme.surfaceHighlight};
   margin-top: 4px;
   margin-bottom: 4px;
 `;

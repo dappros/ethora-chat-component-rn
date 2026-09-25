@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { getActiveRoom, RootState } from '../../../roomStore';
 import {
   CloseButton,
+  CloseButtonText,
   GroupContainer,
   ModalBackground,
   ModalContainer,
@@ -11,8 +12,8 @@ import {
 } from '../styledModalComponents';
 import { deleteRoom as deleteRoomApi } from '../../../networking/api-requests/rooms.api';
 import { deleteRoom as deleteRoomAction } from '../../../roomStore/roomsSlice';
-import { Text } from 'react-native';
 import { useToast } from '../../../context/ToastContext';
+import { useTheme } from '../../../hooks/useTheme';
 
 interface DeleteChatModalProps {
   isModalOpen: boolean;
@@ -25,6 +26,7 @@ const DeleteChatModal: React.FC<DeleteChatModalProps> = ({
 }) => {
   const dispatch = useDispatch();
   const { showToast } = useToast();
+  const theme = useTheme();
   const activeRoom = useSelector((state: RootState) => getActiveRoom(state));
 
   const handleOpenModal = () => setIsModalOpen(true);
@@ -57,7 +59,7 @@ const DeleteChatModal: React.FC<DeleteChatModalProps> = ({
       <ModalBackground>
         <ModalContainer>
           <CloseButton onPress={handleCloseModal}>
-            <Text style={{ fontSize: 24 }}>&times;</Text>
+            <CloseButtonText>&times;</CloseButtonText>
           </CloseButton>
           <ModalTitle>Delete this chat ?</ModalTitle>
 
@@ -75,9 +77,9 @@ const DeleteChatModal: React.FC<DeleteChatModalProps> = ({
               style={{
                 width: '100%',
                 borderWidth: 1,
-                borderColor: 'red',
+                borderColor: theme.danger,
             }}
-              color="red"
+              color={theme.danger}
               unstyled
               variant="outlined"
             />

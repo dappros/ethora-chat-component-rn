@@ -3,6 +3,7 @@ import { PickedImage } from '../../../helpers/pickImageAsset';
 import {
   ModalContainer,
   CloseButton,
+  CloseButtonText,
   ModalTitle,
   GroupContainer,
 } from '../styledModalComponents';
@@ -13,7 +14,6 @@ import UsersList from '../../UsersList/UsersList';
 import { ProfileImagePlaceholder } from '../../MainComponents/ProfileImagePlaceholder';
 import { ChatAccessOption } from '../../../types/types';
 import { AddPhotoIcon } from '../../../assets/icons';
-import { Text } from 'react-native';
 
 type ModalContentProps = {
   activeTab: '0' | '1' | null;
@@ -58,7 +58,7 @@ const ModalContent: React.FC<ModalContentProps> = ({
   return (
     <ModalContainer>
       <CloseButton onPress={handleCloseModal}>
-        <Text style={{ fontSize: 24 }}>&times;</Text>
+        <CloseButtonText>&times;</CloseButtonText>
       </CloseButton>
       {activeTab === '0' && (
         <>

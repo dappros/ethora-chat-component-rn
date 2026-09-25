@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   View,
   Pressable,
@@ -39,6 +39,7 @@ import { useXmppClient } from '../../context/xmppProvider';
 import { useSendMessage } from '../../hooks/useSendMessage';
 import { MessageReaction } from './MessageReaction';
 import { MessageFooter } from '../styled/StyledComponents';
+import { useTheme } from '../../hooks/useTheme';
 
 const CustomMessageContainer = styled.View<{ isUser: boolean; reply?: number }>`
   flex-direction: row;
@@ -73,12 +74,13 @@ const CustomMessageBubble = styled.View<{
     deleted,
     backgroundMessageUser,
     backgroundMessage,
+    theme,
   }) =>
     deleted
-      ? '#f5f5f5'
+      ? theme.systemMessageBackground
       : isUser
-      ? backgroundMessageUser || '#d1e7ff'
-      : backgroundMessage || '#fff'};
+      ? backgroundMessageUser || theme.messageBackgroundUser
+      : backgroundMessage || theme.messageBackground};
 `;
 
 const CustomMessageText = styled.Text<{
@@ -90,8 +92,8 @@ const CustomMessageText = styled.Text<{
 }>`
   font-size: ${({ fontSize }) => fontSize ?? 16}px;
   ${({ fontWeight }) => (fontWeight ? `font-weight: ${fontWeight};` : '')}
-  color: ${({ color, colorUser, isUser }) =>
-    isUser ? colorUser || '#333' : color || '#333'};
+  color: ${({ color, colorUser, isUser, theme }) =>
+    isUser ? colorUser || theme.messageTextUser : color || theme.messageText};
 `;
 
 const CustomMessagePhoto = styled.Image`
@@ -115,7 +117,7 @@ const CustomUserName = styled.Text<{
   padding-bottom: 8px;
   padding-left: ${({media}) => media ? '16px': 0};
   padding-top: ${({media}) => media ? '8px': 0};
-  color: ${({ color }) => color || '#333'};
+  color: ${({ color, theme }) => color || theme.text};
 `;
 
 const CustomMessageTimestamp = styled.Text<{
@@ -124,9 +126,8 @@ const CustomMessageTimestamp = styled.Text<{
   colorUser?: string;
 }>`
   font-size: 12px;
-  color: #999;
-  color: ${({ isUser, color, colorUser }) =>
-    isUser ? colorUser || '#999' : color || '#999'};
+  color: ${({ isUser, color, colorUser, theme }) =>
+    isUser ? colorUser || theme.textMuted : color || theme.textMuted};
   margin-top: 5px;
   align-self: flex-end;
 `;
@@ -144,6 +145,17 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   const dispatch = useDispatch();
   const { client } = useXmppClient();
   const { config, langSource, user, translateMode } = useChatSettingState();
+  // Single theme read per message; the two colour overrides below are the
+  // only per-render allocations added for theming (memoized on the theme
+  // object, which useTheme keeps stable across renders).
+  const theme = useTheme();
+  const themedStyles = useMemo(
+    () => ({
+      muted: { color: theme.textMuted },
+      failed: { color: theme.danger },
+    }),
+    [theme]
+  );
 
   // `enableTranslates` predates the `translates` config block; keep it
   // working so existing hosts don't lose translations on upgrade.
@@ -354,7 +366,16 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   // Body text size/weight is set on the parser's leaf <Text>s — the markdown
   // wraps content in <View>s which break Text-style inheritance, so the bubble
   // wrapper's fontSize alone never reached the actual text.
-  const bodyTextStyle = chatTextStyle(config?.typography?.messageText);
+  // The parser wraps paragraphs / list items in <View>s, so the bubble's
+  // text colour never reaches the leaf <Text>s by inheritance — put the
+  // ink on the base leaf style explicitly (theme-aware).
+  const bodyTextStyle = useMemo(
+    () => ({
+      ...chatTextStyle(config?.typography?.messageText),
+      color: isUser ? theme.messageTextUser : theme.messageText,
+    }),
+    [config?.typography?.messageText, isUser, theme]
+  );
   // In auto mode, render the translation as the primary body — but NEVER for
   // the reader's own messages (they wrote it; no point translating it back).
   const showInlineTranslation =
@@ -365,9 +386,10 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   const messageText = config?.messageTextFilter?.enabled
     ? parseMessageBody(
         config?.messageTextFilter.filterFunction(bodyToRender),
-        bodyTextStyle
+        bodyTextStyle,
+        theme
       )
-    : parseMessageBody(bodyToRender, bodyTextStyle);
+    : parseMessageBody(bodyToRender, bodyTextStyle, theme);
 
   const isFailed = failedIdSet.has(message.id);
   const isPending =
@@ -452,12 +474,13 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
             isUser={isUser}
             deleted={message.isDeleted}
             isMedia={message?.isMediafile === 'true' && !message?.isDeleted}
-            backgroundMessageUser={config?.messageColor?.backgroundMessageUser}
-            backgroundMessage={config?.messageColor?.backgroundMessage}
           >
             {!isUser && hasRealSenderName && (
               <CustomUserName
-                color={config?.colors?.primary}
+                // Historically `config.colors.primary` with a plain-text
+                // fallback; theme.primary carries the same value in light
+                // mode and the dark accent in dark mode.
+                color={config?.colors?.primary ? theme.primary : undefined}
                 media={message?.isMediafile === 'true'}
                 fontSize={config?.typography?.senderName?.fontSize}
                 fontWeight={config?.typography?.senderName?.fontWeight as any}
@@ -470,7 +493,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
                 handleReplyMessage={handleReplyMessage}
                 isUser={isUser}
                 text={JSON.parse(message.mainMessage).text}
-                color={config?.colors?.primary}
+                color={theme.primary}
               />
             )}
 
@@ -489,8 +512,6 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
                 ) : (
                   <CustomMessageText
                     isUser={isUser}
-                    colorUser={config?.messageColor?.colorUser}
-                    color={config?.messageColor?.color}
                     fontSize={config?.typography?.messageText?.fontSize}
                     fontWeight={config?.typography?.messageText?.fontWeight as any}
                   >
@@ -501,7 +522,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
                       <TranslatedMessageBody
                         isUser={isUser}
                         originalText={translationDisplay.originalText}
-                        accentColor={config?.colors?.primary}
+                        accentColor={theme.primary}
                       >
                         <Text>{messageText}</Text>
                       </TranslatedMessageBody>
@@ -528,12 +549,14 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
             {/* <View style={styles.timestampRow}> */}
             <CustomTimestampRow media={message?.isMediafile === 'true'}>
               {!config?.disableSentLogic && isUser && isPending && (
-                <Text style={styles.timestampText}>sending...</Text>
+                <Text style={[styles.timestampText, themedStyles.muted]}>
+                  sending...
+                </Text>
               )}
               {!config?.disableSentLogic && isUser && isFailed && (
                 <Text
                   onPress={onRetryPress}
-                  style={styles.failedText}
+                  style={[styles.failedText, themedStyles.failed]}
                   accessibilityRole="button"
                   accessibilityLabel="Retry sending message"
                 >
@@ -541,9 +564,9 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
                 </Text>
               )}
               {message?.isEdited && !message?.isDeleted && (
-                <Text style={styles.editedText}>edited</Text>
+                <Text style={[styles.editedText, themedStyles.muted]}>edited</Text>
               )}
-              <Text style={styles.timestampText}>
+              <Text style={[styles.timestampText, themedStyles.muted]}>
                 {new Date(message.date).toLocaleTimeString([], {
                   hour: '2-digit',
                   minute: '2-digit',
@@ -570,7 +593,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
               <MessageReaction
                 reaction={message.reaction}
                 changeReaction={handleReactionMessage}
-                color={config?.colors?.primary || '#0052CD'}
+                color={theme.primary}
                 userName={`${user.firstName} ${user.lastName}`}
               />
             )}

@@ -15,6 +15,7 @@ import { useDispatch } from 'react-redux';
 import { secureUserStorage } from '../../helpers/secureUserStorage';
 import { setUser, unpackAndTransform } from '../../roomStore/chatSettingsSlice';
 import { Text, TextInput, View } from 'react-native';
+import { useTheme } from '../../hooks/useTheme';
 
 interface LoginFormProps {
   config?: IConfig;
@@ -23,6 +24,7 @@ interface LoginFormProps {
 const LoginForm: React.FC<LoginFormProps> = ({ config }) => {
   const dispatch = useDispatch();
   const { set } = secureUserStorage();
+  const theme = useTheme();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -205,9 +207,9 @@ const LoginForm: React.FC<LoginFormProps> = ({ config }) => {
           style={{
             width: '100%',
             height: 40,
-            backgroundColor: config?.colors?.primary || '#0052CD',
+            backgroundColor: theme.primary,
           }}
-          color="white"
+          color={theme.textOnPrimary}
           disabled={isLoading}
           loading={isLoading}
         />
@@ -223,11 +225,11 @@ const LoginForm: React.FC<LoginFormProps> = ({ config }) => {
           </>
         )}
         <View>
-          <Text>Don't have an account? </Text>
+          <Text style={{ color: theme.text }}>Don't have an account? </Text>
           <Text
             style={{
               textDecorationLine: 'underline',
-              color: '#0052CD',
+              color: theme.primary,
               fontSize: 14,
               display: 'flex',
               fontWeight: '400',
@@ -247,13 +249,13 @@ const FormContainer = styled.View`
   justify-content: center;
   align-items: center;
   width: 100%;
-  background-color: #f5f5f5;
+  background-color: ${({ theme }) => theme.listBackground};
 `;
 
 const Form = styled.View`
   flex-direction: column;
   align-items: center;
-  background-color: white;
+  background-color: ${({ theme }) => theme.surface};
   padding: 30px;
   border-radius: 8px;
   width: 300px;
@@ -261,7 +263,7 @@ const Form = styled.View`
 `;
 
 const ErrorMessage = styled.Text`
-  color: red;
+  color: ${({ theme }) => theme.danger};
   font-size: 12px;
   margin-bottom: 10px;
 `;
@@ -271,7 +273,7 @@ const Delimiter = styled.Text`
   position: relative;
   width: 100%;
   font-size: 14px;
-  color: #999;
+  color: ${({ theme }) => theme.textMuted};
 
   &::before,
   &::after {
@@ -280,7 +282,7 @@ const Delimiter = styled.Text`
     top: 50%;
     width: 45%;
     height: 1px;
-    background: #ccc;
+    background: ${({ theme }) => theme.border};
   }
 
   &::before {

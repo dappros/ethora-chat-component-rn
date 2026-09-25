@@ -1,8 +1,32 @@
 import React from 'react';
 import { Text, View, Linking, StyleSheet, TouchableOpacity } from 'react-native';
+import type { ChatThemeColors } from '../theme/theme';
 
-export const MarkDown = (text: string): (string | JSX.Element)[] => {
+/**
+ * Optional palette for the colour-bearing nodes (links, code grounds, quote
+ * rule). Helpers can't use hooks; callers pass the resolved theme. Omitted →
+ * the historical hard-coded colours, so existing output is unchanged.
+ */
+export type MarkDownTheme = Pick<
+  ChatThemeColors,
+  'primary' | 'surfaceSecondary' | 'border'
+>;
+
+export const MarkDown = (
+  text: string,
+  theme?: MarkDownTheme
+): (string | JSX.Element)[] => {
   if (typeof text !== 'string') {return [text];}
+
+  // Colour overrides layered over the static StyleSheet below.
+  const themed = theme
+    ? {
+        link: { color: theme.primary },
+        codeInline: { backgroundColor: theme.surfaceSecondary },
+        codeBlock: { backgroundColor: theme.surfaceSecondary },
+        quote: { borderLeftColor: theme.border },
+      }
+    : undefined;
 
   let key = 0;
   const elements: (string | JSX.Element)[] = [];
@@ -43,7 +67,7 @@ export const MarkDown = (text: string): (string | JSX.Element)[] => {
         output.push(
           <Text
             key={`code-${key++}`}
-            style={styles.codeInline}
+            style={[styles.codeInline, themed?.codeInline]}
           >
             {token.slice(1, -1).trim()}
           </Text>
@@ -53,7 +77,7 @@ export const MarkDown = (text: string): (string | JSX.Element)[] => {
           <Text key={`link-${key++}`}>
             <Text
               onPress={() => Linking.openURL(token)}
-              style={styles.link}
+              style={[styles.link, themed?.link]}
             >
               {token}
             </Text>
@@ -129,7 +153,7 @@ export const MarkDown = (text: string): (string | JSX.Element)[] => {
       elements.push(
         <View
           key={`pre-${key++}`}
-          style={styles.codeBlock}
+          style={[styles.codeBlock, themed?.codeBlock]}
         >
           <Text style={styles.codeBlockText}>
             {codeBuffer.join('\n')}
@@ -164,7 +188,7 @@ export const MarkDown = (text: string): (string | JSX.Element)[] => {
       elements.push(
         <View
           key={`quote-${key++}`}
-          style={styles.quote}
+          style={[styles.quote, themed?.quote]}
         >
           {parseInline(line.replace(/^>\s*/, '')).map((el, idx) => (
             <React.Fragment key={idx}>{el}</React.Fragment>

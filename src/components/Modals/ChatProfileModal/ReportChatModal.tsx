@@ -1,6 +1,6 @@
 /** @format */
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -17,6 +17,8 @@ import { useToast } from '../../../context/ToastContext';
 import { useT } from '../../../i18n/useT';
 import { getIconColor } from '../../../helpers/getIconColor';
 import { useChatSettingState } from '../../../hooks/useChatSettingState';
+import { useTheme } from '../../../hooks/useTheme';
+import type { ChatTheme } from '../../../theme/theme';
 
 /**
  * Category ids go to `POST /v1/chats/reports/{chatName}` as-is; the labels
@@ -50,6 +52,8 @@ const ReportChatModal: React.FC<ReportChatModalProps> = ({
   const [details, setDetails] = useState('');
   const [sending, setSending] = useState(false);
   const primary = getIconColor(config);
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const close = () => {
     setCategory(null);
@@ -130,7 +134,7 @@ const ReportChatModal: React.FC<ReportChatModalProps> = ({
               testID="report-details"
               style={styles.input}
               placeholder={t('modal.report.otherDetails')}
-              placeholderTextColor="#8C8C8C"
+              placeholderTextColor={theme.textMuted}
               value={details}
               onChangeText={setDetails}
               multiline
@@ -155,7 +159,7 @@ const ReportChatModal: React.FC<ReportChatModalProps> = ({
               onPress={submit}
             >
               {sending ? (
-                <ActivityIndicator color="#FFFFFF" />
+                <ActivityIndicator color={theme.textOnPrimary} />
               ) : (
                 <Text style={styles.submitLabel}>{t('action.send')}</Text>
               )}
@@ -167,10 +171,10 @@ const ReportChatModal: React.FC<ReportChatModalProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: ChatTheme) => StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(15,15,20,0.45)',
+    backgroundColor: theme.overlay,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
@@ -178,13 +182,13 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     borderRadius: 16,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.surface,
     padding: 20,
   },
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#141414',
+    color: theme.text,
     marginBottom: 16,
   },
   categories: {
@@ -197,21 +201,21 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#E4E4E9',
+    borderColor: theme.border,
   },
   categoryLabel: {
     fontSize: 14,
-    color: '#141414',
+    color: theme.text,
   },
   input: {
     marginTop: 16,
     minHeight: 80,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E4E4E9',
+    borderColor: theme.border,
     padding: 12,
     fontSize: 14,
-    color: '#141414',
+    color: theme.text,
     textAlignVertical: 'top',
   },
   buttons: {
@@ -227,17 +231,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   cancel: {
-    backgroundColor: '#F2F2F7',
+    backgroundColor: theme.surfaceSecondary,
   },
   cancelLabel: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#141414',
+    color: theme.text,
   },
   submitLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: theme.textOnPrimary,
   },
 });
 

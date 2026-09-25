@@ -32,7 +32,7 @@ const ToastContainer = styled(Animated.View)<{ type: string }>`
   border-radius: 6px;
   margin-bottom: 8px;
   width: 240px;
-  shadow-color: #000;
+  shadow-color: ${({ theme }) => theme.shadow};
   shadow-offset: 0px 2px;
   shadow-opacity: 0.2;
   shadow-radius: 4px;

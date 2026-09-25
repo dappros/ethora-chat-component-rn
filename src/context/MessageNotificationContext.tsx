@@ -25,6 +25,7 @@ import { messageNotificationManager } from '../utils/messageNotificationManager'
 import { setCurrentRoom } from '../roomStore/roomsSlice';
 import { IConfig, IMessage } from '../types/types';
 import { RootState } from '../roomStore';
+import { useTheme } from '../hooks/useTheme';
 
 interface ToastItem {
   id: string;
@@ -228,6 +229,7 @@ const ToastRow: React.FC<{
   onPress: () => void;
   onDismiss: () => void;
 }> = ({ item, onPress, onDismiss }) => {
+  const theme = useTheme();
   const fade = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.timing(fade, {
@@ -238,17 +240,29 @@ const ToastRow: React.FC<{
   }, [fade]);
 
   return (
-    <Animated.View style={[styles.toast, { opacity: fade }]}>
+    <Animated.View
+      style={[
+        styles.toast,
+        { backgroundColor: theme.surface, shadowColor: theme.shadow },
+        { opacity: fade },
+      ]}
+    >
       <Pressable style={styles.toastBody} onPress={onPress}>
-        <Text style={styles.toastTitle} numberOfLines={1}>
+        <Text
+          style={[styles.toastTitle, { color: theme.text }]}
+          numberOfLines={1}
+        >
           {item.roomName}
         </Text>
-        <Text style={styles.toastSubtitle} numberOfLines={2}>
+        <Text
+          style={[styles.toastSubtitle, { color: theme.textSecondary }]}
+          numberOfLines={2}
+        >
           {item.senderName}: {item.message?.body || ''}
         </Text>
       </Pressable>
       <Pressable onPress={onDismiss} style={styles.dismiss}>
-        <Text style={styles.dismissText}>×</Text>
+        <Text style={[styles.dismissText, { color: theme.textMuted }]}>×</Text>
       </Pressable>
     </Animated.View>
   );

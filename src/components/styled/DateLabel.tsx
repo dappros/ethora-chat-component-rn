@@ -2,7 +2,7 @@ import React from 'react';
 import styled from 'styled-components/native';
 import { Line } from './StyledComponents';
 import { Text } from 'react-native';
-import { getDateLabelColor } from '../../helpers/getDateLabelColor';
+import { useTheme } from '../../hooks/useTheme';
 
 interface DateLabelProps {
   date: Date;
@@ -64,12 +64,16 @@ const DateLabel: React.FC<DateLabelProps> = ({ date, colors }) => {
     label = date.toLocaleDateString('en-US', options);
   }
 
-  const textColor = getDateLabelColor({ colors });
+  // Theme-aware: dark mode ignores the light-only `colors` knobs (the
+  // theme already folds `colors.dateLabel` / `colors.primary` in light).
+  const theme = useTheme();
+  const textColor = theme.dateLabel;
+  const bgColor = theme.dark ? theme.surfaceSecondary : colors?.secondary;
 
   return (
     <Container>
       <Line />
-      <StyledDateLabel bgColor={colors?.secondary}>
+      <StyledDateLabel bgColor={bgColor}>
         <StyledDateText color={textColor}>{label}</StyledDateText>
       </StyledDateLabel>
       <Line />
