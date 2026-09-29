@@ -2,6 +2,7 @@ import XmppClient from '../networking/xmppClient';
 import { IRoom } from '../types/types';
 import { presenceInRoom } from '../networking/xmpp/presenceInRoom.xmpp';
 import { pushSubscriptionService } from '../services/pushSubscriptionService';
+import { runConfiguredPushTokenFetch } from '../services/pushTokenRegistration';
 
 export const initRoomsPresence = async (
   client: XmppClient,
@@ -9,6 +10,16 @@ export const initRoomsPresence = async (
 ) => {
   console.log('Persisted presence');
   if (!client) {return null;}
+
+  // Chat-mode's (non-initBeforeLoad) equivalent of the first-connect push-
+  // token fetch that initBeforeLoad mode does inline in xmppProvider.tsx.
+  // Fired here, unconditionally of room count below, since a brand-new
+  // account with zero rooms still needs its device token registered.
+  // Idempotent per login, see runConfiguredPushTokenFetch.
+  runConfiguredPushTokenFetch().catch((e) =>
+    console.warn('[PushTokens] initRoomsPresence: getPushTokens fetch failed', e)
+  );
+
   const jids = Object.keys(rooms || {});
   if (!jids.length) {return null;}
   await Promise.allSettled(

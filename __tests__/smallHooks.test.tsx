@@ -18,7 +18,7 @@ import { DeviceEventEmitter } from 'react-native';
 
 // Stub the push subscription service before useLogout imports it.
 jest.mock('../src/services/pushSubscriptionService', () => ({
-  pushSubscriptionService: { reset: jest.fn() },
+  pushSubscriptionService: { reset: jest.fn(), unregisterAllTokens: jest.fn() },
 }));
 
 // useLogout reaches into the real shared store; replace with a tiny
@@ -124,15 +124,27 @@ describe('logoutService.performLogout', () => {
   beforeEach(() => {
     dispatchSpy.mockReset();
     (pushSubscriptionService.reset as jest.Mock).mockReset();
+    (pushSubscriptionService.unregisterAllTokens as jest.Mock).mockReset();
   });
 
-  it('emits chat:clear-notifications, resets push, and dispatches the 3 logout actions', async () => {
+  it('emits chat:clear-notifications, unregisters + resets push, and dispatches the 3 logout actions', async () => {
     const emitSpy = jest.spyOn(DeviceEventEmitter, 'emit');
+    const callOrder: string[] = [];
+    (pushSubscriptionService.unregisterAllTokens as jest.Mock).mockImplementation(
+      async () => {callOrder.push('unregisterAllTokens');}
+    );
+    (pushSubscriptionService.reset as jest.Mock).mockImplementation(async () => {
+      callOrder.push('reset');
+    });
 
     await logoutService.performLogout();
 
     expect(emitSpy).toHaveBeenCalledWith('chat:clear-notifications');
+    expect(pushSubscriptionService.unregisterAllTokens).toHaveBeenCalledTimes(1);
     expect(pushSubscriptionService.reset).toHaveBeenCalledTimes(1);
+    // unregisterAllTokens must run BEFORE reset(), which wipes the token
+    // map it reads from.
+    expect(callOrder).toEqual(['unregisterAllTokens', 'reset']);
 
     const types = dispatchSpy.mock.calls.map(([a]) => a.type);
     // Code order is setLogoutState → clearHeap → chat/logout.

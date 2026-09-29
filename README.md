@@ -17,6 +17,7 @@ React Native chat UI + chat core for iOS and Android, powered by the Ethora plat
 - [Pinning a single room](#pinning-a-single-room)
 - [Unread tracking in tab-based hosts](#unread-tracking-in-tab-based-hosts)
 - [Logging out](#logging-out)
+- [Push notifications](#push-notifications)
 - [Customization flags worth knowing](#customization-flags-worth-knowing)
 - [Keyboard handling](#keyboard-handling)
 - [Header height & font sizing](#header-height--font-sizing)
@@ -29,7 +30,7 @@ React Native chat UI + chat core for iOS and Android, powered by the Ethora plat
 - Room list and room chat UI (Native / iOS + Android)
 - Message history (MAM), replies, edits, deletes
 - Typing indicators
-- Push notifications (FCM / APNs)
+- Push notifications (Expo, FCM, APNs; bring your own token)
 - Pluggable auth (default / JWT / injected user / custom)
 - Custom message bubble, input, scroll, and day-separator overrides
 - Cross-session unread tracking with built-in badges — see [docs/unread-tracking.md](docs/unread-tracking.md)
@@ -297,6 +298,82 @@ Don't want to build your own button? Enable the item in the room-list header men
 Tap flow: close drawer → confirmation (native `Alert`) → `await onBeforeLogout?.()` (`false` cancels) → `await logoutService.performLogout()` → `await onAfterLogout?.()`. The host-side session/navigation logout belongs in `onAfterLogout` — by the time it runs, XMPP is disconnected and every persisted key is gone. Errors thrown by either callback are caught and logged via `console.warn`; a throwing `onBeforeLogout` cancels the logout. With `enabled: false` (or the option omitted) the menu is unchanged.
 
 Why awaitable: the persistence layer debounces writes by 200 ms, and the chat slice removes its persisted user fire-and-forget. If the host navigated / re-mounted `<Chat>` immediately after a non-awaited call, the next bootstrap could occasionally rehydrate stale state ("old chats reappear"). Awaiting the returned promise eliminates that race. The function never rejects — any internal failure is logged via `console.warn`, so a non-awaited call still won't crash the host. For non-React contexts you can call `logoutService.performLogout()` directly (same Promise).
+
+## Push notifications
+
+The SDK never requests a push token itself and has no Firebase Messaging dependency. The host app is responsible for obtaining the token (via Expo, native FCM/APNs, or `@react-native-firebase/messaging`) and handing it to the SDK, which registers it with the Ethora push service, deduplicates it, and unregisters it on logout.
+
+```ts
+import { registerPushToken, unregisterPushToken, handlePushPayload } from '@ethora/chat-component-rn';
+
+type PushProvider = 'expo' | 'fcm' | 'apns' | 'apns-voip';
+
+registerPushToken(token: string, options: { provider: PushProvider }): Promise<void>
+unregisterPushToken(token: string, options: { provider: PushProvider }): Promise<void>
+```
+
+```ts
+// config
+pushNotifications?: {
+  enabled?: boolean;
+  apiUrl?: string; // push service base URL incl. version, default https://push.chat.ethora.com/api/v1
+  getPushTokens?: () => Promise<PushTokenRegistration[] | PushTokenRegistration | null>; // PushTokenRegistration = { token, provider }
+  ...
+}
+```
+
+Two ways to hand a token to the SDK, and both can be used together:
+
+- **Declarative** - set `config.pushNotifications.getPushTokens`. The SDK calls it once per logged-in session and registers whatever it returns (a single `PushTokenRegistration`, an array, or `null` if there's nothing yet).
+- **Imperative** - call `registerPushToken(token, { provider })` yourself, e.g. from a token-refresh listener. It's safe to call before login: the call is queued and sent once the session is authenticated.
+
+Multiple tokens per device are supported, for example an Expo token for chat plus a separate PushKit VoIP token for calls, registered under different `provider` values. Room subscriptions needed for offline push are set up automatically by the SDK on connect, nothing to wire up on the host side. On logout (`useLogout()` / `logoutService.performLogout()`), the SDK unregisters the tokens it registered as part of the normal teardown. Tokens passed to `registerPushToken` belong to the device, so they are registered again automatically for whoever logs in next, and `getPushTokens` runs again for the next session.
+
+### Opening the right room or call from a tap
+
+`handlePushPayload(data)` inspects a notification's data payload and returns one of `'call' | 'room' | 'pending' | 'unknown'`, reading `jid` / `chatJid` / `roomJid` or the relevant call fields off `data`. For `'room'` it opens that room inside `<Chat>` (or, for `'pending'`, once the room list has loaded) and for `'call'` it shows the ring screen. Your own navigation only needs to bring the screen that hosts `<Chat>` to the front.
+
+### Example: Expo (`expo-notifications`)
+
+```tsx
+import * as Notifications from 'expo-notifications';
+import { registerPushToken, handlePushPayload } from '@ethora/chat-component-rn';
+
+async function getPushTokens() {
+  const { status } = await Notifications.requestPermissionsAsync();
+  if (status !== 'granted') return null;
+  const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId: 'YOUR_EAS_PROJECT_ID' });
+  return { token, provider: 'expo' as const };
+}
+
+// config.pushNotifications = { getPushTokens }
+
+// Tap while foregrounded/backgrounded:
+Notifications.addNotificationResponseReceivedListener((response) => {
+  const kind = handlePushPayload(response.notification.request.content.data);
+  // 'room' / 'pending' / 'call': make sure the screen hosting <Chat> is visible
+});
+
+// Cold start (app launched by tapping a notification):
+const last = await Notifications.getLastNotificationResponseAsync();
+if (last) handlePushPayload(last.notification.request.content.data);
+```
+
+The Expo project needs FCM (Android) and APNs (iOS) credentials configured in EAS; Firebase Messaging itself is not a dependency of the app.
+
+### Example: native FCM/APNs, without Expo Push
+
+If you don't want to route through Expo's push relay, `Notifications.getDevicePushTokenAsync()` (still from `expo-notifications`) returns a raw FCM token on Android and a raw APNs token on iOS - register those with provider `'fcm'` and `'apns'` respectively. Note that `'apns'` (a raw APNs token, not routed through FCM) and `'expo'` both need support on the push service side, `'fcm'` works with the current service as is. Apps that already depend on `@react-native-firebase/messaging` can pass its token the same way, with provider `'fcm'`.
+
+### VoIP / incoming calls
+
+Expo Push cannot deliver iOS PushKit VoIP pushes. For CallKit to ring on a killed iOS app, register a PushKit token separately, alongside the chat token, with provider `'apns-voip'`. This requires backend VoIP support on the push service and a native PushKit handler in the host app that reports to CallKit immediately on every VoIP push (Apple requires this on every push, not just the ones that turn out to be calls). Android calls are delivered as a high-priority data push plus, optionally, the `react-native-callkeep` integration already present in the SDK.
+
+Treat backend VoIP delivery as "requires push service support", not as something guaranteed to work out of the box; confirm with your Ethora deployment before relying on it.
+
+### Privacy note
+
+For regulated deployments (e.g. HIPAA), keep message text out of push payloads. Relays such as Expo's push service see the payload in transit, so a notification body should carry a generic "New message" rather than the message content.
 
 ## Customization flags worth knowing
 

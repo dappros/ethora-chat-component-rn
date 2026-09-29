@@ -1,15 +1,23 @@
 import { Client } from '@xmpp/client';
-import { User } from '../types/types';
+import { PushTokenRegistration, User } from '../types/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { subscribeToPushNotifications } from '../networking/api-requests/push.api';
+import {
+  subscribeToPushNotifications,
+  unregisterPushToken as unregisterPushTokenApi,
+} from '../networking/api-requests/push.api';
 import { subscribeToRoomMessages } from '../networking/xmpp/subscribeToRoomMessages.xmpp';
 
 const SUBSCRIBED_ROOMS_KEY = 'ethora_subscribed_rooms';
 
 export class PushSubscriptionService {
   private subscribedRooms: Set<string> = new Set();
-  private isPushSubscribed: boolean = false;
-  private lastSubscriptionKey: string | null = null;
+  // Registered device push tokens, keyed by `${provider}:${token}:${userIdentity}`
+  // so the dedup check in `registerToken` doesn't skip a re-registration
+  // after a user switch (same token/provider, different user still holding
+  // the app). The value is the registration itself, not just a marker, so
+  // `unregisterAllTokens` can send the real payload without re-parsing the
+  // key.
+  private registeredTokens: Map<string, PushTokenRegistration> = new Map();
   private isInitialized: boolean = false;
 
   private async loadSubscribedRoomsFromStorage(): Promise<void> {
@@ -36,32 +44,85 @@ export class PushSubscriptionService {
     }
   }
 
-  async subscribeToPush(
-    fcmToken: string,
-    user: User,
-    projectName: string,
-  ): Promise<void> {
-    const walletAddress = user.defaultWallet?.walletAddress || user.walletAddress;
-    const subscriptionKey = `${fcmToken}_${walletAddress}`;
+  private tokenKey(registration: PushTokenRegistration, user: User): string {
+    const identity =
+      user.xmppUsername || user.defaultWallet?.walletAddress || user.walletAddress || '';
+    return `${registration.provider}:${registration.token}:${identity}`;
+  }
 
-    if (this.isPushSubscribed && this.lastSubscriptionKey === subscriptionKey) {
-      console.log('⚠️ Push already subscribed with this token, skipping...');
+  /**
+   * Register one device push token (a device can hold several at once,
+   * one per provider, e.g. expo for chat + apns-voip for calls). Idempotent:
+   * the same provider/token pair for the same user is a no-op, so callers
+   * (the `getPushTokens` bootstrap hook in particular) can call this on
+   * every reconnect without hammering the backend.
+   */
+  async registerToken(
+    registration: PushTokenRegistration,
+    user: User,
+    projectName: string
+  ): Promise<void> {
+    const key = this.tokenKey(registration, user);
+    if (this.registeredTokens.has(key)) {
+      return;
+    }
+
+    const userJid = user.xmppUsername || '';
+    if (!userJid) {
+      console.warn('[PushService] Cannot register push token: user JID is missing');
       return;
     }
 
     try {
-      const userJid: string = user.xmppUsername || '';
-
-      if (!userJid) {
-        throw new Error('User JID is required for push subscription');
-      }
-
-      await subscribeToPushNotifications(fcmToken, userJid, projectName);
-      this.isPushSubscribed = true;
-      this.lastSubscriptionKey = subscriptionKey;
-    } catch (error: any) {
-      console.error('Failed to subscribe to push after all retries:', error);
+      await subscribeToPushNotifications(registration, userJid, projectName);
+      this.registeredTokens.set(key, registration);
+    } catch (error) {
+      console.error('[PushService] Failed to register push token:', error);
     }
+  }
+
+  /**
+   * Unregister a single token. Matches by provider + token rather than the
+   * dedup key above (which also folds in user identity), so this works
+   * whether or not the caller still has the `User` object handy, e.g. a
+   * host-triggered `unregisterPushToken` right after `useLogout` already
+   * cleared the store user.
+   */
+  async unregisterToken(registration: PushTokenRegistration): Promise<void> {
+    try {
+      await unregisterPushTokenApi(registration);
+    } catch (error) {
+      console.error('[PushService] Failed to unregister push token:', error);
+    } finally {
+      for (const [key, value] of this.registeredTokens) {
+        if (value.provider === registration.provider && value.token === registration.token) {
+          this.registeredTokens.delete(key);
+        }
+      }
+    }
+  }
+
+  /**
+   * Unregister every token currently known for this device (all providers).
+   * Used at logout, before `reset()` wipes the map. Best effort by design:
+   * a failed DELETE for one token must not stop the others, and must never
+   * throw back into `logoutService`, which cannot block on the network.
+   */
+  async unregisterAllTokens(): Promise<void> {
+    const registrations = Array.from(this.registeredTokens.values());
+    if (!registrations.length) {return;}
+
+    await Promise.allSettled(
+      registrations.map((registration) =>
+        unregisterPushTokenApi(registration).catch((error) => {
+          console.warn(
+            `[PushService] unregisterAllTokens: failed for provider "${registration.provider}"`,
+            error
+          );
+        })
+      )
+    );
+    this.registeredTokens.clear();
   }
 
   async subscribeToRoom(
@@ -125,8 +186,7 @@ export class PushSubscriptionService {
 
   async reset(): Promise<void> {
     this.subscribedRooms.clear();
-    this.isPushSubscribed = false;
-    this.lastSubscriptionKey = null;
+    this.registeredTokens.clear();
     this.isInitialized = false;
 
     try {
@@ -147,4 +207,3 @@ export class PushSubscriptionService {
 }
 
 export const pushSubscriptionService = new PushSubscriptionService();
-

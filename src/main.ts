@@ -34,6 +34,14 @@ export { useUnread } from './hooks/useUnreadMessagesCounter';
 
 export { handlePushPayload, openRoomFromPush } from './helpers/pushPayload';
 export type { PushPayloadOutcome } from './helpers/pushPayload';
+
+// Hand the SDK a push token the host obtained itself (Expo, native FCM,
+// APNs, or later PushKit VoIP). The SDK never requests one on its own,
+// see the JSDoc on these two and on `PushProvider` in types/types.ts.
+export {
+  registerPushToken,
+  unregisterPushToken,
+} from './services/pushTokenRegistration';
 export { useChatRoomFocus } from './hooks/useChatRoomFocus';
 export { logoutService, useLogout } from './hooks/useLogout';
 export { useQRCodeChat, handleQRChatId } from './hooks/useQRCodeChatHandler';
@@ -69,6 +77,8 @@ export type {
   ChatTextStyle,
   VideoCallsConfig,
   VideoCallIcons,
+  PushProvider,
+  PushTokenRegistration,
 } from './types/types';
 export type { Iso639_1Codes } from './types/models/language.model';
 export type { TranslateMode } from './utils/translateModePolicy';

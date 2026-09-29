@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { Platform } from 'react-native';
 import { store } from '../../roomStore';
+import { PushTokenRegistration } from '../../types/types';
 
 // Both of these used to be hardcoded to the ethoradev environment
 // (push.ethoradev.com, @xmpp.ethoradev.com). That is a development
@@ -39,24 +40,37 @@ const pushAxios = axios.create({
   },
 });
 
-export interface PushSubscriptionPayload {
-  projectId: string;
-  registrationToken: string;
-  deviceType: 'web' | 'android' | 'ios';
-  jid: string;
-}
-
-export async function subscribeToPushNotifications(
-  fcmToken: string,
-  userJid: string,
-  projectName: string = ''
-): Promise<void> {
-  const deviceType: 'web' | 'android' | 'ios' = Platform.select({
+const resolveDeviceType = (): 'web' | 'android' | 'ios' =>
+  Platform.select({
     ios: 'ios',
     android: 'android',
     default: 'web',
   }) as 'web' | 'android' | 'ios';
 
+const resolveAuthToken = (): string =>
+  store.getState().chatSettingStore?.user?.token || '';
+
+export interface PushSubscriptionPayload {
+  projectId: string;
+  registrationToken: string;
+  deviceType: 'web' | 'android' | 'ios';
+  jid: string;
+  provider: PushTokenRegistration['provider'];
+}
+
+/**
+ * Register a push token with the backend. Always sends `provider` now, a
+ * device can hold several tokens at once (e.g. an expo token for chat and,
+ * later, an apns-voip token for calls) and the backend needs it to tell
+ * them apart. Throws on failure, the caller (`pushSubscriptionService`)
+ * decides whether/how to log it, this module used to swallow the error
+ * itself, which hid failures from `isPushSubscribed`-style dedup logic.
+ */
+export async function subscribeToPushNotifications(
+  registration: PushTokenRegistration,
+  userJid: string,
+  projectName: string = ''
+): Promise<void> {
   // `userJid` arrives as either a bare localpart or an already-qualified
   // JID depending on the caller; don't double-qualify it.
   const jid = userJid.includes('@')
@@ -65,22 +79,34 @@ export async function subscribeToPushNotifications(
 
   const payload: PushSubscriptionPayload = {
     projectId: projectName,
-    registrationToken: fcmToken,
-    deviceType,
+    registrationToken: registration.token,
+    deviceType: resolveDeviceType(),
     jid,
+    provider: registration.provider,
   };
 
-  try {
-    const token = store.getState().chatSettingStore?.user?.token || '';
+  await pushAxios.post('/subscriptions', payload, {
+    baseURL: resolvePushApiUrl(),
+    headers: {
+      Authorization: `Bearer ${resolveAuthToken()}`,
+    },
+  });
+}
 
-    const response = await pushAxios.post('/subscriptions', payload, {
-      baseURL: resolvePushApiUrl(),
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    return response.data;
-  } catch (error: any) {
-    console.error('Failed to subscribe to push notifications:', error);
-  }
+/**
+ * Unregister a push token from the backend (e.g. on logout, or when the
+ * host explicitly calls `unregisterPushToken`). Same DELETE shape as the
+ * web SDK's push.api.ts: `data: { endpoint, provider }` identifies the
+ * subscription, no jid needed. Throws on failure, same reasoning as above.
+ */
+export async function unregisterPushToken(
+  registration: PushTokenRegistration
+): Promise<void> {
+  await pushAxios.delete('/subscriptions', {
+    baseURL: resolvePushApiUrl(),
+    headers: {
+      Authorization: `Bearer ${resolveAuthToken()}`,
+    },
+    data: { endpoint: registration.token, provider: registration.provider },
+  });
 }

@@ -38,6 +38,7 @@ import { ensureScopedChatCache } from '../helpers/ensureScopedChatCache';
 import { getRooms as prefetchRoomsViaRest } from '../networking/api-requests/rooms.api';
 import { allRoomPresences } from '../networking/xmpp/allRoomPresences.xmpp';
 import { pushSubscriptionService } from '../services/pushSubscriptionService';
+import { runConfiguredPushTokenFetch } from '../services/pushTokenRegistration';
 import { store } from '../roomStore';
 import { logout, setStoreClient, setConfig } from '../roomStore/chatSettingsSlice';
 import {
@@ -248,6 +249,14 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
             devPushLog('warn', 'reconnect: allRoomPresences re-join failed', e)
           )
           .finally(() => subscribeAllRoomsForPush(underlying, 'reconnect'));
+        // `setOnOnline` runs on every reconnect in both init modes (see
+        // runConfiguredPushTokenFetch's own comment for the full picture,
+        // including the two first-connect call sites). It's guarded per
+        // login identity, so this is a cheap no-op on a reconnect that
+        // isn't a new login.
+        runConfiguredPushTokenFetch().catch((e) =>
+          devPushLog('warn', 'reconnect: getPushTokens fetch failed', e)
+        );
         // Also refresh the private store so unread / lastViewed markers
         // are accurate after a long reconnect — the MUC re-join above only
         // restores delivery, not unread state. Idempotent on first connect.
@@ -460,6 +469,14 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
           devPushLog('warn', 'initBeforeLoad: allRoomPresences failed', e);
         }
         subscribeAllRoomsForPush((c as any).client, 'initBeforeLoad');
+        // First-connect equivalent of the `setOnOnline` call above, this
+        // is `initBeforeLoad` mode's own post-connect sequence, so it's
+        // where THIS mode's first login has to trigger `getPushTokens`
+        // (the shared `setOnOnline` handler was installed too late to
+        // catch this very first 'online' event, see initializeClient).
+        runConfiguredPushTokenFetch().catch((e) =>
+          devPushLog('warn', 'initBeforeLoad: getPushTokens fetch failed', e)
+        );
 
         store.dispatch(setStoreClient(c));
         completedBootstrapKeyRef.current = key;

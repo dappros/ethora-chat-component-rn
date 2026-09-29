@@ -7,6 +7,7 @@ import { setLogoutState } from '../roomStore/roomsSlice';
 import { useCallback } from 'react';
 import { clearHeap } from '../roomStore/roomHeapSlice';
 import { pushSubscriptionService } from '../services/pushSubscriptionService';
+import { resetPushTokenSession } from '../services/pushTokenRegistration';
 import { clearRoomsRestCache } from '../networking/api-requests/rooms.api';
 import { clearPersistedState } from '../roomStore/persistence';
 import { secureUserStorage } from '../helpers/secureUserStorage';
@@ -29,6 +30,8 @@ const logoutService = {
   /**
    * Tear down the active chat session end-to-end:
    *  1. Fire UI-side events (notifications, push, redux slices).
+   *  1b. Unregister every push token registered for this login (best
+   *      effort DELETE per token, never blocks or throws).
    *  2. The redux dispatch of `chat/logout` triggers
    *     `logoutMiddleware`, which emits `ethora-xmpp-logout` on
    *     `DeviceEventEmitter`. `XmppProvider` listens for that event,
@@ -93,16 +96,36 @@ const logoutService = {
       /* non-fatal */
     }
 
-    // 2. Push: clear locally-subscribed-rooms cache. Doesn't talk to the
-    //    server — that's the host app's responsibility (it owns the FCM/
-    //    APNs token lifecycle).
+    // 2. Push: unregister every device push token registered for this
+    //    login (best effort, must not block or throw). Runs BEFORE
+    //    `pushSubscriptionService.reset()` below, which wipes the
+    //    in-memory token map this reads from, and before the redux
+    //    `logout()` dispatch further down, which wipes `user.token` (the
+    //    auth header the unregister DELETE needs).
+    //    Capped at 3s so a slow push service can't hold up the logout.
+    try {
+      await Promise.race([
+        pushSubscriptionService.unregisterAllTokens(),
+        new Promise((res) => setTimeout(res, 3000)),
+      ]);
+    } catch (e) {
+      console.warn('logoutService: push token unregister failed', e);
+    }
+    try {
+      resetPushTokenSession();
+    } catch (e) {
+      console.warn('logoutService: push token session reset failed', e);
+    }
+
+    // 3. Push: clear locally-subscribed-rooms cache. Doesn't talk to the
+    //    server, the device tokens were already handled in step 2.
     try {
       await pushSubscriptionService.reset();
     } catch (e) {
       console.warn('logoutService: push reset failed', e);
     }
 
-    // 3. REST: nuke the in-memory `/chats/my` cache so the next login
+    // 4. REST: nuke the in-memory `/chats/my` cache so the next login
     //    doesn't read user A's rooms while user B is bootstrapping.
     try {
       clearRoomsRestCache();
@@ -110,7 +133,7 @@ const logoutService = {
       /* non-fatal */
     }
 
-    // 4. Redux: dispatch the trio. Order matters — `chat/logout` is
+    // 5. Redux: dispatch the trio. Order matters: `chat/logout` is
     //    what triggers `logoutMiddleware → ethora-xmpp-logout` (and
     //    therefore XmppProvider's `client.disconnect()`), so fire it
     //    AFTER the slices that don't need the xmpp client.
@@ -122,7 +145,7 @@ const logoutService = {
       console.warn('logoutService: redux dispatch failed', e);
     }
 
-    // 5. Persisted state: belt-and-suspenders. XmppProvider's logout
+    // 6. Persisted state: belt-and-suspenders. XmppProvider's logout
     //    listener also calls clearPersistedState, but doing it here too
     //    means the disk is clean before this Promise resolves —
     //    regardless of how fast the event-emitter listener runs.
@@ -132,14 +155,14 @@ const logoutService = {
       /* non-fatal */
     }
 
-    // 6. Stray keys the slices don't touch.
+    // 7. Stray keys the slices don't touch.
     try {
       await AsyncStorage.multiRemove(LIBRARY_STRAY_KEYS);
     } catch (e) {
       console.warn('logoutService: stray-key clear failed', e);
     }
 
-    // 7. Belt-and-suspenders: the chat slice's `logout` reducer already
+    // 8. Belt-and-suspenders: the chat slice's `logout` reducer already
     //    fires an async ETHORA_USER removal, but re-issue it here (via
     //    the same secureUserStorage split the reducer uses) so BOTH the
     //    plain-AsyncStorage profile half AND the Keychain/Keystore

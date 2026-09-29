@@ -210,6 +210,29 @@ export interface FBConfig {
   appId: string;
 }
 
+/**
+ * Where a push token came from. The SDK never requests one itself, the
+ * host app owns that (Expo's `getExpoPushTokenAsync`, a native FCM/APNs
+ * SDK, etc.) and hands it to `registerPushToken` / `config.pushNotifications.getPushTokens`.
+ *
+ * `apns-voip` is reserved for a PushKit VoIP token (incoming call
+ * wake-up on iOS). It is not read or requested anywhere yet, registering
+ * one requires the backend to support the `apns-voip` provider, and it
+ * should be registered ALONGSIDE the regular chat token (expo/fcm/apns),
+ * not instead of it, since VoIP pushes only cover call ringing.
+ */
+export type PushProvider = 'expo' | 'fcm' | 'apns' | 'apns-voip';
+
+/**
+ * A single device push token plus the provider it came from. A device can
+ * (and, once VoIP lands, will) hold more than one at a time, e.g. an Expo
+ * token for chat pushes and an `apns-voip` token for call pushes.
+ */
+export interface PushTokenRegistration {
+  token: string;
+  provider: PushProvider;
+}
+
 export interface MessageBubble {
   backgroundMessage?: string;
   backgroundMessageUser?: string;
@@ -760,6 +783,22 @@ export interface IConfig {
       notification?: { title?: string; body?: string };
     }) => void | Promise<void>;
     onNotificationPress?: (data: any) => void;
+    /**
+     * Supplies the device's own push token(s) once the host has obtained
+     * them, e.g. Expo's `getExpoPushTokenAsync()`, a native FCM token, or
+     * an APNs token. The SDK never requests a token itself, this is the
+     * only way it learns one. Called once per login (after the user is
+     * authenticated), with `enabled` not explicitly `false`.
+     *
+     * Return a single registration, an array (a device can hold more than
+     * one, e.g. an `expo` token for chat plus an `apns-voip` token for
+     * calls), or `null`/`undefined` if none are available yet. For manual
+     * control instead (or in addition), call `registerPushToken` /
+     * `unregisterPushToken` directly, exported from the package root.
+     */
+    getPushTokens?: () => Promise<
+      PushTokenRegistration[] | PushTokenRegistration | null
+    >;
     firebaseConfig?: FBConfig;
   };
 
