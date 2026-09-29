@@ -11,6 +11,7 @@ import {
   ShadeWrapper,
 } from './StyledRoomComponents';
 import { View } from 'react-native';
+import { getDisplayFileName } from '../../../helpers/getDisplayFileName';
 
 const PhotoContainer = styled.View`
   position: relative;
@@ -25,14 +26,25 @@ const PhotoContainer = styled.View`
 `;
 
 interface LastMessagePhotoProps
-  extends Pick<LastMessage, 'user' | 'originalName' | 'locationPreview'> {}
+  extends Pick<
+    LastMessage,
+    'user' | 'originalName' | 'fileName' | 'mimetype' | 'locationPreview'
+  > {}
 
 const LastMessagePhoto: FC<LastMessagePhotoProps> = ({
   user,
   locationPreview,
   originalName,
+  fileName,
+  mimetype,
 }) => {
   const fileToken = useFileToken();
+  // Bug #40: prefer the sender's original name over the stored hash
+  // name; only fall back to the generic "file" label when neither is
+  // present at all (avoids a synthetic "media_<timestamp>.bin" here).
+  const displayName = originalName || fileName
+    ? getDisplayFileName({ originalName, fileName, mimetype })
+    : 'file';
   return (
     <LastRoomMessageContainer>
       <LastRoomMessageName>{user?.name || ''}:</LastRoomMessageName>
@@ -48,7 +60,7 @@ const LastMessagePhoto: FC<LastMessagePhotoProps> = ({
             <LastMessageImg src={appendFileToken(locationPreview, fileToken)} />
           </ShadeWrapper>
         </PhotoContainer>
-        <LastRoomMessageText>{originalName || 'file'}</LastRoomMessageText>
+        <LastRoomMessageText>{displayName}</LastRoomMessageText>
       </View>
     </LastRoomMessageContainer>
   );

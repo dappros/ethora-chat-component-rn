@@ -17,7 +17,7 @@ import { interpolate, resolveStringTable } from './strings';
  * When the host doesn't set `config.i18n.locale` explicitly, this falls
  * back to `langSource` - the same reader-language state the in-chat globe
  * picker (LanguageSelectorButton) and `config.translates.readerLocale`
- * drive (see useChatWrapperInit's resolveExternalReaderLocaleLangSource).
+ * drive (see ChatWrapper's resolveExternalReaderLocaleLangSource effect).
  * So picking a language in the chat changes both message translations AND
  * static captions together, as one language switch, unless the host is
  * explicitly managing UI locale separately via `config.i18n.locale`.

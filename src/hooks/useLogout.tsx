@@ -10,6 +10,7 @@ import { pushSubscriptionService } from '../services/pushSubscriptionService';
 import { clearRoomsRestCache } from '../networking/api-requests/rooms.api';
 import { clearPersistedState } from '../roomStore/persistence';
 import { secureUserStorage } from '../helpers/secureUserStorage';
+import { getFlushBoundaryTs } from '../helpers/getServerReadTimestamp';
 
 // AsyncStorage keys the library writes but that aren't cleared by any
 // slice reducer. Listed here so a single logout call wipes the full
@@ -59,10 +60,23 @@ const logoutService = {
       const client = (state.chatSettingStore as any)?.client;
       const rooms = state.rooms?.rooms;
       const visibleRoomJID = state.rooms?.visibleRoomJID || null;
+      // The visible room is exempt from `onlyIfNoUnread`'s skip (it's
+      // meant to write "read up to now" for whatever's open), so if the
+      // user is logging out while scrolled up with unread messages
+      // above, the boundary must still be carried through here - same
+      // reasoning as every other "leaving a room" path (bug #42).
+      const boundaryTs = visibleRoomJID
+        ? getFlushBoundaryTs(
+            rooms?.[visibleRoomJID],
+            state.roomHeapSlice,
+            state.rooms?.readBoundaries?.[visibleRoomJID] ?? null
+          )
+        : undefined;
       if (client?.flushLastViewedToPrivateStoreStanza) {
         await Promise.race([
           client.flushLastViewedToPrivateStoreStanza(rooms, {
             visibleRoomJID,
+            visibleRoomTs: boundaryTs,
             onlyIfNoUnread: true,
           }),
           new Promise((res) => setTimeout(res, 2000)),

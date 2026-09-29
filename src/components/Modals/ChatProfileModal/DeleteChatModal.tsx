@@ -14,6 +14,7 @@ import { deleteRoom as deleteRoomApi } from '../../../networking/api-requests/ro
 import { deleteRoom as deleteRoomAction } from '../../../roomStore/roomsSlice';
 import { useToast } from '../../../context/ToastContext';
 import { useTheme } from '../../../hooks/useTheme';
+import { useT } from '../../../i18n/useT';
 
 interface DeleteChatModalProps {
   isModalOpen: boolean;
@@ -27,6 +28,7 @@ const DeleteChatModal: React.FC<DeleteChatModalProps> = ({
   const dispatch = useDispatch();
   const { showToast } = useToast();
   const theme = useTheme();
+  const t = useT();
   const activeRoom = useSelector((state: RootState) => getActiveRoom(state));
 
   const handleOpenModal = () => setIsModalOpen(true);
@@ -39,16 +41,16 @@ const DeleteChatModal: React.FC<DeleteChatModalProps> = ({
       handleCloseModal();
       showToast({
         id: Date.now().toString(),
-        title: 'Success',
-        message: 'Chat deleted successfully',
+        title: t('toast.successTitle'),
+        message: t('toast.chatDeletedSuccess'),
         type: 'success',
       });
     } catch (error) {
       console.error('Failed to delete chat:', error);
       showToast({
         id: Date.now().toString(),
-        title: 'Error',
-        message: 'Failed to delete chat',
+        title: t('toast.error'),
+        message: t('toast.failedToDeleteChat'),
         type: 'error',
       });
     }
@@ -61,19 +63,19 @@ const DeleteChatModal: React.FC<DeleteChatModalProps> = ({
           <CloseButton onPress={handleCloseModal}>
             <CloseButtonText>&times;</CloseButtonText>
           </CloseButton>
-          <ModalTitle>Delete this chat ?</ModalTitle>
+          <ModalTitle>{t('modal.deleteChat.title')}</ModalTitle>
 
           <GroupContainer>
             <Button
               onPress={handleCloseModal}
-              text={'Cancel'}
+              text={t('action.cancel')}
               style={{ width: '100%' }}
               unstyled
               variant="filled"
             />
             <Button
               onPress={handleDeleteChat}
-              text={'Delete'}
+              text={t('action.delete')}
               style={{
                 width: '100%',
                 borderWidth: 1,

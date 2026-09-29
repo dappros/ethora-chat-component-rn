@@ -19,6 +19,12 @@ import {
 
 interface CustomMessageVideoProps {
   fileName: string;
+  /**
+   * The sender's original file name (bug #40) - kept alongside `fileName`
+   * so the preview modal's save/share/download logic can prefer it over
+   * the server's stored/hashed name.
+   */
+  originalName?: string;
   fileURL: string;
   mimetype: string;
   /** The backend-generated poster frame (message.locationPreview). */
@@ -126,6 +132,7 @@ const PlaceholderVideo: React.FC<{
 
 const CustomMessageVideo: React.FC<CustomMessageVideoProps> = ({
   fileName,
+  originalName,
   fileURL,
   mimetype,
   previewURL,
@@ -134,7 +141,7 @@ const CustomMessageVideo: React.FC<CustomMessageVideoProps> = ({
   const [posterFailed, setPosterFailed] = useState(false);
 
   const handleOpen = () => {
-    dispatch(setActiveFile({ fileName, fileURL, mimetype }));
+    dispatch(setActiveFile({ fileName, fileURL, mimetype, originalName }));
     dispatch(setActiveModal(MODAL_TYPES.FILE_PREVIEW));
   };
 

@@ -19,6 +19,7 @@ import { CameraIcon, DocumentIcon } from '../../../assets/icons';
 import { useChatSettingState } from '../../../hooks/useChatSettingState';
 import { useTheme } from '../../../hooks/useTheme';
 import { chatTextStyle } from '../../../helpers/typography';
+import { useT } from '../../../i18n/useT';
 import { getMediaLibrary } from '../../../helpers/mediaLibraryRuntime';
 import {
   shouldClaimVerticalDrag,
@@ -111,6 +112,7 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
   const chromeText = theme.dark ? theme.text : '#1C1C1E';
   const chromeMuted = theme.dark ? theme.textSecondary : '#8A8A8E';
   const chromeHairline = theme.dark ? theme.divider : '#EFEFF2';
+  const t = useT();
   const pendingRef = useRef<(() => void) | null>(null);
   const runPending = () => {
     const fn = pendingRef.current;
@@ -312,7 +314,7 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
   }[] = [
     {
       id: 'Document',
-      label: 'Upload a File',
+      label: t('attach.uploadFile'),
       Icon: DocumentIcon,
       handler: onDocument,
     },
@@ -379,7 +381,7 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
                 chatTextStyle(ts?.title),
               ]}
             >
-              Photos & Videos
+              {t('attach.photosAndVideos')}
             </Text>
             <TouchableOpacity
               testID="attach-view-library"
@@ -394,7 +396,7 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
                   chatTextStyle(ts?.viewLibrary),
                 ]}
               >
-                View Library
+                {t('attach.viewLibrary')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -408,6 +410,8 @@ const AttachSheet: React.FC<AttachSheetProps> = ({
             {/* Camera tile — always first, works without library access. */}
             <TouchableOpacity
               testID="attach-row-Camera"
+              accessibilityRole="button"
+              accessibilityLabel={t('attach.takePhoto')}
               activeOpacity={0.7}
               style={[
                 styles.cameraTile,

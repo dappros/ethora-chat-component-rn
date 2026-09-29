@@ -93,6 +93,25 @@ export const createMessageFromXml = async (
   const senderLocal = senderJID.includes('@')
     ? senderJID.split('@')[0]
     : senderJID;
+
+  // Bug #41 root cause: the resource of the MUC `from` (room@conference/
+  // occupant-id) is the SAME field getDataFromXml uses to derive
+  // `user.id` for live messages and for the wrapped MAM convention
+  // (getHistory.xmpp.ts) - it's stamped by the server itself when the
+  // sender joined the room, so it's always present and always correct.
+  // The positional convention (onMessageHistory's MAM catch-up path)
+  // never called getDataFromXml, so it fell back to splitting the
+  // sender-supplied `<data senderJID>` attr on '@' instead - usually the
+  // same value, but WRONG (picks up the room's own id, not the
+  // sender's) whenever senderJID is absent from the stanza, and simply a
+  // different derivation than the live path even when it happens to
+  // agree. Prefer the resource-of-`from` here too so every path that
+  // reaches this function resolves the same sender identity the same
+  // way, instead of MAM catch-up rows needing a later correction once
+  // the "official" fetch lands.
+  const xmppFrom = (merged.xmppFrom || '').toString();
+  const fromResource = xmppFrom.includes('/') ? xmppFrom.split('/')[1] : '';
+
   const composed = [firstName, lastName].filter(Boolean).join(' ').trim();
   const existingName = String(merged?.user?.name || '').trim();
   const resolvedName =
@@ -107,7 +126,7 @@ export const createMessageFromXml = async (
     ...merged,
     user: {
       ...(merged.user || {}),
-      id: merged?.user?.id || senderLocal,
+      id: merged?.user?.id || fromResource || senderLocal,
       name: resolvedName,
       firstName: firstName || merged?.user?.firstName,
       lastName: lastName || merged?.user?.lastName,

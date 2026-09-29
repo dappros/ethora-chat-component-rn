@@ -63,6 +63,23 @@ jest.mock('react-native', () => {
     Dimensions: {
       get: () => ({ width: 390, height: 844 }),
     },
+    // jest-expo's own setup imports expo-modules-core, which calls
+    // `Platform.select` at module scope. This factory replaces the WHOLE
+    // react-native module, so leaving Platform out made that call read
+    // `.select` off undefined and the suite died before a single test ran.
+    Platform: {
+      OS: 'ios',
+      Version: 17,
+      isPad: false,
+      isTV: false,
+      select: (spec: any) =>
+        'ios' in spec ? spec.ios : spec.native ?? spec.default,
+    },
+    Keyboard: {
+      addListener: () => ({ remove: () => {} }),
+      removeAllListeners: () => {},
+      dismiss: () => {},
+    },
     FlatList,
   };
 });
@@ -278,5 +295,52 @@ describe('MessageList new-message UX', () => {
     );
 
     expect(labels.length).toBeGreaterThan(0);
+  });
+
+  it('positions the local divider exactly between the last-reached message and the first genuinely-new one (bug #42 exactness)', async () => {
+    const store = makeStore();
+    seedRoom(
+      store,
+      [
+        makeMessage(1710000000000, 'old-1'),
+        makeMessage(1710000001000, 'old-2'),
+        makeMessage(1710000002000, 'old-3'),
+      ],
+      0
+    );
+
+    const tree = await renderMessageList(store);
+    const flatList = tree.root.findByProps({ testID: 'mock-flat-list' });
+
+    // Scroll away from the bottom - this snapshots the read boundary at
+    // the NEWEST message currently in view (old-3).
+    await act(async () => {
+      flatList.props.onScroll?.({
+        nativeEvent: { contentOffset: { y: 280 } },
+      });
+    });
+
+    await act(async () => {
+      store.dispatch(
+        addRoomMessage({
+          roomJID: ROOM,
+          message: makeMessage(1710000003000, 'new-1'),
+        })
+      );
+    });
+
+    const updated = tree.root.findByProps({ testID: 'mock-flat-list' });
+    const ids = updated.props.data.map((item: any) => String(item.id));
+    // Inverted list: index 0 renders at the bottom (newest). The divider
+    // must sit directly below old-3 (the last message the user reached)
+    // and above new-1 (the first genuinely new one) - NOT above old-3,
+    // which is exactly the "one message too high" regression (bug #42).
+    expect(ids).toEqual([
+      '1710000003000',
+      'delimiter-new-local',
+      '1710000002000',
+      '1710000001000',
+      '1710000000000',
+    ]);
   });
 });

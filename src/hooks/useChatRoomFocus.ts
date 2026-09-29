@@ -1,12 +1,17 @@
 import { useEffect, useRef } from 'react';
 import { useDispatch } from 'react-redux';
 import {
+  clearReadBoundary,
   clearVisibleRoom,
   setCurrentRoom,
   setLastViewedTimestamp,
   setVisibleRoom,
 } from '../roomStore/roomsSlice';
 import { store } from '../roomStore';
+import {
+  getFlushBoundaryTs,
+  getReadMarkerTimestamp,
+} from '../helpers/getServerReadTimestamp';
 
 interface UseChatRoomFocusOptions {
   /** The room JID that the consumer's tab/screen is currently showing. */
@@ -32,7 +37,10 @@ interface UseChatRoomFocusOptions {
  * Without this hook, `useUnread()` will always return 0 for the chat
  * room because the SDK assumes "mounted == active". With this hook,
  * focus marks the room visible (clearing the badge) and blur stamps
- * `lastViewedTimestamp = Date.now()` so future messages count as unread.
+ * `lastViewedTimestamp` to the newest SERVER-acknowledged message so
+ * future messages count as unread. Deliberately not `Date.now()`: a
+ * device clock running ahead would write a future marker that the
+ * forward-only private-store merge could never correct again (bug #38).
  *
  * Usage with React Navigation:
  *
@@ -58,20 +66,52 @@ export const useChatRoomFocus = ({
     isFocused: false,
   });
 
-  const leaveRoom = (jid: string) => {
-    const timestamp = Date.now();
-    dispatch(setLastViewedTimestamp({ chatJID: jid, timestamp }));
+  // `clearBoundary`: pass true only when the room the user is leaving is
+  // genuinely being released (switching to a different room, or this
+  // hook unmounting) - not on a mere same-room blur. `<ChatRoom>`'s
+  // MessageList typically stays mounted across a same-room focus loss
+  // (the whole point of this hook is that the host keeps `<Chat>`
+  // mounted in a hidden tab), so its own scroll-tracking ref is still
+  // intact and the redux boundary must stay in sync with it - clearing
+  // it here would desync the two.
+  const leaveRoom = (jid: string, clearBoundary: boolean) => {
+    const state = store.getState();
+    const rooms = state.rooms?.rooms;
+    const boundaryTs = state.rooms?.readBoundaries?.[jid] ?? null;
+    // getReadMarkerTimestamp: honour the boundary (the newest message the
+    // user actually reached) when the user left this room scrolled up,
+    // otherwise fall back to the newest server-acked message. Only stamp
+    // when we actually have something to anchor to - skip rather than
+    // fall back to the device clock (bug #38). Ignoring the boundary here
+    // would stamp "everything read" regardless of scroll position (bug
+    // #42, a regression of #33 reintroduced by #38).
+    const timestamp = getReadMarkerTimestamp(rooms?.[jid], state.roomHeapSlice, boundaryTs);
+    if (timestamp > 0) {
+      dispatch(setLastViewedTimestamp({ chatJID: jid, timestamp }));
+    }
     dispatch(clearVisibleRoom());
-    const rooms = store.getState().rooms?.rooms;
-    (store.getState().chatSettingStore as any)?.client
-      ?.flushLastViewedToPrivateStoreStanza(rooms, { visibleRoomJID: jid })
+    (state.chatSettingStore as any)?.client
+      ?.flushLastViewedToPrivateStoreStanza(rooms, {
+        visibleRoomJID: jid,
+        // Carry the same boundary to the SERVER marker - without it the
+        // flush defaults to "everything" for the visible room. Clamped
+        // through the same helper as the local stamp above.
+        visibleRoomTs: getFlushBoundaryTs(
+          rooms?.[jid],
+          state.roomHeapSlice,
+          boundaryTs
+        ),
+      })
       .catch(() => {});
+    if (clearBoundary) {
+      dispatch(clearReadBoundary({ jid }));
+    }
   };
 
   useEffect(() => {
     const prev = prevRef.current;
     if (prev.isFocused && prev.roomJID && (prev.roomJID !== roomJID || !isFocused)) {
-      leaveRoom(prev.roomJID);
+      leaveRoom(prev.roomJID, prev.roomJID !== roomJID);
     }
 
     if (roomJID && isFocused) {
@@ -86,7 +126,7 @@ export const useChatRoomFocus = ({
     return () => {
       const prev = prevRef.current;
       if (prev.isFocused && prev.roomJID) {
-        leaveRoom(prev.roomJID);
+        leaveRoom(prev.roomJID, true);
       }
     };
   }, []);

@@ -8,6 +8,7 @@ import { useChatSettingState } from '../../hooks/useChatSettingState';
 import { BurgerMenuIcon } from '../../assets/icons';
 import Button from '../styled/Button';
 import { useTheme } from '../../hooks/useTheme';
+import { useT } from '../../i18n/useT';
 
 interface HeaderRoomListProps {
   setDrawerOpen: () => void;
@@ -16,6 +17,7 @@ interface HeaderRoomListProps {
 export const HeaderRoomList: FC<HeaderRoomListProps> = ({ setDrawerOpen }) => {
   const { config, user, selectedUser } = useChatSettingState();
   const theme = useTheme();
+  const t = useT();
   const insets = useSafeAreaInsets();
   const topInset = config?.headerLayout?.safeAreaTop ? insets.top : 0;
 
@@ -69,7 +71,7 @@ export const HeaderRoomList: FC<HeaderRoomListProps> = ({ setDrawerOpen }) => {
           HeaderLogo
         ) : (
           <Text style={{ fontWeight: 500, fontSize: 18, color: theme.text }}>
-            Chats
+            {t('roomList.title')}
           </Text>
         )}
       </View>

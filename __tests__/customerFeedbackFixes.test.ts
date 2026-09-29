@@ -170,23 +170,15 @@ describe('customer feedback round — locked behaviour', () => {
       const { onGetMembers } = require('../src/networking/stanzaHandlers');
       onGetMembers(stanza);
 
-      // Two dispatches now: updateRoom (roster) + mergeUsersSet (identity
-      // cache the message sender-name resolver reads from).
-      expect(dispatched).toHaveLength(2);
-      const action = dispatched[0];
-      expect(action.type).toMatch(/updateRoom/);
-      const members = action.payload.updates.roomMembers;
-      expect(members).toHaveLength(1);
-      expect(members[0].firstName).toBe('Existing'); // preserved from existing
-      expect(members[0].lastName).toBe('User');
-      expect(members[0].role).toBe('moderator'); // added from stanza
-
-      // mergeUsersSet feeds the same member into usersSet, keyed by jid /
-      // localpart, so Message.tsx can resolve the sender's display name.
-      const mergeAction = dispatched[1];
-      expect(mergeAction.type).toMatch(/mergeUsersSet/);
-      expect(mergeAction.payload.members.eu.firstName).toBe('Existing');
-      expect(mergeAction.payload.members.eu.role).toBe('moderator');
+      // NOTHING dispatched — mirroring the web SDK, where onGetMembers
+      // parses the activity list and never touches the store. Both old
+      // dispatches poisoned good REST data with empty-named entries:
+      // updateRoom blanked room.roomMembers (REST members carry no jid, so
+      // the existing-by-jid lookup always missed) and mergeUsersSet
+      // clobbered REST-hydrated identity entries under the exact key the
+      // sender-name resolver reads first — the "most of usersSet is empty"
+      // bug. REST is the one hydration path for both stores.
+      expect(dispatched).toHaveLength(0);
     });
   });
 

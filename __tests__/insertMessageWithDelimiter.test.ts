@@ -114,6 +114,66 @@ describe('insertMessageWithDelimiter — dedup', () => {
   });
 });
 
+describe('insertMessageWithDelimiter — merge does not drop translations', () => {
+  it('keeps an existing translation when the incoming update has no <translations> element', () => {
+    // Mirrors exactly what getDataFromXml/createMessageFromXml hand back
+    // for a stanza that didn't carry a <translations> element: the field
+    // is present on the object, explicitly `undefined` (see
+    // src/helpers/getDataFromXml.ts) — not simply absent. `for...in`
+    // still visits an explicit-`undefined` key, so a naive merge would
+    // read `source.translations === undefined` and overwrite the
+    // existing value with it, silently erasing a translation the row
+    // already had (e.g. a MAM catch-up echo, or a live update that only
+    // carries a reaction/edit) — a message flipping from translated back
+    // to the original for no reason.
+    const list: IMessage[] = [
+      makeMsg('a', '2026-05-01T10:00:00Z', {
+        langSource: 'en',
+        translations: {
+          es: {
+            translatedText: 'hola',
+            language: 'es',
+            languageName: 'Spanish',
+          },
+        },
+      } as any),
+    ];
+
+    const incoming = makeMsg('a', '2026-05-01T10:00:00Z', {
+      body: 'hi (edited)',
+    }) as any;
+    incoming.translations = undefined; // explicit key, not simply omitted
+
+    insertMessageWithDelimiter(list, incoming, null);
+
+    expect(list).toHaveLength(1);
+    expect(list[0].body).toBe('hi (edited)');
+    expect((list[0] as any).translations?.es?.translatedText).toBe('hola');
+  });
+
+  it('still lets a real translations payload overwrite the old one', () => {
+    const list: IMessage[] = [
+      makeMsg('a', '2026-05-01T10:00:00Z', {
+        translations: {
+          es: { translatedText: 'stale', language: 'es', languageName: 'Spanish' },
+        },
+      } as any),
+    ];
+
+    insertMessageWithDelimiter(
+      list,
+      makeMsg('a', '2026-05-01T10:00:00Z', {
+        translations: {
+          es: { translatedText: 'fresh', language: 'es', languageName: 'Spanish' },
+        },
+      } as any),
+      null
+    );
+
+    expect((list[0] as any).translations?.es?.translatedText).toBe('fresh');
+  });
+});
+
 describe('insertMessageWithDelimiter — "New Messages" divider', () => {
   it('injects the divider when the newer message crosses lastViewedTimestamp', () => {
     const list: IMessage[] = [makeMsg('old', '2026-05-01T10:00:00Z')];
@@ -182,5 +242,76 @@ describe('insertMessageWithDelimiter — "New Messages" divider', () => {
       null
     );
     expect(list.some((m) => m.id === 'delimiter-new')).toBe(false);
+  });
+});
+
+describe('insertMessageWithDelimiter - numeric marker source (bug #42)', () => {
+  // Server-assigned id: 13-digit ms prefix, the same source msgSortableMs
+  // (unreadMiddleware, countNewerMessages, getServerReadTimestamp) reads.
+  // `date` is set independently of the id's ms so these tests can prove
+  // the divider is positioned off msgSortableMs, not off a `.date`
+  // string comparison (the pre-fix behaviour).
+  const serverMsg = (idMs: number, dateMs: number, id = `${idMs}`): IMessage =>
+    ({
+      id,
+      user: { id: 'u', name: 'u', token: '', refreshToken: '' } as any,
+      date: new Date(dateMs).toISOString(),
+      body: `body-${id}`,
+      roomJid: 'r@h',
+    } as IMessage);
+
+  it('accepts a plain number marker (not just a Date object)', () => {
+    const list: IMessage[] = [
+      serverMsg(1_700_000_000_000, 1_700_000_000_000, 'old'),
+    ];
+    insertMessageWithDelimiter(
+      list,
+      serverMsg(1_700_000_002_000, 1_700_000_002_000, 'new'),
+      1_700_000_000_000 // raw number, not `new Date(...)`
+    );
+    expect(list.map((m) => m.id)).toEqual(['old', 'delimiter-new', 'new']);
+  });
+
+  it('a numeric-string marker is read as epoch-ms, not silently parsed as Invalid Date', () => {
+    // `new Date("1700000000000")` is Invalid Date (the string is parsed
+    // as a date, and a bare 13-digit string matches no recognized
+    // format) - every `isDateAfter` comparison against it used to
+    // silently evaluate false, which is exactly what the old
+    // date-string-comparison code in this file did when handed a raw
+    // numeric-string marker instead of a Date object.
+    const list: IMessage[] = [
+      serverMsg(1_700_000_000_000, 1_700_000_000_000, 'old'),
+    ];
+    insertMessageWithDelimiter(
+      list,
+      serverMsg(1_700_000_002_000, 1_700_000_002_000, 'new'),
+      { toString: () => '1700000000000' } as any
+    );
+    expect(list.map((m) => m.id)).toEqual(['old', 'delimiter-new', 'new']);
+  });
+
+  it("when the marker equals the last read message's own id-encoded ms exactly, the divider lands between it and the first unread - not above it (bug #42)", () => {
+    const N_MS = 1_700_000_000_000;
+    // N's `.date` lags its id-encoded ms by 10ms - real-world drift
+    // between the server timestamp embedded in the id and the `date`
+    // field. Comparing the marker against `.date` (the old behaviour)
+    // risks exactly this kind of message landing on the wrong side of
+    // the cut; comparing via msgSortableMs on both sides does not.
+    const list: IMessage[] = [
+      serverMsg(N_MS - 5000, N_MS - 5000, 'read-1'),
+      serverMsg(N_MS, N_MS - 10, 'N'), // the last message the user reached
+    ];
+    insertMessageWithDelimiter(
+      list,
+      serverMsg(N_MS + 1000, N_MS + 1000, 'N+1'),
+      N_MS
+    );
+    // N stays on the READ side (divider comes AFTER it), not above it.
+    expect(list.map((m) => m.id)).toEqual([
+      'read-1',
+      'N',
+      'delimiter-new',
+      'N+1',
+    ]);
   });
 });

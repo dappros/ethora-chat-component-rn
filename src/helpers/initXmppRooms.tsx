@@ -1,5 +1,4 @@
 import { setCurrentRoom, setIsLoading } from '../roomStore/roomsSlice';
-import { updatedChatLastTimestamps } from './updatedChatLastTimestamps';
 import { initRoomsPresence } from './initRoomsPresence';
 import XmppClient from '../networking/xmppClient';
 import { IConfig, IRoom, User } from '../types/types';
@@ -48,15 +47,16 @@ const initXmppRooms = async (
         console.log(res);
       }
 
-      //@ts-ignore
-      const roomTimestampObject: [jid: string, timestamp: string] =
-        await (xmmpClient as any as XmppClient).getChatsPrivateStoreRequestStanza();
-      updatedChatLastTimestamps(roomTimestampObject, store.dispatch);
+      // getChatsPrivateStoreRequestStanza hydrates redux itself
+      // (dispatch(applyPrivateStoreMarkers(...)) internally, clamped +
+      // forward-only) - do not also apply the raw return value here. That
+      // used to double-dispatch via updatedChatLastTimestamps' unconditional
+      // setLastViewedTimestamp, which has neither the forward-only guard
+      // nor the future-marker clamp, so it could silently re-clobber a
+      // value the clamp had just corrected (bug #38).
+      await (xmmpClient as any as XmppClient).getChatsPrivateStoreRequestStanza();
     } else {
-      //@ts-ignore
-      const roomTimestampObject: [jid: string, timestamp: string] =
-        await xmmpClient.getChatsPrivateStoreRequestStanza();
-      updatedChatLastTimestamps(roomTimestampObject, store.dispatch);
+      await xmmpClient.getChatsPrivateStoreRequestStanza();
     }
 
     if (config?.refreshTokens?.enabled) {

@@ -1,5 +1,6 @@
 import React, { FC, Fragment, useMemo } from 'react';
 import { IConfig, IMessage } from '../../types/types';
+import { isOwnMessage } from '../../helpers/isOwnMessage';
 import DateLabel from '../styled/DateLabel';
 import SystemMessage from './SystemMessage';
 import NewMessageLabel from '../styled/NewMessageLabel';
@@ -46,7 +47,10 @@ export const MessageContainer: FC<MessageContainerProps> = ({
   isReply,
   className,
 }) => {
-  const isUser = message.user.id === walletAddress;
+  // Bug #41: `message.user.id === walletAddress` used to treat two
+  // empty/undefined ids as a match, briefly rendering catch-up messages
+  // from other users as our own. isOwnMessage() never does that.
+  const isUser = isOwnMessage(message, walletAddress);
 
   const messageDate = new Date(message.date);
 

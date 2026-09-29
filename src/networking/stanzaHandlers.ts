@@ -8,15 +8,14 @@ import {
   setComposing,
   setCurrentRoom,
   setRoomRole,
-  updateRoom,
-  mergeUsersSet,
 } from '../roomStore/roomsSlice';
-import { IRoom, RoomMember } from '../types/types';
+import { IRoom } from '../types/types';
 import { createMessageFromXml } from '../helpers/createMessageFromXml';
 import { getDataFromXml } from '../helpers/getDataFromXml';
 import { setDeleteModal } from '../roomStore/chatSettingsSlice';
 import { messageNotificationManager } from '../utils/messageNotificationManager';
 import { transformCallLogMessage } from '../helpers/callLogMessage';
+import { translateKey } from '../i18n/strings';
 
 // TO DO: we are thinking to refactor this code in the following way:
 // each stanza will be parsed for 'type'
@@ -121,13 +120,24 @@ const onRealtimeMessage = async (stanza: Element) => {
       }
       const room = state.rooms.rooms[roomJID];
       const roomName = room?.title || room?.name || '';
+      // Fallback when we don't have a display name for the sender. This is
+      // user-visible — it renders as the sender line in the in-app
+      // notification toast (see MessageNotificationContext's ToastRow:
+      // `{senderName}: {message.body}`) — so it goes through the static
+      // i18n table like any other UI caption. We're outside React here
+      // (stanza handler, not a component), so resolve the locale from the
+      // store directly and call `translateKey` instead of `useT()`.
+      const locale =
+        state.chatSettingStore.config?.i18n?.locale ||
+        state.chatSettingStore.langSource;
+      const overrides = state.chatSettingStore.config?.i18n?.strings;
       const senderName = [
         data.attrs.senderFirstName,
         data.attrs.senderLastName,
       ]
         .filter(Boolean)
         .join(' ')
-        .trim() || 'New message';
+        .trim() || translateKey('notification.senderFallback', locale, overrides);
       messageNotificationManager.showNotification(
         message,
         roomName,
@@ -227,11 +237,11 @@ const onMessageHistory = async (stanza: any) => {
     // what senderJID would have held — fall back to it. createMessageFromXml
     // already derives a display name from the jid when senderFirstName/
     // senderLastName are absent.
-    const innerFrom =
-      stanza
-        .getChild('result')
-        ?.getChild('forwarded')
-        ?.getChild('message')?.attrs?.from || stanza.attrs.from;
+    const forwardedMessage = stanza
+      .getChild('result')
+      ?.getChild('forwarded')
+      ?.getChild('message');
+    const innerFrom = forwardedMessage?.attrs?.from || stanza.attrs.from;
     const senderJID = data?.attrs?.senderJID || innerFrom;
     if (!data?.attrs || !senderJID) {
       // console.log(
@@ -242,13 +252,42 @@ const onMessageHistory = async (stanza: any) => {
     }
     const mergedAttrs = { ...data.attrs };
     if (!mergedAttrs.senderJID) {mergedAttrs.senderJID = senderJID;}
-    const rawMessage = await createMessageFromXml(
+    // The forwarded <message>'s own stanza id is our original send id
+    // (what `xmppId` holds on the live/wrapped paths) - capture it so
+    // this MAM-replayed message dedupes against its live echo /
+    // optimistic pending bubble the same way, instead of never carrying
+    // an xmppId at all.
+    if (forwardedMessage?.attrs?.id) {mergedAttrs.xmppId = forwardedMessage.attrs.id;}
+    const positionalMessage = await createMessageFromXml(
       mergedAttrs,
       body,
       id,
-      stanza.attrs.from,
+      // Bug #41: pass the resource-bearing occupant `from`
+      // (room@conference/sender-id) here, not the outer envelope's
+      // `stanza.attrs.from` (which has no resource for a MAM result).
+      // createMessageFromXml derives `user.id` from this field's
+      // resource - the same authoritative source getDataFromXml uses
+      // for live messages - so catch-up rows resolve the correct
+      // sender from the very first render instead of needing a later
+      // correction once the "official" history fetch lands.
+      innerFrom,
       !!deleted
     );
+
+    // Translations ride on the archived stanza too (<translations> +
+    // <translate source>), but the positional parse above only reads
+    // <data> attrs + <body>, so every MAM-backfilled message lost them -
+    // translation looked dead on every room open. Parse the full stanza
+    // the way the realtime path does and carry ONLY those two fields over,
+    // so sender/xmppId resolution above (bug #41) stays exactly as is.
+    const parsedFull = await getDataFromXml(stanza).catch(() => undefined);
+    const rawMessage = {
+      ...positionalMessage,
+      ...(parsedFull?.translations
+        ? { translations: parsedFull.translations }
+        : {}),
+      ...(parsedFull?.langSource ? { langSource: parsedFull.langSource } : {}),
+    };
 
     // Same call-log transform as the realtime path, applied to archived
     // history so calls received while offline still render as log entries.
@@ -349,68 +388,18 @@ const onChatInvite = async (stanza: Element, client: any) => {
 
 const onGetMembers = (stanza: Element) => {
   if (String(stanza.attrs?.id || '') !== 'roomMemberInfo') {return;}
-
-  try {
-    const queries: Element[] = stanza.getChildren('query') ?? [];
-    const activities: Element[] = [];
-    let roomJid = '';
-    for (const q of queries) {
-      if (!roomJid && q.attrs?.room) {roomJid = q.attrs.room;}
-      const acts = q.getChildren('activity') ?? [];
-      for (const a of acts) {activities.push(a);}
-    }
-
-    const jid = roomJid || store.getState().rooms.activeRoomJID;
-    if (!jid || activities.length === 0) {return;}
-
-    const existingRoom = store.getState().rooms.rooms[jid];
-    const existingMembers: RoomMember[] = existingRoom?.roomMembers ?? [];
-    const existingByJid = new Map<string, RoomMember>(
-      existingMembers
-        .filter((m): m is RoomMember & { jid: string } => !!m.jid)
-        .map((m) => [m.jid, m])
-    );
-
-    const roomMembers: RoomMember[] = activities.map((a) => {
-      const memberJid: string | undefined = a.attrs?.jid;
-      const existing = memberJid ? existingByJid.get(memberJid) : undefined;
-      // The activity stanza carries only the XMPP-side fields
-      // (name/role/ban_status/last_active/jid). REST-loaded existing
-      // members supply firstName/lastName/xmppUsername/_id; when there's
-      // no REST match yet we leave those as empty strings.
-      return {
-        firstName: existing?.firstName ?? '',
-        lastName: existing?.lastName ?? '',
-        xmppUsername: existing?.xmppUsername ?? '',
-        _id: existing?._id ?? '',
-        ...existing,
-        name: a.attrs?.name,
-        role: a.attrs?.role,
-        ban_status: a.attrs?.ban_status,
-        last_active: Number(a.attrs?.last_active),
-        jid: memberJid,
-      };
-    });
-
-    store.dispatch(updateRoom({ jid, updates: { roomMembers } }));
-
-    // Also feed the identity cache Message.tsx reads sender names from
-    // (state.rooms.usersSet). Keyed by both the bare local part and the
-    // full jid since a message's `user.id` can be either depending on
-    // how it was parsed (see createUserNameFromSetUser).
-    const usersSetUpdates: Record<string, RoomMember> = {};
-    for (const member of roomMembers) {
-      if (!member.jid) {continue;}
-      const local = member.jid.split('@')[0];
-      usersSetUpdates[local] = member;
-      usersSetUpdates[member.jid] = member;
-    }
-    if (Object.keys(usersSetUpdates).length > 0) {
-      store.dispatch(mergeUsersSet({ members: usersSetUpdates }));
-    }
-  } catch (err) {
-    console.warn('onGetMembers parse failed', err);
-  }
+  // Deliberately dispatches NOTHING — mirroring the web SDK, where this
+  // handler parses the activity list into a local and never touches the
+  // store. The activity stanza carries no firstName/lastName, and both of
+  // the old dispatches poisoned good REST data with empty-named entries:
+  //   - updateRoom wholesale-replaced room.roomMembers (REST members carry
+  //     no jid, so the existing-by-jid lookup always missed), blanking the
+  //     ChatProfileModal member list;
+  //   - mergeUsersSet overwrote REST-hydrated identity entries under the
+  //     exact localpart key the sender-name resolver reads first, which is
+  //     why most of usersSet ended up empty.
+  // REST (/chats/my → dispatchUsersSetFromRestItems + the roomMembers
+  // build in rooms.api.ts) is the one hydration path for both stores.
 };
 
 const onGetRoomInfo = (stanza: Element) => {
