@@ -1,11 +1,18 @@
-import React, {useMemo} from 'react';
-import {Provider, useDispatch} from 'react-redux';
+import React, {useEffect, useMemo, useRef} from 'react';
+import {useColorScheme} from 'react-native';
+import {Provider, useDispatch, useSelector} from 'react-redux';
 import {KeyboardProvider} from 'react-native-keyboard-controller';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {ThemeProvider} from 'styled-components/native';
-import {resolveTheme} from '../../theme/theme';
+import {applyThemePreference, resolveTheme} from '../../theme/theme';
 import {store} from '../../roomStore';
-import {setConfig} from '../../roomStore/chatSettingsSlice';
+import type {RootState} from '../../roomStore';
+import {
+  setConfig,
+  setPushEnabled,
+  setThemePreference,
+} from '../../roomStore/chatSettingsSlice';
+import {loadPreferences} from '../../helpers/preferencesStorage';
 import {ConfigUser, IConfig, MessageProps} from '../../types/types';
 import {XmppProvider} from '../../context/xmppProvider';
 import {MessageNotificationProvider} from '../../context/MessageNotificationContext';
@@ -53,6 +60,42 @@ const ConfigEnabler: React.FC<{config?: IConfig}> = ({config}) => {
   return null;
 };
 
+const ChatThemeProvider: React.FC<{config?: IConfig; children: React.ReactNode}> = ({
+  config,
+  children,
+}) => {
+  const dispatch = useDispatch();
+  const storeConfig = useSelector((s: RootState) => s.chatSettingStore.config);
+  const preference = useSelector(
+    (s: RootState) => s.chatSettingStore.themePreference,
+  );
+  const systemDark = useColorScheme() === 'dark';
+  const effective = applyThemePreference(storeConfig ?? config, preference);
+  const theme = useMemo(
+    () => resolveTheme(effective, systemDark),
+    [effective, systemDark],
+  );
+
+  const hydrated = useRef(false);
+  useEffect(() => {
+    if (hydrated.current) {return;}
+    hydrated.current = true;
+    loadPreferences().then((prefs) => {
+      if (prefs.theme) {dispatch(setThemePreference(prefs.theme));}
+      if (typeof prefs.pushEnabled === 'boolean') {
+        dispatch(setPushEnabled(prefs.pushEnabled));
+      }
+    });
+  }, [dispatch]);
+
+  const onThemeChange = config?.eventHandlers?.onThemeChange;
+  useEffect(() => {
+    if (preference && onThemeChange) {onThemeChange(preference, theme.dark);}
+  }, [preference, theme.dark, onThemeChange]);
+
+  return <ThemeProvider theme={theme}>{children}</ThemeProvider>;
+};
+
 export const ReduxWrapper: React.FC<ChatWrapperProps> = React.memo(
   ({...props}) => {
     const memoizedConfig = useMemo(() => {
@@ -70,13 +113,11 @@ export const ReduxWrapper: React.FC<ChatWrapperProps> = React.memo(
     // KeyboardAvoidingView under the same flag).
     const ownKeyboardHandling = !memoizedConfig?.disableKeyboardAvoidingView;
 
-    // Light/dark palette (config.dark + config.darkColors). Styled
-    // components read it via `({ theme }) => theme.surface`; plain RN
-    // styles via the `useTheme()` hook.
-    const theme = useMemo(() => resolveTheme(memoizedConfig), [memoizedConfig]);
-
+    // Light/dark palette (config.dark + config.darkColors + the Settings
+    // choice). Styled components read it via `({ theme }) => theme.surface`;
+    // plain RN styles via the `useTheme()` hook.
     const tree = (
-      <ThemeProvider theme={theme}>
+      <ChatThemeProvider config={memoizedConfig}>
         <XmppProvider config={memoizedConfig} isVisible={props.isVisible}>
           <ToastProvider>
             <MessageNotificationProvider config={memoizedConfig}>
@@ -84,7 +125,7 @@ export const ReduxWrapper: React.FC<ChatWrapperProps> = React.memo(
             </MessageNotificationProvider>
           </ToastProvider>
         </XmppProvider>
-      </ThemeProvider>
+      </ChatThemeProvider>
     );
 
     return (

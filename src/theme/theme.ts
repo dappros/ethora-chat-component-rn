@@ -1,5 +1,7 @@
 /** @format */
 
+import { Appearance } from 'react-native';
+
 /**
  * Chat theme.
  *
@@ -161,7 +163,10 @@ export const DARK_THEME: ChatThemeColors = {
 /** The subset of IConfig the theme depends on (kept structural so the
  * helpers can be called with partial configs in tests). */
 export interface ThemeConfigInput {
-  dark?: boolean;
+  /** `true` forces dark, `'system'` follows the OS appearance (pass the
+   * current scheme as `systemDark` to resolveTheme / isDarkTheme; omitted,
+   * the OS scheme is read directly). */
+  dark?: boolean | 'system';
   darkColors?: ChatThemeOverrides;
   colors?: {
     primary?: string;
@@ -179,8 +184,16 @@ export interface ThemeConfigInput {
   backgroundChat?: { color?: string };
 }
 
-export const isDarkTheme = (config?: ThemeConfigInput | null): boolean =>
-  !!config?.dark;
+/** The OS appearance right now — the fallback when a caller has no hook. */
+// Optional chaining on `Appearance` itself: tests that mock react-native
+// partially leave it undefined, and a missing module must read as light.
+const systemIsDark = (): boolean => Appearance?.getColorScheme?.() === 'dark';
+
+export const isDarkTheme = (
+  config?: ThemeConfigInput | null,
+  systemDark: boolean = systemIsDark()
+): boolean =>
+  config?.dark === 'system' ? systemDark : config?.dark === true;
 
 const pick = <T>(...values: (T | undefined | null | '')[]): T | undefined =>
   values.find((v) => v !== undefined && v !== null && v !== '') as
@@ -196,8 +209,11 @@ const stripUndefined = (o: ChatThemeOverrides): ChatThemeOverrides =>
  * Build the effective palette for a config. Pure; memoize at the call
  * site (useTheme does).
  */
-export const resolveTheme = (config?: ThemeConfigInput | null): ChatTheme => {
-  if (isDarkTheme(config)) {
+export const resolveTheme = (
+  config?: ThemeConfigInput | null,
+  systemDark?: boolean
+): ChatTheme => {
+  if (isDarkTheme(config, systemDark)) {
     const overrides = stripUndefined(config?.darkColors ?? {});
     const primary = pick(overrides.primary, DARK_THEME.primary)!;
     return {
@@ -240,4 +256,22 @@ export const resolveTheme = (config?: ThemeConfigInput | null): ChatTheme => {
     dark: false,
     statusBarStyle: 'dark-content',
   };
+};
+
+/** In-app appearance choice from Settings; `undefined` = follow the host's config.dark. */
+export type ThemePreference = 'light' | 'dark' | 'system';
+
+/**
+ * Fold the user's in-app appearance choice into a config: the choice wins
+ * over the host's `dark` (a host that wants to lock the theme hides the
+ * setting with `settings.hideAppearance`). Returns the same object when
+ * nothing changes, so memoised consumers do not re-render.
+ */
+export const applyThemePreference = <T extends { dark?: boolean | 'system' }>(
+  config: T | undefined,
+  preference?: ThemePreference
+): T | undefined => {
+  if (!preference || !config) {return config;}
+  const dark = preference === 'system' ? ('system' as const) : preference === 'dark';
+  return config.dark === dark ? config : { ...config, dark };
 };

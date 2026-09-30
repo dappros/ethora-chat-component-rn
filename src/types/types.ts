@@ -386,8 +386,10 @@ export interface IConfig {
    * not applied — pass brand colours via `darkColors` instead.
    *
    *   config: { dark: true, darkColors: { primary: '#7C3AED', surface: '#111' } }
+   *
+   * `'system'` follows the device appearance (light/dark) automatically.
    */
-  dark?: boolean;
+  dark?: boolean | 'system';
   /** Per-entry overrides of the dark palette; see ChatThemeColors. */
   darkColors?: ChatThemeOverrides;
   /** Configurable font family / weights for the chat UI. See TypographyConfig. */
@@ -787,8 +789,29 @@ export interface IConfig {
     firebaseConfig?: FBConfig;
   };
 
+  /** Settings screen switches. */
+  settings?: {
+    /** Hide the Light / Dark / System appearance picker (host locks the theme via `dark`). */
+    hideAppearance?: boolean;
+    /** Hide the push-notifications toggle. */
+    hidePushToggle?: boolean;
+  };
+
   // ----- event hooks -----
   eventHandlers?: {
+    /**
+     * Fired when the user picks an appearance in Settings (and once on
+     * mount with the persisted choice). `isDark` is the resolved value
+     * for 'system'. Hosts use it to sync their own chrome (status bar).
+     */
+    onThemeChange?: (preference: 'light' | 'dark' | 'system', isDark: boolean) => void;
+    /**
+     * Fired when the user toggles push notifications in Settings. The SDK
+     * itself stops delivering: off releases every device-token
+     * registration on the backend (tokens are kept), on registers them
+     * again. A host that also owns native push should mirror the choice.
+     */
+    onPushNotificationsToggle?: (enabled: boolean) => void | Promise<void>;
     onMessageSent?: (event: {
       message: string;
       roomJID: string;

@@ -121,3 +121,5 @@ export {
   useTheme,
 } from './theme';
 export type { ChatTheme, ChatThemeColors, ChatThemeOverrides } from './theme';
+export type { ThemePreference } from './theme/theme';
+export { setThemePreference, setPushEnabled } from './roomStore/chatSettingsSlice';

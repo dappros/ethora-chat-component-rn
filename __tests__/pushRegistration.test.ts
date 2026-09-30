@@ -40,7 +40,7 @@ jest.mock('../src/roomStore', () => {
 
 import axios from 'axios';
 import { store } from '../src/roomStore';
-import { logout, setConfig, setUser } from '../src/roomStore/chatSettingsSlice';
+import { logout, setConfig, setPushEnabled, setUser } from '../src/roomStore/chatSettingsSlice';
 import {
   __resetPushRegistrationForTests,
   getRegisteredPushToken,
@@ -105,6 +105,7 @@ beforeEach(() => {
   fakeHttp.delete.mockResolvedValue({ data: { success: true } });
   __resetPushRegistrationForTests();
   store.dispatch(logout());
+  store.dispatch(setPushEnabled(true));
   remountWithConfig();
 });
 
@@ -574,5 +575,39 @@ describe('config.pushNotifications.getPushTokens (declarative)', () => {
     await flush(20);
     expect(fakeHttp.post).toHaveBeenCalledTimes(1);
     expect(lastPost()[1]).toMatchObject({ registrationToken: APNS_TOKEN, tokenType: 'apns' });
+  });
+
+  it('the Settings push toggle: off releases the registration and keeps the token; on registers again', async () => {
+    signIn();
+    await registerPushToken(FCM_TOKEN);
+    expect(fakeHttp.post).toHaveBeenCalledTimes(1);
+
+    store.dispatch(setPushEnabled(false));
+    await flush(20);
+    expect(fakeHttp.delete).toHaveBeenCalledTimes(1);
+    expect(fakeHttp.delete.mock.calls[0][1].data).toEqual({ registrationToken: FCM_TOKEN });
+    expect(getRegisteredPushToken()?.token).toBe(FCM_TOKEN);
+
+    // Unrelated store updates while off do not repeat the release.
+    remountWithConfig({ dark: true });
+    await flush(20);
+    expect(fakeHttp.delete).toHaveBeenCalledTimes(1);
+
+    store.dispatch(setPushEnabled(true));
+    await flush(20);
+    expect(fakeHttp.post).toHaveBeenCalledTimes(2);
+    expect(lastPost()[1].registrationToken).toBe(FCM_TOKEN);
+  });
+
+  it('a token handed over while the Settings toggle is off waits for it to be switched on', async () => {
+    store.dispatch(setPushEnabled(false));
+    signIn();
+    await expect(registerPushToken(FCM_TOKEN)).resolves.toBe('disabled');
+    await flush(20);
+    expect(fakeHttp.post).not.toHaveBeenCalled();
+
+    store.dispatch(setPushEnabled(true));
+    await flush(20);
+    expect(fakeHttp.post).toHaveBeenCalledTimes(1);
   });
 });

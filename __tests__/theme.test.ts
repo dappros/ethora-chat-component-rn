@@ -1,6 +1,7 @@
 import {
   DARK_THEME,
   LIGHT_THEME,
+  applyThemePreference,
   resolveTheme,
   isDarkTheme,
 } from '../src/theme/theme';
@@ -66,5 +67,22 @@ describe('resolveTheme', () => {
       DARK_THEME.chatBackground
     );
     expect(getChatBackgroundColor(undefined)).toBe(LIGHT_THEME.chatBackground);
+  });
+
+  it("follows the system appearance when dark is 'system'", () => {
+    expect(isDarkTheme({ dark: 'system' }, true)).toBe(true);
+    expect(isDarkTheme({ dark: 'system' }, false)).toBe(false);
+    expect(resolveTheme({ dark: 'system' }, true).surface).toBe(DARK_THEME.surface);
+    expect(resolveTheme({ dark: 'system' }, false).surface).toBe(LIGHT_THEME.surface);
+  });
+
+  it('applyThemePreference folds the in-app choice into config.dark', () => {
+    expect(applyThemePreference({ dark: true }, undefined)).toEqual({ dark: true });
+    expect(applyThemePreference({ dark: true }, 'light')).toEqual({ dark: false });
+    expect(applyThemePreference({ dark: false }, 'dark')).toEqual({ dark: true });
+    expect(applyThemePreference({ dark: false }, 'system')).toEqual({ dark: 'system' });
+    const same = { dark: 'system' as const };
+    expect(applyThemePreference(same, 'system')).toBe(same);
+    expect(applyThemePreference(undefined, 'dark')).toBeUndefined();
   });
 });

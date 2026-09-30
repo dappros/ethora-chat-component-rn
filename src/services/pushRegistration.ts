@@ -70,7 +70,10 @@ const readSession = (): Session => {
     xmppUsername: String(user?.xmppUsername || ''),
     projectName: String(config?.projectName || '').trim(),
     gatewayUrl: String(config?.pushNotifications?.apiUrl || '').trim(),
-    pushDisabled: config?.pushNotifications?.enabled === false,
+    // Off by config (host) or by the user's Settings toggle.
+    pushDisabled:
+      config?.pushNotifications?.enabled === false ||
+      slice?.pushEnabled === false,
   };
 };
 
@@ -233,7 +236,17 @@ const ensureWatching = (): void => {
       hookIdentity = null;
       return;
     }
-    if (session.pushDisabled || !isReady(session)) {
+    if (session.pushDisabled) {
+      // Switched off (Settings toggle or config): take the device off the
+      // backend but keep the tokens, so switching back on re-registers
+      // without the host doing anything. `registered` empties at once,
+      // so later store updates do not repeat the release.
+      if (registered.size > 0) {
+        releasePushRegistration().catch(() => undefined);
+      }
+      return;
+    }
+    if (!isReady(session)) {
       return;
     }
     runTokenHook(session);

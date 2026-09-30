@@ -12,6 +12,7 @@ import {
 import { Iso639_1Codes } from '../types/models/language.model';
 import type { TranslateMode } from '../utils/translateModePolicy';
 import { secureUserStorage } from '../helpers/secureUserStorage';
+import { applyThemePreference, type ThemePreference } from '../theme/theme';
 
 export interface ChatState {
   user: User;
@@ -29,6 +30,14 @@ export interface ChatState {
    * See utils/translateModePolicy.
    */
   translateMode?: TranslateMode;
+  /**
+   * Appearance picked in Settings (light / dark / system). Persisted per
+   * device; folded into `config.dark` by setConfig / setThemePreference so
+   * every consumer of `config` sees the effective value.
+   */
+  themePreference?: ThemePreference;
+  /** Push notifications toggle from Settings. `undefined` = on. */
+  pushEnabled?: boolean;
 }
 
 export const unpackAndTransform = (input?: User): User => {
@@ -126,11 +135,22 @@ const reducers = {
       };
     }
   },
+  setThemePreference: (
+    state: WritableDraft<ChatState>,
+    action: PayloadAction<ThemePreference | undefined>
+  ) => {
+    state.themePreference = action.payload;
+    state.config = applyThemePreference(state.config as IConfig | undefined, action.payload) as any;
+  },
+  setPushEnabled: (state: WritableDraft<ChatState>, action: PayloadAction<boolean>) => {
+    state.pushEnabled = action.payload;
+  },
   setConfig: (state: WritableDraft<ChatState>, action: PayloadAction<IConfig | undefined>) => {
     // Cast away immer's WritableDraft — IConfig contains callable
     // fields (eventHandlers, customComponent) that confuse the draft
-    // type inference but are inert at write-time.
-    state.config = action.payload as any;
+    // type inference but are inert at write-time. The user's in-app
+    // appearance choice survives a host re-dispatch.
+    state.config = applyThemePreference(action.payload, state.themePreference) as any;
   },
   setActiveModal: (state: WritableDraft<ChatState>, action: PayloadAction<ModalType | undefined>) => {
     state.activeModal = action.payload;
@@ -220,6 +240,8 @@ export const {
   setStoreClient,
   setLangSource,
   setTranslateMode,
+  setThemePreference,
+  setPushEnabled,
 } = chatSlice.actions;
 
 export default chatSlice.reducer;
