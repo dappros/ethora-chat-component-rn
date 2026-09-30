@@ -34,6 +34,28 @@ export { useUnread } from './hooks/useUnreadMessagesCounter';
 
 export { handlePushPayload, openRoomFromPush } from './helpers/pushPayload';
 export type { PushPayloadOutcome } from './helpers/pushPayload';
+export {
+  registerPushToken,
+  unregisterPushToken,
+  getRegisteredPushToken,
+  getRegisteredPushTokens,
+} from './services/pushRegistration';
+export type {
+  RegisterPushTokenOptions,
+  RegisterPushTokenOutcome,
+  UnregisterPushTokenOutcome,
+  RegisteredPushToken,
+} from './services/pushRegistration';
+export {
+  detectPushTokenType,
+  PushRegistrationError,
+  isPushRegistrationError,
+} from './networking/api-requests/push.api';
+export type {
+  PushDeviceType,
+  PushSubscriptionPayload,
+} from './networking/api-requests/push.api';
+export type { PushTokenType, PushTokenRegistration } from './types/types';
 export { useChatRoomFocus } from './hooks/useChatRoomFocus';
 export { logoutService, useLogout } from './hooks/useLogout';
 export { useQRCodeChat, handleQRChatId } from './hooks/useQRCodeChatHandler';

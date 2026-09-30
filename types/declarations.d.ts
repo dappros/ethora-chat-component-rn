@@ -38,23 +38,7 @@ declare namespace JSX {
   }
 }
 
-// ====================  Shimmed / optional packages  ========================
-// As of 26.5.5 the SDK no longer statically imports `react-native-*` legacy
-// pickers / clipboard / checkbox / permissions / audio-recorder, or
-// `emoji-mart`. Their ambient shims are gone — the only entries left below
-// are for packages still touched by the SDK source.
 
-declare module "@react-native-firebase/messaging" {
-  const content: any;
-  export default content;
-  export type FirebaseMessagingTypes = any;
-}
-
-declare module "@react-native-firebase/app" {
-  const content: any;
-  export default content;
-  export function getApp(...args: any[]): any;
-}
 
 declare module "@xmpp/xml" {
   export class Element {

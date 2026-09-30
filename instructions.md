@@ -115,7 +115,7 @@ To avoid duplicate XMPP WebSocket connections — same contract as the web packa
 | `appId` | `string` | App identifier sent in REST requests / app-token context. |
 | `baseUrl` | `string` | API base URL. Default: `https://api.chat.ethora.com/v1`. Override it for your QA/staging environment or self-hosted deployment. |
 | `customAppToken` | `string` | App-level JWT used in the `Authorization` header for endpoints like `/users/login-with-email`. Required for email login. |
-| `projectName` | `string` | Free-form project label, surfaced in dev logs. |
+| `projectName` | `string` | Surfaced in dev logs. Only required by `registerPushToken` in legacy gateway mode (`pushNotifications.apiUrl` set), where it names the project registered with the gateway. |
 
 ### Authentication
 
@@ -232,16 +232,71 @@ Pick **one** auth mode. Mixing is undefined behavior.
 
 ### Push notifications
 
-Native push on RN uses FCM/APNs through Firebase. The host app owns the FCM/APNs token lifecycle and registers it with the SDK; the SDK is responsible for the `/users/subscribe-room` calls.
+The SDK does **not** mint push tokens and has no Firebase dependency. Your app owns the native side — permission, token, tap listeners — with whichever library it already uses (`expo-notifications`, `@react-native-firebase/messaging`, …). The SDK owns everything behind the token:
+
+- `registerPushToken(token, { tokenType? })` files the token with the backend under the signed-in user: `POST /v1/push/subscription/{appId}`, the same endpoint the web SDK and the Ethora app use (`appId` from `config.appId`, else the signed-in user). Call it once per launch as soon as you have a token, and again when it rotates (a rotated token releases the one it replaces). Safe before sign-in (resolves `'deferred'` and registers on login). Same token + same account is sent once. Resolves `'registered' | 'deferred' | 'disabled'`; rejects with `PushRegistrationError` (`status`, `body`) when the backend refuses or is unreachable, and when no app id is known.
+- `config.pushNotifications.getPushTokens` is the declarative alternative: the SDK calls it once per signed-in session (again after a logout and a new login) and registers what it returns — one `{ token, tokenType? }`, an array, or `null`. A rejection is logged and retried after 30 s. Both ways can be combined.
+- A device holds up to two tokens: the chat token (`expo` / `fcm` / `apns`) and, optionally, a PushKit `apns-voip` token for ringing calls on a killed iOS app. Registering into a slot replaces what was there; `getRegisteredPushTokens()` lists both.
+- On logout the SDK releases the registration itself (`DELETE`, while the access token is still valid) and keeps the token, so the next login — any account — is registered again without another call.
+- `unregisterPushToken({ tokenType? })` removes the registration(s) from the backend and forgets the token(s), so no later login re-registers them; pass `tokenType` to drop just one slot. Call it while signed in, e.g. from your own "notifications off" switch. Resolves `'unregistered' | 'forgotten'`.
+- `getRegisteredPushToken()` returns the chat token (`{ token, tokenType } | null`); `getRegisteredPushTokens()` returns every held token.
+- `detectPushTokenType(token)` — `'expo'` for `ExponentPushToken[...]`, `'apns'` for a 64+ hex device token, `'fcm'` otherwise. Used automatically; pass `{ tokenType }` to override (`'apns-voip'` must be passed, it cannot be detected).
+- `handlePushPayload(data)` / `openRoomFromPush(jid)` — hand the tapped notification's `data` to the SDK: a call push rings, a message push opens its room (immediately, or as soon as the room list loads).
+- Room-level MucSub subscriptions (what ejabberd uses to decide whom to push for) are sent by the SDK itself on every login and reconnect; nothing to do on your side.
+
+Native tokens with `expo-notifications` (what the Ethora app does — raw APNs on iOS, FCM on Android, no Firebase SDK in the app):
+
+```ts
+import * as Notifications from 'expo-notifications';
+import { registerPushToken, handlePushPayload } from '@ethora/chat-component-rn';
+
+await Notifications.requestPermissionsAsync();
+const { data: token } = await Notifications.getDevicePushTokenAsync();
+await registerPushToken(token); // apns on iOS, fcm on Android — detected
+Notifications.addPushTokenListener(({ data }) => registerPushToken(data));
+Notifications.addNotificationResponseReceivedListener((r) =>
+  handlePushPayload(r.notification.request.content.data)
+);
+```
+
+Firebase (`@react-native-firebase/messaging`):
+
+```ts
+import messaging from '@react-native-firebase/messaging';
+import { registerPushToken, handlePushPayload } from '@ethora/chat-component-rn';
+
+await messaging().requestPermission();
+await registerPushToken(await messaging().getToken());
+messaging().onTokenRefresh((t) => registerPushToken(t));
+messaging().onNotificationOpenedApp((m) => handlePushPayload(m.data));
+messaging().getInitialNotification().then((m) => m && handlePushPayload(m.data));
+```
+
+Declarative, with Expo push tokens (`getExpoPushTokenAsync`, delivery through Expo's push API with the credentials of your Expo project):
+
+```ts
+// config.pushNotifications
+getPushTokens: async () => {
+  const { status } = await Notifications.requestPermissionsAsync();
+  if (status !== 'granted') return null;
+  const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId: EAS_PROJECT_ID });
+  return { token }; // detected as tokenType: 'expo'
+},
+```
+
+Expo tokens need a backend that delivers through Expo; until it does, the registration is refused with a 422 rather than filed as a token APNs/FCM could never deliver to. Expo's relay also cannot carry iOS PushKit (VoIP) pushes, so ringing a killed iOS app requires a separate `apns-voip` token, registered alongside the chat token — and backend VoIP support.
+
+Privacy: for regulated deployments keep message text out of push payloads; a relay such as Expo's sees the payload in transit, so the notification body should be a generic "New message".
 
 | Option | Type | Description |
 | --- | --- | --- |
-| `pushNotifications.enabled` | `boolean` | Master switch. |
-| `pushNotifications.iconPath` | `string` | OS notification icon override. |
-| `pushNotifications.badgePath` | `string` | OS badge override (falls back to `iconPath`). |
-| `pushNotifications.firebaseConfig` | `FBConfig` | Firebase config for the messaging service. |
+| `pushNotifications.enabled` | `boolean` | Set `false` to keep the SDK from registering tokens (`registerPushToken` resolves `'disabled'`, `getPushTokens` is not called). Default on. |
+| `pushNotifications.getPushTokens` | `() => Promise<PushTokenRegistration \\| PushTokenRegistration[] \\| null>` | Called once per signed-in session; the SDK registers what it returns. `PushTokenRegistration = { token, tokenType? }`. |
+| `appId` | `string` | App the token is registered under. Falls back to the signed-in user's `appId`. |
+| `pushNotifications.apiUrl` | `string` | **Legacy.** Base URL of a self-hosted push gateway (`ethora-node-push`), e.g. `https://push.example.com/api/v1`. When set, tokens go to `POST {apiUrl}/subscriptions` (needs `projectName`) instead of the main API, and there is no unregister. Omit on the hosted clusters. |
 | `pushNotifications.onClick` | `(params) => void \| Promise<void>` | Fires when the user taps a push, including cold-start. Args: `{ roomJID?, messageId?, data?, notification? }`. |
 | `pushNotifications.onNotificationPress` | `(data) => void` | Legacy alias of `onClick`; prefer `onClick`. |
+| `pushNotifications.firebaseConfig` | `FBConfig` | **Deprecated, no effect.** The SDK never talks to Firebase. |
 
 ### Theming and styling
 

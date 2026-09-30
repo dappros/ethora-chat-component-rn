@@ -30,7 +30,7 @@ React Native chat UI + chat core for iOS and Android, powered by the Ethora plat
 - Room list and room chat UI (Native / iOS + Android)
 - Message history (MAM), replies, edits, deletes
 - Typing indicators
-- Push notifications (FCM / APNs)
+- Push notifications — bring your own token (Firebase or Expo), the SDK registers it and handles taps
 - Pluggable auth (default / JWT / injected user / custom)
 - Custom message bubble, input, scroll, and day-separator overrides
 - Cross-session unread tracking with built-in badges — see [docs/unread-tracking.md](docs/unread-tracking.md)

@@ -1,15 +1,11 @@
 import { Client } from '@xmpp/client';
-import { User } from '../types/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { subscribeToPushNotifications } from '../networking/api-requests/push.api';
 import { subscribeToRoomMessages } from '../networking/xmpp/subscribeToRoomMessages.xmpp';
 
 const SUBSCRIBED_ROOMS_KEY = 'ethora_subscribed_rooms';
 
 export class PushSubscriptionService {
   private subscribedRooms: Set<string> = new Set();
-  private isPushSubscribed: boolean = false;
-  private lastSubscriptionKey: string | null = null;
   private isInitialized: boolean = false;
 
   private async loadSubscribedRoomsFromStorage(): Promise<void> {
@@ -33,34 +29,6 @@ export class PushSubscriptionService {
       await AsyncStorage.setItem(SUBSCRIBED_ROOMS_KEY, JSON.stringify(roomsArray));
     } catch (error) {
       console.error('[PushService] Failed to save subscribed rooms to storage:', error);
-    }
-  }
-
-  async subscribeToPush(
-    fcmToken: string,
-    user: User,
-    projectName: string,
-  ): Promise<void> {
-    const walletAddress = user.defaultWallet?.walletAddress || user.walletAddress;
-    const subscriptionKey = `${fcmToken}_${walletAddress}`;
-
-    if (this.isPushSubscribed && this.lastSubscriptionKey === subscriptionKey) {
-      console.log('⚠️ Push already subscribed with this token, skipping...');
-      return;
-    }
-
-    try {
-      const userJid: string = user.xmppUsername || '';
-
-      if (!userJid) {
-        throw new Error('User JID is required for push subscription');
-      }
-
-      await subscribeToPushNotifications(fcmToken, userJid, projectName);
-      this.isPushSubscribed = true;
-      this.lastSubscriptionKey = subscriptionKey;
-    } catch (error: any) {
-      console.error('Failed to subscribe to push after all retries:', error);
     }
   }
 
@@ -125,8 +93,6 @@ export class PushSubscriptionService {
 
   async reset(): Promise<void> {
     this.subscribedRooms.clear();
-    this.isPushSubscribed = false;
-    this.lastSubscriptionKey = null;
     this.isInitialized = false;
 
     try {

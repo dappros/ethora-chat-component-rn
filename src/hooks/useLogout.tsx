@@ -7,6 +7,7 @@ import { setLogoutState } from '../roomStore/roomsSlice';
 import { useCallback } from 'react';
 import { clearHeap } from '../roomStore/roomHeapSlice';
 import { pushSubscriptionService } from '../services/pushSubscriptionService';
+import { releasePushRegistration } from '../services/pushRegistration';
 import { clearRoomsRestCache } from '../networking/api-requests/rooms.api';
 import { clearPersistedState } from '../roomStore/persistence';
 import { secureUserStorage } from '../helpers/secureUserStorage';
@@ -93,9 +94,15 @@ const logoutService = {
       /* non-fatal */
     }
 
-    // 2. Push: clear locally-subscribed-rooms cache. Doesn't talk to the
-    //    server — that's the host app's responsibility (it owns the FCM/
-    //    APNs token lifecycle).
+    // 2. Push. Release the device-token registration on the backend
+    //    while the access token is still valid (the token itself is kept
+    //    so the next login re-registers it), then clear the local MucSub
+    //    room cache.
+    try {
+      await releasePushRegistration();
+    } catch (e) {
+      console.warn('logoutService: push release failed', e);
+    }
     try {
       await pushSubscriptionService.reset();
     } catch (e) {

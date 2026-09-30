@@ -14,11 +14,18 @@ import LoginWrapper from './LoginWrapper';
 import '../../helpers/storeConsole';
 import {installPromiseRejectionTracker} from '../../utils/installPromiseRejectionTracker';
 import {useChatFonts} from '../../hooks/useChatFonts';
+import {installPushTokenHook} from '../../services/pushRegistration';
 
 // Mount-time, dev-only — wire a global unhandled-promise-rejection
 // tracker so any future leak surfaces with a real stack trace in Metro
 // logs (bug #4 follow-up). No-op in production.
 installPromiseRejectionTracker();
+
+// Arms the push-token watcher once for the package: it runs
+// `config.pushNotifications.getPushTokens` for every login and flushes
+// tokens handed over through `registerPushToken` before sign-in. Cheap
+// (one store subscription), no-op for hosts that never use push.
+installPushTokenHook();
 
 interface ChatWrapperProps {
   token?: string;

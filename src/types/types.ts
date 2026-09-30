@@ -212,6 +212,13 @@ export interface FBConfig {
   appId: string;
 }
 
+export type PushTokenType = 'apns' | 'apns-voip' | 'fcm' | 'expo';
+
+export interface PushTokenRegistration {
+  token: string;
+  tokenType?: PushTokenType;
+}
+
 export interface MessageBubble {
   backgroundMessage?: string;
   backgroundMessageUser?: string;
@@ -774,6 +781,9 @@ export interface IConfig {
       notification?: { title?: string; body?: string };
     }) => void | Promise<void>;
     onNotificationPress?: (data: any) => void;
+    getPushTokens?: () => Promise<
+      PushTokenRegistration[] | PushTokenRegistration | null | undefined
+    >;
     firebaseConfig?: FBConfig;
   };
 
