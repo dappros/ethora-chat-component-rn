@@ -636,6 +636,12 @@ export interface IConfig {
   disableReactions?: boolean;
   disableProfilesInteractions?: boolean;
   disableUserCount?: boolean;
+  /**
+   * Hide the "Search messages" button in the chat header and the chat
+   * profile (and so the search screen). Search is also hidden when `appId`
+   * is not set, since the archive it queries is scoped by app.
+   */
+  disableMessageSearch?: boolean;
   disableSentLogic?: boolean;
   disableTypingIndicator?: boolean;
   // Hide the full-screen "Connection error" overlay (the dark modal with

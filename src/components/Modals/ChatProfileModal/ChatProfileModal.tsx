@@ -48,6 +48,7 @@ import SelectUsersModal from '../SelectUsersModal/SelectUsersModal';
 import { useToast } from '../../../context/ToastContext';
 import { useT } from '../../../i18n/useT';
 import DeleteChatModal from './DeleteChatModal';
+import { isMessageSearchEnabled } from '../../MainComponents/MessageSearchButton';
 import ReportChatModal from './ReportChatModal';
 import {
   ProfileHero,
@@ -551,6 +552,22 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
                 {t('modal.chatProfile.chatType')}
               </Text>
               <Text style={styles.cardValue}>{activeRoom.type || '—'}</Text>
+            </View>
+          )}
+
+          {isMessageSearchEnabled(config) && (
+            <View style={styles.card}>
+              <TouchableOpacity
+                testID="chat-profile-search-messages"
+                activeOpacity={0.7}
+                style={styles.addMembersRow}
+                onPress={() => dispatch(setActiveModal(MODAL_TYPES.MESSAGE_SEARCH))}
+              >
+                <SearchIcon color={getIconColor(config)} />
+                <Text style={styles.addMembersLabel}>
+                  {t('search.messages.title')}
+                </Text>
+              </TouchableOpacity>
             </View>
           )}
 

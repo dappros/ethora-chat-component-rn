@@ -213,6 +213,21 @@ function mergeHistoryIntoCache(
   return [...capTail(merged), ...pending];
 }
 
+/** A request to scroll a room's transcript to one message. */
+export interface PendingJump {
+  roomJID: string;
+  /** Any id the message may be known by: message id, stanza id, xmpp id. */
+  ids: string[];
+  /**
+   * For a message that has no usable id (search archive rows often carry
+   * none): its timestamp and text, matched against the loaded transcript.
+   */
+  createdAt?: string;
+  body?: string;
+  /** Epoch ms the request was made, to drop one nobody ever fulfilled. */
+  at: number;
+}
+
 export interface RoomPreloadPatch {
   jid: string;
   messages?: IMessage[];
@@ -237,6 +252,12 @@ export interface RoomMessagesState {
   // — see `applyPrivateStoreMarkers`. Re-fetched every init/reconnect,
   // so it is intentionally NOT persisted.
   privateStoreMarkers: Record<string, number>;
+  // A pending "scroll this room's transcript to that message" request (a
+  // message search hit, later a notification). Fulfilled by MessageList's
+  // useJumpToMessage: scroll if mounted, else page older history until the
+  // message shows up. `at` bounds how long a request may stay alive. Never
+  // persisted (persistence.ts only picks `rooms`).
+  pendingJump: PendingJump | null;
   // The single source of truth for "read up to here, but the user
   // hasn't reached the bottom yet" (`{ roomJID: boundaryMs }`).
   // Set by MessageList (via ChatRoom's `onReadBoundaryChange`) the
@@ -280,6 +301,7 @@ const initialState: RoomMessagesState = {
   },
   pendingNotificationJid: null,
   privateStoreMarkers: {},
+  pendingJump: null,
   readBoundaries: {},
 };
 
@@ -782,6 +804,33 @@ const reducers = {
     clearPendingNotificationJid: (state: WritableDraft<RoomMessagesState>) => {
       state.pendingNotificationJid = null;
     },
+    requestJumpToMessage: (
+      state: WritableDraft<RoomMessagesState>,
+      action: PayloadAction<{
+        roomJID: string;
+        ids: string[];
+        createdAt?: string;
+        body?: string;
+      }>
+    ) => {
+      const ids = action.payload.ids.filter(Boolean);
+      const canMatchByContent = Boolean(
+        action.payload.createdAt && action.payload.body
+      );
+      if (!action.payload.roomJID || (ids.length === 0 && !canMatchByContent)) {
+        return;
+      }
+      state.pendingJump = {
+        roomJID: action.payload.roomJID,
+        ids,
+        createdAt: action.payload.createdAt,
+        body: action.payload.body,
+        at: Date.now(),
+      };
+    },
+    clearPendingJump: (state: WritableDraft<RoomMessagesState>) => {
+      state.pendingJump = null;
+    },
     /**
      * Stamp a message in `state.rooms[roomJID].messages` with an updated
      * reactions list. The reactionsMiddleware listens for this action to
@@ -1045,6 +1094,8 @@ export const {
   applyRoomsPreloadBatch,
   setPendingNotificationJid,
   clearPendingNotificationJid,
+  requestJumpToMessage,
+  clearPendingJump,
   setReactions,
   mergeUsersSet,
 } = roomsStore.actions;

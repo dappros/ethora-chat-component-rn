@@ -16,6 +16,7 @@ import Button from '../styled/Button';
 import { BackIcon, BurgerMenuIcon } from '../../assets/icons';
 import { CallButtons } from '../VideoCalls/CallButtons';
 import { LanguageSelectorButton } from './LanguageSelectorButton';
+import { MessageSearchButton } from './MessageSearchButton';
 import { useDispatch } from 'react-redux';
 import Composing from '../styled/StyledInputComponents/Composing';
 import {
@@ -206,6 +207,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
         <View style={styles.rightContainer}>
           {/* Renders nothing unless config.videoCalls is on and this is a
               1:1 room, so it costs non-call hosts nothing. */}
+          <MessageSearchButton />
           <LanguageSelectorButton />
           <CallButtons />
           {!config?.disableChatInfo?.disableRoomMenu && (

@@ -315,6 +315,7 @@ Why awaitable: the persistence layer debounces writes by 200 ms, and the chat sl
 | `hideMemberCopyIdAction` | Hides only the "Copy User Id" button, keeps everything else. |
 | `disableConnectionErrorOverlay` | Replaces the full-screen "Connection error" overlay with a small, non-blocking `ConnectionBanner`. Set this when a transient reconnect shouldn't take over the whole screen. |
 | `eventHandlers.onMessageRetry` | `(event) => void` fired when the user taps the "Failed — tap to retry" indicator on a stuck send. Use for telemetry / surfacing a retry banner. |
+| `disableMessageSearch` | Hide the "Search messages" button in the chat header and the chat profile, and the search screen behind it. The screen searches the platform's message archive (`GET /v2/apps/{appId}/messages/search`) for the current chat or all chats, with an optional sender and date filter, and a tapped hit opens its chat and scrolls to the message (paging older history when needed, or saying so when the message is too far back to load). It needs `appId`; without one the button is hidden anyway. |
 
 ## Keyboard handling
 

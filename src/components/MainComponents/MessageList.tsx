@@ -31,6 +31,8 @@ import { getIconColor } from '../../helpers/getIconColor';
 import { getChatBackgroundColor } from '../../helpers/getChatBackground';
 import { useTheme } from '../../hooks/useTheme';
 import { isOwnMessage } from '../../helpers/isOwnMessage';
+import { useJumpToMessage } from '../../hooks/useJumpToMessage';
+import { scrollRetryOffset } from '../../helpers/jumpToMessage';
 
 interface MessageListProps<TMessage extends IMessage> {
   CustomMessage?: React.ComponentType<{
@@ -80,8 +82,8 @@ const MessageList = <TMessage extends IMessage>({
   activeMessage,
   onReadBoundaryChange,
 }: MessageListProps<TMessage>) => {
-  const { composing, messages, composingList } = useRoomState(roomJID)
-    .room! as IRoom;
+  const { composing, messages, composingList, historyComplete } =
+    useRoomState(roomJID).room! as IRoom;
   const theme = useTheme();
   const [isUserAtBottom, setIsUserAtBottom] = useState(true);
   const [showNewMessageIndicator, setShowNewMessageIndicator] = useState(false);
@@ -244,6 +246,45 @@ const MessageList = <TMessage extends IMessage>({
     return withDivider;
   }, [memoizedMessages, isUserAtBottom, roomJID, unreadWhileScrolledUp]);
 
+  // Jump-to-message (search hit): the row to flash, and the retry budget for
+  // scrolling to a row the virtualised list has not measured yet.
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const scrollRetryRef = useRef(0);
+  const scrollToRow = useCallback((index: number) => {
+    scrollRetryRef.current = 0;
+    flatListRef.current?.scrollToIndex({
+      index,
+      viewPosition: 0.5,
+      animated: false,
+    });
+  }, []);
+  const handleScrollToIndexFailed = useCallback(
+    (info: { index: number; averageItemLength: number }) => {
+      const offset = scrollRetryOffset(info, scrollRetryRef.current);
+      if (offset === null) {return;}
+      scrollRetryRef.current += 1;
+      flatListRef.current?.scrollToOffset({ offset, animated: false });
+      setTimeout(() => {
+        flatListRef.current?.scrollToIndex({
+          index: info.index,
+          viewPosition: 0.5,
+          animated: false,
+        });
+      }, 120);
+    },
+    []
+  );
+  useJumpToMessage({
+    roomJID,
+    messages: memoizedMessages,
+    listData: dataMessages,
+    scrollToIndex: scrollToRow,
+    onHighlight: setHighlightedId,
+    loadMoreMessages,
+    historyComplete,
+    isUserAtBottomRef,
+  });
+
   const renderMessage = useCallback(
     ({ item, index }: { item: IMessage; index: number }) => {
       if (String(item.id).startsWith('delimiter-new')) {
@@ -281,7 +322,7 @@ const MessageList = <TMessage extends IMessage>({
         showDateLabel = true;
       }
 
-      return (
+      const row = (
         <MessageContainer
           CustomMessage={CustomMessage}
           CustomDaySeparator={CustomDaySeparator}
@@ -294,8 +335,21 @@ const MessageList = <TMessage extends IMessage>({
           showDateLabel={showDateLabel}
         />
       );
+      // Flash the row a search hit just scrolled to.
+      return highlightedId !== null && String(item.id) === highlightedId ? (
+        <View
+          testID="message-jump-highlight"
+          style={{ backgroundColor: theme.primary + '26' }}
+        >
+          {row}
+        </View>
+      ) : (
+        row
+      );
     },
     [
+      highlightedId,
+      theme,
       activeMessage,
       config,
       CustomDaySeparator,
@@ -456,6 +510,7 @@ const MessageList = <TMessage extends IMessage>({
         onEndReached={handleLoadMore}
         onScroll={handleScroll}
         onContentSizeChange={handleContentSizeChange}
+        onScrollToIndexFailed={handleScrollToIndexFailed}
         onEndReachedThreshold={0.1}
         scrollEventThrottle={16}
         onLayout={handleLayout}
