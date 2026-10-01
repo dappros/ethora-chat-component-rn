@@ -194,6 +194,19 @@ export const MoreIcon = ({ color = '#8C8C8C', ...props }) => (
   </Svg>
 );
 
+export const DiscoverIcon = ({ color = '#8C8C8C', ...props }) => (
+  <Svg width="24" height="24" viewBox="0 0 24 24" fill="none" {...props}>
+    <Circle cx="12" cy="12" r="9" stroke={color} strokeWidth="1.8" />
+    <Path
+      d="M15.8 8.2L13.6 13.6L8.2 15.8L10.4 10.4L15.8 8.2Z"
+      stroke={color}
+      strokeWidth="1.6"
+      strokeLinejoin="round"
+    />
+    <Circle cx="12" cy="12" r="1.1" fill={color} />
+  </Svg>
+);
+
 export const SearchIcon = ({ color = '#8C8C8C', ...props }) => (
   <Svg width="24" height="24" viewBox="0 0 24 24" fill="none">
     <Path

@@ -642,6 +642,12 @@ export interface IConfig {
    * is not set, since the archive it queries is scoped by app.
    */
   disableMessageSearch?: boolean;
+  /**
+   * Hide the "Discover chats" entry of the room list menu (and its stand-alone
+   * button when the host overrides the menu): the directory of the app's
+   * public chats (GET /v1/chats/public).
+   */
+  disablePublicChatsDirectory?: boolean;
   disableSentLogic?: boolean;
   disableTypingIndicator?: boolean;
   // Hide the full-screen "Connection error" overlay (the dark modal with

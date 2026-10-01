@@ -180,22 +180,44 @@ describe('HeaderRoomListMenu — bottom sheet', () => {
 describe('HeaderRoomListMenu — Sign out item visibility', () => {
   it('is absent when config.logout is missing', async () => {
     const { labels } = await renderMenu({});
-    expect(labels()).toEqual(['New Chat', 'Profile', 'Settings']);
+    expect(labels()).toEqual(['New Chat', 'Profile', 'Settings', 'Discover chats']);
   });
 
   it('is absent when logout.enabled is false', async () => {
     const { labels } = await renderMenu({ logout: { enabled: false } });
-    expect(labels()).toEqual(['New Chat', 'Profile', 'Settings']);
+    expect(labels()).toEqual(['New Chat', 'Profile', 'Settings', 'Discover chats']);
   });
 
   it('renders last with the default label when enabled', async () => {
     const { labels } = await renderMenu({ logout: { enabled: true } });
-    expect(labels()).toEqual(['New Chat', 'Profile', 'Settings', 'Sign out']);
+    expect(labels()).toEqual([
+      'New Chat',
+      'Profile',
+      'Settings',
+      'Discover chats',
+      'Sign out',
+    ]);
   });
 
   it('honours a custom label', async () => {
     const { labels } = await renderMenu({ logout: { enabled: true, label: 'Log out' } });
-    expect(labels()[3]).toBe('Log out');
+    expect(labels()[4]).toBe('Log out');
+  });
+});
+
+describe('HeaderRoomListMenu - Discover chats entry', () => {
+  it('is hidden by disablePublicChatsDirectory', async () => {
+    const { labels } = await renderMenu({ disablePublicChatsDirectory: true });
+    expect(labels()).toEqual(['New Chat', 'Profile', 'Settings']);
+  });
+
+  it('opens the public chats directory', async () => {
+    store.dispatch(setActiveModal(undefined));
+    const { press } = await renderMenu({});
+    await press('Discover chats');
+    expect(store.getState().chatSettingStore.activeModal).toBe(
+      MODAL_TYPES.PUBLIC_CHATS
+    );
   });
 });
 

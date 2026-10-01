@@ -1,5 +1,9 @@
-import { useEffect } from 'react';
-import { setIsLoading } from '../roomStore/roomsSlice';
+import { useEffect, useRef } from 'react';
+import {
+  clearJoiningRoom,
+  setIsLoading,
+  setJoiningRoom,
+} from '../roomStore/roomsSlice';
 import { useXmppClient } from '../context/xmppProvider';
 import { IConfig, IMessage, IRoom } from '../types/types';
 import { useDispatch } from 'react-redux';
@@ -31,6 +35,11 @@ export const useRoomInitialization = (
   const dispatch = useDispatch();
 
   const syncRooms = useGetNewArchRoom();
+
+  // Rooms whose join flag this mount already raised. The effect below re-runs
+  // as the room list settles; only the first run owns the flag, so a re-run
+  // cannot clear it from under a join that is still in flight.
+  const joinFlagRef = useRef<Set<string>>(new Set());
 
   // Fast active-room join. Mirrors web's first effect: as soon as the
   // active room changes, eagerly send presence + ask for room info so
@@ -100,11 +109,28 @@ export const useRoomInitialization = (
 
     const initialPresenceAndHistory = async () => {
       if (!roomsList[activeRoomJID] && activeRoomJID && client) {
-        await client.presenceInRoomStanza(activeRoomJID);
-        if (config?.newArch) {
-          await syncRooms(client, config);
-        } else {
-          await client.getRoomsStanza();
+        // Entering a room we are not a member of yet (the public chats
+        // directory, a link, a QR code). Until it shows up in the room list
+        // the pane says "joining" (ChatRoom reads joiningRoomJID) instead of
+        // flashing the "choose a chat" placeholder the user just left.
+        const joinJid = activeRoomJID;
+        const ownsJoinFlag = !joinFlagRef.current.has(joinJid);
+        if (ownsJoinFlag) {
+          joinFlagRef.current.add(joinJid);
+          dispatch(setJoiningRoom(joinJid));
+        }
+        try {
+          await client.presenceInRoomStanza(activeRoomJID);
+          if (config?.newArch) {
+            await syncRooms(client, config);
+          } else {
+            await client.getRoomsStanza();
+          }
+        } finally {
+          if (ownsJoinFlag) {
+            joinFlagRef.current.delete(joinJid);
+            dispatch(clearJoiningRoom(joinJid));
+          }
         }
         await getDefaultHistory();
       } else {

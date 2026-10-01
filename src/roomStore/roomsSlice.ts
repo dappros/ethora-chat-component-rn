@@ -258,6 +258,13 @@ export interface RoomMessagesState {
   // message shows up. `at` bounds how long a request may stay alive. Never
   // persisted (persistence.ts only picks `rooms`).
   pendingJump: PendingJump | null;
+  // The room this session is joining right now (opened from the public chats
+  // directory, a link or a QR code) which is not in the room list yet. The
+  // server registers the membership a moment after our presence join, so
+  // "not in the list" is not yet "unavailable": ChatRoom shows a loader while
+  // this names the active room. Set and cleared by useRoomInitialization.
+  // Never persisted.
+  joiningRoomJID: string | null;
   // The single source of truth for "read up to here, but the user
   // hasn't reached the bottom yet" (`{ roomJID: boundaryMs }`).
   // Set by MessageList (via ChatRoom's `onReadBoundaryChange`) the
@@ -302,6 +309,7 @@ const initialState: RoomMessagesState = {
   pendingNotificationJid: null,
   privateStoreMarkers: {},
   pendingJump: null,
+  joiningRoomJID: null,
   readBoundaries: {},
 };
 
@@ -831,6 +839,22 @@ const reducers = {
     clearPendingJump: (state: WritableDraft<RoomMessagesState>) => {
       state.pendingJump = null;
     },
+    setJoiningRoom: (
+      state: WritableDraft<RoomMessagesState>,
+      action: PayloadAction<string>
+    ) => {
+      state.joiningRoomJID = action.payload || null;
+    },
+    // Only clears when it still names that room, so a slow join for a room
+    // the user already left cannot wipe the join of the current one.
+    clearJoiningRoom: (
+      state: WritableDraft<RoomMessagesState>,
+      action: PayloadAction<string>
+    ) => {
+      if (state.joiningRoomJID === action.payload) {
+        state.joiningRoomJID = null;
+      }
+    },
     /**
      * Stamp a message in `state.rooms[roomJID].messages` with an updated
      * reactions list. The reactionsMiddleware listens for this action to
@@ -1096,6 +1120,8 @@ export const {
   clearPendingNotificationJid,
   requestJumpToMessage,
   clearPendingJump,
+  setJoiningRoom,
+  clearJoiningRoom,
   setReactions,
   mergeUsersSet,
 } = roomsStore.actions;

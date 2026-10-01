@@ -1,5 +1,6 @@
 /** @format */
 
+import { isJoiningRoom } from '../../helpers/joiningRoom';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ChatContainer, NonRoomChat } from '../styled/StyledComponents';
 import { useDispatch } from 'react-redux';
@@ -108,6 +109,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
       loading,
       globalLoading,
       roomMessages,
+      joiningRoomJID,
     } = useRoomState();
     const {
       sendMessage: sendMs,
@@ -332,6 +334,22 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
       (configWithEventHandlers || storeConfig || {}) as IConfig,
       roomMessages.length,
     );
+
+    // A join for the requested room is still in flight: the server registers
+    // the membership a moment after our presence, so say "joining" with a
+    // loader instead of the "choose a chat" placeholder (or the empty-list
+    // new-chat screen). Bounded: useRoomInitialization clears the flag when
+    // the join and the room-list refresh settle, even if the room never shows.
+    if (isJoiningRoom(activeRoomJID, roomsList, joiningRoomJID)) {
+      return (
+        <View
+          testID="chat-room-joining-loader"
+          style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
+        >
+          <Loader color={configWithEventHandlers?.colors?.primary} />
+        </View>
+      );
+    }
 
     if (Object.keys(roomsList)?.length < 1 && !loading && !globalLoading) {
       return (

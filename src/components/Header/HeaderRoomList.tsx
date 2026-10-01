@@ -5,10 +5,14 @@ import React, { FC, useMemo } from 'react';
 import { View, StyleSheet, Image, Text } from 'react-native';
 import { ProfileImagePlaceholder } from '../MainComponents/ProfileImagePlaceholder';
 import { useChatSettingState } from '../../hooks/useChatSettingState';
-import { BurgerMenuIcon } from '../../assets/icons';
+import { BurgerMenuIcon, DiscoverIcon } from '../../assets/icons';
 import Button from '../styled/Button';
 import { useTheme } from '../../hooks/useTheme';
 import { useT } from '../../i18n/useT';
+import { useDispatch } from 'react-redux';
+import { setActiveModal } from '../../roomStore/chatSettingsSlice';
+import { MODAL_TYPES } from '../../helpers/constants/MODAL_TYPES';
+import { showsStandaloneDiscoverButton } from '../../helpers/publicChatsEntry';
 
 interface HeaderRoomListProps {
   setDrawerOpen: () => void;
@@ -18,6 +22,7 @@ export const HeaderRoomList: FC<HeaderRoomListProps> = ({ setDrawerOpen }) => {
   const { config, user, selectedUser } = useChatSettingState();
   const theme = useTheme();
   const t = useT();
+  const dispatch = useDispatch();
   const insets = useSafeAreaInsets();
   const topInset = config?.headerLayout?.safeAreaTop ? insets.top : 0;
 
@@ -76,6 +81,16 @@ export const HeaderRoomList: FC<HeaderRoomListProps> = ({ setDrawerOpen }) => {
         )}
       </View>
       <View style={styles.rightContainer}>
+        {showsStandaloneDiscoverButton(config) && (
+          <Button
+            testID="room-list-discover"
+            style={styles.menuButton}
+            unstyled
+            EndIcon={<DiscoverIcon color={theme.icon} />}
+            onPress={() => dispatch(setActiveModal(MODAL_TYPES.PUBLIC_CHATS))}
+            accessibilityLabel={t('publicChats.title')}
+          />
+        )}
         <ProfileImagePlaceholder
           icon={modalUser?.profileImage ?? null}
           name={modalUser?.name ?? modalUser?.firstName}
@@ -125,8 +140,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   rightContainer: {
-    width: 44,
-    alignItems: 'flex-end',
-    justifyContent: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 4,
+    minWidth: 44,
   },
 });
