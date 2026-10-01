@@ -14,6 +14,7 @@ import { VideoCallOverlay } from '../components/VideoCalls/VideoCallOverlay';
 import XmppClient, {
   XmppCredentialsProvider,
 } from '../networking/xmppClient';
+import { recoverXmppCredentials } from '../networking/xmppCredentials';
 import { refreshAuthTokensQuietly } from '../networking/authRefresh';
 import {
   IConfig,
@@ -31,7 +32,6 @@ import {
 } from '../utils/clientRegistry';
 import {
   applyResolvedUserToStore,
-  refreshUserCredentialsForXmpp,
   resolveInitBeforeLoadUser,
 } from '../helpers/resolveInitBeforeLoadUser';
 import { ensureScopedChatCache } from '../helpers/ensureScopedChatCache';
@@ -120,62 +120,7 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
   // Returns last-known cached creds if nothing usable is available so
   // the XmppClient at least doesn't crash on `undefined.password`.
   const credentialsProvider = useMemo<XmppCredentialsProvider>(() => {
-    return async () => {
-      // 1. Make sure the REST tokens are fresh before re-minting XMPP
-      //    creds. This used to call `config.refreshTokens.refreshFunction`
-      //    directly and then fall into step 2, which refreshes again —
-      //    two rotations back to back, which the new backend scheme
-      //    reads as a race at best and token reuse at worst. One call to
-      //    the shared rotation point covers both the consumer-supplied
-      //    function and the built-in endpoint.
-      if (config?.refreshTokens?.enabled) {
-        const rotated = await refreshAuthTokensQuietly({ force: true });
-
-        if (rotated?.xmppPassword) {
-          const rotatedUser = store.getState().chatSettingStore.user;
-          return {
-            username:
-              rotatedUser?.xmppUsername ||
-              rotatedUser?.defaultWallet?.walletAddress ||
-              '',
-            password: rotated.xmppPassword,
-          };
-        }
-      }
-
-      // 2. Re-mint XMPP creds via the right priority chain for the
-      //    current auth mode. This call ALWAYS hydrates (unlike
-      //    `resolveInitBeforeLoadUser` which short-circuits when a
-      //    cached user already has xmppCredentials).
-      const fresh = await refreshUserCredentialsForXmpp(config).catch(
-        (err) => {
-          devPushLog('warn', 'XMPP creds refresh: full chain failed', err);
-          return null;
-        }
-      );
-      if (fresh) {
-        applyResolvedUserToStore(fresh);
-        return {
-          username:
-            fresh.xmppUsername ||
-            fresh.defaultWallet?.walletAddress ||
-            '',
-          password: fresh.xmppPassword || '',
-        };
-      }
-
-      // 3. Last-resort: return the cached creds so reconnect() can
-      //    still attempt a connection. If the original failure was
-      //    a stale JWT this will fail again and the user has to
-      //    re-mount the chat — but at least we don't break the
-      //    transient-network-blip case where the cached creds are
-      //    still valid.
-      const u = store.getState().chatSettingStore.user;
-      return {
-        username: u?.xmppUsername || u?.defaultWallet?.walletAddress || '',
-        password: u?.xmppPassword || '',
-      };
-    };
+    return () => recoverXmppCredentials(config);
   }, [
     config?.jwtLogin?.enabled,
     config?.jwtLogin?.token,
