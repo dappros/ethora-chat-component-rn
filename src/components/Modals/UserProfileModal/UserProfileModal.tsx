@@ -39,7 +39,6 @@ import {
   setActiveFile,
   setActiveModal,
   setLangSource,
-  setSelectedUser,
 } from '../../../roomStore/chatSettingsSlice';
 import { addRoomViaApi, setCurrentRoom } from '../../../roomStore/roomsSlice';
 import { runLogoutFlow } from '../../Menu/HeaderRoomListMenu';
@@ -183,10 +182,10 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     };
   }, [isOwnProfile, user?.token]);
 
+  // The modal host clears `selectedUser` once the page has slid away.
   const handleBackClick = useCallback(() => {
-    dispatch(setSelectedUser(undefined));
     handleCloseModal();
-  }, [dispatch, handleCloseModal]);
+  }, [handleCloseModal]);
 
   // Same teardown the room-list menu runs (XMPP, redux, persisted slices,
   // AsyncStorage), including the host's confirm copy and callbacks.
@@ -473,6 +472,10 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
         ]}
         onLayout={(e) => setViewportHeight(e.nativeEvent.layout.height)}
         showsVerticalScrollIndicator={false}
+        // Magnet: a header released part-way settles fully open or fully
+        // collapsed; past the collapsed point the content scrolls freely.
+        snapToOffsets={[0, collapseDistance]}
+        snapToEnd={false}
         scrollEventThrottle={16}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],

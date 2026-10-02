@@ -510,6 +510,10 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
         ]}
         onLayout={(e) => setViewportHeight(e.nativeEvent.layout.height)}
         showsVerticalScrollIndicator={false}
+        // Magnet: a header released part-way settles fully open or fully
+        // collapsed; past the collapsed point the content scrolls freely.
+        snapToOffsets={[0, collapseDistance]}
+        snapToEnd={false}
         keyboardShouldPersistTaps="handled"
         scrollEventThrottle={16}
         onScroll={Animated.event(

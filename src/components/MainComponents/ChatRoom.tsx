@@ -48,6 +48,7 @@ import {
   KeyboardAvoidingView,
   KeyboardStickyView,
 } from 'react-native-keyboard-controller';
+import { KeyboardInputDock } from './KeyboardInputDock';
 import useComposing from '../../hooks/useComposing';
 import { store } from '../../roomStore';
 import {
@@ -58,6 +59,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   getInputDockPaddingBottom,
   getKeyboardVerticalOffset,
+  getKeyboardAvoidingOffset,
+  getInputDockKeyboardPadding,
 } from '../../helpers/keyboardLayout';
 
 interface ChatRoomProps {
@@ -357,6 +360,13 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
       configuredPadding: configWithEventHandlers?.inputDockPaddingBottom,
       hostOwnsLayout: !!configWithEventHandlers?.disableKeyboardAvoidingView,
     });
+    const keyboardAvoidingOffset = getKeyboardAvoidingOffset({
+      configuredOffset: configWithEventHandlers?.keyboardVerticalOffset ?? 0,
+    });
+    const inputDockKeyboardPadding = getInputDockKeyboardPadding({
+      platform: Platform.OS,
+      inputDockPaddingBottom,
+    });
 
     // Keyboard avoidance is delegated to react-native-keyboard-controller's
     // KeyboardAvoidingView. When the HOST app supplies its own keyboard
@@ -394,16 +404,26 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
       : View;
     const keyboardWrapperProps = avoidKeyboard
       ? {
-          style: { flex: 1 },
+          // The dock's colour: the keyboard-height padding below the dock is
+          // this view's own box, and it shows around the keyboard's rounded
+          // top corners — it must read as a continuation of the dock.
+          style: { flex: 1, backgroundColor: theme.surface },
           behavior: 'padding' as const,
-          keyboardVerticalOffset,
+          keyboardVerticalOffset: keyboardAvoidingOffset,
         }
       : { style: { flex: 1 } };
     // Input dock: a plain View normally; under the sticky strategy it becomes
     // a KeyboardStickyView so it (and only it) lifts with the keyboard.
+    // Under the avoiding-view strategy the dock's safe-area padding collapses
+    // while the keyboard is open (KeyboardInputDock), so the composer is glued
+    // to the keyboard.
+    const collapsingDock =
+      avoidKeyboard && inputDockKeyboardPadding !== inputDockPaddingBottom;
     const InputDockTag: React.ComponentType<any> = stickyInput
       ? KeyboardStickyView
-      : View;
+      : collapsingDock
+        ? KeyboardInputDock
+        : View;
     const inputDockProps: any = {
       // The dock carries the composer's white surface all the way to the
       // bottom edge, so it needs the same rounded top and upward shadow —
@@ -421,6 +441,12 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
       },
       ...(stickyInput
         ? { offset: { closed: 0, opened: keyboardVerticalOffset } }
+        : {}),
+      ...(collapsingDock
+        ? {
+            closedPadding: inputDockPaddingBottom,
+            openedPadding: inputDockKeyboardPadding,
+          }
         : {}),
     };
 
