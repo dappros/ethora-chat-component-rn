@@ -104,6 +104,7 @@ describe('archived reactions', () => {
       emoji: ['joy'],
       data: { senderFirstName: 'Alice', senderLastName: 'A' },
       roomJID: JID,
+      ts: '999',
     });
   });
 
@@ -114,9 +115,47 @@ describe('archived reactions', () => {
       extractReaction(reactionStanza('404', 'bob@h', ['fire']))!,
     ]);
     expect(page[1].reaction).toEqual({
-      bob: { emoji: ['heart'], data: { senderFirstName: 'Alice', senderLastName: 'A' } },
+      bob: { emoji: ['heart'], data: { senderFirstName: 'Alice', senderLastName: 'A' }, ts: '999' },
     });
     expect(page[0].reaction).toBeUndefined();
     expect(deferred.map((d) => d.messageId)).toEqual(['404']);
+  });
+});
+
+describe('reaction ordering + early arrival', () => {
+  it('keeps a reaction that arrives before its message and applies it on insert', () => {
+    let state = roomsReducer(undefined, { type: '@@init' });
+    state = roomsReducer(
+      state,
+      addRoom({ roomData: { jid: JID, name: 'r', title: 'r', messages: [], usersCnt: 1 } as any })
+    );
+    state = roomsReducer(
+      state,
+      setReactions({ roomJID: JID, messageId: '7', from: 'bob@h', reactions: ['+1'], latestReactionTimestamp: '200' })
+    );
+    state = roomsReducer(state, addRoomMessages({ roomJID: JID, messages: [msg('7')] }));
+    expect(state.rooms[JID].messages[0].reaction?.bob?.emoji).toEqual(['+1']);
+  });
+
+  it('an older reaction from a later-loaded page does not override a newer one', () => {
+    let state = seeded();
+    const react = (reactions: string[], ts: string) =>
+      (state = roomsReducer(
+        state,
+        setReactions({ roomJID: JID, messageId: '1', from: 'bob@h', reactions, latestReactionTimestamp: ts })
+      ));
+    react([], '300'); // newest: removed
+    react(['heart'], '100'); // older page arrives afterwards
+    const r = state.rooms[JID].messages[0].reaction?.bob;
+    expect(r?.emoji).toEqual([]);
+  });
+});
+
+describe('message insert never drops', () => {
+  it('a message with the same timestamp as the last one is kept', () => {
+    let state = seeded();
+    const same = { ...msg('2'), id: '2b', date: '2026-05-15T10:00:00Z' } as IMessage;
+    state = roomsReducer(state, addRoomMessages({ roomJID: JID, messages: [same] }));
+    expect(state.rooms[JID].messages.map((m) => m.id)).toContain('2b');
   });
 });

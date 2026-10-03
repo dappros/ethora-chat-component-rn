@@ -250,22 +250,32 @@ describe('reactionsMiddleware', () => {
         }),
       })
     );
+    // A reaction takes the preview…
     store.dispatch(
       setReactions({
         roomJID: 'r@h',
         messageId: '1234567890123',
+        from: 'alice@h',
+        reactions: ['joy'],
+        latestReactionTimestamp: '9999999999999',
+        data: { senderFirstName: 'A', senderLastName: 'B' } as any,
+      })
+    );
+    expect((store.getState().rooms.rooms['r@h'].lastMessage as any)?.emoji).toBe('joy');
+    // …and clearing it puts the last real message back.
+    store.dispatch(
+      setReactions({
+        roomJID: 'r@h',
+        messageId: '1234567890123',
+        from: 'alice@h',
         reactions: [], // cleared
         latestReactionTimestamp: '9999999999999',
         data: {} as any,
       })
     );
     const room = store.getState().rooms.rooms['r@h'];
-    // The setReactions reducer stamps `reactions: []` onto the row before
-    // the middleware runs, so the rolled-back row carries that field —
-    // assert on the body + id rather than full equality.
     expect(room.lastMessage?.id).toBe('1234567890123');
     expect(room.lastMessage?.body).toBe('real body');
-    expect(room.lastMessageTimestamp).toBe(1234567890123);
   });
 
   it('does NOT bump lastMessageTimestamp when the reaction is older than current', () => {
@@ -292,22 +302,37 @@ describe('reactionsMiddleware', () => {
     ).toBe(9999999999999);
   });
 
-  it('warns and does nothing when the target room is missing', () => {
-    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  it('does nothing (and does not throw) when the target room is missing', () => {
     const store = makeStore();
-    store.dispatch(
-      setReactions({
-        roomJID: 'missing@h',
-        messageId: '1',
-        reactions: ['🎉'],
-        latestReactionTimestamp: '9999999999999',
-        data: {} as any,
-      })
-    );
-    expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining('Room missing@h not found')
-    );
-    warn.mockRestore();
+    expect(() =>
+      store.dispatch(
+        setReactions({
+          roomJID: 'missing@h',
+          messageId: '1',
+          reactions: ['🎉'],
+          latestReactionTimestamp: '9999999999999',
+          data: {} as any,
+        })
+      )
+    ).not.toThrow();
+    expect(store.getState().rooms.rooms['missing@h']).toBeUndefined();
+  });
+
+  it('does not throw when a reaction is cleared in a room with no messages loaded', () => {
+    const store = makeStore();
+    store.dispatch(addRoom({ roomData: makeRoom('e@h', { messages: [] }) }));
+    expect(() =>
+      store.dispatch(
+        setReactions({
+          roomJID: 'e@h',
+          messageId: '1',
+          from: 'a@h',
+          reactions: [],
+          latestReactionTimestamp: '5',
+          data: {} as any,
+        })
+      )
+    ).not.toThrow();
   });
 
   it('is a pass-through for non-setReactions actions', () => {

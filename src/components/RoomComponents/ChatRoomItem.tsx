@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
+import { UNREAD_CAP_PAGE } from '../../roomStore/roomsSlice';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../roomStore';
 import { IMessage } from '../../types/types';
@@ -270,8 +271,8 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
                   fontWeight: '600',
                 }}
               >
-                {chat.unreadCapped
-                  ? `${Math.max(chat.unreadMessages, 10)}+`
+                {chat.unreadCapped && (chat.unreadMessages || 0) >= UNREAD_CAP_PAGE
+                  ? `${chat.unreadMessages}+`
                   : chat.unreadMessages || ''}
               </Text>
             </View>

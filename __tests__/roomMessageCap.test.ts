@@ -62,3 +62,18 @@ describe('room message cap', () => {
     expect(state.rooms[JID].messages[0].body).toBe('m1001');
   });
 });
+
+import { setUnreadCounts, applyRoomsPreloadBatch } from '../src/roomStore/roomsSlice';
+
+describe('capped unread flag', () => {
+  it('an exact count below a page clears "N+"', () => {
+    let state = seed();
+    state = roomsReducer(
+      state,
+      applyRoomsPreloadBatch({ rooms: [{ jid: JID, unreadCapped: true }] })
+    );
+    state = roomsReducer(state, setUnreadCounts({ [JID]: 1 }));
+    expect(state.rooms[JID].unreadCapped).toBe(false);
+    expect(state.rooms[JID].unreadMessages).toBe(1);
+  });
+});

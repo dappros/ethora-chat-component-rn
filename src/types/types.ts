@@ -638,6 +638,9 @@ export interface IConfig {
   // ----- interactions / messages -----
   disableInteractions?: boolean;
   disableReactions?: boolean;
+  /** Hide "Reply" in the long-press menu (threads still open from an
+   * existing thread pill or quote). */
+  disableReplies?: boolean;
   reactions?: {
     enabled?: boolean;
     quickReactions?: string[];

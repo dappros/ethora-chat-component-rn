@@ -15,6 +15,7 @@ import { Avatar } from './Avatar';
 import MessageInteractions from './MessageInteractions';
 import { BottomReplyContainer } from './BottomReplyContainer';
 import { MessageReply } from './MessageReply';
+import { parseMessageReference } from '../../helpers/parseMessageReference';
 import { DeletedMessage } from './DeletedMessage';
 import {
   setActiveModal,
@@ -258,15 +259,20 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
     dispatch(setSelectedUser(user));
   };
 
+  const replyRef = parseMessageReference(message);
+
   const handleReplyMessage = () => {
     dispatch(setEditAction({ isEdit: false }));
 
-    if (!isReply && message.mainMessage) {
-      const messageCore = JSON.parse(message.mainMessage);
+    // An in-channel reply opens its PARENT's thread.
+    const parent = !isReply ? parseMessageReference(message) : null;
+    if (parent) {
       dispatch(
-        setActiveMessage({ id: messageCore.id, chatJID: messageCore.roomJid })
+        setActiveMessage({
+          id: parent.id,
+          chatJID: parent.roomJid || message.roomJid,
+        })
       );
-
       return setIsPressed(false);
     }
 
@@ -437,7 +443,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
           styles.customMessageContainer,
           {
             justifyContent: isUser ? 'flex-end' : 'flex-start',
-            marginBottom: message?.reply?.length ? 20 : 0,
+            marginBottom: 0,
           },
           // justify-content: ${({ isUser }) => (isUser ? "flex-end" : "flex-start")},
           // margin-bottom: ${(props) => !!props.reply && "20px"},
@@ -509,11 +515,12 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
                 {senderDisplayName}
               </CustomUserName>
             )}
-            {!isReply && message.mainMessage && (
+            {!isReply && !!replyRef?.text && (
               <MessageReply
                 handleReplyMessage={handleReplyMessage}
                 isUser={isUser}
-                text={JSON.parse(message.mainMessage).text}
+                text={replyRef.text}
+                userName={replyRef.userName}
                 color={theme.primary}
               />
             )}
@@ -595,31 +602,33 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
               )}
             </CustomTimestampRow>
 
-          {message?.reply?.length && message?.reply?.length > 0 ? (
-              <BottomReplyContainer
-                isUser={isUser}
-                onClick={handleReplyMessage}
-                reply={message?.reply}
-              />
-            ) : (
-              <View />
-            )}
-
           </CustomMessageBubble>
-          {message.reaction && reactionsEnabled(config) && (
+          {/* One row on the bubble's bottom edge: the thread pill (as on
+              web) and the reaction chips side by side. */}
+          {((!isReply && (message?.reply?.length || 0) > 0) ||
+            (!!message.reaction && reactionsEnabled(config))) && (
             <View
               style={[
                 styles.reactionRow,
                 isUser ? styles.reactionRowUser : styles.reactionRowOther,
               ]}
             >
-              <MessageReaction
-                reaction={message.reaction}
-                changeReaction={handleReactionMessage}
-                color={theme.primary}
-                userName={`${user.firstName || ''} ${user.lastName || ''}`.trim()}
-                interactive={!config?.disableInteractions}
-              />
+              {!isReply && (message?.reply?.length || 0) > 0 && (
+                <BottomReplyContainer
+                  isUser={isUser}
+                  onClick={handleReplyMessage}
+                  reply={message.reply!}
+                />
+              )}
+              {message.reaction && reactionsEnabled(config) && (
+                <MessageReaction
+                  reaction={message.reaction}
+                  changeReaction={handleReactionMessage}
+                  color={theme.primary}
+                  userName={`${user.firstName || ''} ${user.lastName || ''}`.trim()}
+                  interactive={!config?.disableInteractions}
+                />
+              )}
             </View>
           )}
           </Animated.View>
@@ -664,6 +673,10 @@ const styles = StyleSheet.create({
   reactionRow: {
     marginTop: -10,
     zIndex: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 6,
   },
   reactionRowUser: {
     alignSelf: 'flex-end',

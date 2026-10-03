@@ -72,7 +72,10 @@ const computeUnreadCapped = (
   if (countable.length < pageSize) {return false;}
 
   const lastViewed = Number(room.lastViewedTimestamp) || 0;
-  if (lastViewed <= 0) {return true;}
+  // No read marker yet (the private-store markers often land after the
+  // first preload page): the count is unknown, not "more than a page".
+  // Claiming capped here showed "10+" on rooms with a single unread.
+  if (lastViewed <= 0) {return false;}
 
   const oldestTs = countable.reduce<number>((minTs, m) => {
     const ts = messageTimestamp(m);

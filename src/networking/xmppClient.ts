@@ -70,6 +70,11 @@ function withTimeout(promise: Promise<unknown>, ms: number): Promise<void> {
 // where it fails — XMPPError on stream:error, SASLError on SASL bind, or
 // a generic Error whose message contains "not-authorized". Match all of
 // them so we trigger the credentials refresh path consistently.
+// Failed XMPP-password recoveries in a row before the session is ended.
+const AUTH_RECOVERY_MAX_FAILURES = 2;
+// Rejections (each with a fresh password) before the password counts as lost.
+const AUTH_REJECTIONS_LIMIT = 3;
+
 function isNotAuthorizedError(err: any): boolean {
   if (!err) {return false;}
   const condition =
@@ -190,6 +195,42 @@ export class XmppClient {
    * (REST JWT, /users/client, etc.) and returning the resulting
    * username + password.
    */
+  /**
+   * Called once when the session's XMPP password is lost for good: the
+   * server rejected it (SASL not-authorized) and the refresh chain could
+   * not produce a working one — the refresh request failed, came back
+   * without a new password, or the new one was rejected too. Network
+   * outages never get here (no rejection without a reachable server).
+   */
+  private authLostHandler: (() => void) | null = null;
+  private authRecoveryFailures = 0;
+  private authLostFired = false;
+  // Rejections since the stream was last online — catches a refresh that
+  // keeps returning NEW passwords the server still rejects.
+  private authRejectionsSinceOnline = 0;
+
+  setAuthLostHandler(handler: (() => void) | null) {
+    this.authLostHandler = handler;
+  }
+
+  private markAuthRecoveryFailed(reason: string) {
+    this.authRecoveryFailures += 1;
+    console.warn(
+      `[xmpp] XMPP password recovery failed (${reason}), attempt ${this.authRecoveryFailures}`
+    );
+    // One retry before giving up, so a single REST hiccup does not end the
+    // session; a second failure in a row means the password is gone.
+    if (this.authRecoveryFailures >= AUTH_RECOVERY_MAX_FAILURES && !this.authLostFired) {
+      this.authLostFired = true;
+      this.suppressReconnect = true;
+      try {
+        this.authLostHandler?.();
+      } catch (e) {
+        console.warn('[xmpp] auth-lost handler threw', e);
+      }
+    }
+  }
+
   setCredentialsProvider(provider: XmppCredentialsProvider | null) {
     this.credentialsProvider = provider;
   }
@@ -446,6 +487,7 @@ export class XmppClient {
         console.error('Error starting xmpp client:', error);
         if (isNotAuthorizedError(error)) {
           this.lastAuthError = 'not-authorized';
+          this.authRejectionsSinceOnline += 1;
         }
         this.status = 'error';
         // A connect-time failure lands in 'error', which — unlike a
@@ -505,6 +547,8 @@ export class XmppClient {
     this.onOnline = () => {
       console.log('XMPP online.', new Date());
       this.status = 'online';
+      this.authRecoveryFailures = 0;
+      this.authRejectionsSinceOnline = 0;
       this.presencesReady = true;
       this.reconnectAttempts = 0;
       try {
@@ -542,6 +586,7 @@ export class XmppClient {
       console.error('XMPP client error:', error);
       if (isNotAuthorizedError(error)) {
         this.lastAuthError = 'not-authorized';
+        this.authRejectionsSinceOnline += 1;
       }
       try {
         devPushLog(
@@ -747,16 +792,29 @@ export class XmppClient {
         CREDENTIALS_REFRESH_MIN_INTERVAL_MS;
 
       if (this.credentialsProvider && (authFailed || staleCreds)) {
+        const rejectedPassword = authFailed ? this.password : null;
         try {
           await this.refreshCredentialsOnce();
+          // The server said this password is wrong and the refresh handed
+          // back nothing new: there is no working password to connect with.
+          if (rejectedPassword !== null && (!this.password || this.password === rejectedPassword)) {
+            this.markAuthRecoveryFailed('no new XMPP password after refresh');
+          } else if (this.authRejectionsSinceOnline >= AUTH_REJECTIONS_LIMIT) {
+            this.markAuthRecoveryFailed('refreshed XMPP password rejected again');
+          }
         } catch (err) {
-          // Offline is the common case here — reconnect with what we
-          // have and let the next attempt try again.
-          console.warn(
-            'XMPP credential refresh failed; reconnecting with cached creds',
-            err
-          );
+          if (rejectedPassword !== null) {
+            this.markAuthRecoveryFailed('refresh request failed');
+          } else {
+            // Offline is the common case here — reconnect with what we
+            // have and let the next attempt try again.
+            console.warn(
+              'XMPP credential refresh failed; reconnecting with cached creds',
+              err
+            );
+          }
         }
+        if (this.suppressReconnect) {return;}
       }
 
       // Tear the OLD underlying client down FULLY before spinning up a new
@@ -911,6 +969,16 @@ export class XmppClient {
   }
 
   getRoomsStanza = async () => {
+    // Asked while the socket is down (mid-reconnect) this used to throw
+    // "Cannot read property 'write' of null". Wait for the stream instead;
+    // if it does not come back, skip — the reconnect hook re-syncs rooms.
+    if (this.status !== 'online') {
+      try {
+        await this.waitForOnline(15000);
+      } catch {
+        return;
+      }
+    }
     await getRooms(this.client);
   };
 

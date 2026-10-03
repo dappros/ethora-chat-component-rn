@@ -557,9 +557,10 @@ describe('XmppClient — credentialsProvider', () => {
 
     // Still attempted a fresh client.
     expect(fakeClientInstances.length).toBeGreaterThan(1);
+    // After a rejection a failed refresh counts toward "password lost"
+    // (one retry is allowed before the session ends).
     expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('credential refresh failed'),
-      expect.any(Error)
+      expect.stringContaining('password recovery failed')
     );
     warnSpy.mockRestore();
   });
@@ -616,8 +617,9 @@ describe('XmppClient — disconnect / close', () => {
 // ---- delegating stanza helpers --------------------------------------
 
 describe('XmppClient — delegating stanza helpers', () => {
-  it('getRoomsStanza calls getRooms(client)', async () => {
+  it('getRoomsStanza calls getRooms(client) once the stream is online', async () => {
     const c = new XmppClient('u', 'p', { devServer: 'h' });
+    last().triggerEvent('online');
     await c.getRoomsStanza();
     expect(getRooms).toHaveBeenCalledWith(last());
   });

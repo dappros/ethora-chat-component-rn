@@ -15,6 +15,8 @@ import type XmppClient from '../networking/xmppClient';
 // page backward arbitrarily far without instantly losing what they
 // just fetched. After cap eviction we drop from the head (oldest).
 export const RUNTIME_MESSAGE_LIMIT = 100;
+/** One preload page: "N+" badges only ever mean "at least this many". */
+export const UNREAD_CAP_PAGE = 10;
 export const RUNTIME_MESSAGE_CEILING = 2000;
 
 // Body strings the server uses for call signaling broadcasts (call-token,
@@ -146,6 +148,7 @@ const insertRoomMessage = (
     }
   }
 
+  takePendingReactions(state, roomJID, message);
   const lengthBefore = roomMessages.length;
   const tailBefore = roomMessages[lengthBefore - 1];
 
@@ -248,22 +251,64 @@ const upsertRoom = (
       };
 };
 
+/** Order two numeric stanza ids (microsecond timestamps, too long for a
+ * double) without BigInt: by length, then lexicographically. */
+export const compareStanzaIds = (a: string, b: string): number =>
+  a.length !== b.length ? a.length - b.length : a < b ? -1 : a > b ? 1 : 0;
+
 export const applyReactionToMessage = (
   message: IMessage,
   from: string | undefined,
   reactions: string[],
-  data?: Record<string, string>
+  data?: Record<string, string>,
+  ts?: string
 ): void => {
   const fromId = String(from || '').split('/')[0].split('@')[0];
   if (!fromId) {return;}
   const list = (reactions || []).filter((r) => !!r);
   const current = { ...(message.reaction || {}) };
+  const prev = current[fromId];
+  // An older reaction (from a history page loaded after a newer one) never
+  // overwrites what is already known.
+  if (ts && prev?.ts && compareStanzaIds(ts, prev.ts) < 0) {return;}
   if (list.length === 0) {
-    delete current[fromId];
+    if (ts) {
+      // Keep a "removed" marker so an older reaction can't come back.
+      current[fromId] = { emoji: [], data: data || {}, ts };
+    } else {
+      delete current[fromId];
+    }
   } else {
-    current[fromId] = { emoji: list, data: data || {} };
+    current[fromId] = { emoji: list, data: data || {}, ...(ts ? { ts } : {}) };
   }
-  message.reaction = Object.keys(current).length ? current : undefined;
+  const anyShown = Object.values(current).some((r) => r?.emoji?.length);
+  message.reaction = anyShown || Object.keys(current).length ? current : undefined;
+};
+
+type PendingReaction = {
+  from: string;
+  reactions: string[];
+  data?: Record<string, string>;
+  ts?: string;
+};
+
+/** Reactions whose message is not loaded yet — applied when it arrives. */
+const takePendingReactions = (
+  state: WritableDraft<RoomMessagesState>,
+  roomJID: string,
+  message: IMessage
+): void => {
+  const byMessage = state.pendingReactions?.[roomJID];
+  if (!byMessage) {return;}
+  const keys = [String(message.id), message.xmppId ? String(message.xmppId) : ''];
+  for (const key of keys) {
+    const list = key ? byMessage[key] : undefined;
+    if (!list) {continue;}
+    for (const r of list) {
+      applyReactionToMessage(message, r.from, r.reactions, r.data, r.ts);
+    }
+    delete byMessage[key];
+  }
 };
 
 const enforceMessageCap = (
@@ -369,6 +414,10 @@ function mergeHistoryIntoCache(
     if (prev?.reaction && !next.reaction) {
       next = { ...next, reaction: prev.reaction };
     }
+    // A history merge must not close a thread the user has open.
+    if ((prev as any)?.activeMessage && !(next as any).activeMessage) {
+      next = { ...next, activeMessage: true } as IMessage;
+    }
     byId.set(String(m.id), next);
   }
   const merged = collapseCallLogDuplicates(
@@ -401,6 +450,9 @@ export interface RoomMessagesState {
   // — see `applyPrivateStoreMarkers`. Re-fetched every init/reconnect,
   // so it is intentionally NOT persisted.
   privateStoreMarkers: Record<string, number>;
+  /** `{ roomJID: { messageId: reactions[] } }` — reactions that arrived
+   * before their message (a newer history page), applied on insert. */
+  pendingReactions?: Record<string, Record<string, PendingReaction[]>>;
   // The single source of truth for "read up to here, but the user
   // hasn't reached the bottom yet" (`{ roomJID: boundaryMs }`).
   // Set by MessageList (via ChatRoom's `onReadBoundaryChange`) the
@@ -445,6 +497,7 @@ const initialState: RoomMessagesState = {
   pendingNotificationJid: null,
   privateStoreMarkers: {},
   readBoundaries: {},
+  pendingReactions: {},
 };
 
 const isValidRoomJid = (jid: unknown): jid is string => {
@@ -476,7 +529,11 @@ const reducers = {
     setUnreadCounts(state: WritableDraft<RoomMessagesState>, action: PayloadAction<Record<string, number>>) {
       for (const [jid, count] of Object.entries(action.payload || {})) {
         const room = state.rooms[jid];
-        if (room && room.unreadMessages !== count) {room.unreadMessages = count;}
+        if (!room) {continue;}
+        if (room.unreadMessages !== count) {room.unreadMessages = count;}
+        // "N+" only means "a whole page was unread"; an exact count below a
+        // page (or read to zero) settles it.
+        if (room.unreadCapped && count < UNREAD_CAP_PAGE) {room.unreadCapped = false;}
       }
     },
     /** Several rooms in one action — the cold-start rehydrate of the whole
@@ -876,18 +933,28 @@ const reducers = {
         data?: Record<string, string>;
       }>
     ) => {
-      const { roomJID, messageId, reactions, from, data } = action.payload;
+      const { roomJID, messageId, reactions, from, data, latestReactionTimestamp } =
+        action.payload;
+      if (!from) {return;}
       const room = state.rooms[roomJID];
-      if (!room?.messages) {return;}
-      for (const msg of room.messages) {
-        if (msg?.id === messageId) {
-          applyReactionToMessage(msg as IMessage, from, reactions, data);
-          break;
-        }
+      const target = room?.messages?.find(
+        (msg) => msg?.id === messageId || msg?.xmppId === messageId
+      );
+      if (target) {
+        applyReactionToMessage(target as IMessage, from, reactions, data, latestReactionTimestamp);
+        return;
+      }
+      // The message is not loaded (yet): keep the reaction for it.
+      if (!state.pendingReactions) {state.pendingReactions = {};}
+      const byMessage = (state.pendingReactions[roomJID] ||= {});
+      const list = (byMessage[messageId] ||= []);
+      if (list.length < 50) {
+        list.push({ from, reactions, data, ts: latestReactionTimestamp });
       }
     },
     setLogoutState: (state: WritableDraft<RoomMessagesState>) => {
       state.rooms = {};
+      state.pendingReactions = {};
       state.activeRoomJID = null;
       state.visibleRoomJID = null;
       state.isLoading = false;
@@ -989,6 +1056,7 @@ const reducers = {
           room.historyComplete = patch.historyComplete;
         }
         if (Array.isArray(patch.messages)) {
+          for (const m of patch.messages) {takePendingReactions(state, patch.jid, m);}
           // Merge the fetched page into cache by message id rather than
           // replacing — preserves older history + unread on re-entry. Only
           // a true gap (no overlapping id) clears this chat's cache. See

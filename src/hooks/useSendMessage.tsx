@@ -157,6 +157,16 @@ export const useSendMessage = (_configOverride?: IConfig) => {
         // manual-mode readers see the Translate link on it too (parity with
         // the web SDK, which stamps langSource on the optimistic message).
         langSource: (langSource as any) || 'en',
+        // Reply fields as the wire carries them (strings), so a thread reply
+        // shows in its thread — and NOT in the channel — from the first
+        // frame, not only once the server echo lands.
+        ...(isReply
+          ? {
+              isReply: 'true',
+              showInChannel: isChecked ? 'true' : 'false',
+              mainMessage,
+            }
+          : {}),
         user: {
           ...(user as any),
           id: selfId,
@@ -418,7 +428,7 @@ export const useSendMessage = (_configOverride?: IConfig) => {
               mimetype: type,
               originalName: data?.name,
               size: fileSizeStr,
-              isReply,
+              isReply: isReply ? 'true' : 'false',
               showInChannel: `${isChecked}`,
               mainMessage,
             } as any as IMessage,

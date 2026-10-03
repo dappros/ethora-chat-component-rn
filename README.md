@@ -19,6 +19,7 @@ React Native chat UI + chat core for iOS and Android, powered by the Ethora plat
 - [Logging out](#logging-out)
 - [Customization flags worth knowing](#customization-flags-worth-knowing)
 - [Message reactions](#message-reactions)
+- [Replies & threads](#replies--threads)
 - [Keyboard handling](#keyboard-handling)
 - [Header height & font sizing](#header-height--font-sizing)
 - [Dark theme](#dark-theme)
@@ -351,6 +352,24 @@ Emoji reactions on messages, WhatsApp-style. **On by default**, shared with the 
 **Ids, not glyphs.** Reactions travel on the wire and are stored as emoji *short names* — `+1`, `heart`, `joy`, `fire`, `pray`, … — the same ids the web SDK uses, so both platforms read each other's reactions. The SDK ships its own id→glyph table (~1850 emoji, up to Emoji 14 so every supported OS renders them) and resolves ids when rendering; no emoji library is needed. In `message.reaction` the data is keyed by the reactor's XMPP local part: `{ alice: { emoji: ['joy', '+1'], data: { senderFirstName, senderLastName } } }`.
 
 **Protocol.** One `<message type="groupchat" id="message-reaction:…">` with `<reactions xmlns="urn:xmpp:reactions:0" id="<target stanza id>" from="<reactor jid>">` and one `<reaction>` child per id — always the reactor's **full current list** (an empty `<reactions/>` clears them). Reactions are archived with the room's history and restored with it on every history fetch.
+
+## Replies & threads
+
+Same model as the web SDK, so threads are shared across platforms.
+
+- **Reply** in the long-press menu opens the message's **thread**: the parent on top, its replies below, its own input. It slides in over the room and closes with the back arrow, Android back, or a swipe from the left edge.
+- **"Also send to <room>"** under the thread input posts the reply in the channel too. There it shows a **quote** of the parent (author + two lines); tapping the quote opens the parent's thread.
+- A message with replies gets a **"N replies" pill** under the bubble with the repliers' avatars; tapping it opens the thread.
+- On the wire a reply is a normal message with `isReply="true"`, `showInChannel="true|false"` and `mainMessage` (JSON of the parent: `id`, `text`, `userName`, `roomJid`, …) in its `<data>`. Replies live in the room's history; nothing extra is fetched.
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `disableReplies` | `false` | Hides "Reply" in the long-press menu. Existing pills and quotes still open threads. |
+| `disableInteractions` | `false` | Hides the whole long-press menu, Reply included. |
+
+## Session loss
+
+When the server rejects the XMPP password (SASL `not-authorized`) the SDK refreshes credentials and reconnects. If that cannot produce a working password — the refresh request fails, returns no new password, or the new one is rejected too — twice in a row, the session is ended exactly like **Sign out** (`performLogout`, then `logout.onAfterLogout`), so the host can route to its login screen. A network outage never triggers this: without a reachable server there is no rejection, and the client keeps reconnecting with backoff.
 
 ## Keyboard handling
 

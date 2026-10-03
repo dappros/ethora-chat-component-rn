@@ -17,22 +17,41 @@ interface PendingQuery {
 const pending = new Map<string, PendingQuery>();
 
 const flush = (query: PendingQuery) => {
-  const deferred = applyMamReactions(query.messages, query.reactions);
+  // Every step is guarded: a failure in one (a middleware throwing on a
+  // reaction, say) used to escape `settle` before the waiting request was
+  // resolved — the page was lost and the room stayed empty until opened.
+  let deferred: ExtractedReaction[] = [];
+  try {
+    // Reactions ride in the archive as their own entries: fold them onto
+    // the page's messages first, so they are stored together.
+    deferred = applyMamReactions(query.messages, query.reactions);
+  } catch (e) {
+    console.warn('[mam] applying reactions to a page failed', e);
+  }
   if (query.apply && query.messages.length > 0) {
-    store.dispatch(
-      addRoomMessages({ roomJID: query.roomJID, messages: query.messages })
-    );
+    try {
+      store.dispatch(
+        addRoomMessages({ roomJID: query.roomJID, messages: query.messages })
+      );
+    } catch (e) {
+      console.warn('[mam] applying a history page failed', e);
+    }
   }
   for (const reaction of deferred) {
-    store.dispatch(
-      setReactions({
-        roomJID: reaction.roomJID || query.roomJID,
-        messageId: reaction.messageId,
-        from: reaction.from,
-        reactions: reaction.emoji,
-        data: reaction.data,
-      })
-    );
+    try {
+      store.dispatch(
+        setReactions({
+          roomJID: reaction.roomJID || query.roomJID,
+          messageId: reaction.messageId,
+          from: reaction.from,
+          reactions: reaction.emoji,
+          data: reaction.data,
+          latestReactionTimestamp: reaction.ts,
+        })
+      );
+    } catch (e) {
+      console.warn('[mam] applying a reaction failed', e);
+    }
   }
 };
 
@@ -87,11 +106,15 @@ const queryOf = (stanza: any): PendingQuery | undefined => {
 
 const settle = (queryId: string, query: PendingQuery) => {
   if (pending.get(queryId) === query) {pending.delete(queryId);}
-  flush(query);
-  if (query.closed?.error) {
-    query.reject(new Error('mam query error'));
-  } else {
-    query.resolve(query.messages);
+  try {
+    flush(query);
+  } finally {
+    // The waiting request is always answered, whatever happened above.
+    if (query.closed?.error) {
+      query.reject(new Error('mam query error'));
+    } else {
+      query.resolve(query.messages);
+    }
   }
 };
 

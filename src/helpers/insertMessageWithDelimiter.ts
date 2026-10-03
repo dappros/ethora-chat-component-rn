@@ -1,5 +1,4 @@
 import { IMessage } from '../types/types';
-import { isDateAfter, isDateBefore } from './dateComparison';
 import { msgSortableMs } from './msgSortableMs';
 
 // Robustly resolve a caller-supplied read marker to epoch milliseconds.
@@ -90,17 +89,29 @@ export function insertMessageWithDelimiter(
     return;
   }
 
-  const newMessageDate = message.date;
   const lastMessage = roomMessages[roomMessages.length - 1];
-  const firstMessage = roomMessages[0];
+  // Ordered by the id-encoded server timestamp (msgSortableMs), the same
+  // key the list and the unread logic use. The old `date` string compare
+  // had a hole: a message neither strictly after the last one nor
+  // strictly before the first (same second, or an unparseable date) fell
+  // through every branch and was silently DROPPED.
+  const newMs = msgSortableMs(message);
+  const lastMs = lastMessage ? msgSortableMs(lastMessage) : 0;
 
-  if (isDateAfter(newMessageDate.toString(), lastMessage?.date?.toString() ?? '')) {
+  if (!lastMessage || !newMs || newMs >= lastMs) {
     const index = roomMessages.findIndex(
       (msg) => msg.id === message.xmppId || msg.id === message.id
     );
 
     if (index !== -1) {
-      roomMessages[index] = { ...message, id: message.id, pending: false };
+      // Keep an open thread open when its parent is replaced by the echo.
+      const keepThread = (roomMessages[index] as any)?.activeMessage;
+      roomMessages[index] = {
+        ...message,
+        id: message.id,
+        pending: false,
+        ...(keepThread ? { activeMessage: true } : {}),
+      };
     } else {
       roomMessages.push(message);
     }
@@ -153,18 +164,14 @@ export function insertMessageWithDelimiter(
         });
       }
     }
-  } else if (
-    isDateBefore(newMessageDate.toString(), firstMessage?.date?.toString() ?? '')
-  ) {
-    roomMessages.unshift(message);
   } else {
-    for (let i = 0; i < roomMessages.length; i++) {
-      if (
-        isDateBefore(newMessageDate.toString(), roomMessages[i].date?.toString() ?? '')
-      ) {
-        roomMessages.splice(i, 0, message);
-        break;
-      }
+    // Before the first message strictly newer than it; equal keys keep
+    // arrival order.
+    const at = roomMessages.findIndex((msg) => msgSortableMs(msg) > newMs);
+    if (at === -1) {
+      roomMessages.push(message);
+    } else {
+      roomMessages.splice(at, 0, message);
     }
   }
 }

@@ -204,7 +204,11 @@ const parseMamResult = async (stanza: any): Promise<IMessage | undefined> => {
       ?.getChild('forwarded')
       ?.getChild('message');
     if (forwardedMsg?.getChild?.('reactions')) {
-      const reaction = extractReaction(forwardedMsg, stanza.attrs?.from);
+      const reaction = extractReaction(
+        forwardedMsg,
+        stanza.attrs?.from,
+        stanza.getChild('result')?.attrs?.id
+      );
       if (reaction && !collectMamReaction(stanza, reaction)) {
         store.dispatch(
           setReactions({
@@ -213,6 +217,7 @@ const parseMamResult = async (stanza: any): Promise<IMessage | undefined> => {
             from: reaction.from,
             reactions: reaction.emoji,
             data: reaction.data,
+            latestReactionTimestamp: reaction.ts,
           })
         );
       }
@@ -521,7 +526,7 @@ const onReactionMessage = (stanza: Element) => {
     setReactions({
       roomJID: reaction.roomJID,
       messageId: reaction.messageId,
-      latestReactionTimestamp: stanza.getChild('stanza-id')?.attrs?.id,
+      latestReactionTimestamp: reaction.ts,
       reactions: reaction.emoji,
       from: reaction.from,
       data: reaction.data,

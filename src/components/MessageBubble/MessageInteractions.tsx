@@ -343,6 +343,17 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
           ]}
           onLayout={handleMenuLayout}
         >
+          {!isReply && !config?.disableReplies && (
+            <>
+              <MenuItem testID="menu-reply" onPress={handleReplyMessage}>
+                <Text style={[styles.menuText, themedStyles.text]}>
+                  {MESSAGE_INTERACTIONS.REPLY}
+                </Text>
+                <MESSAGE_INTERACTIONS_ICONS.REPLY color={theme.text} />
+              </MenuItem>
+              <Delimeter />
+            </>
+          )}
           <MenuItem onPress={() => handleCopyMessage(message.body!)}>
             <Text style={[styles.menuText, themedStyles.text]}>
               {MESSAGE_INTERACTIONS.COPY}

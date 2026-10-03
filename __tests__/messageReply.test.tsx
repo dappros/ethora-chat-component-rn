@@ -19,6 +19,15 @@ const renderReply = async (
   return tree!;
 };
 
+// The accent bar is the quote's first child view; its colour is the accent.
+const flat = (style: any) =>
+  Array.isArray(style) ? Object.assign({}, ...style.flat().filter(Boolean)) : style || {};
+const accentOf = (tree: any) => {
+  const quote = tree.root.findByProps({ testID: 'message-reply-quote' });
+  const bar = quote.findAll((n: any) => n.type === 'View' && flat(n.props.style).width === 4)[0];
+  return flat(bar?.props?.style).backgroundColor;
+};
+
 describe('<MessageReply />', () => {
   it('renders the quoted text', async () => {
     const tree = await renderReply({
@@ -59,12 +68,7 @@ describe('<MessageReply />', () => {
       text: 'x',
       handleReplyMessage: jest.fn(),
     });
-    // The styled component forwards `configColor` to the styled
-    // template; tap the prop directly on the wrapping styled node.
-    const wrapper = tree.root.findAll(
-      (n) => typeof n.props?.configColor === 'string'
-    )[0];
-    expect(wrapper?.props?.configColor).toBe('#0052CD');
+    expect(accentOf(tree)).toBe('#0052CD');
   });
 
   it('forwards an explicit color prop to the styled wrapper', async () => {
@@ -74,10 +78,7 @@ describe('<MessageReply />', () => {
       color: '#ff00aa',
       handleReplyMessage: jest.fn(),
     });
-    const wrapper = tree.root.findAll(
-      (n) => typeof n.props?.configColor === 'string'
-    )[0];
-    expect(wrapper?.props?.configColor).toBe('#ff00aa');
+    expect(accentOf(tree)).toBe('#ff00aa');
   });
 
   it('isUser flag propagates so the styled border swaps sides', async () => {

@@ -49,7 +49,7 @@ export const useUnreadMessagesCounter = (): UnreadMessagesStats => {
       unreadByRoom[roomJid] = unreadCount;
       totalCount += unreadCount;
     }
-    if ((room as any)?.unreadCapped) {
+    if ((room as any)?.unreadCapped && unreadCount >= 10) {
       isCapped = true;
     }
   });

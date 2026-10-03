@@ -72,6 +72,9 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
   usePendingNotification();
   const theme = useTheme();
   const roomStackRef = useRef<RoomStackHandle>(null);
+  // Stable, so ChatRoom's React.memo holds across this root's re-renders.
+  // (A hook: must stay above the early LoginForm return.)
+  const popRoom = useCallback(() => roomStackRef.current?.pop(), []);
 
   const [isInited, setInited] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -441,7 +444,16 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
   // List mode: the room is pushed over the list and can be swiped back
   // (RoomStack). With `roomJID` / `disableRooms` there is no list to return to.
   const listMode = !config?.disableRooms && !roomJID;
-  const popRoom = useCallback(() => roomStackRef.current?.pop(), []);
+
+  // The open thread, over the room (a message with `activeMessage` set).
+  const threadView = activeMessage ? (
+    <ThreadWrapper
+      key={activeMessage.id}
+      activeMessage={activeMessage}
+      user={user}
+      customMessageComponent={CustomMessageComponent || Message}
+    />
+  ) : null;
   const backToList = () => {
     dispatch(setCurrentRoom({ roomJID: '' }));
   };
@@ -535,6 +547,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
                           }
                           handleBackClick={popRoom}
                         />
+                        {threadView}
                       </ChatWrapperBox>
                     )
                   }
@@ -547,6 +560,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
                   <ChatRoom
                     CustomMessageComponent={CustomMessageComponent || Message}
                   />
+                  {threadView}
                 </ChatWrapperBox>
               )}
             </InteractionsOverlayProvider>
