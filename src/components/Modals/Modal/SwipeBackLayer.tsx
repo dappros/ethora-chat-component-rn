@@ -1,18 +1,19 @@
-import React, { ReactNode, useCallback, useEffect, useRef } from 'react';
+import React, {
+  ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
+  Animated,
   BackHandler,
   Keyboard,
   StyleSheet,
   useWindowDimensions,
   View,
 } from 'react-native';
-import Animated, {
-  interpolate,
-  runOnJS,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import {
   COMPLETE_DISTANCE,
@@ -33,37 +34,76 @@ interface SwipeBackLayerProps {
 /**
  * Full-screen modal layer with the same navigation feel as RoomStack: it
  * slides in from the right, and a swipe from the left edge drags it back
- * out over whatever is underneath (the room or the list).
+ * out over whatever is underneath (the room or the list). Like RoomStack it
+ * runs on RN's own `Animated`, one value driving every layer.
  */
 export const SwipeBackLayer: React.FC<SwipeBackLayerProps> = ({
   onClose,
   children,
 }) => {
   const { width: windowWidth } = useWindowDimensions();
-  const width = useSharedValue(windowWidth);
-  const x = useSharedValue(windowWidth);
-  const closing = useSharedValue(false);
+  const [width, setWidth] = useState(windowWidth);
+  const widthRef = useRef(width);
+  widthRef.current = width;
+  const x = useRef(new Animated.Value(windowWidth)).current;
+  const closing = useRef(false);
+
+  const slideTo = useCallback(
+    (
+      toValue: number,
+      config: typeof PUSH,
+      done?: (finished: boolean) => void
+    ) => {
+      Animated.timing(x, {
+        toValue,
+        ...config,
+        useNativeDriver: true,
+      }).start(({ finished }) => done?.(finished));
+    },
+    [x]
+  );
 
   useEffect(() => {
-    x.value = withTiming(0, PUSH);
+    slideTo(0, PUSH);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
-  const finish = useCallback(() => onCloseRef.current(), []);
+  const [closeCount, setCloseCount] = useState(0);
+  const finish = useCallback(() => {
+    onCloseRef.current();
+    setCloseCount(count => count + 1);
+  }, []);
 
-  const close = useCallback(() => {
-    if (closing.value) {
+  // `onClose` normally unmounts this layer. If it is still here afterwards
+  // (the modal did not close), slide the screen back rather than leave it
+  // parked off-screen.
+  useEffect(() => {
+    if (closeCount === 0) {
       return;
     }
-    closing.value = true;
-    Keyboard.dismiss();
-    x.value = withTiming(width.value, POP, finished => {
+    closing.current = false;
+    slideTo(0, POP);
+  }, [closeCount]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const slideOut = useCallback(() => {
+    closing.current = true;
+    slideTo(widthRef.current, POP, finished => {
       if (finished) {
-        runOnJS(finish)();
+        finish();
+      } else {
+        closing.current = false;
       }
     });
-  }, [finish]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [finish, slideTo]);
+
+  const close = useCallback(() => {
+    if (closing.current) {
+      return;
+    }
+    Keyboard.dismiss();
+    slideOut();
+  }, [slideOut]);
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -73,46 +113,51 @@ export const SwipeBackLayer: React.FC<SwipeBackLayerProps> = ({
     return () => sub.remove();
   }, [close]);
 
-  const dismissKeyboard = useCallback(() => Keyboard.dismiss(), []);
-
-  const swipeBack = Gesture.Pan()
-    .hitSlop({ left: 0, width: EDGE_WIDTH })
-    .activeOffsetX(12)
-    .failOffsetY([-16, 16])
-    .onStart(() => {
-      runOnJS(dismissKeyboard)();
-    })
-    .onUpdate(e => {
-      if (closing.value) {
-        return;
-      }
-      x.value = Math.min(Math.max(e.translationX, 0), width.value);
-    })
-    .onEnd(e => {
-      if (closing.value) {
-        return;
-      }
-      const complete =
-        x.value > width.value * COMPLETE_DISTANCE ||
-        e.velocityX > COMPLETE_VELOCITY;
-      if (complete) {
-        closing.value = true;
-        x.value = withTiming(width.value, POP, finished => {
-          if (finished) {
-            runOnJS(finish)();
+  const swipeBack = useMemo(
+    () =>
+      Gesture.Pan()
+        .runOnJS(true)
+        .hitSlop({ left: 0, width: EDGE_WIDTH })
+        .activeOffsetX(12)
+        .failOffsetY([-16, 16])
+        .onStart(() => {
+          if (closing.current) {
+            return;
           }
-        });
-      } else {
-        x.value = withTiming(0, POP);
-      }
-    });
+          Keyboard.dismiss();
+          x.stopAnimation();
+        })
+        .onUpdate(e => {
+          if (closing.current) {
+            return;
+          }
+          x.setValue(Math.min(Math.max(e.translationX, 0), widthRef.current));
+        })
+        .onEnd(e => {
+          if (closing.current) {
+            return;
+          }
+          const complete =
+            e.translationX > widthRef.current * COMPLETE_DISTANCE ||
+            e.velocityX > COMPLETE_VELOCITY;
+          if (complete) {
+            slideOut();
+          } else {
+            slideTo(0, POP);
+          }
+        }),
+    [slideOut, slideTo, x]
+  );
 
-  const screenStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: x.value }],
-  }));
-  const dimStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(x.value, [0, width.value], [LIST_DIM, 0]),
-  }));
+  const dimOpacity = useMemo(
+    () =>
+      x.interpolate({
+        inputRange: [0, width],
+        outputRange: [LIST_DIM, 0],
+        extrapolate: 'clamp',
+      }),
+    [x, width]
+  );
 
   return (
     <View
@@ -120,17 +165,23 @@ export const SwipeBackLayer: React.FC<SwipeBackLayerProps> = ({
       style={styles.host}
       onLayout={e => {
         const next = e.nativeEvent.layout.width;
-        if (next > 0) {
-          width.value = next;
+        if (next > 0 && next !== widthRef.current) {
+          setWidth(next);
         }
       }}
     >
       <Animated.View
         pointerEvents="none"
-        style={[styles.fill, styles.dim, dimStyle]}
+        style={[styles.fill, styles.dim, { opacity: dimOpacity }]}
       />
       <GestureDetector gesture={swipeBack}>
-        <Animated.View style={[styles.fill, styles.screen, screenStyle]}>
+        <Animated.View
+          style={[
+            styles.fill,
+            styles.screen,
+            { transform: [{ translateX: x }] },
+          ]}
+        >
           {children(close)}
         </Animated.View>
       </GestureDetector>

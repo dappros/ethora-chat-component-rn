@@ -1,27 +1,24 @@
 import React, {
   forwardRef,
+  memo,
   ReactNode,
   useCallback,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
+  useState,
 } from 'react';
 import {
+  Animated,
   BackHandler,
+  Easing,
   Keyboard,
   LayoutChangeEvent,
   StyleSheet,
   useWindowDimensions,
   View,
 } from 'react-native';
-import Animated, {
-  Easing,
-  interpolate,
-  runOnJS,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 
 // Width of the left-edge strip that starts the back swipe.
@@ -36,6 +33,17 @@ export const LIST_DIM = 0.25;
 
 export const PUSH = { duration: 320, easing: Easing.bezier(0.2, 0.8, 0.2, 1) };
 export const POP = { duration: 240, easing: Easing.out(Easing.cubic) };
+
+/**
+ * Holds its children still while `frozen`: the list under an open room is
+ * fully covered, so re-rendering it on every store update (each incoming
+ * message) is wasted work on the JS thread. It thaws as soon as it is
+ * about to be seen again.
+ */
+const Freezable = memo(
+  ({ children }: { frozen: boolean; children: ReactNode }) => <>{children}</>,
+  (_prev, next) => next.frozen
+);
 
 export interface RoomStackHandle {
   /** Slide the room out, then call `onBack`. */
@@ -59,16 +67,43 @@ interface RoomStackProps {
  * Two-layer stack for the list → room navigation: the room slides in over
  * the list, and a swipe from the left edge drags it back out, following the
  * finger, with the list parallaxing in underneath (the iOS navigation feel).
+ *
+ * Driven by RN's own `Animated` (native driver), not Reanimated: every layer
+ * derives from ONE value through interpolation, so the layers cannot drift
+ * apart, and a React re-render mid-flight cannot reset a layer to the style
+ * it was first rendered with.
  */
 export const RoomStack = forwardRef<RoomStackHandle, RoomStackProps>(
   ({ list, room, onBack, roomBackground, hardwareBack = true }, ref) => {
     const { width: windowWidth } = useWindowDimensions();
-    const width = useSharedValue(windowWidth);
+    const [width, setWidth] = useState(windowWidth);
+    const widthRef = useRef(width);
+    widthRef.current = width;
     const hasRoom = !!room;
     // Room's horizontal offset: 0 = covering the list, `width` = off-screen.
     // A room already open on the first render is shown in place.
-    const x = useSharedValue(hasRoom ? 0 : windowWidth);
-    const closing = useSharedValue(false);
+    const x = useRef(new Animated.Value(hasRoom ? 0 : windowWidth)).current;
+    const closing = useRef(false);
+
+    // True while the list is (about to be) visible under a moving room.
+    const [peeking, setPeeking] = useState(false);
+    // Bumped after every completed pop — see the settle effect below.
+    const [popCount, setPopCount] = useState(0);
+
+    const slideTo = useCallback(
+      (
+        toValue: number,
+        config: typeof PUSH,
+        done?: (finished: boolean) => void
+      ) => {
+        Animated.timing(x, {
+          toValue,
+          ...config,
+          useNativeDriver: true,
+        }).start(({ finished }) => done?.(finished));
+      },
+      [x]
+    );
 
     const isFirstRender = useRef(true);
     useEffect(() => {
@@ -76,31 +111,56 @@ export const RoomStack = forwardRef<RoomStackHandle, RoomStackProps>(
         isFirstRender.current = false;
         return;
       }
-      closing.value = false;
+      closing.current = false;
+      setPeeking(false);
+      x.stopAnimation();
+      x.setValue(widthRef.current);
       if (hasRoom) {
-        x.value = width.value;
-        x.value = withTiming(0, PUSH);
-      } else {
-        x.value = width.value;
+        slideTo(0, PUSH);
       }
     }, [hasRoom]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const onBackRef = useRef(onBack);
     onBackRef.current = onBack;
-    const finish = useCallback(() => onBackRef.current(), []);
+    const finish = useCallback(() => {
+      onBackRef.current();
+      setPopCount(count => count + 1);
+    }, []);
 
-    const pop = useCallback(() => {
-      if (closing.value) {
+    // `onBack` normally clears the room, and the effect above takes over.
+    // If the room is still (or again) there after a pop — something
+    // re-selected it — bring it back on screen: a room parked off-screen
+    // would leave the list visible but untouchable.
+    const hasRoomRef = useRef(hasRoom);
+    hasRoomRef.current = hasRoom;
+    useEffect(() => {
+      if (popCount === 0 || !hasRoomRef.current) {
         return;
       }
-      closing.value = true;
-      Keyboard.dismiss();
-      x.value = withTiming(width.value, POP, finished => {
+      closing.current = false;
+      setPeeking(false);
+      slideTo(0, POP);
+    }, [popCount]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const slideOut = useCallback(() => {
+      closing.current = true;
+      setPeeking(true);
+      slideTo(widthRef.current, POP, finished => {
         if (finished) {
-          runOnJS(finish)();
+          finish();
+        } else {
+          closing.current = false;
         }
       });
-    }, [finish]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [finish, slideTo]);
+
+    const pop = useCallback(() => {
+      if (closing.current) {
+        return;
+      }
+      Keyboard.dismiss();
+      slideOut();
+    }, [slideOut]);
 
     useImperativeHandle(ref, () => ({ pop }), [pop]);
 
@@ -115,80 +175,93 @@ export const RoomStack = forwardRef<RoomStackHandle, RoomStackProps>(
       return () => sub.remove();
     }, [hasRoom, hardwareBack, pop]);
 
-    const dismissKeyboard = useCallback(() => Keyboard.dismiss(), []);
-
-    const swipeBack = Gesture.Pan()
-      .hitSlop({ left: 0, width: EDGE_WIDTH })
-      .activeOffsetX(12)
-      .failOffsetY([-16, 16])
-      .onStart(() => {
-        runOnJS(dismissKeyboard)();
-      })
-      .onUpdate(e => {
-        if (closing.value) {
-          return;
-        }
-        x.value = Math.min(Math.max(e.translationX, 0), width.value);
-      })
-      .onEnd(e => {
-        if (closing.value) {
-          return;
-        }
-        const complete =
-          x.value > width.value * COMPLETE_DISTANCE ||
-          e.velocityX > COMPLETE_VELOCITY;
-        if (complete) {
-          closing.value = true;
-          x.value = withTiming(width.value, POP, finished => {
-            if (finished) {
-              runOnJS(finish)();
+    const swipeBack = useMemo(
+      () =>
+        Gesture.Pan()
+          .runOnJS(true)
+          .hitSlop({ left: 0, width: EDGE_WIDTH })
+          .activeOffsetX(12)
+          .failOffsetY([-16, 16])
+          .onStart(() => {
+            if (closing.current) {
+              return;
             }
-          });
-        } else {
-          x.value = withTiming(0, POP);
-        }
-      });
+            Keyboard.dismiss();
+            setPeeking(true);
+            x.stopAnimation();
+          })
+          .onUpdate(e => {
+            if (closing.current) {
+              return;
+            }
+            x.setValue(Math.min(Math.max(e.translationX, 0), widthRef.current));
+          })
+          .onEnd(e => {
+            if (closing.current) {
+              return;
+            }
+            const complete =
+              e.translationX > widthRef.current * COMPLETE_DISTANCE ||
+              e.velocityX > COMPLETE_VELOCITY;
+            if (complete) {
+              slideOut();
+            } else {
+              slideTo(0, POP, () => setPeeking(false));
+            }
+          }),
+      [slideOut, slideTo, x]
+    );
 
-    const onLayout = useCallback((e: LayoutChangeEvent) => {
-      const next = e.nativeEvent.layout.width;
-      if (next > 0 && next !== width.value) {
-        // Keep an off-screen room off-screen when the container resizes.
-        if (x.value === width.value) {
-          x.value = next;
+    const onLayout = useCallback(
+      (e: LayoutChangeEvent) => {
+        const next = e.nativeEvent.layout.width;
+        if (next > 0 && next !== widthRef.current) {
+          // Keep an off-screen room off-screen when the container resizes.
+          if (!hasRoomRef.current) {
+            x.setValue(next);
+          }
+          setWidth(next);
         }
-        width.value = next;
-      }
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+      },
+      [x]
+    );
 
-    const roomStyle = useAnimatedStyle(() => ({
-      transform: [{ translateX: x.value }],
-    }));
-    // 1 while the room fully covers the list, 0 once it is gone.
-    const listStyle = useAnimatedStyle(() => {
-      const covered = 1 - Math.min(Math.max(x.value / width.value, 0), 1);
-      return {
-        transform: [{ translateX: -width.value * LIST_PARALLAX * covered }],
-      };
-    });
-    const dimStyle = useAnimatedStyle(() => ({
-      opacity: interpolate(x.value, [0, width.value], [LIST_DIM, 0]),
-    }));
+    const { listShift, dimOpacity } = useMemo(
+      () => ({
+        listShift: x.interpolate({
+          inputRange: [0, width],
+          outputRange: [-width * LIST_PARALLAX, 0],
+          extrapolate: 'clamp',
+        }),
+        dimOpacity: x.interpolate({
+          inputRange: [0, width],
+          outputRange: [LIST_DIM, 0],
+          extrapolate: 'clamp',
+        }),
+      }),
+      [x, width]
+    );
 
     return (
       <View style={styles.container} onLayout={onLayout}>
         <Animated.View
-          style={[styles.layer, listStyle]}
+          style={[
+            styles.layer,
+            // Without a room the list always rests in place, whatever the
+            // animated value is doing.
+            hasRoom ? { transform: [{ translateX: listShift }] } : null,
+          ]}
           pointerEvents={hasRoom ? 'none' : 'auto'}
           accessibilityElementsHidden={hasRoom}
           importantForAccessibility={hasRoom ? 'no-hide-descendants' : 'auto'}
         >
-          {list}
+          <Freezable frozen={hasRoom && !peeking}>{list}</Freezable>
         </Animated.View>
         {hasRoom && (
           <>
             <Animated.View
               pointerEvents="none"
-              style={[styles.layer, styles.dim, dimStyle]}
+              style={[styles.layer, styles.dim, { opacity: dimOpacity }]}
             />
             <GestureDetector gesture={swipeBack}>
               <Animated.View
@@ -196,7 +269,7 @@ export const RoomStack = forwardRef<RoomStackHandle, RoomStackProps>(
                   styles.layer,
                   styles.room,
                   { backgroundColor: roomBackground },
-                  roomStyle,
+                  { transform: [{ translateX: x }] },
                 ]}
               >
                 {room}

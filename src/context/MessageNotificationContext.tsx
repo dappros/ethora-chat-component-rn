@@ -15,17 +15,23 @@ import {
   Animated,
   AppState,
   AppStateStatus,
+  Easing,
+  PanResponder,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import { messageNotificationManager } from '../utils/messageNotificationManager';
 import { setCurrentRoom } from '../roomStore/roomsSlice';
 import { IConfig, IMessage } from '../types/types';
 import { RootState } from '../roomStore';
 import { useTheme } from '../hooks/useTheme';
+import { ProfileImagePlaceholder } from '../components/MainComponents/ProfileImagePlaceholder';
+import { useFileToken } from '../hooks/useFileToken';
+import { appendFileToken } from '../helpers/secureFileUrl';
 
 interface ToastItem {
   id: string;
@@ -50,6 +56,11 @@ const MessageNotificationContext =
 
 const DEFAULT_MAX = 3;
 const DEFAULT_DURATION_MS = 30000;
+// The top banner is a glance, not a stack to work through: it leaves on its
+// own after a few seconds unless the host sets `duration`.
+const BANNER_DURATION_MS = 4000;
+const BANNER_IN_MS = 280;
+const BANNER_OUT_MS = 220;
 
 interface ProviderProps {
   children: ReactNode;
@@ -72,7 +83,17 @@ export const MessageNotificationProvider: React.FC<ProviderProps> = ({
   const notificationConfig = config?.inAppNotifications;
   const isEnabled = notificationConfig?.enabled === true;
   const maxNotifications = notificationConfig?.maxNotifications ?? DEFAULT_MAX;
-  const duration = notificationConfig?.duration ?? DEFAULT_DURATION_MS;
+  // Default presentation: one full-width banner sliding in from the top
+  // (the messenger convention). An explicit `position` or a
+  // `customComponent` keeps the stacked corner toasts.
+  const bannerMode =
+    !notificationConfig?.position && !notificationConfig?.customComponent;
+  const duration =
+    notificationConfig?.duration ??
+    (bannerMode ? BANNER_DURATION_MS : DEFAULT_DURATION_MS);
+  // The banner times its own exit (so it can animate out); the list prune
+  // below is only its safety net.
+  const pruneAfter = bannerMode ? duration + 2000 : duration;
 
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const appActiveRef = useRef(AppState.currentState === 'active');
@@ -86,22 +107,22 @@ export const MessageNotificationProvider: React.FC<ProviderProps> = ({
         appActiveRef.current = next === 'active';
         if (next === 'active') {
           const now = Date.now();
-          setToasts((prev) => prev.filter((t) => now - t.timestamp < duration));
+          setToasts((prev) => prev.filter((t) => now - t.timestamp < pruneAfter));
         }
       }
     );
     return () => sub.remove();
-  }, [duration]);
+  }, [pruneAfter]);
 
   // Periodic prune when active.
   useEffect(() => {
     const interval = setInterval(() => {
       if (!appActiveRef.current) {return;}
       const now = Date.now();
-      setToasts((prev) => prev.filter((t) => now - t.timestamp < duration));
+      setToasts((prev) => prev.filter((t) => now - t.timestamp < pruneAfter));
     }, 1000);
     return () => clearInterval(interval);
-  }, [duration]);
+  }, [pruneAfter]);
 
   // Clear toasts when their room becomes active.
   useEffect(() => {
@@ -175,7 +196,25 @@ export const MessageNotificationProvider: React.FC<ProviderProps> = ({
   return (
     <MessageNotificationContext.Provider value={{ showMessageNotification }}>
       {children}
-      {isEnabled && toasts.length > 0 && (
+      {isEnabled && bannerMode && toasts.length > 0 && (
+        <ToastBanner
+          item={toasts[toasts.length - 1]}
+          duration={duration}
+          safeAreaTop={!!config?.headerLayout?.safeAreaTop}
+          onPress={(t) =>
+            navigateToMessage(
+              t.roomJID,
+              t.message.id,
+              t.message,
+              t.roomName,
+              t.senderName
+            )
+          }
+          // One banner stands for everything queued behind it.
+          onDismiss={() => setToasts([])}
+        />
+      )}
+      {isEnabled && !bannerMode && toasts.length > 0 && (
         <View
           pointerEvents="box-none"
           style={[
@@ -221,6 +260,122 @@ export const MessageNotificationProvider: React.FC<ProviderProps> = ({
         </View>
       )}
     </MessageNotificationContext.Provider>
+  );
+};
+
+/**
+ * Top banner: slides down from under the status bar, stays for `duration`,
+ * slides back up. Tap opens the room; a flick upwards dismisses it. A newer
+ * message replaces the content in place and restarts the timer.
+ */
+const ToastBanner: React.FC<{
+  item: ToastItem;
+  duration: number;
+  safeAreaTop: boolean;
+  onPress: (item: ToastItem) => void;
+  onDismiss: () => void;
+}> = ({ item, duration, safeAreaTop, onPress, onDismiss }) => {
+  const theme = useTheme();
+  const insets = useSafeAreaInsets();
+  const top = (safeAreaTop ? insets.top : 0) + 8;
+  const roomIcon = useSelector(
+    (state: RootState) => state.rooms.rooms?.[item.roomJID]?.icon
+  );
+  const fileToken = useFileToken();
+  // 0 = hidden above the screen, 1 = in place.
+  const shown = useRef(new Animated.Value(0)).current;
+  const drag = useRef(new Animated.Value(0)).current;
+  const leaving = useRef(false);
+  const onDismissRef = useRef(onDismiss);
+  onDismissRef.current = onDismiss;
+
+  const leave = useCallback(() => {
+    if (leaving.current) {return;}
+    leaving.current = true;
+    Animated.timing(shown, {
+      toValue: 0,
+      duration: BANNER_OUT_MS,
+      easing: Easing.in(Easing.cubic),
+      useNativeDriver: true,
+    }).start(() => onDismissRef.current());
+  }, [shown]);
+
+  useEffect(() => {
+    Animated.timing(shown, {
+      toValue: 1,
+      duration: BANNER_IN_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [shown]);
+
+  // Restarts with every new message shown in the banner.
+  useEffect(() => {
+    const timer = setTimeout(leave, duration);
+    return () => clearTimeout(timer);
+  }, [item.id, duration, leave]);
+
+  const pan = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_e, g) =>
+        g.dy < -6 && Math.abs(g.dy) > Math.abs(g.dx),
+      onPanResponderMove: (_e, g) => drag.setValue(Math.min(g.dy, 0)),
+      onPanResponderRelease: (_e, g) => {
+        if (g.dy < -24 || g.vy < -0.5) {
+          leave();
+        } else {
+          Animated.spring(drag, { toValue: 0, useNativeDriver: true }).start();
+        }
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(drag, { toValue: 0, useNativeDriver: true }).start();
+      },
+    })
+  ).current;
+
+  const slide = shown.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-(top + 96), 0],
+  });
+
+  return (
+    <Animated.View
+      testID="message-notification-banner"
+      {...pan.panHandlers}
+      style={[
+        styles.banner,
+        {
+          top,
+          backgroundColor: theme.surface,
+          borderColor: theme.border,
+          shadowColor: theme.shadow,
+          opacity: shown,
+          transform: [{ translateY: Animated.add(slide, drag) }],
+        },
+      ]}
+    >
+      <Pressable style={styles.bannerBody} onPress={() => onPress(item)}>
+        <ProfileImagePlaceholder
+          name={item.roomName}
+          icon={appendFileToken(roomIcon, fileToken)}
+          size={40}
+        />
+        <View style={styles.bannerText}>
+          <Text
+            style={[styles.bannerTitle, { color: theme.text }]}
+            numberOfLines={1}
+          >
+            {item.roomName}
+          </Text>
+          <Text
+            style={[styles.bannerSubtitle, { color: theme.textSecondary }]}
+            numberOfLines={2}
+          >
+            {item.senderName}: {item.message?.body || ''}
+          </Text>
+        </View>
+      </Pressable>
+    </Animated.View>
   );
 };
 
@@ -299,6 +454,37 @@ const styles = StyleSheet.create({
     position: 'absolute',
     zIndex: 10000,
     elevation: 10000,
+  },
+  banner: {
+    position: 'absolute',
+    left: 8,
+    right: 8,
+    zIndex: 10000,
+    elevation: 12,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    shadowOpacity: 0.25,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 16,
+  },
+  bannerBody: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  bannerText: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  bannerTitle: {
+    fontWeight: '600',
+    fontSize: 15,
+    marginBottom: 2,
+  },
+  bannerSubtitle: {
+    fontSize: 13,
+    lineHeight: 18,
   },
   toast: {
     flexDirection: 'row',

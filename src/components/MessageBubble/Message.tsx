@@ -1,5 +1,6 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
   View,
   Pressable,
   StyleSheet,
@@ -38,6 +39,8 @@ import { DoubleTick } from '../../assets/icons';
 import { useXmppClient } from '../../context/xmppProvider';
 import { useSendMessage } from '../../hooks/useSendMessage';
 import { MessageReaction } from './MessageReaction';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { hapticTap } from '../../helpers/haptics';
 import { MessageFooter } from '../styled/StyledComponents';
 import { useTheme } from '../../hooks/useTheme';
 
@@ -363,6 +366,38 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
     setIsPressed(true);
   };
 
+  // Long-press is a NATIVE recognizer over the whole bubble column, not the
+  // Pressable's JS timer: the timer was lost whenever an inner responder
+  // (link text, media, reply quote, reactions) took the touch first, or the
+  // list stole it on the slightest drift — "works every other time". The
+  // recognizer fires wherever the finger lands, and once it does the touch
+  // is cancelled for everything underneath, so no tap handler fires on top.
+  const longPress = useMemo(
+    () =>
+      Gesture.LongPress()
+        .runOnJS(true)
+        .minDuration(350)
+        .maxDistance(12)
+        .enabled(!config?.disableInteractions)
+        .onStart(() => {
+          hapticTap();
+          handleLongPress();
+        }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [config?.disableInteractions]
+  );
+
+  // The bubble lifts a touch while its menu is open, and settles back.
+  const lift = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    Animated.spring(lift, {
+      toValue: isPressed ? 1.03 : 1,
+      useNativeDriver: true,
+      speed: 30,
+      bounciness: 6,
+    }).start();
+  }, [isPressed, lift]);
+
   // Body text size/weight is set on the parser's leaf <Text>s — the markdown
   // wraps content in <View>s which break Text-style inheritance, so the bubble
   // wrapper's fontSize alone never reached the actual text.
@@ -411,9 +446,6 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
             marginBottom: !!message?.reply?.length || message?.reaction && !!Object.keys(message?.reaction)?.length
              ? 20 : 0,
           },
-          isPressed
-            ? { transform: [{ scale: 1.05 }], paddingRight: 16 }
-            : undefined,
           // justify-content: ${({ isUser }) => (isUser ? "flex-end" : "flex-start")},
           // margin-bottom: ${(props) => !!props.reply && "20px"},
         ]}
@@ -441,6 +473,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
             )}
           </CustomMessagePhotoContainer>
         )}
+        <GestureDetector gesture={longPress}>
         <Pressable
           // The Pressable fills the row's content area, so the bubble
           // inside must be aligned to the sender's side — otherwise it
@@ -462,13 +495,8 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
           // fire when onLongPress fires, so opening MessageInteractions via
           // long-press never triggers this dismiss.
           onPress={() => Keyboard.dismiss()}
-          // disableInteractions hides the long-press → context menu
-          // (delete / edit / reply / react). Mirrors web's config gate.
-          onLongPress={
-            config?.disableInteractions ? undefined : handleLongPress
-          }
-          delayLongPress={500}
         >
+          <Animated.View style={{ transform: [{ scale: lift }] }}>
           <CustomMessageBubble
             {...({ ref: bubbleRef, collapsable: false } as any)}
             isUser={isUser}
@@ -599,7 +627,9 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
             )}
           </MessageFooter>
           </CustomMessageBubble>
+          </Animated.View>
         </Pressable>
+        </GestureDetector>
       </View>
       {!config?.disableInteractions && isPressed && (
         <MessageInteractions

@@ -31,21 +31,13 @@ const createChatStore = () =>
     reducer: rootReducer,
     middleware: (getDefaultMiddleware) =>
       getDefaultMiddleware({
-        serializableCheck: {
-          // Slice names: chatSlice→'chat', roomsStore→'roomMessages'.
-          ignoredActions: [
-            'chat/addMessage',
-            'chat/setStoreClient',
-            'chat/setConfig',
-            'roomMessages/addRoom',
-          ],
-          ignoredActionPaths: ['payload.client', 'payload.config'],
-          ignoredPaths: [
-            'chat.messages.timestamp',
-            'chatSettingStore.client',
-            'chatSettingStore.config',
-          ],
-        },
+        // Both dev-only invariant checks walk the WHOLE state on every
+        // action. With rooms + message history in the store that took
+        // 60-80 ms per dispatch (RTK's own "took Xms" warning), blocking
+        // the JS thread long enough to make taps feel dead in dev builds.
+        // Production builds never ran them.
+        serializableCheck: false,
+        immutableCheck: false,
       })
         .concat(unreadMiddleware)
         .concat(newMessageMidlleware)

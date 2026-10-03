@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useMemo, useState } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Delimeter, MenuItem } from '../ContextMenu/ContextMenuComponents';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../roomStore';
@@ -8,6 +8,7 @@ import {
 } from '../../helpers/constants/MESSAGE_INTERACTIONS';
 import { IMessage } from '../../types/types';
 import {
+  Animated,
   Text,
   StyleSheet,
   View,
@@ -65,6 +66,23 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
   );
 
   const [menuSize, setMenuSize] = useState({ width: 0, height: 0 });
+
+  // Entrance: the menu pops out of its anchor (scale + fade) and the chat
+  // dims a touch behind it. Started once the menu has been measured and
+  // placed — before that it sits invisible at a provisional spot.
+  const reveal = useRef(new Animated.Value(0)).current;
+  const placed = !!position && !!menuSize.width && !!menuSize.height;
+  useEffect(() => {
+    if (!placed) {
+      return;
+    }
+    Animated.spring(reveal, {
+      toValue: 1,
+      useNativeDriver: true,
+      speed: 24,
+      bounciness: 7,
+    }).start();
+  }, [placed, reveal]);
 
   // Live keyboard height so the menu knows the REAL space below the message.
   // Without this the position math used the full screen height and happily
@@ -138,6 +156,8 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
     const bottomReserve = (config?.keyboardVerticalOffset ?? 0) + 24;
     const topReserve = 16;
     const sideMargin = 8;
+    // Breathing room between the bubble and the menu.
+    const gap = 10;
 
     // The keyboard occludes the bottom `keyboardHeight` px, so the real
     // visible bottom edge is above it. Measuring space below against this
@@ -145,14 +165,14 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
     // when the keyboard is open and the message sits near the input.
     const visibleBottom = screenHeight - keyboardHeight;
 
-    const spaceBelow = visibleBottom - position.bottom - bottomReserve;
-    const spaceAbove = position.top - topReserve;
+    const spaceBelow = visibleBottom - position.bottom - gap - bottomReserve;
+    const spaceAbove = position.top - gap - topReserve;
 
     let top: number;
     if (spaceBelow >= menuSize.height) {
-      top = position.bottom;
+      top = position.bottom + gap;
     } else if (spaceAbove >= menuSize.height) {
-      top = position.top - menuSize.height;
+      top = position.top - gap - menuSize.height;
     } else {
       top = Math.max(
         topReserve,
@@ -187,16 +207,38 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
   const content =
     config?.disableInteractions || message.isDeleted ? null : (
       <View style={styles.overlayFill}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={closeMenu} />
-        <View
-          style={[styles.contextMenu, themedStyles.menu, localPosition]}
+        <Pressable style={StyleSheet.absoluteFill} onPress={closeMenu}>
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.dim, { opacity: reveal }]}
+          />
+        </Pressable>
+        <Animated.View
+          style={[
+            styles.contextMenu,
+            themedStyles.menu,
+            localPosition,
+            placed
+              ? {
+                  opacity: reveal,
+                  transform: [
+                    {
+                      scale: reveal.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.6, 1],
+                      }),
+                    },
+                  ],
+                }
+              : null,
+          ]}
           onLayout={handleMenuLayout}
         >
           <MenuItem onPress={() => handleCopyMessage(message.body!)}>
             <Text style={[styles.menuText, themedStyles.text]}>
               {MESSAGE_INTERACTIONS.COPY}
             </Text>
-            <MESSAGE_INTERACTIONS_ICONS.COPY />
+            <MESSAGE_INTERACTIONS_ICONS.COPY color={theme.text} />
           </MenuItem>
           {isUser && (
             <>
@@ -209,7 +251,7 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
                     <Text style={[styles.menuText, themedStyles.text]}>
                       {MESSAGE_INTERACTIONS.EDIT}
                     </Text>
-                    <MESSAGE_INTERACTIONS_ICONS.EDIT />
+                    <MESSAGE_INTERACTIONS_ICONS.EDIT color={theme.text} />
                   </MenuItem>
                 </>
               )}
@@ -222,7 +264,7 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
               </MenuItem>
             </>
           )}
-        </View>
+        </Animated.View>
       </View>
     );
 
@@ -250,6 +292,10 @@ const styles = StyleSheet.create({
   overlayFill: {
     ...StyleSheet.absoluteFill,
     backgroundColor: 'transparent',
+  },
+  dim: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(0,0,0,0.18)',
   },
   contextMenu: {
     position: 'absolute',
