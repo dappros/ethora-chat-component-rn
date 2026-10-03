@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ChatContainer, NonRoomChat } from '../styled/StyledComponents';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector, useStore } from 'react-redux';
+import type { RootState } from '../../roomStore';
 import MessageList from './MessageList';
 import SendInput from '../styled/SendInput';
 import {
@@ -27,8 +28,8 @@ import { ChooseChatMessage } from './ChooseChatMessage';
 import { useRoomUrl } from '../../hooks/useRoomUrl';
 import { useSendMessage } from '../../hooks/useSendMessage';
 import { IConfig } from '../../types/models/config.model';
+import type { IMessage } from '../../types/types';
 import { useRoomInitialization } from '../../hooks/useRoomInitialization';
-import { useRoomState } from '../../hooks/useRoomState';
 import { useChatSettingState } from '../../hooks/useChatSettingState';
 import { useTheme } from '../../hooks/useTheme';
 import { isOwnMessage } from '../../helpers/isOwnMessage';
@@ -73,6 +74,8 @@ interface ChatRoomProps {
   eventHandlers?: IConfig['eventHandlers'];
 }
 
+const EMPTY_MESSAGES: IMessage[] = [];
+
 const ChatRoom: React.FC<ChatRoomProps> = React.memo(
   ({
     CustomMessageComponent,
@@ -104,14 +107,22 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
       return storeConfig;
     }, [storeConfig, propsEventHandlers]);
 
-    const {
-      roomsList,
-      activeRoomJID,
-      editAction,
-      loading,
-      globalLoading,
-      roomMessages,
-    } = useRoomState();
+    const reduxStore = useStore<RootState>();
+    const activeRoomJID = useSelector(
+      (state: RootState) => state.rooms.activeRoomJID,
+    );
+    const activeRoom = useSelector((state: RootState) =>
+      activeRoomJID ? state.rooms.rooms?.[activeRoomJID] : undefined,
+    );
+    const hasRooms = useSelector(
+      (state: RootState) => Object.keys(state.rooms.rooms || {}).length > 0,
+    );
+    const editAction = useSelector((state: RootState) => state.rooms.editAction);
+    const globalLoading = useSelector(
+      (state: RootState) => state.rooms.isLoading,
+    );
+    const loading = !!activeRoom?.isLoading;
+    const roomMessages = activeRoom?.messages || EMPTY_MESSAGES;
     const {
       sendMessage: sendMs,
       sendMedia: sendMessageMedia,
@@ -183,15 +194,12 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
 
     const loadMoreMessages = useCallback(
       async (chatJID: string, max: number, idOfMessageBefore?: number) => {
-        if (isLoadingMore || roomsList?.[chatJID]?.historyComplete) {return;}
+        const room = reduxStore.getState().rooms.rooms?.[chatJID];
+        if (isLoadingMore || room?.historyComplete) {return;}
         const lastMsgId =
           typeof idOfMessageBefore !== 'string'
             ? idOfMessageBefore
-            : Number(
-                roomsList[chatJID].messages[
-                  roomsList[chatJID].messages.length - 2
-                ]?.id,
-              );
+            : Number(room?.messages?.[(room?.messages?.length || 0) - 2]?.id);
         setIsLoadingMore(true);
         try {
           // Return the promise so MessageList's `await loadMoreMessages`
@@ -205,7 +213,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
         }
       },
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      [client?.client?.jid, isLoadingMore, roomsList],
+      [client?.client?.jid, isLoadingMore, reduxStore],
     );
 
     const onCloseEdit = () => {
@@ -331,12 +339,10 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
 
     useRoomInitialization(
       activeRoomJID || '',
-      roomsList,
       (configWithEventHandlers || storeConfig || {}) as IConfig,
-      roomMessages.length,
     );
 
-    if (Object.keys(roomsList)?.length < 1 && !loading && !globalLoading) {
+    if (!hasRooms && !loading && !globalLoading) {
       return (
         <NonRoomChat>
           {/* <Text>No room. Let's create one!</Text> */}
@@ -345,7 +351,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
       );
     }
 
-    if (!activeRoomJID || !roomsList?.[activeRoomJID]) {
+    if (!activeRoomJID || !activeRoom) {
       return <ChooseChatMessage />;
     }
 
@@ -465,7 +471,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
         >
           {!configWithEventHandlers?.disableHeader && (
             <ChatHeader
-              currentRoom={roomsList[activeRoomJID]}
+              currentRoom={activeRoom}
               handleBackClick={handleBackClick}
             />
           )}
@@ -482,7 +488,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
               >
                 <Loader color={configWithEventHandlers?.colors?.primary} />
               </View>
-            ) : Object.keys(roomsList).length < 1 || !activeRoomJID ? (
+            ) : !hasRooms || !activeRoomJID ? (
               <View
                 style={{
                   flex: 1,
@@ -544,18 +550,18 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
                   resetNewMessageCounter: () => {},
                 }}
                 typingIndicator={
-                  roomsList[activeRoomJID]?.composing ? (
+                  activeRoom?.composing ? (
                     configWithEventHandlers?.customTypingIndicator
                       ?.customComponent ? (
                       <configWithEventHandlers.customTypingIndicator.customComponent
                         usersTyping={
-                          roomsList[activeRoomJID]?.composingList || []
+                          activeRoom?.composingList || []
                         }
                         text={
                           typeof configWithEventHandlers.customTypingIndicator
                             .text === 'function'
                             ? configWithEventHandlers.customTypingIndicator.text(
-                                roomsList[activeRoomJID]?.composingList || [],
+                                activeRoom?.composingList || [],
                               )
                             : configWithEventHandlers.customTypingIndicator
                                 .text || 'Typing...'
@@ -624,10 +630,10 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
               'overlay' ||
               configWithEventHandlers.customTypingIndicator.position ===
                 'floating') &&
-            roomsList[activeRoomJID]?.composing && (
+            activeRoom?.composing && (
               <CustomTypingIndicator
                 usersTyping={
-                  roomsList[activeRoomJID]?.composingList || ['User']
+                  activeRoom?.composingList || ['User']
                 }
                 text={configWithEventHandlers.customTypingIndicator.text}
                 position={
@@ -637,7 +643,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
                 customComponent={
                   configWithEventHandlers.customTypingIndicator.customComponent
                 }
-                isVisible={roomsList[activeRoomJID]?.composing || false}
+                isVisible={activeRoom?.composing || false}
               />
             )}
         </ChatContainer>

@@ -925,16 +925,19 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
     return () => sub.remove();
   }, [client]);
 
+  const contextValue = useMemo(
+    () => ({
+      client,
+      providerBootstrapStatus,
+      initMode,
+      initializeClient,
+      setClient,
+    }),
+    [client, providerBootstrapStatus, initMode, initializeClient, setClient]
+  );
+
   return (
-    <XmppContext.Provider
-      value={{
-        client,
-        providerBootstrapStatus,
-        initMode,
-        initializeClient,
-        setClient,
-      }}
-    >
+    <XmppContext.Provider value={contextValue}>
       {children}
       {/* Lives here, not inside <Chat>: an incoming call-token can arrive
           (and must still ring) while the user is on a different screen of

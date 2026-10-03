@@ -1,4 +1,4 @@
-import React, { FC, Fragment, useMemo } from 'react';
+import React, { FC, Fragment, memo, useMemo } from 'react';
 import { IConfig, IMessage } from '../../types/types';
 import { isOwnMessage } from '../../helpers/isOwnMessage';
 import DateLabel from '../styled/DateLabel';
@@ -6,9 +6,6 @@ import SystemMessage from './SystemMessage';
 import NewMessageLabel from '../styled/NewMessageLabel';
 import {
   Message,
-  MessageText,
-  MessageTimestamp,
-  UserName,
 } from '../styled/StyledComponents';
 import { View } from 'react-native';
 
@@ -35,7 +32,7 @@ interface MessageContainerProps {
   className?: string;
 }
 
-export const MessageContainer: FC<MessageContainerProps> = ({
+const MessageContainerImpl: FC<MessageContainerProps> = ({
   CustomMessage,
   CustomDaySeparator,
   CustomNewMessageLabel,
@@ -101,28 +98,23 @@ export const MessageContainer: FC<MessageContainerProps> = ({
           <DateLabel date={messageDate} colors={config?.colors} />
         )
       ) : null}
+
       <MessageComponent
         message={message}
         isUser={isUser}
         isReply={isReply}
         className={className}
       >
-        {!CustomMessage ? (
-          <>
-            <MessageTimestamp>
-              {messageDate.toLocaleTimeString()}
-            </MessageTimestamp>
-            <UserName>{message.user.name}: </UserName>
-            <MessageText>{message.body}</MessageText>
-          </>
-        ) : (
+        {CustomMessage ? (
           <MessageComponent
             message={message}
             isUser={isUser}
             isReply={isReply}
           />
-        )}
+        ) : null}
       </MessageComponent>
     </View>
   );
 };
+
+export const MessageContainer = memo(MessageContainerImpl);

@@ -50,6 +50,7 @@
     "expo-audio": ">=1.0.0",
     "expo-blur": ">=13.0.0",
     "expo-haptics": ">=13.0.0",
+    "react-native-mmkv": ">=3.0.0",
     "expo-clipboard": ">=7.0.0",
     "expo-document-picker": ">=13.0.0",
     "expo-file-system": ">=19.0.0",
@@ -99,6 +100,9 @@
       "optional": true
     },
     "expo-haptics": {
+      "optional": true
+    },
+    "react-native-mmkv": {
       "optional": true
     },
     "expo-clipboard": {

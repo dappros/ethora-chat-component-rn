@@ -1,5 +1,5 @@
 import { Middleware } from '@reduxjs/toolkit';
-import { updateRoom, msgSortableMs } from '../roomsSlice';
+import { setUnreadCounts, msgSortableMs } from '../roomsSlice';
 import { IMessage } from '../../types/types';
 
 // Per-room cache so we only recompute when something that affects the
@@ -60,6 +60,8 @@ const isOwnMessage = (
 // 50 rooms × 100 messages that's 5000 Date() parses per modal click.
 const TRIGGER_ACTIONS = new Set([
   'roomMessages/addRoomMessage',
+  'roomMessages/addRoomMessages',
+  'roomMessages/addRooms',
   'roomMessages/setRoomMessages',
   'roomMessages/editRoomMessage',
   'roomMessages/setLastViewedTimestamp',
@@ -78,6 +80,41 @@ const TRIGGER_ACTIONS = new Set([
   // e.g. the 'loading' marker dispatch that carries no messages).
   'roomMessages/applyRoomsPreloadBatch',
 ]);
+
+// Which rooms an action can have changed the unread count of. Walking
+// every room on every message (the previous behaviour) made each incoming
+// message cost O(rooms); `'all'` is reserved for the few actions that move
+// several rooms' baselines at once.
+const touchedRooms = (action: any): string[] | 'all' => {
+  const p = action?.payload;
+  switch (action?.type) {
+    case 'roomMessages/addRoomMessage':
+    case 'roomMessages/addRoomMessages':
+    case 'roomMessages/setRoomMessages':
+    case 'roomMessages/editRoomMessage':
+      return p?.roomJID ? [p.roomJID] : [];
+    case 'roomMessages/setLastViewedTimestamp':
+      return p?.chatJID ? [p.chatJID] : [];
+    case 'roomMessages/addRoom':
+      return p?.roomData?.jid ? [p.roomData.jid] : [];
+    case 'roomMessages/addRooms':
+    case 'roomMessages/applyRoomsPreloadBatch':
+      return Array.isArray(p?.rooms)
+        ? p.rooms.map((r: any) => r?.jid).filter(Boolean)
+        : [];
+    case 'roomMessages/updateRoom': {
+      // The counts this middleware writes itself, and the room-list
+      // ordering stamp, never change what is unread.
+      const keys = Object.keys(p?.updates || {});
+      const relevant = keys.some(
+        (k) => k !== 'unreadMessages' && k !== 'lastMessageTimestamp'
+      );
+      return relevant && p?.jid ? [p.jid] : [];
+    }
+    default:
+      return 'all';
+  }
+};
 
 export const unreadMiddleware: Middleware =
   (storeAPI) => (next) => (action: any) => {
@@ -105,92 +142,67 @@ export const unreadMiddleware: Middleware =
 
     const state = storeAPI.getState();
     const rooms = state.rooms.rooms;
+    if (!rooms) {return result;}
     const visibleRoomJID = state.rooms.visibleRoomJID;
     const selfUser = state.chatSettingStore?.user;
     const selfXmpp = selfUser?.xmppUsername || '';
     const selfWallet = selfUser?.walletAddress || '';
 
-    if (rooms && Object.keys(rooms).length > 0) {
-      Object.keys(rooms).forEach((jid) => {
-        const room = rooms[jid];
-        if (!room) {return;}
-        // Skip rooms the user is currently viewing — visibility clears the
-        // badge directly. Skip rooms with no reference point (covers
-        // undefined / null / 0) — after logout→login, hydrated rooms
-        // come back without lastViewedTimestamp, and treating that as 0
-        // made every history message satisfy `date > 0` and incorrectly
-        // bumped unread for already-seen content.
-        if (jid === visibleRoomJID) {
-          if (room.unreadMessages !== 0) {
-            storeAPI.dispatch(
-              updateRoom({
-                jid,
-                updates: { unreadMessages: 0 },
-              })
-            );
-          }
-          return;
+    const touched = touchedRooms(action);
+    const jids = touched === 'all' ? Object.keys(rooms) : touched;
+    if (jids.length === 0) {return result;}
+
+    const counts: Record<string, number> = {};
+    for (const jid of jids) {
+      const room = rooms[jid];
+      if (!room) {continue;}
+      // The room the user is looking at never carries a badge.
+      if (jid === visibleRoomJID) {
+        if (room.unreadMessages !== 0) {counts[jid] = 0;}
+        continue;
+      }
+      // No reference point (undefined / null / 0): after logout→login,
+      // hydrated rooms come back without lastViewedTimestamp, and treating
+      // that as 0 made every history message count as unread.
+      if (!(room.lastViewedTimestamp > 0)) {continue;}
+
+      const msgs = room.messages;
+      const currentMessagesLength = msgs?.length || 0;
+      const firstId = currentMessagesLength ? String(msgs![0]?.id ?? '') : '';
+      const lastId = currentMessagesLength
+        ? String(msgs![currentMessagesLength - 1]?.id ?? '')
+        : '';
+      const fingerprint = `${currentMessagesLength}|${room.lastViewedTimestamp || 0}|${firstId}|${lastId}`;
+      if (triggerCache[jid] === fingerprint) {continue;}
+      triggerCache[jid] = fingerprint;
+
+      // Ignore the "delimiter-new" sentinel + locally-pending sends
+      // so the two unread-counting paths (this middleware + the
+      // reducer's countNewerMessages) never disagree. Also exclude
+      // own messages so MAM-replayed sends on re-login don't bump
+      // the user's own badge.
+      const since = room.lastViewedTimestamp || 0;
+      let unreadMessagesCount = 0;
+      for (const msg of msgs || []) {
+        if (
+          msg.id !== 'delimiter-new' &&
+          !msg.pending &&
+          msgSortableMs(msg) > since &&
+          !isOwnMessage(msg, selfXmpp, selfWallet)
+        ) {
+          unreadMessagesCount += 1;
         }
-        if (!(room.lastViewedTimestamp > 0)) {return;}
+      }
 
-        const msgs = room.messages;
-        const currentMessagesLength = msgs?.length || 0;
-        const firstId = currentMessagesLength ? String(msgs![0]?.id ?? '') : '';
-        const lastId = currentMessagesLength
-          ? String(msgs![currentMessagesLength - 1]?.id ?? '')
-          : '';
-        const fingerprint = `${currentMessagesLength}|${room.lastViewedTimestamp || 0}|${firstId}|${lastId}`;
-        if (triggerCache[jid] === fingerprint) {return;}
-        triggerCache[jid] = fingerprint;
+      if (room.unreadMessages !== unreadMessagesCount) {
+        counts[jid] = unreadMessagesCount;
+      }
+    }
 
-        // Ignore the "delimiter-new" sentinel + locally-pending sends
-        // so the two unread-counting paths (this middleware + the
-        // reducer's countNewerMessages) never disagree. Also exclude
-        // own messages so MAM-replayed sends on re-login don't bump
-        // the user's own badge.
-        const unreadMessagesCount = room.messages?.filter(
-          (msg: IMessage) =>
-            msg.id !== 'delimiter-new' &&
-            !msg.pending &&
-            !isOwnMessage(msg, selfXmpp, selfWallet) &&
-            msgSortableMs(msg) >
-              (room.lastViewedTimestamp || 0)
-        ).length;
-
-        const newerByTs = (room.messages || []).filter(
-          (m: IMessage) =>
-            m.id !== 'delimiter-new' &&
-            !m.pending &&
-            msgSortableMs(m) > (room.lastViewedTimestamp || 0)
-        );
-        if (newerByTs.length > 0 && (unreadMessagesCount || 0) === 0) {
-          const s: any = newerByTs[newerByTs.length - 1] || {};
-          console.log('[unread-diag] ownership suppressed', {
-            jid,
-            selfXmpp,
-            selfWallet,
-            newerByTs: newerByTs.length,
-            unreadAfterOwnFilter: unreadMessagesCount,
-            sample: {
-              id: s.id,
-              userId: s?.user?.id,
-              userJID: s?.user?.userJID,
-              xmppUsername: s?.user?.xmppUsername,
-              xmppFrom: s?.xmppFrom,
-              senderJID: s?.senderJID,
-            },
-          });
-        }
-
-        if (room.unreadMessages !== unreadMessagesCount) {
-          storeAPI.dispatch(
-            updateRoom({
-              jid,
-              updates: { unreadMessages: unreadMessagesCount },
-            })
-          );
-        }
-      });
+    // One action for every room that changed — and one that is not itself
+    // a trigger, so the chain stops here.
+    if (Object.keys(counts).length > 0) {
+      storeAPI.dispatch(setUnreadCounts(counts));
     }
 
     return result;

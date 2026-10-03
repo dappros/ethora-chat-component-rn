@@ -60,6 +60,21 @@ export interface IRoom {
   historyComplete?: boolean;
 }
 
+/** The flattened last-message doc `GET /v1/chats/my` embeds per room.
+ * Only present when the backend supports it; every field is optional. */
+export interface ApiRoomLastMessage {
+  body?: string;
+  truncated?: boolean;
+  from?: string;
+  fromUserId?: string;
+  messageId?: string;
+  stanzaId?: string;
+  createdAt?: string;
+  isOwn?: boolean;
+  senderFirstName?: string;
+  senderLastName?: string;
+}
+
 export interface ApiRoom {
   name: string;
   type: 'public' | 'group' | 'private';
@@ -80,6 +95,8 @@ export interface ApiRoom {
   participants?: number;
   icon?: string;
   muted?: boolean;
+  /** See ApiRoomLastMessage. */
+  lastMessage?: ApiRoomLastMessage;
 }
 
 export interface PostRoom {

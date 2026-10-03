@@ -44,6 +44,13 @@ async function readDecrypted(key: string): Promise<any> {
   return plain ? JSON.parse(plain) : null;
 }
 
+// Rooms are stored one per key now; the reader assembles them. Returns the
+// old `{ rooms: {...} }` shape the assertions below were written against.
+async function readRoomsSnapshot(): Promise<any> {
+  const out = await readPersistedState();
+  return out.rooms ? { rooms: out.rooms.rooms } : null;
+}
+
 beforeEach(async () => {
   await AsyncStorage.clear();
   jest.useFakeTimers();
@@ -102,7 +109,7 @@ function makeStore() {
 }
 
 async function flushDebouncedWrite() {
-  jest.advanceTimersByTime(250);
+  jest.advanceTimersByTime(1100);
   // Encrypting now awaits the SecureStore-backed cipher key (secureGet,
   // and on first use secureSet) before the ciphertext is even computed,
   // on top of the multiSet itself — deeper microtask chain than a bare
@@ -132,7 +139,7 @@ describe('persistence — multi-room cap', () => {
 
     await flushDebouncedWrite();
 
-    const persisted = await readDecrypted(PERSIST_KEYS.KEY_ROOMS);
+    const persisted = await readRoomsSnapshot();
     expect(persisted.rooms['a@h'].messages).toHaveLength(100);
     // Most-recent 100 kept: m-21 .. m-120
     expect(persisted.rooms['a@h'].messages[0].body).toBe('body-a-21');
@@ -162,7 +169,7 @@ describe('persistence — sanitisation', () => {
 
     await flushDebouncedWrite();
 
-    const persisted = await readDecrypted(PERSIST_KEYS.KEY_ROOMS);
+    const persisted = await readRoomsSnapshot();
     expect(persisted.rooms['good@h']).toBeDefined();
     expect(persisted.rooms['also-good@h']).toBeDefined();
     expect(persisted.rooms['not-a-jid']).toBeUndefined();
@@ -187,7 +194,7 @@ describe('persistence — sanitisation', () => {
 
     await flushDebouncedWrite();
 
-    const persisted = await readDecrypted(PERSIST_KEYS.KEY_ROOMS);
+    const persisted = await readRoomsSnapshot();
     expect(persisted.rooms['a@h'].composing).toBe(false);
     expect(persisted.rooms['a@h'].composingList).toEqual([]);
     expect(persisted.rooms['a@h'].isLoading).toBe(false);
@@ -213,7 +220,7 @@ describe('persistence — debounce', () => {
     // Before the timer fires: 0 visible writes (storage empty post
     // beforeEach AsyncStorage.clear()).
     expect(await AsyncStorage.getItem(PERSIST_KEYS.KEY_CHAT)).toBeNull();
-    expect(await AsyncStorage.getItem(PERSIST_KEYS.KEY_ROOMS)).toBeNull();
+    expect(await AsyncStorage.getItem(PERSIST_KEYS.KEY_ROOM_INDEX)).toBeNull();
 
     await flushDebouncedWrite();
 
@@ -224,7 +231,7 @@ describe('persistence — debounce', () => {
     // is what lands).
     const persistedChat = await readDecrypted(PERSIST_KEYS.KEY_CHAT);
     expect(persistedChat.user.firstName).toBe('C');
-    const persistedRooms = await readDecrypted(PERSIST_KEYS.KEY_ROOMS);
+    const persistedRooms = await readRoomsSnapshot();
     expect(Object.keys(persistedRooms.rooms).sort()).toEqual(['a@h', 'b@h']);
   });
 
@@ -262,7 +269,7 @@ describe('persistence — trigger filter', () => {
 
     await flushDebouncedWrite();
     expect(await AsyncStorage.getItem(PERSIST_KEYS.KEY_CHAT)).toBeNull();
-    expect(await AsyncStorage.getItem(PERSIST_KEYS.KEY_ROOMS)).toBeNull();
+    expect(await AsyncStorage.getItem(PERSIST_KEYS.KEY_ROOM_INDEX)).toBeNull();
   });
 });
 
@@ -322,7 +329,7 @@ describe('persistence — state evolution', () => {
     store.dispatch(addRoom({ roomData: makeRoom('b@h') }));
     await flushDebouncedWrite();
 
-    let persisted = await readDecrypted(PERSIST_KEYS.KEY_ROOMS);
+    let persisted = await readRoomsSnapshot();
     expect(Object.keys(persisted.rooms).sort()).toEqual(['a@h', 'b@h']);
 
     // Now drop the rooms manually-as-if from an action and confirm
@@ -335,7 +342,7 @@ describe('persistence — state evolution', () => {
     store.dispatch(addRoom({ roomData: makeRoom('a@h') }));
     await flushDebouncedWrite();
 
-    persisted = await readDecrypted(PERSIST_KEYS.KEY_ROOMS);
+    persisted = await readRoomsSnapshot();
     expect(Object.keys(persisted.rooms)).toEqual(['a@h']);
     expect(persisted.rooms['b@h']).toBeUndefined();
   });

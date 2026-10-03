@@ -32,6 +32,8 @@ export interface HistoryFetchOptions {
   coalesceRoom?: boolean;
   skipIfPreloaded?: boolean;
   source?: HistorySource;
+  /** The caller merges the page into the store itself. */
+  selfApplied?: boolean;
 }
 
 export interface XmppClientInterface {

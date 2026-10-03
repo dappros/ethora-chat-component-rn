@@ -1,7 +1,8 @@
 import { Element } from 'ltx';
 import { store } from '../roomStore';
+import { claimMamResult, collectMamMessage } from './xmpp/mamRouter';
 import {
-  addRoom,
+  addRooms,
   addRoomMessage,
   deleteRoomMessage,
   editRoomMessage,
@@ -9,7 +10,7 @@ import {
   setCurrentRoom,
   setRoomRole,
 } from '../roomStore/roomsSlice';
-import { IRoom } from '../types/types';
+import { IMessage, IRoom } from '../types/types';
 import { createMessageFromXml } from '../helpers/createMessageFromXml';
 import { getDataFromXml } from '../helpers/getDataFromXml';
 import { setDeleteModal } from '../roomStore/chatSettingsSlice';
@@ -47,8 +48,6 @@ const onRealtimeMessage = async (stanza: Element) => {
       ?.getChild('deleted');
 
     if (!data) {
-      console.log(stanza.toString());
-      console.log('Missing data elements in real-time message.');
       return;
     }
 
@@ -66,8 +65,6 @@ const onRealtimeMessage = async (stanza: Element) => {
     // to the same tolerance.
     const senderJID = data.attrs.senderJID || stanza.attrs.from;
     if (!senderJID) {
-      console.log(stanza.toString());
-      console.log('Missing sender information in real-time message.');
       return;
     }
 
@@ -189,11 +186,12 @@ const onEditMessage = async (stanza: Element) => {
   }
 };
 
-const onMessageHistory = async (stanza: any) => {
-  if (
-    stanza.is('message') &&
-    stanza.children[0].attrs.xmlns === 'urn:xmpp:mam:2'
-  ) {
+const isMamResult = (stanza: any): boolean =>
+  !!stanza?.is?.('message') &&
+  stanza.children?.[0]?.attrs?.xmlns === 'urn:xmpp:mam:2';
+
+const parseMamResult = async (stanza: any): Promise<IMessage | undefined> => {
+  {
     // console.log("stanza -->", stanza.toString());
     const body = stanza
       .getChild('result')
@@ -218,11 +216,9 @@ const onMessageHistory = async (stanza: any) => {
     const id = stanza.getChild('result')?.attrs.id;
     if (!delay) {
       if (stanza.getChild('subject')) {
-        console.log('Subject.');
         return;
       }
       if (!data || !body || !id) {
-        console.log('Missing required elements in message history.');
         return;
       }
     }
@@ -295,6 +291,22 @@ const onMessageHistory = async (stanza: any) => {
       rawMessage,
       store.getState().chatSettingStore.user?.xmppUsername || ''
     );
+    return message;
+  }
+};
+
+const onMessageHistory = async (stanza: any) => {
+  if (!isMamResult(stanza)) {return;}
+  const claimed = claimMamResult(stanza);
+  let message: IMessage | undefined;
+  try {
+    message = await parseMamResult(stanza);
+  } finally {
+    if (claimed) {
+      collectMamMessage(stanza, message);
+    }
+  }
+  if (!claimed && message) {
     store.dispatch(
       addRoomMessage({
         roomJID: stanza.attrs.from,
@@ -360,7 +372,9 @@ const onPresenceInRoom = (stanza: Element | any) => {
   ) {
     const roomJID: string = stanza.attrs.from.split('/')[0];
     const role: string = stanza?.children[1]?.children[0]?.attrs.role;
-    store.dispatch(setRoomRole({ chatJID: roomJID, role: role }));
+    if (role && store.getState().rooms.rooms?.[roomJID]?.role !== role) {
+      store.dispatch(setRoomRole({ chatJID: roomJID, role: role }));
+    }
   }
 };
 
@@ -423,53 +437,47 @@ const onGetChatRooms = (stanza: Element, xmpp: any) => {
     Array.isArray(stanza.getChild('query')?.children)
   ) {
     const children = stanza.getChild('query')?.children || [];
-    children.forEach(async (result: any) => {
-      const currentChatRooms = store.getState().rooms.rooms;
-
-      const isRoomAlreadyAdded = Object.values(currentChatRooms).some(
-        (element) => element.jid === result?.attrs?.jid
-      );
-
+    const known = store.getState().rooms.rooms;
+    const fresh: IRoom[] = [];
+    const jids: string[] = [];
+    for (const result of children as any[]) {
       const jid = result?.attrs?.jid;
-
-      if (!isRoomAlreadyAdded) {
-        try {
-          const roomData: IRoom = {
-            jid: jid || '',
-            name: result?.attrs?.name || '',
-            id: '',
-            title: result?.attrs?.name || '',
-            usersCnt: Number(result?.attrs?.users_cnt || 0),
-            messages: [],
-            isLoading: false,
-            roomBg:
-              result?.attrs?.room_background !== 'none'
-                ? result?.attrs?.room_background
-                : null,
-            icon:
-              result?.attrs?.room_thumbnail !== 'none'
-                ? result?.attrs?.room_thumbnail
-                : null,
-            unreadMessages: 0,
-            lastViewedTimestamp: 0,
-          };
-
-          store.dispatch(addRoom({ roomData: { ...roomData } }));
-
-          if (!store.getState().rooms.activeRoomJID) {
-            store.dispatch(setCurrentRoom({ roomJID: roomData.jid }));
-          }
-        } catch (error) {}
+      if (!jid) {continue;}
+      jids.push(jid);
+      if (known[jid]) {continue;}
+      fresh.push({
+        jid,
+        name: result?.attrs?.name || '',
+        id: '',
+        title: result?.attrs?.name || '',
+        usersCnt: Number(result?.attrs?.users_cnt || 0),
+        messages: [],
+        isLoading: false,
+        roomBg:
+          result?.attrs?.room_background !== 'none'
+            ? result?.attrs?.room_background
+            : null,
+        icon:
+          result?.attrs?.room_thumbnail !== 'none'
+            ? result?.attrs?.room_thumbnail
+            : null,
+        unreadMessages: 0,
+        lastViewedTimestamp: 0,
+      });
+    }
+    if (fresh.length) {
+      store.dispatch(addRooms({ rooms: fresh }));
+      if (!store.getState().rooms.activeRoomJID) {
+        store.dispatch(setCurrentRoom({ roomJID: fresh[0].jid }));
       }
-
-      if (jid) {
-        try {
-          xmpp.presenceInRoomStanza(jid);
-        } catch (e) {
-          console.warn('presenceInRoomStanza failed', jid, e);
-        }
+    }
+    for (const jid of jids) {
+      try {
+        xmpp.presenceInRoomStanza(jid);
+      } catch (e) {
+        console.warn('presenceInRoomStanza failed', jid, e);
       }
-    });
+    }
   }
 };
 

@@ -86,7 +86,11 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
   );
 
   const lastMessage = useMemo(() => {
-    if (!chat?.messages || chat.messages.length === 0) {return undefined;}
+    if (!chat?.messages || chat.messages.length === 0) {
+      return chat?.lastMessage?.body
+        ? withAuthorFallback(chat.lastMessage as IMessage)
+        : undefined;
+    }
 
     for (let i = chat.messages.length - 1; i >= 0; i--) {
       const msg = chat.messages[i];
@@ -95,7 +99,7 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
       }
     }
     return undefined;
-  }, [chat?.messages, withAuthorFallback]);
+  }, [chat?.messages, chat?.lastMessage, withAuthorFallback]);
 
   // Mirrors web's formatter: tolerates undefined/garbage inputs (returns
   // undefined instead of "NaN:NaN"), and uses HH:MM today / MM/DD this
@@ -266,7 +270,9 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
                   fontWeight: '600',
                 }}
               >
-                {chat.unreadMessages || ''}
+                {chat.unreadCapped
+                  ? `${Math.max(chat.unreadMessages, 10)}+`
+                  : chat.unreadMessages || ''}
               </Text>
             </View>
           ) : null}
@@ -284,4 +290,4 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
   );
 };
 
-export default ChatRoomItem;
+export default React.memo(ChatRoomItem);

@@ -144,6 +144,20 @@ const CustomTimestampRow = styled.View<{media: boolean}>`
   padding-right: ${({media}) => media ? '10px': 0};
 `;
 
+const clockCache = new Map<string, string>();
+const formatClock = (date: string | Date): string => {
+  const key = String(date);
+  const cached = clockCache.get(key);
+  if (cached !== undefined) {return cached;}
+  const d = new Date(date);
+  const label = Number.isNaN(d.getTime())
+    ? ''
+    : `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  if (clockCache.size > 5000) {clockCache.clear();}
+  clockCache.set(key, label);
+  return label;
+};
+
 const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   const dispatch = useDispatch();
   const { client } = useXmppClient();
@@ -225,10 +239,6 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   const { retryMessage } = useSendMessage();
 
   const [isPressed, setIsPressed] = useState(false);
-
-  if (__DEV__ && message.id && !(globalThis as any).__loggedMsg?.[message.id]) {
-    ((globalThis as any).__loggedMsg ||= {})[message.id] = true;
-  }
 
   const [contextMenuPosition, setContextMenuPosition] = useState<{
     left: number;
@@ -418,13 +428,19 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   const bodyToRender = showInlineTranslation
     ? translationDisplay.displayText
     : message.body;
-  const messageText = config?.messageTextFilter?.enabled
-    ? parseMessageBody(
-        config?.messageTextFilter.filterFunction(bodyToRender),
-        bodyTextStyle,
-        theme
-      )
-    : parseMessageBody(bodyToRender, bodyTextStyle, theme);
+  const textFilter = config?.messageTextFilter;
+  const messageText = useMemo(
+    () =>
+      textFilter?.enabled
+        ? parseMessageBody(
+            textFilter.filterFunction(bodyToRender),
+            bodyTextStyle,
+            theme
+          )
+        : parseMessageBody(bodyToRender, bodyTextStyle, theme),
+    [textFilter, bodyToRender, bodyTextStyle, theme]
+  );
+  const timeLabel = useMemo(() => formatClock(message.date), [message.date]);
 
   const isFailed = failedIdSet.has(message.id);
   const isPending =
@@ -595,10 +611,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
                 <Text style={[styles.editedText, themedStyles.muted]}>edited</Text>
               )}
               <Text style={[styles.timestampText, themedStyles.muted]}>
-                {new Date(message.date).toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
+                {timeLabel}
               </Text>
               {!config?.disableSentLogic && isUser && !isPending && !isFailed && (
                 <DoubleTick />
@@ -648,7 +661,8 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   );
 };
 
-export { Message };
+const MemoMessage = React.memo(Message);
+export { MemoMessage as Message };
 
 const styles = StyleSheet.create({
   customMessageContainer: {

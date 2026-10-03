@@ -26,11 +26,27 @@ let entries: LogEntry[] = [];
 let listeners: Set<() => void> = new Set();
 let nextId = 1;
 
+declare const __DEV__: boolean | undefined;
+
+/**
+ * The bus only does work while something is reading it (the testbed's
+ * Logs tab subscribes) and only in dev builds. It used to run in every
+ * build for every stanza in and out — serialising each stanza to a string
+ * and copying the 500-entry buffer each time — for a tab nobody opens in
+ * production. Call sites building expensive details check this first.
+ */
+export function isDevLogActive(): boolean {
+  return (
+    typeof __DEV__ !== 'undefined' && __DEV__ === true && listeners.size > 0
+  );
+}
+
 export function pushLog(
   kind: LogKind,
   message: string,
   details?: any
 ): void {
+  if (!isDevLogActive()) {return;}
   const detailsStr =
     details === undefined
       ? undefined

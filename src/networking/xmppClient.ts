@@ -23,7 +23,7 @@ import { editMessage } from './xmpp/editMessage.xmpp';
 import { inviteRoomRequest } from './xmpp/inviteRoomRequest.xmpp';
 import { getRooms } from './xmpp/getRooms.xmpp';
 import { handleStanza } from './xmpp/handleStanzas.xmpp';
-import { pushLog as devPushLog } from '../utils/devLogger';
+import { pushLog as devPushLog, isDevLogActive } from '../utils/devLogger';
 import { normalizeRoomJid } from '../helpers/normalizeRoomJid';
 import { store } from '../roomStore';
 import { applyPrivateStoreMarkers } from '../roomStore/roomsSlice';
@@ -90,6 +90,10 @@ interface HistoryOptions {
   coalesceRoom?: boolean;
   skipIfPreloaded?: boolean;
   source?: HistorySource;
+  /** The caller merges the returned page into the store itself (the
+   * preload scheduler and the catch-up pass do, to detect gaps); the MAM
+   * router then does not apply it. Default: applied by the router. */
+  selfApplied?: boolean;
 }
 
 interface MamInFlightEntry {
@@ -286,8 +290,9 @@ export class XmppClient {
     before?: number;
     id?: string;
     source?: HistorySource;
+    selfApplied?: boolean;
   }): Promise<any> {
-    const { chatJID, max, before, id, source = 'default' } = params;
+    const { chatJID, max, before, id, source = 'default', selfApplied } = params;
 
     // Coalesce — if a fetch for the same room is in-flight, reuse it
     // unless the new request is higher priority.
@@ -315,7 +320,9 @@ export class XmppClient {
     const handle: { p?: Promise<any> } = {};
     handle.p = (async () => {
       try {
-        return await getHistory(this.client, chatJID, max, before, id);
+        return await getHistory(this.client, chatJID, max, before, id, {
+          selfApplied,
+        });
       } finally {
         const cur = this.mamInFlightByRoom.get(chatJID);
         if (cur && cur.promise === handle.p) {
@@ -383,7 +390,7 @@ export class XmppClient {
       // Raising the cap silences the warning without masking real leaks
       // — true leaks would still grow unboundedly past this number.
       try {
-        (this.client as any)?.setMaxListeners?.(50);
+        (this.client as any)?.setMaxListeners?.(120);
       } catch {}
 
       // Wrap `send` so the dev logger sees outgoing stanzas too.
@@ -395,7 +402,7 @@ export class XmppClient {
         const origSend = this.client.send?.bind(this.client);
         if (origSend) {
           const wrapped = (stanza: any) => {
-            try {
+            if (isDevLogActive()) {try {
               const tag = stanza?.name || 'stanza';
               const id = stanza?.attrs?.id || '';
               const to = stanza?.attrs?.to || '';
@@ -404,7 +411,7 @@ export class XmppClient {
                 `→ ${tag}${id ? ` id=${id}` : ''}${to ? ` to=${to.split('/')[0]}` : ''}`,
                 stanza?.toString ? stanza.toString() : undefined
               );
-            } catch {}
+            } catch {}}
             const result = origSend(stanza);
             // Most stanza helpers fire-and-forget `client.send(...)`
             // without awaiting/catching. On @xmpp/client builds where
@@ -545,7 +552,7 @@ export class XmppClient {
     };
 
     this.onStanza = (stanza: any) => {
-      try {
+      if (isDevLogActive()) {try {
         const tag = stanza?.name || 'stanza';
         const id = stanza?.attrs?.id || '';
         const from = stanza?.attrs?.from || '';
@@ -555,7 +562,7 @@ export class XmppClient {
           `← ${tag}${id ? ` id=${id}` : ''}${type ? ` type=${type}` : ''}${from ? ` from=${from.split('/')[0]}` : ''}`,
           stanza?.toString ? stanza.toString() : undefined
         );
-      } catch {}
+      } catch {}}
       handleStanza.bind(this, stanza, this)();
     };
 
@@ -938,9 +945,12 @@ export class XmppClient {
         before,
         id,
         source: options?.source || 'default',
+        selfApplied: options?.selfApplied,
       });
     }
-    return await getHistory(this.client, chatJID, max, before, id);
+    return await getHistory(this.client, chatJID, max, before, id, {
+      selfApplied: options?.selfApplied,
+    });
   };
 
   getLastMessageArchiveStanza(roomJID: string) {

@@ -8,6 +8,7 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -55,6 +56,12 @@ const MessageNotificationContext =
   createContext<MessageNotificationContextValue | null>(null);
 
 const DEFAULT_MAX = 3;
+
+const pruneExpired = (prev: ToastItem[], now: number, ttl: number) => {
+  if (prev.length === 0) {return prev;}
+  const next = prev.filter((t) => now - t.timestamp < ttl);
+  return next.length === prev.length ? prev : next;
+};
 const DEFAULT_DURATION_MS = 30000;
 // The top banner is a glance, not a stack to work through: it leaves on its
 // own after a few seconds unless the host sets `duration`.
@@ -107,7 +114,7 @@ export const MessageNotificationProvider: React.FC<ProviderProps> = ({
         appActiveRef.current = next === 'active';
         if (next === 'active') {
           const now = Date.now();
-          setToasts((prev) => prev.filter((t) => now - t.timestamp < pruneAfter));
+          setToasts((prev) => pruneExpired(prev, now, pruneAfter));
         }
       }
     );
@@ -119,7 +126,7 @@ export const MessageNotificationProvider: React.FC<ProviderProps> = ({
     const interval = setInterval(() => {
       if (!appActiveRef.current) {return;}
       const now = Date.now();
-      setToasts((prev) => prev.filter((t) => now - t.timestamp < pruneAfter));
+      setToasts((prev) => pruneExpired(prev, now, pruneAfter));
     }, 1000);
     return () => clearInterval(interval);
   }, [pruneAfter]);
@@ -193,8 +200,13 @@ export const MessageNotificationProvider: React.FC<ProviderProps> = ({
     return unsubscribe;
   }, [isEnabled, showMessageNotification]);
 
+  const contextValue = useMemo(
+    () => ({ showMessageNotification }),
+    [showMessageNotification]
+  );
+
   return (
-    <MessageNotificationContext.Provider value={{ showMessageNotification }}>
+    <MessageNotificationContext.Provider value={contextValue}>
       {children}
       {isEnabled && bannerMode && toasts.length > 0 && (
         <ToastBanner

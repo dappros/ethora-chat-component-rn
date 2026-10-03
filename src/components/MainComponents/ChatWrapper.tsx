@@ -1,4 +1,4 @@
-import React, {FC, useEffect, useMemo, useRef, useState} from 'react';
+import React, {FC, useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useDispatch, useSelector} from 'react-redux';
 import ChatRoom from './ChatRoom';
 import {RoomStack, RoomStackHandle} from './RoomStack';
@@ -94,15 +94,18 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
     initMode,
   } = useXmppClient();
 
-  const {rooms, activeRoomJID} = useSelector((state: RootState) => state.rooms);
+  const rooms = useSelector((state: RootState) => state.rooms.rooms);
+  const activeRoomJID = useSelector(
+    (state: RootState) => state.rooms.activeRoomJID,
+  );
+  const activeRoomMessages = useSelector((state: RootState) =>
+    activeRoomJID ? state.rooms.rooms[activeRoomJID]?.messages : undefined,
+  );
 
-  const activeMessage = useMemo(() => {
-    if (activeRoomJID) {
-      return rooms[activeRoomJID]?.messages?.find(
-        message => message?.activeMessage,
-      );
-    }
-  }, [rooms, activeRoomJID]);
+  const activeMessage = useMemo(
+    () => activeRoomMessages?.find(message => message?.activeMessage),
+    [activeRoomMessages],
+  );
 
   const handleChangeChat = (chat: IRoom) => {
     dispatch(setCurrentRoom({roomJID: chat.jid}));
@@ -438,6 +441,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
   // List mode: the room is pushed over the list and can be swiped back
   // (RoomStack). With `roomJID` / `disableRooms` there is no list to return to.
   const listMode = !config?.disableRooms && !roomJID;
+  const popRoom = useCallback(() => roomStackRef.current?.pop(), []);
   const backToList = () => {
     dispatch(setCurrentRoom({ roomJID: '' }));
   };
@@ -529,7 +533,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
                           CustomMessageComponent={
                             CustomMessageComponent || Message
                           }
-                          handleBackClick={() => roomStackRef.current?.pop()}
+                          handleBackClick={popRoom}
                         />
                       </ChatWrapperBox>
                     )

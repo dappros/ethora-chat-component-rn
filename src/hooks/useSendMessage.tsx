@@ -79,7 +79,6 @@ export const useSendMessage = (_configOverride?: IConfig) => {
     (state: RootState) => state.chatSettingStore.langSource
   );
   const editAction = useSelector((state: RootState) => state.rooms.editAction);
-  const rooms = useSelector((state: RootState) => state.rooms.rooms);
 
   const {
     handleMessageSent,
@@ -87,10 +86,6 @@ export const useSendMessage = (_configOverride?: IConfig) => {
     handleMessageEdited,
     handleMessageRetry,
   } = useEventHandlers(config);
-
-  const failedMessages = useSelector(
-    (state: RootState) => state.roomHeapSlice?.failedMessages || {}
-  );
 
   const sendMessage = useCallback(
     async (
@@ -673,7 +668,8 @@ export const useSendMessage = (_configOverride?: IConfig) => {
   // it. No-op when the id isn't in the failed map.
   const retryMessage = useCallback(
     async (failedId: string) => {
-      const payload = failedMessages[failedId];
+      const payload =
+        reduxStore.getState().roomHeapSlice?.failedMessages?.[failedId];
       if (!payload) {return;}
 
       // The server may have accepted the original send even though its
@@ -681,7 +677,8 @@ export const useSendMessage = (_configOverride?: IConfig) => {
       // failed, but a confirmed (non-pending) copy is already sitting in
       // the room. Resending here would deliver a genuine duplicate; just
       // clear the failure and let the existing copy stand.
-      const roomMsgs = rooms?.[payload.roomJID]?.messages || [];
+      const roomMsgs =
+        reduxStore.getState().rooms?.rooms?.[payload.roomJID]?.messages || [];
       const alreadyDelivered = roomMsgs.some(
         (m: any) =>
           !m.pending && (m.id === failedId || m.xmppId === failedId)
@@ -720,7 +717,7 @@ export const useSendMessage = (_configOverride?: IConfig) => {
         );
       }
     },
-    [failedMessages, rooms, dispatch, handleMessageRetry, sendMessage, sendMedia]
+    [reduxStore, dispatch, handleMessageRetry, sendMessage, sendMedia]
   );
 
   // ChatRoom/ThreadWrapper consume this as the "edit branch" of send.
@@ -762,7 +759,7 @@ export const useSendMessage = (_configOverride?: IConfig) => {
   const isLastMessageFromUserAndProcessing = useCallback(
     (roomJID: string): boolean => {
       if (!roomJID) {return false;}
-      const msgs = rooms?.[roomJID]?.messages;
+      const msgs = reduxStore.getState().rooms?.rooms?.[roomJID]?.messages;
       if (!msgs || msgs.length === 0) {return false;}
       const last = msgs[msgs.length - 1];
       if (!last?.pending) {return false;}
@@ -770,7 +767,7 @@ export const useSendMessage = (_configOverride?: IConfig) => {
       if (!selfId) {return false;}
       return last.user?.id === selfId;
     },
-    [rooms, user?.xmppUsername, user?.walletAddress]
+    [reduxStore, user?.xmppUsername, user?.walletAddress]
   );
 
   return {

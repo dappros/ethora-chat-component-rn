@@ -34,7 +34,15 @@ import { addRoom, setRoomMessages } from '../src/roomStore/roomsSlice';
 import type { IMessage } from '../src/types/types';
 import { checkUniqueUsers } from '../src/helpers/checkUniqueUsers';
 
+// The pass anchors on the newest CACHED message now (not on the bare
+// `lastMessageTimestamp` stamp, which may be an API seed), so a room that
+// is meant to be caught up carries that message in its cache.
 function makeRoom(jid: string, overrides: any = {}) {
+  const ts = Number(overrides.lastMessageTimestamp);
+  const seeded =
+    ts > 0 && !overrides.messages
+      ? { messages: [{ ...makeMsg(String(ts)), roomJid: jid }] }
+      : {};
   return {
     id: jid,
     name: jid.split('@')[0],
@@ -46,6 +54,7 @@ function makeRoom(jid: string, overrides: any = {}) {
     roomBg: '',
     lastViewedTimestamp: 0,
     unreadMessages: 0,
+    ...seeded,
     ...overrides,
   };
 }
@@ -231,7 +240,15 @@ describe('updateMessagesTillLast', () => {
       expect.any(Error)
     );
     // The good room still completed (its getHistoryStanza was called).
-    expect(client.getHistoryStanza).toHaveBeenCalledWith('b@h', 5, NaN);
+    // The good room still completed (its getHistoryStanza was called) —
+    // through the queue and merged by hand, hence the options.
+    expect(client.getHistoryStanza).toHaveBeenCalledWith(
+      'b@h',
+      5,
+      NaN,
+      undefined,
+      expect.objectContaining({ selfApplied: true, coalesceRoom: true })
+    );
     errSpy.mockRestore();
   });
 });

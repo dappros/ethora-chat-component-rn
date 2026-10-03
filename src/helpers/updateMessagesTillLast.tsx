@@ -31,10 +31,20 @@ export const updateMessagesTillLast = async (
         processedIndex + batchSize
       );
 
+
       const lastTimestampsByJid = currentBatch.reduce(
         (acc: Record<string, number>, current: string) => {
           const room = (store.getState() as any).rooms?.rooms?.[current];
-          acc[current] = Number(room?.lastMessageTimestamp ?? 0) || 0;
+          const cached: IMessage[] = Array.isArray(room?.messages)
+            ? room.messages
+            : [];
+          let newest = 0;
+          for (const m of cached) {
+            if (!m || m.pending || m.id === 'delimiter-new') {continue;}
+            const id = Number(m.id);
+            if (Number.isFinite(id) && id > newest) {newest = id;}
+          }
+          acc[current] = newest;
           return acc;
         },
         {} as Record<string, number>
@@ -59,7 +69,9 @@ export const updateMessagesTillLast = async (
               const fetchedMessages = await client.getHistoryStanza(
                 jid,
                 messagesPerFetch,
-                Number(lastMessageId)
+                Number(lastMessageId),
+                undefined,
+                { coalesceRoom: true, source: 'background', selfApplied: true }
               );
 
               if (!fetchedMessages.length) {break;}

@@ -691,7 +691,8 @@ describe('XmppClient — delegating stanza helpers', () => {
       'r@h',
       10,
       1700000000000,
-      'mid'
+      'mid',
+      { selfApplied: undefined }
     );
   });
 

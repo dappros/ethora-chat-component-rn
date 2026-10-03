@@ -1,4 +1,5 @@
 import type { ViewStyle, ImageSourcePropType, TextStyle } from 'react-native';
+import type { LastMessage } from './models/message.model';
 import type { ChatThemeOverrides } from '../theme/theme';
 import type { Iso639_1Codes } from './models/language.model';
 import type { IMessage, IReply } from './models/message.model';
@@ -27,7 +28,9 @@ export interface IRoom {
   isLoading: boolean;
   roomBg: string | null;
 
-  lastMessage?: string;
+  /** Seed for the room-list preview/order while no history is loaded —
+   * mapped from the API's `lastMessage` doc (see createRoomFromApi). */
+  lastMessage?: LastMessage;
   lastRoomMessage?: RoomLastMessage;
   icon?: string | null;
   composing?: boolean;
