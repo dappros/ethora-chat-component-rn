@@ -248,6 +248,24 @@ const upsertRoom = (
       };
 };
 
+export const applyReactionToMessage = (
+  message: IMessage,
+  from: string | undefined,
+  reactions: string[],
+  data?: Record<string, string>
+): void => {
+  const fromId = String(from || '').split('/')[0].split('@')[0];
+  if (!fromId) {return;}
+  const list = (reactions || []).filter((r) => !!r);
+  const current = { ...(message.reaction || {}) };
+  if (list.length === 0) {
+    delete current[fromId];
+  } else {
+    current[fromId] = { emoji: list, data: data || {} };
+  }
+  message.reaction = Object.keys(current).length ? current : undefined;
+};
+
 const enforceMessageCap = (
   messages: IMessage[],
   limit: number = RUNTIME_MESSAGE_LIMIT
@@ -346,10 +364,12 @@ function mergeHistoryIntoCache(
     // body). Preserve `isEdited` from the cached copy so a message edited
     // before reload keeps its marker instead of losing it on history sync.
     const prev = byId.get(String(m.id));
-    byId.set(
-      String(m.id),
-      prev?.isEdited && !m.isEdited ? { ...m, isEdited: true } : m
-    );
+    let next = prev?.isEdited && !m.isEdited ? { ...m, isEdited: true } : m;
+
+    if (prev?.reaction && !next.reaction) {
+      next = { ...next, reaction: prev.reaction };
+    }
+    byId.set(String(m.id), next);
   }
   const merged = collapseCallLogDuplicates(
     Array.from(byId.values()).sort(byMs)
@@ -526,6 +546,7 @@ const reducers = {
       room.messages.map((message) => {
         if (message.id === messageId) {
           message.isDeleted = true;
+          message.reaction = undefined;
         }
       });
     },
@@ -855,12 +876,12 @@ const reducers = {
         data?: Record<string, string>;
       }>
     ) => {
-      const { roomJID, messageId, reactions } = action.payload;
+      const { roomJID, messageId, reactions, from, data } = action.payload;
       const room = state.rooms[roomJID];
       if (!room?.messages) {return;}
       for (const msg of room.messages) {
         if (msg?.id === messageId) {
-          (msg as any).reactions = reactions;
+          applyReactionToMessage(msg as IMessage, from, reactions, data);
           break;
         }
       }

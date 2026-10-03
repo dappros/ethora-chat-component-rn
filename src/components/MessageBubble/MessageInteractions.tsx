@@ -21,6 +21,12 @@ import * as Clipboard from 'expo-clipboard';
 import { useToast } from '../../context/ToastContext';
 import { useInteractionsOverlay } from './InteractionsOverlay';
 import { useTheme } from '../../hooks/useTheme';
+import { getEmojiNativeById } from '../../helpers/emoji';
+import {
+  quickReactionIds,
+  reactionPickerEnabled,
+  reactionsEnabled,
+} from '../../helpers/reactionsConfig';
 
 interface MessageInteractionsProps {
   isReply?: boolean;
@@ -37,6 +43,8 @@ interface MessageInteractionsProps {
   handleDeleteMessage: () => void;
   handleEditMessage: () => void;
   handleReactionMessage: (id: string) => void;
+  /** Opens the full emoji picker (the "+" in the reaction row). */
+  onOpenEmojiPicker?: () => void;
 }
 
 const MessageInteractions: React.FC<MessageInteractionsProps> = ({
@@ -48,6 +56,8 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
   handleReplyMessage: replyMessage,
   handleDeleteMessage,
   handleEditMessage,
+  handleReactionMessage,
+  onOpenEmojiPicker,
 }) => {
   const { showToast } = useToast();
   const { present, dismiss, originX, originY } = useInteractionsOverlay();
@@ -66,6 +76,10 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
   );
 
   const [menuSize, setMenuSize] = useState({ width: 0, height: 0 });
+  const [barSize, setBarSize] = useState({ width: 0, height: 0 });
+  const showReactions = reactionsEnabled(config);
+  const quickIds = useMemo(() => quickReactionIds(config), [config]);
+  const showPicker = reactionPickerEnabled(config) && !!onOpenEmojiPicker;
 
   // Entrance: the menu pops out of its anchor (scale + fade) and the chat
   // dims a touch behind it. Started once the menu has been measured and
@@ -105,6 +119,13 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
     ];
     return () => subs.forEach((s) => s.remove());
   }, []);
+
+  const handleBarLayout = (e: LayoutChangeEvent) => {
+    const { width, height } = e.nativeEvent.layout;
+    if (width && height && (width !== barSize.width || height !== barSize.height)) {
+      setBarSize({ width, height });
+    }
+  };
 
   const handleMenuLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
@@ -150,6 +171,7 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
     if (!menuSize.width || !menuSize.height) {
       return { top: position.bottom, left: position.left, opacity: 0 };
     }
+    const barReserve = showReactions && barSize.height ? barSize.height + 10 : 0;
 
     const { width: screenWidth, height: screenHeight } =
       Dimensions.get('window');
@@ -166,7 +188,7 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
     const visibleBottom = screenHeight - keyboardHeight;
 
     const spaceBelow = visibleBottom - position.bottom - gap - bottomReserve;
-    const spaceAbove = position.top - gap - topReserve;
+    const spaceAbove = position.top - gap - topReserve - barReserve;
 
     let top: number;
     if (spaceBelow >= menuSize.height) {
@@ -191,7 +213,37 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
     );
 
     return { top, left };
-  }, [position, menuSize, config?.keyboardVerticalOffset, keyboardHeight]);
+  }, [position, menuSize, barSize.height, showReactions, config?.keyboardVerticalOffset, keyboardHeight]);
+
+  const barPosition = useMemo(() => {
+    if (!position || !showReactions) {return undefined;}
+    if (!barSize.width || !barSize.height) {
+      return { top: position.top, left: position.left, opacity: 0 };
+    }
+    const { width: screenWidth } = Dimensions.get('window');
+    const sideMargin = 8;
+    const gap = 8;
+    const rightAligned = screenWidth - position.right < position.left;
+    let left = rightAligned ? position.right - barSize.width : position.left;
+    left = Math.max(sideMargin, Math.min(left, screenWidth - barSize.width - sideMargin));
+    const above = position.top - gap - barSize.height;
+    const menuTop = (memoPosition as { top?: number } | undefined)?.top;
+    const top =
+      above >= 16
+        ? above
+        : (menuTop ?? position.bottom) + (menuSize.height || 0) + gap;
+    return { top, left };
+  }, [position, showReactions, barSize, memoPosition, menuSize.height]);
+
+  const localBarPosition = useMemo(() => {
+    if (!barPosition) {return undefined;}
+    return {
+      ...barPosition,
+      top: (barPosition as { top: number }).top - originY,
+      left: (barPosition as { left: number }).left - originX,
+    };
+  }, [barPosition, originX, originY]);
+
 
   // Window coords (memoPosition) → host-local coords. The overlay host
   // sits below the status bar / header, so subtract its measured origin.
@@ -213,6 +265,63 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
             style={[styles.dim, { opacity: reveal }]}
           />
         </Pressable>
+        {showReactions && (
+          <Animated.View
+            testID="reaction-bar"
+            onLayout={handleBarLayout}
+            style={[
+              styles.reactionBar,
+              { backgroundColor: theme.surface, shadowColor: theme.shadow },
+              localBarPosition,
+              placed && barSize.height
+                ? {
+                    opacity: reveal,
+                    transform: [
+                      {
+                        scale: reveal.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0.6, 1],
+                        }),
+                      },
+                    ],
+                  }
+                : null,
+            ]}
+          >
+            {quickIds.map((id) => (
+              <Pressable
+                key={id}
+                testID={`quick-reaction-${id}`}
+                onPress={() => {
+                  handleReactionMessage(id);
+                  closeMenu();
+                }}
+                style={({ pressed }) => [
+                  styles.reactionItem,
+                  pressed && { backgroundColor: theme.surfaceHighlight },
+                ]}
+              >
+                <Text style={styles.reactionGlyph}>{getEmojiNativeById(id)}</Text>
+              </Pressable>
+            ))}
+            {showPicker && (
+              <Pressable
+                testID="quick-reaction-more"
+                onPress={() => {
+                  closeMenu();
+                  onOpenEmojiPicker?.();
+                }}
+                style={({ pressed }) => [
+                  styles.reactionMore,
+                  { backgroundColor: theme.surfaceSecondary },
+                  pressed && { backgroundColor: theme.surfaceHighlight },
+                ]}
+              >
+                <Text style={[styles.reactionMoreText, { color: theme.text }]}>+</Text>
+              </Pressable>
+            )}
+          </Animated.View>
+        )}
         <Animated.View
           style={[
             styles.contextMenu,
@@ -296,6 +405,41 @@ const styles = StyleSheet.create({
   dim: {
     ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.18)',
+  },
+  reactionBar: {
+    position: 'absolute',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderRadius: 28,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  reactionItem: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reactionGlyph: {
+    fontSize: 26,
+  },
+  reactionMore: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 2,
+  },
+  reactionMoreText: {
+    fontSize: 22,
+    lineHeight: 24,
+    fontWeight: '400',
   },
   contextMenu: {
     position: 'absolute',

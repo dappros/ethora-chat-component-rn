@@ -1,11 +1,13 @@
 import { store } from '../../roomStore';
-import { addRoomMessages } from '../../roomStore/roomsSlice';
+import { addRoomMessages, setReactions } from '../../roomStore/roomsSlice';
 import { IMessage } from '../../types/types';
+import { applyMamReactions, type ExtractedReaction } from '../../helpers/mamReactions';
 
 interface PendingQuery {
   roomJID: string;
   apply: boolean;
   messages: IMessage[];
+  reactions: ExtractedReaction[];
   inflight: number;
   closed: null | { error: boolean };
   resolve: (messages: IMessage[]) => void;
@@ -15,10 +17,23 @@ interface PendingQuery {
 const pending = new Map<string, PendingQuery>();
 
 const flush = (query: PendingQuery) => {
-  if (!query.apply || query.messages.length === 0) {return;}
-  store.dispatch(
-    addRoomMessages({ roomJID: query.roomJID, messages: query.messages })
-  );
+  const deferred = applyMamReactions(query.messages, query.reactions);
+  if (query.apply && query.messages.length > 0) {
+    store.dispatch(
+      addRoomMessages({ roomJID: query.roomJID, messages: query.messages })
+    );
+  }
+  for (const reaction of deferred) {
+    store.dispatch(
+      setReactions({
+        roomJID: reaction.roomJID || query.roomJID,
+        messageId: reaction.messageId,
+        from: reaction.from,
+        reactions: reaction.emoji,
+        data: reaction.data,
+      })
+    );
+  }
 };
 
 export const beginMamQuery = (
@@ -31,6 +46,7 @@ export const beginMamQuery = (
       roomJID,
       apply,
       messages: [],
+      reactions: [],
       inflight: 0,
       closed: null,
       resolve,
@@ -99,6 +115,16 @@ export const claimMamResult = (stanza: any): boolean => {
 };
 
 /** The parsed result of a claimed stanza (undefined: dropped). */
+export const collectMamReaction = (
+  stanza: any,
+  reaction: ExtractedReaction
+): boolean => {
+  const query = queryOf(stanza);
+  if (!query) {return false;}
+  query.reactions.push(reaction);
+  return true;
+};
+
 export const collectMamMessage = (
   stanza: any,
   message: IMessage | undefined

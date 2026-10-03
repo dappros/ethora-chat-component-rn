@@ -10,6 +10,7 @@ import { sendTypingRequest } from './xmpp/sendTypingRequest.xmpp';
 import { sendPing } from './xmpp/sendPing.xmpp';
 import { getHistory } from './xmpp/getHistory.xmpp';
 import { sendTextMessage } from './xmpp/sendTextMessage.xmpp';
+import { sendMessageReaction } from './xmpp/sendMessageReaction.xmpp';
 import { sendTextMessageWithTranslateTag } from './xmpp/sendTextMessageWithTranslateTag.xmpp';
 import { deleteMessage } from './xmpp/deleteMessage.xmpp';
 import { presenceInRoom } from './xmpp/presenceInRoom.xmpp';
@@ -1204,12 +1205,18 @@ export class XmppClient {
   }
 
   sendMessageReactionStanza(
-    _messageId: string,
-    _roomJid: string,
-    _reactionsList: string[],
-    _reactionSymbol?: string
+    messageId: string,
+    roomJid: string,
+    reactionsList: string[],
+    data?: { firstName?: string; lastName?: string }
   ) {
-    console.warn('sendMessageReactionStanza: not implemented in RN xmpp client');
+    sendMessageReaction(
+      this.client,
+      messageId,
+      normalizeRoomJid(roomJid, this.conference),
+      reactionsList,
+      data || {}
+    );
   }
 
   // Sends a groupchat message carrying a `<translate source="xx"/>` tag so

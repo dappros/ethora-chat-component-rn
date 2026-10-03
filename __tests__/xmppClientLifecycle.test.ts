@@ -78,6 +78,9 @@ jest.mock('../src/networking/xmpp/sendTextMessage.xmpp', () => ({
 jest.mock('../src/networking/xmpp/sendTextMessageWithTranslateTag.xmpp', () => ({
   sendTextMessageWithTranslateTag: jest.fn(() => true),
 }));
+jest.mock('../src/networking/xmpp/sendMessageReaction.xmpp', () => ({
+  sendMessageReaction: jest.fn(),
+}));
 jest.mock('../src/networking/xmpp/getHistory.xmpp', () => ({
   getHistory: jest.fn(async () => []),
 }));
@@ -132,6 +135,7 @@ import { getRooms } from '../src/networking/xmpp/getRooms.xmpp';
 import { sendTextMessage } from '../src/networking/xmpp/sendTextMessage.xmpp';
 import { sendTextMessageWithTranslateTag } from '../src/networking/xmpp/sendTextMessageWithTranslateTag.xmpp';
 import { getHistory } from '../src/networking/xmpp/getHistory.xmpp';
+import { sendMessageReaction } from '../src/networking/xmpp/sendMessageReaction.xmpp';
 import { createRoom } from '../src/networking/xmpp/createRoom.xmpp';
 import { presenceInRoom } from '../src/networking/xmpp/presenceInRoom.xmpp';
 import { deleteMessage } from '../src/networking/xmpp/deleteMessage.xmpp';
@@ -741,14 +745,19 @@ describe('XmppClient — not-implemented stubs', () => {
     warn.mockRestore();
   });
 
-  it('sendMessageReactionStanza warns and no-ops', () => {
-    const c = new XmppClient('u', 'p', { devServer: 'h' });
-    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
-    c.sendMessageReactionStanza('m1', 'r@h', ['🎉']);
-    expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining('sendMessageReactionStanza: not implemented')
+  it('sendMessageReactionStanza delegates the full list + sender name to the builder', () => {
+    const c = new XmppClient('u', 'p', { devServer: 'h', conference: 'conf.test' });
+    c.sendMessageReactionStanza('m1', 'room', ['joy', '+1'], {
+      firstName: 'Ann',
+      lastName: 'Lee',
+    });
+    expect(sendMessageReaction).toHaveBeenCalledWith(
+      last(),
+      'm1',
+      'room@conf.test',
+      ['joy', '+1'],
+      { firstName: 'Ann', lastName: 'Lee' }
     );
-    warn.mockRestore();
   });
 
   it('sendTextMessageWithTranslateTagStanza emits a translate-tagged stanza with the source language', () => {

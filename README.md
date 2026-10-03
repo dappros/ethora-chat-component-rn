@@ -18,6 +18,7 @@ React Native chat UI + chat core for iOS and Android, powered by the Ethora plat
 - [Unread tracking in tab-based hosts](#unread-tracking-in-tab-based-hosts)
 - [Logging out](#logging-out)
 - [Customization flags worth knowing](#customization-flags-worth-knowing)
+- [Message reactions](#message-reactions)
 - [Keyboard handling](#keyboard-handling)
 - [Header height & font sizing](#header-height--font-sizing)
 - [Dark theme](#dark-theme)
@@ -77,6 +78,8 @@ npx expo install \
 ```
 
 > `expo-blur` is only used to frost the chat picture as the chat-profile header collapses. Skip it and that layer falls back to a plain dim — everything else is unaffected.
+
+> Two more optional peers: `expo-haptics` (a short haptic tap when the message menu opens on long-press; without it the gesture is silent) and `react-native-mmkv` (the chat cache is stored in MMKV with native encryption; without it the SDK falls back to AsyncStorage with AES on the JS thread — noticeably slower with many rooms). Both need a native rebuild after installing.
 
 > Video playback uses **`expo-video`** (`useVideoPlayer` / `VideoView`) and audio uses **`expo-audio`** (`createAudioPlayer` / `useAudioRecorder`). Install both. The discontinued `expo-av` is no longer used anywhere in the SDK, so consumers on Expo SDK 57 / RN 0.86 with the New Architecture can drop it.
 
@@ -315,6 +318,39 @@ Why awaitable: the persistence layer debounces writes by 200 ms, and the chat sl
 | `hideMemberCopyIdAction` | Hides only the "Copy User Id" button, keeps everything else. |
 | `disableConnectionErrorOverlay` | Replaces the full-screen "Connection error" overlay with a small, non-blocking `ConnectionBanner`. Set this when a transient reconnect shouldn't take over the whole screen. |
 | `eventHandlers.onMessageRetry` | `(event) => void` fired when the user taps the "Failed — tap to retry" indicator on a stuck send. Use for telemetry / surfacing a retry banner. |
+
+## Message reactions
+
+Emoji reactions on messages, WhatsApp-style. **On by default**, shared with the web SDK: a reaction set from either client shows up on the other.
+
+- **Long-press a message** → a row of quick reactions appears above the bubble (👍 ❤️ 😂 😮 😢 🙏 by default) together with the Copy / Edit / Delete menu. Tapping an emoji sets it; tapping the same one again removes it.
+- **"+"** at the end of the row opens a bottom sheet with the full emoji set: search, "Frequently used" (remembered on the device), categories, and a category bar at the bottom.
+- **Under the bubble** every emoji used on the message shows as a chip with its count; the current user's own ones are tinted. Tap a chip to toggle your own reaction; long-press it to see who reacted.
+- **In the room list** the preview shows the latest reaction (`Ann: 👍`) when it is the newest event in the room.
+
+```tsx
+<Chat
+  config={{
+    reactions: {
+      enabled: true,                       // false → no row, no chips, no picker
+      quickReactions: ['+1', 'heart', 'joy', 'open_mouth', 'cry', 'pray'], // up to 8
+      picker: true,                        // false → hides the "+" (quick row only)
+    },
+  }}
+/>
+```
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `reactions.enabled` | `true` | Turns the feature on/off. When off, reactions other users send are still received and stored, just not shown — switching it back on shows them. |
+| `reactions.quickReactions` | `['+1','heart','joy','open_mouth','cry','pray']` | Ids shown in the row above the menu, in order (max 8). |
+| `reactions.picker` | `true` | Whether the "+" that opens the full emoji picker is shown. |
+| `disableReactions` | `false` | Legacy alias of `reactions.enabled: false`. |
+| `disableInteractions` | `false` | Disables the whole long-press menu, the reaction row included; existing chips are still shown but no longer toggle. |
+
+**Ids, not glyphs.** Reactions travel on the wire and are stored as emoji *short names* — `+1`, `heart`, `joy`, `fire`, `pray`, … — the same ids the web SDK uses, so both platforms read each other's reactions. The SDK ships its own id→glyph table (~1850 emoji, up to Emoji 14 so every supported OS renders them) and resolves ids when rendering; no emoji library is needed. In `message.reaction` the data is keyed by the reactor's XMPP local part: `{ alice: { emoji: ['joy', '+1'], data: { senderFirstName, senderLastName } } }`.
+
+**Protocol.** One `<message type="groupchat" id="message-reaction:…">` with `<reactions xmlns="urn:xmpp:reactions:0" id="<target stanza id>" from="<reactor jid>">` and one `<reaction>` child per id — always the reactor's **full current list** (an empty `<reactions/>` clears them). Reactions are archived with the room's history and restored with it on every history fetch.
 
 ## Keyboard handling
 

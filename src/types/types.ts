@@ -638,6 +638,11 @@ export interface IConfig {
   // ----- interactions / messages -----
   disableInteractions?: boolean;
   disableReactions?: boolean;
+  reactions?: {
+    enabled?: boolean;
+    quickReactions?: string[];
+    picker?: boolean;
+  };
   disableProfilesInteractions?: boolean;
   disableUserCount?: boolean;
   disableSentLogic?: boolean;

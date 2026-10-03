@@ -1,6 +1,11 @@
 import { Element } from 'ltx';
 import { store } from '../roomStore';
-import { claimMamResult, collectMamMessage } from './xmpp/mamRouter';
+import {
+  claimMamResult,
+  collectMamMessage,
+  collectMamReaction,
+} from './xmpp/mamRouter';
+import { extractReaction } from '../helpers/mamReactions';
 import {
   addRooms,
   addRoomMessage,
@@ -9,6 +14,7 @@ import {
   setComposing,
   setCurrentRoom,
   setRoomRole,
+  setReactions,
 } from '../roomStore/roomsSlice';
 import { IMessage, IRoom } from '../types/types';
 import { createMessageFromXml } from '../helpers/createMessageFromXml';
@@ -34,7 +40,8 @@ const onRealtimeMessage = async (stanza: Element) => {
     !stanza.getChild('paused') &&
     !stanza.getChild('subject') &&
     !stanza.is('iq') &&
-    stanza.attrs.id !== 'deleteMessageStanza'
+    stanza.attrs.id !== 'deleteMessageStanza' &&
+    !stanza.getChild('reactions')
   ) {
     const body = stanza?.getChild('body');
     const archived = stanza?.getChild('archived');
@@ -192,6 +199,25 @@ const isMamResult = (stanza: any): boolean =>
 
 const parseMamResult = async (stanza: any): Promise<IMessage | undefined> => {
   {
+    const forwardedMsg = stanza
+      .getChild('result')
+      ?.getChild('forwarded')
+      ?.getChild('message');
+    if (forwardedMsg?.getChild?.('reactions')) {
+      const reaction = extractReaction(forwardedMsg, stanza.attrs?.from);
+      if (reaction && !collectMamReaction(stanza, reaction)) {
+        store.dispatch(
+          setReactions({
+            roomJID: reaction.roomJID,
+            messageId: reaction.messageId,
+            from: reaction.from,
+            reactions: reaction.emoji,
+            data: reaction.data,
+          })
+        );
+      }
+      return undefined;
+    }
     // console.log("stanza -->", stanza.toString());
     const body = stanza
       .getChild('result')
@@ -485,7 +511,24 @@ const onGetChatRooms = (stanza: Element, xmpp: any) => {
 // RN side hasn't ported yet. Without these the bundle compiles but
 // require() returns undefined at runtime → "X is not a function".
 const onMessageError = (_stanza: Element, _xmpp?: any) => {};
-const onReactionMessage = (_stanza: Element) => {};
+/** A live reaction: the reactor's full current list on one message. */
+const onReactionMessage = (stanza: Element) => {
+  if (!stanza?.is?.('message') || stanza.getChild('result')) {return;}
+  if (!stanza.getChild('reactions')) {return;}
+  const reaction = extractReaction(stanza, stanza.attrs?.from);
+  if (!reaction) {return;}
+  store.dispatch(
+    setReactions({
+      roomJID: reaction.roomJID,
+      messageId: reaction.messageId,
+      latestReactionTimestamp: stanza.getChild('stanza-id')?.attrs?.id,
+      reactions: reaction.emoji,
+      from: reaction.from,
+      data: reaction.data,
+    })
+  );
+};
+// Archived reactions are handled by parseMamResult + the MAM router.
 const onReactionHistory = (_stanza: Element) => {};
 const onRoomKicked = (_stanza: Element) => {};
 

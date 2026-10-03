@@ -39,9 +39,10 @@ import { DoubleTick } from '../../assets/icons';
 import { useXmppClient } from '../../context/xmppProvider';
 import { useSendMessage } from '../../hooks/useSendMessage';
 import { MessageReaction } from './MessageReaction';
+import { EmojiPickerSheet } from './EmojiPickerSheet';
+import { reactionsEnabled } from '../../helpers/reactionsConfig';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { hapticTap } from '../../helpers/haptics';
-import { MessageFooter } from '../styled/StyledComponents';
 import { useTheme } from '../../hooks/useTheme';
 
 const CustomMessageContainer = styled.View<{ isUser: boolean; reply?: number }>`
@@ -239,6 +240,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   const { retryMessage } = useSendMessage();
 
   const [isPressed, setIsPressed] = useState(false);
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
 
   const [contextMenuPosition, setContextMenuPosition] = useState<{
     left: number;
@@ -303,37 +305,13 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   // };
 
   const handleReactionMessage = (emoji: string) => {
-    if (!message.reaction) {
-      return client?.sendMessageReactionStanza(
-        message.id,
-        message.roomJid,
-        [emoji],
-        `${user.firstName} ${user.lastName}` as any
-      );
-    }
-    if (
-      message.reaction &&
-      message.reaction[user.xmppUsername || ''] &&
-      message.reaction[user.xmppUsername || '']?.emoji.includes(emoji)
-    ) {
-      const filterEmoji = message.reaction[user.xmppUsername || '']?.emoji.filter(
-        (reaction: any) => reaction !== emoji
-      );
-
-      return client?.sendMessageReactionStanza(
-        message.id,
-        message.roomJid,
-        filterEmoji,
-        `${user.firstName} ${user.lastName}` as any
-      );
-    }
-
-    client?.sendMessageReactionStanza(
-      message.id,
-      message.roomJid,
-      [...(message.reaction[user.xmppUsername || '']?.emoji || []), emoji],
-      `${user.firstName} ${user.lastName}` as any
-    );
+    if (!reactionsEnabled(config) || config?.disableInteractions) {return;}
+    const sender = { firstName: user.firstName, lastName: user.lastName };
+    const own = message.reaction?.[user.xmppUsername || '']?.emoji || [];
+    const next = own.includes(emoji)
+      ? own.filter((reaction) => reaction !== emoji)
+      : [...own, emoji];
+    client?.sendMessageReactionStanza(message.id, message.roomJid, next, sender);
   };
 
   // Long-press → capture the bubble's on-screen bounding box. The actual
@@ -459,8 +437,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
           styles.customMessageContainer,
           {
             justifyContent: isUser ? 'flex-end' : 'flex-start',
-            marginBottom: !!message?.reply?.length || message?.reaction && !!Object.keys(message?.reaction)?.length
-             ? 20 : 0,
+            marginBottom: message?.reply?.length ? 20 : 0,
           },
           // justify-content: ${({ isUser }) => (isUser ? "flex-end" : "flex-start")},
           // margin-bottom: ${(props) => !!props.reply && "20px"},
@@ -628,18 +605,23 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
               <View />
             )}
 
-          <MessageFooter isUser={isUser}>
-
-            {message.reaction && !config?.disableReactions && (
+          </CustomMessageBubble>
+          {message.reaction && reactionsEnabled(config) && (
+            <View
+              style={[
+                styles.reactionRow,
+                isUser ? styles.reactionRowUser : styles.reactionRowOther,
+              ]}
+            >
               <MessageReaction
                 reaction={message.reaction}
                 changeReaction={handleReactionMessage}
                 color={theme.primary}
-                userName={`${user.firstName} ${user.lastName}`}
+                userName={`${user.firstName || ''} ${user.lastName || ''}`.trim()}
+                interactive={!config?.disableInteractions}
               />
-            )}
-          </MessageFooter>
-          </CustomMessageBubble>
+            </View>
+          )}
           </Animated.View>
         </Pressable>
         </GestureDetector>
@@ -655,6 +637,14 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
           handleDeleteMessage={handleDeleteMessage}
           handleEditMessage={handleEditMessage}
           handleReactionMessage={handleReactionMessage}
+          onOpenEmojiPicker={() => setEmojiPickerOpen(true)}
+        />
+      )}
+      {emojiPickerOpen && (
+        <EmojiPickerSheet
+          visible
+          onClose={() => setEmojiPickerOpen(false)}
+          onPick={handleReactionMessage}
         />
       )}
     </View>
@@ -670,6 +660,18 @@ const styles = StyleSheet.create({
     padding: 10,
     alignItems: 'flex-end',
     position: 'relative',
+  },
+  reactionRow: {
+    marginTop: -10,
+    zIndex: 1,
+  },
+  reactionRowUser: {
+    alignSelf: 'flex-end',
+    marginRight: 8,
+  },
+  reactionRowOther: {
+    alignSelf: 'flex-start',
+    marginLeft: 8,
   },
   overlay: {
     ...StyleSheet.absoluteFill,
