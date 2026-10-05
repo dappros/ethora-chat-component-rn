@@ -1,6 +1,6 @@
 import xmpp, { Client } from '@xmpp/client';
 import { walletToUsername } from '../helpers/walletUsername';
-import { xmppSettingsInterface } from '../types/types';
+import { IMessage, xmppSettingsInterface } from '../types/types';
 
 import { sendMediaMessage } from './xmpp/sendMediaMessage.xmpp';
 import { getChatsPrivateStoreRequest } from './xmpp/getChatsPrivateStoreRequest.xmpp';
@@ -8,11 +8,17 @@ import { actionSetTimestampToPrivateStore } from './xmpp/actionSetTimestampToPri
 import { flushLastViewedToPrivateStore } from './xmpp/flushLastViewedToPrivateStore';
 import { sendTypingRequest } from './xmpp/sendTypingRequest.xmpp';
 import { sendPing } from './xmpp/sendPing.xmpp';
-import { getHistory } from './xmpp/getHistory.xmpp';
+import {
+  fetchHistoryPage,
+  getHistory,
+  getHistoryPage,
+  HistoryPage,
+  HistoryPageCursor,
+} from './xmpp/getHistory.xmpp';
 import { sendTextMessage } from './xmpp/sendTextMessage.xmpp';
 import { sendTextMessageWithTranslateTag } from './xmpp/sendTextMessageWithTranslateTag.xmpp';
 import { deleteMessage } from './xmpp/deleteMessage.xmpp';
-import { presenceInRoom } from './xmpp/presenceInRoom.xmpp';
+import { RoomJoinManager } from './xmpp/roomJoinSweep';
 import { getLastMessage } from './xmpp/getLastMessageArchive.xmpp';
 import { createRoom } from './xmpp/createRoom.xmpp';
 import { setRoomImage } from './xmpp/setRoomImage.xmpp';
@@ -95,8 +101,42 @@ interface HistoryOptions {
 interface MamInFlightEntry {
   promise: Promise<any>;
   source: HistorySource;
+  /** The page asked for: only an identical request may share the answer. */
+  before?: number;
+  max: number;
   startedAt: number;
 }
+
+interface HistoryTaskControl {
+  aborted: boolean;
+  /** The guarded promise every waiter of this task holds. */
+  self?: Promise<any>;
+  entry?: MamInFlightEntry;
+}
+
+/**
+ * A history request that has neither answered nor failed by now is dropped
+ * (its slot and in-flight key freed) and asked once more. Longer than the
+ * request's own 10 s read timeout, so it only trips on a task stuck behind a
+ * gate or on a read that never returns.
+ */
+export const HISTORY_WATCHDOG_MS = 15_000;
+
+/** What the server's <fin> said about one windowed MAM page. */
+export interface HistoryWindowFin {
+  complete: boolean;
+  first: number | null;
+  last: number | null;
+}
+
+/** One page of a windowed history query, returned instead of stored. */
+export interface HistoryWindowPage extends HistoryWindowFin {
+  ok: boolean;
+  /** Ascending by time (oldest first), whichever direction was paged. */
+  messages: IMessage[];
+}
+
+export type { HistoryPage, HistoryPageCursor };
 
 /**
  * Floor between two credential rotations driven by reconnects. Well under
@@ -161,7 +201,39 @@ export class XmppClient {
   private onOnlineCallback: (() => void) | null = null;
 
   // ---- QoS state (mirrors web XmppClient) ----------------------------
-  presencesReady = false;
+  /**
+   * Bumped on every disconnect, reconnect and close. Anything that started
+   * on an older connection (a room join, a join sweep) compares against it
+   * and drops its result instead of writing into the new connection's state.
+   */
+  connectionEpoch = 0;
+  // Per-connection MUC join state + the background join sweep.
+  readonly joins: RoomJoinManager = new RoomJoinManager({
+    getClient: () => this.client,
+    getConnectionEpoch: () => this.connectionEpoch,
+    isOnline: () => this.status === 'online',
+    waitForOnline: (timeoutMs) => this.waitForOnline(timeoutMs),
+    getConference: () => this.conference,
+    getHistoryQoS: () => this.xmppSettings?.historyQoS,
+  });
+  /** True once the whole background join sweep finished. */
+  get presencesReady(): boolean {
+    return this.joins.presencesReady;
+  }
+  set presencesReady(value: boolean) {
+    this.joins.presencesReady = value;
+  }
+  /**
+   * True once the first wave of the sweep (open room + one pool width of the
+   * most recently active rooms) settled. Consumers that only need "joining
+   * works" (the offline send drain) gate on this, not on the whole sweep.
+   */
+  get priorityPresencesReady(): boolean {
+    return this.joins.priorityPresencesReady;
+  }
+  set priorityPresencesReady(value: boolean) {
+    this.joins.priorityPresencesReady = value;
+  }
   disableLastRead = false;
   private activeRoomJID: string | null = null;
   private activeRoomBoostUntil = 0;
@@ -268,11 +340,39 @@ export class XmppClient {
    */
   async prioritizeRoomPresence(roomJID: string): Promise<boolean> {
     try {
-      this.presenceInRoomStanza(roomJID);
-      return true;
+      return await this.joins.ensureRoomPresence(
+        normalizeRoomJid(roomJID, this.conference),
+        { timeoutMs: 900, waitForJoin: false, source: 'active_room' }
+      );
     } catch {
       return false;
     }
+  }
+
+  /** Join `roomJID` unless this connection already did (deduped). */
+  ensureRoomPresence(
+    roomJID: string,
+    options?: Parameters<RoomJoinManager['ensureRoomPresence']>[1]
+  ): Promise<boolean> {
+    return this.joins.ensureRoomPresence(
+      normalizeRoomJid(roomJID, this.conference),
+      options
+    );
+  }
+
+  /**
+   * Start (or share) the background join sweep: the open room first, then by
+   * recent activity, a few at a time. Resolves when the sweep ends; callers
+   * that must not wait simply do not await it. Never rejects.
+   */
+  sendAllPresencesAndMarkReady(): Promise<void> {
+    return this.joins.sendAllPresencesAndMarkReady();
+  }
+
+  /** Called on every disconnect / reconnect / close. */
+  private bumpConnectionEpoch() {
+    this.connectionEpoch += 1;
+    this.joins.reset();
   }
 
   /**
@@ -280,56 +380,130 @@ export class XmppClient {
    * a higher-priority request in flight, return that promise. Honors
    * `skipIfPreloaded` by checking redux state (lazy import to avoid cycle).
    */
-  async enqueueHistoryTask(params: {
-    chatJID: string;
-    max: number;
-    before?: number;
-    id?: string;
-    source?: HistorySource;
-  }): Promise<any> {
-    const { chatJID, max, before, id, source = 'default' } = params;
+  async enqueueHistoryTask(
+    params: {
+      chatJID: string;
+      max: number;
+      before?: number;
+      id?: string;
+      source?: HistorySource;
+    },
+    // Internal: this call is the single re-issue after a watchdog abort.
+    reissued = false
+  ): Promise<any> {
+    const { chatJID, max, before, source = 'default' } = params;
 
-    // Coalesce — if a fetch for the same room is in-flight, reuse it
-    // unless the new request is higher priority.
+    // Coalesce: if a fetch for the same room AND the same page is in flight,
+    // reuse it unless the new request is higher priority. A request for a
+    // different page (the latest one in flight, an older one asked) is not
+    // the same answer and runs by itself.
     const existing = this.mamInFlightByRoom.get(chatJID);
-    if (existing && this.sourceRank(existing.source) <= this.sourceRank(source)) {
+    // A one-message teaser page (a staged preview pass) must not stand in for
+    // the full page an opened room asks for.
+    const existingIsTeaser =
+      !!existing &&
+      existing.max < Math.min(max, 5) &&
+      (source === 'active' || source === 'send_ack');
+    if (
+      existing &&
+      !existingIsTeaser &&
+      existing.before === before &&
+      this.sourceRank(existing.source) <= this.sourceRank(source)
+    ) {
       return existing.promise;
     }
+
+    // The promise every waiter holds settles no later than the watchdog: a
+    // task stuck behind the gate, or a read that never returns, is dropped
+    // (slot and key freed) and, for a request somebody is waiting on, asked
+    // once more.
+    const ctl: HistoryTaskControl = { aborted: false };
+    const guarded: Promise<any> = new Promise((resolve) => {
+      let done = false;
+      const timer = setTimeout(() => {
+        if (done) {return;}
+        done = true;
+        ctl.aborted = true;
+        this.releaseMamEntry(chatJID, ctl);
+        console.warn(
+          `[XMPP] history_request_watchdog room=${chatJID} before=${String(before || '')}`
+        );
+        resolve(
+          !reissued && source !== 'background'
+            ? this.enqueueHistoryTask(params, true).catch(() => undefined)
+            : undefined
+        );
+      }, HISTORY_WATCHDOG_MS);
+      this.runHistoryTask(params, ctl).then(
+        (messages) => {
+          if (done) {return;}
+          done = true;
+          clearTimeout(timer);
+          resolve(messages);
+        },
+        () => {
+          if (done) {return;}
+          done = true;
+          clearTimeout(timer);
+          resolve(undefined);
+        }
+      );
+    });
+    ctl.self = guarded;
+    if (ctl.entry) {ctl.entry.promise = guarded;}
+    return guarded;
+  }
+
+  private releaseMamEntry(chatJID: string, ctl: HistoryTaskControl) {
+    const cur = this.mamInFlightByRoom.get(chatJID);
+    if (cur && cur === ctl.entry) {
+      this.mamInFlightByRoom.delete(chatJID);
+    }
+  }
+
+  private async runHistoryTask(
+    params: {
+      chatJID: string;
+      max: number;
+      before?: number;
+      id?: string;
+      source?: HistorySource;
+    },
+    ctl: HistoryTaskControl
+  ): Promise<IMessage[] | undefined> {
+    const { chatJID, max, before, id, source = 'default' } = params;
 
     // Wait for the gate (in-flight cap + soft-pause). For active-room
     // requests we still proceed past the cap when the boost is fresh.
     while (
+      !ctl.aborted &&
       this.mamInFlightByRoom.size >= this.maxInFlightHistory &&
       !(this.alwaysPrioritizeActiveRoom && this.activeRoomJID === chatJID)
     ) {
       await new Promise((r) => setTimeout(r, 80));
     }
-    if (Date.now() < this.softPauseUntil && source === 'background') {
+    if (!ctl.aborted && Date.now() < this.softPauseUntil && source === 'background') {
       const wait = this.softPauseUntil - Date.now();
       await new Promise((r) => setTimeout(r, wait));
     }
+    if (ctl.aborted) {return undefined;}
 
-    // Self-reference via an outer holder so the IIFE's `finally` can
-    // identify "is the registry entry I started still the current one?"
-    // without TS's TDZ false-positive (TS2454 on a bare `let promise`).
-    const handle: { p?: Promise<any> } = {};
-    handle.p = (async () => {
-      try {
-        return await getHistory(this.client, chatJID, max, before, id);
-      } finally {
-        const cur = this.mamInFlightByRoom.get(chatJID);
-        if (cur && cur.promise === handle.p) {
-          this.mamInFlightByRoom.delete(chatJID);
-        }
-      }
-    })();
-
-    this.mamInFlightByRoom.set(chatJID, {
-      promise: handle.p,
+    const entry: MamInFlightEntry = {
+      promise: ctl.self as Promise<any>,
       source,
+      before,
+      max,
       startedAt: Date.now(),
-    });
-    return handle.p;
+    };
+    ctl.entry = entry;
+    this.mamInFlightByRoom.set(chatJID, entry);
+    try {
+      return await getHistory(this.client, chatJID, max, before, id);
+    } finally {
+      // Released exactly once, and only if still ours (a newer request may
+      // have replaced the entry after a watchdog abort).
+      this.releaseMamEntry(chatJID, ctl);
+    }
   }
 
   private sourceRank(s: HistorySource): number {
@@ -476,6 +650,9 @@ export class XmppClient {
     this.onDisconnect = () => {
       console.log('XMPP disconnected.');
       this.status = 'offline';
+      // The stream is gone: joins, the sweep and its retries belong to the
+      // old connection and must not leak into the next one.
+      this.bumpConnectionEpoch();
       try {
         // lazy-require to avoid pulling devLogger into prod bundles
         // that don't reference it; tree-shaken via dead-code elim.
@@ -497,8 +674,12 @@ export class XmppClient {
     this.onOnline = () => {
       console.log('XMPP online.', new Date());
       this.status = 'online';
-      this.presencesReady = true;
+      // Not ready until the join sweep ran (presencesReady = whole sweep
+      // done, priorityPresencesReady = its first wave). The sweep runs in
+      // the background: nothing waits for it. The provider / chat wrapper
+      // start one as well once the room list is loaded; they share this one.
       this.reconnectAttempts = 0;
+      this.sendAllPresencesAndMarkReady();
       try {
         devPushLog(
           'xmpp',
@@ -774,6 +955,8 @@ export class XmppClient {
         // already detached above, so a late-settling stop() is harmless.
         await withTimeout(old.stop(), STOP_TIMEOUT_MS);
       }
+      // A new underlying client: nothing joined on the old one carries over.
+      this.bumpConnectionEpoch();
       this.initializeClient();
       if (this.suspendedForBackground) {
         await this.stopClientQuietly();
@@ -838,7 +1021,7 @@ export class XmppClient {
       this.clientAlreadyStopped = true;
     }
     this.status = 'offline';
-    this.presencesReady = false;
+    this.bumpConnectionEpoch();
   }
 
   async suspend(): Promise<void> {
@@ -895,7 +1078,7 @@ export class XmppClient {
       console.log('XMPP client connection closed.');
     }
     this.status = 'offline';
-    this.presencesReady = false;
+    this.bumpConnectionEpoch();
     // Permanent teardown (logout / unmount) — drop buffered sends so they
     // don't replay into the next session. Reconnect uses old.stop(), NOT
     // close(), so the queue still survives a transient drop+reconnect.
@@ -920,9 +1103,13 @@ export class XmppClient {
     leaveTheRoom(normalizeRoomJid(roomJID, this.conference), this.client);
   };
 
-  presenceInRoomStanza = (roomJID: string) => {
-    presenceInRoom(this.client, normalizeRoomJid(roomJID, this.conference));
-  };
+  /**
+   * Join a room (deduped: a room this connection already joined resolves at
+   * once without a second presence). Resolves true when joined, false when
+   * the join failed or is backing off; never rejects.
+   */
+  presenceInRoomStanza = (roomJID: string): Promise<boolean> =>
+    this.ensureRoomPresence(roomJID, { timeoutMs: 2000, source: 'other' });
 
   getHistoryStanza = async (
     chatJID: string,
@@ -941,6 +1128,76 @@ export class XmppClient {
       });
     }
     return await getHistory(this.client, chatJID, max, before, id);
+  };
+
+  /**
+   * One archive page together with the server's RSM answer
+   * (`<fin complete><set><first/><last/><count/>`). A latest page or one read
+   * `before` a cursor feeds the live list (the stanza handler merges the rows)
+   * and moves the room's paging cursor, room.messageStats.firstMessageTimestamp,
+   * and room.historyComplete. A page read by `after` or a time filter is an
+   * isolated query (see getHistoryWindow). Always settles, never throws.
+   */
+  getHistoryPage = async (
+    chatJID: string,
+    max: number,
+    cursor: HistoryPageCursor = {}
+  ): Promise<HistoryPage> => {
+    try {
+      return await getHistoryPage(this.client, chatJID, max, cursor);
+    } catch {
+      return {
+        ok: false,
+        messages: [],
+        complete: false,
+        first: null,
+        last: null,
+        count: null,
+        received: 0,
+        finSeen: false,
+        roomJid: '',
+      };
+    }
+  };
+
+  /**
+   * One page of archive for a window around a message, RETURNED rather than
+   * stored: its query is tagged so the stanza handlers skip its rows, nothing
+   * is merged into the room, and messageStats / historyComplete are left
+   * alone. Pass `before` for the page ending just before that archive id,
+   * `after` for the page starting just after it (both exclusive; microsecond
+   * MAM ids), or `start` / `end` (ISO) for the first page of a time range.
+   * Messages come back oldest first, reactions merged.
+   */
+  getHistoryWindow = async (
+    chatJID: string,
+    max: number,
+    cursor: { before?: number; after?: number; start?: string; end?: string }
+  ): Promise<HistoryWindowPage> => {
+    const failed: HistoryWindowPage = {
+      ok: false,
+      messages: [],
+      complete: false,
+      first: null,
+      last: null,
+    };
+    if (this.status !== 'online') {return failed;}
+    try {
+      const page = await fetchHistoryPage(this.client, chatJID, max, {
+        ...cursor,
+        window: true,
+      });
+      if (!page.ok || !page.finSeen) {return failed;}
+      return {
+        ok: true,
+        messages: page.messages,
+        complete: page.complete,
+        first: page.first,
+        last: page.last,
+      };
+    } catch {
+      return failed;
+    }
   };
 
   getLastMessageArchiveStanza(roomJID: string) {
@@ -977,6 +1234,21 @@ export class XmppClient {
   /** Replay buffered sends against this (now-online) client, in order. */
   flushPendingSends() {
     flushOutboundSends(this, Date.now());
+  }
+
+  /**
+   * A send joins its own room first (deduped, fire-and-forget): the join
+   * sweep no longer sends every room's presence up front, so a send to a room
+   * the sweep has not reached yet would otherwise hit a room we are not in.
+   * Presence and message go out synchronously on the same stream, join first.
+   */
+  private joinForSend(roomJID: string) {
+    try {
+      this.joins.ensureRoomPresence(
+        normalizeRoomJid(roomJID, this.conference),
+        { waitForJoin: false, timeoutMs: 2000, source: 'send' }
+      );
+    } catch {}
   }
 
   //messages
@@ -1018,6 +1290,7 @@ export class XmppClient {
       });
       return false;
     }
+    this.joinForSend(roomJID);
     sendTextMessage(
       this.client,
       roomJID,
@@ -1163,6 +1436,7 @@ export class XmppClient {
       });
       return undefined;
     }
+    this.joinForSend(roomJID);
     return sendMediaMessage(
       this.client,
       roomJID,
@@ -1247,6 +1521,7 @@ export class XmppClient {
       });
       return false;
     }
+    this.joinForSend(roomJID);
     return sendTextMessageWithTranslateTag(
       this.client,
       {

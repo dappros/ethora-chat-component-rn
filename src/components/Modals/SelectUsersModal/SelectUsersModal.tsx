@@ -16,6 +16,7 @@ import Loader from '../../styled/Loader';
 import { postAddRoomMember } from '../../../networking/api-requests/rooms.api';
 import { useToast } from '../../../context/ToastContext';
 import { updateRoom } from '../../../roomStore/roomsSlice';
+import { getRoomUserCount } from '../../../helpers/roomUserCount';
 
 interface SelectUsersModalProps {
   /** Render the opener yourself (the chat profile uses an "Add Members"
@@ -58,7 +59,13 @@ const SelectUsersModal: React.FC<SelectUsersModalProps> = ({ trigger }) => {
           jid: activeRoom?.jid || '',
           updates: {
             members: [...newMembers, ...activeRoom?.members || []],
-            usersCnt: (activeRoom?.members?.length || 0) + newMembers.length,
+            // the profile screen lists roomMembers, keep it in step
+            ...(activeRoom?.roomMembers
+              ? { roomMembers: [...newMembers, ...activeRoom.roomMembers] }
+              : {}),
+            // add to the room's real total: members[] can be a truncated
+            // page of a big room
+            usersCnt: getRoomUserCount(activeRoom) + newMembers.length,
           },
         })
       );

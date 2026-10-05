@@ -1,31 +1,29 @@
 import { IMessage, RoomMember } from '../types/types';
-import { store } from '../roomStore';
-import { fixUnnamedArrayFromApi, getUnnamedUsers } from './getUnnamedUsers';
-import { getUserByXmppUsername } from '../networking/api-requests/roomMembers.api';
+import { getUnnamedUsers } from './getUnnamedUsers';
+import { requestUsers } from './userResolver';
 
 export const checkUniqueUsers = (messages: IMessage[]) => {
   const unnamedUsers = getUnnamedUsers(messages);
 
   if (unnamedUsers.length > 0) {
-    const getApiUsers = async () => {
-      const fixedUsers = await fixUnnamedArrayFromApi(unnamedUsers);
-      return fixedUsers;
-    };
-    const newUsers = getApiUsers();
-    return newUsers;
+    // Resolved (debounced, de-duplicated, written to usersSet) by the shared
+    // resolver; nothing to hand back to the caller.
+    requestUsers(unnamedUsers.map((u) => u.id));
   }
+  return undefined;
 };
 
+// Fire-and-forget: the shared resolver debounces, de-duplicates and merges
+// the profile into usersSet itself. Kept async/returning null so older call
+// sites that await it keep working.
 export const checkSingleUser = async (
   usersSet: Record<string, RoomMember>,
   xmppUsername: string
 ) => {
-  if (usersSet[xmppUsername]) {return;}
-
-  const fixedUser = await getUserByXmppUsername(
-    xmppUsername,
-    store.getState().chatSettingStore.user.token
-  );
-
-  return fixedUser;
+  if (!xmppUsername) {
+    return null;
+  }
+  if (usersSet[xmppUsername]) return;
+  requestUsers([xmppUsername]);
+  return null;
 };

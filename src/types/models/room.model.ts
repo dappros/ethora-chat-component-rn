@@ -11,6 +11,7 @@ export interface RoomMember {
   name?: string;
   role?: string;
   last_active?: number;
+  profileImage?: string;
 }
 
 export interface RoomLastMessage {

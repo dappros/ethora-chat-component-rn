@@ -673,8 +673,11 @@ describe('XmppClient — delegating stanza helpers', () => {
     await c.createRoomStanza('title', 'desc', 'to@h');
     expect(createRoom).toHaveBeenCalledWith('title', 'desc', last());
 
-    c.presenceInRoomStanza('r@h');
-    expect(presenceInRoom).toHaveBeenCalledWith(last(), 'r@h');
+    // A join waits for the stream, and goes through the join manager:
+    // no extra settle delay, the join timeout, and the history replay size.
+    last().triggerEvent('online');
+    void c.presenceInRoomStanza('r@h');
+    expect(presenceInRoom).toHaveBeenCalledWith(last(), 'r@h', 0, 2000, 0);
 
     c.deleteMessageStanza('r@h', 'm1');
     expect(deleteMessage).toHaveBeenCalledWith(last(), 'r@h', 'm1');

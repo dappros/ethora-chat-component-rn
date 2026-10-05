@@ -38,6 +38,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { resolveHeaderHeight } from '../../helpers/headerLayout';
 import { getElementFont } from '../../helpers/getElementFont';
 import { useT } from '../../i18n/useT';
+import { getRoomUserCount } from '../../helpers/roomUserCount';
 
 interface ChatHeaderProps {
   currentRoom: IRoom;
@@ -58,6 +59,10 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   const { config } = useChatSettingState();
   const theme = useTheme();
   const t = useT();
+
+  // usersCnt is the room's true total, members[] can be a truncated page of
+  // a big room: show the larger of the two.
+  const userCount = getRoomUserCount(roomState || currentRoom);
 
   const handleChangeChat = (chat: IRoom) => {
     dispatch(setCurrentRoom({ roomJID: chat.jid }));
@@ -178,11 +183,15 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
               >
               {currentRoom?.title || currentRoom?.name}
               </ChatContainerHeaderLabel>
-              <View>
+              <View style={styles.subtitleBox}>
                 {composing ? (
                   <Composing usersTyping={currentRoom?.composingList} />
                 ) : config?.disableUserCount ? undefined : (
                   <ChatContainerHeaderLabel
+                    // One line, ellipsized: a long count in a narrow header
+                    // must not wrap and push the header buttons around.
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
                     style={[
                       styles.subLabel,
                       { color: theme.textSecondary },
@@ -191,10 +200,10 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                   >
                     <Text>
                       {t(
-                        Number(currentRoom?.usersCnt) === 1
+                        userCount === 1
                           ? 'header.userCountSingular'
                           : 'header.userCountPlural',
-                        { count: Number(currentRoom?.usersCnt) || 0 }
+                        { count: userCount }
                       )}
                     </Text>
                   </ChatContainerHeaderLabel>
@@ -225,6 +234,11 @@ const styles = StyleSheet.create({
   subLabel: {
     color: '#8C8C8C',
     fontSize: 14,
+    flexShrink: 1,
+  },
+  subtitleBox: {
+    flexShrink: 1,
+    minWidth: 0,
   },
   menuButton: {
     padding: 8,

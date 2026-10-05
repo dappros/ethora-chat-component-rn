@@ -70,7 +70,10 @@ import {
   getRooms,
   clearRoomsRestCache,
 } from '../src/networking/api-requests/rooms.api';
-import { getUserByXmppUsername } from '../src/networking/api-requests/roomMembers.api';
+import {
+  getUserByXmppUsername,
+  resetUserLookupRoute,
+} from '../src/networking/api-requests/roomMembers.api';
 
 const mockHttp = http as unknown as {
   get: jest.Mock;
@@ -458,24 +461,22 @@ describe('rooms.api.getRooms', () => {
 // ---- roomMembers.api -----------------------------------------------
 
 describe('roomMembers.api.getUserByXmppUsername', () => {
-  it('returns res.data.result on success', async () => {
+  beforeEach(() => resetUserLookupRoute());
+
+  it('returns the display fields of res.data.result on success', async () => {
     mockHttp.get.mockResolvedValueOnce({
-      data: { result: { xmppUsername: '0xabc', firstName: 'Alice' } },
+      data: { result: { xmppUsername: 'app_0xabc', firstName: 'Alice' } },
     });
-    const out = await getUserByXmppUsername('0xabc', 'tok');
-    expect(mockHttp.get).toHaveBeenCalledWith(
-      '/v1/apps/users/0xabc',
-      { headers: { Authorization: 'tok' } }
-    );
-    expect(out).toEqual({ xmppUsername: '0xabc', firstName: 'Alice' });
+    const out = await getUserByXmppUsername('app_0xabc', 'tok');
+    expect(mockHttp.get).toHaveBeenCalledWith('/v1/apps/users/app_0xabc', {
+      headers: { Authorization: 'tok' },
+    });
+    expect(out).toEqual({ xmppUsername: 'app_0xabc', firstName: 'Alice' });
   });
 
-  it('returns null + logs when the request rejects', async () => {
-    mockHttp.get.mockRejectedValueOnce(new Error('404'));
-    const errSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-    const out = await getUserByXmppUsername('0xabc', 'tok');
+  it('returns null when the request rejects', async () => {
+    mockHttp.get.mockRejectedValueOnce(new Error('network'));
+    const out = await getUserByXmppUsername('app_0xdef', 'tok');
     expect(out).toBeNull();
-    expect(errSpy).toHaveBeenCalled();
-    errSpy.mockRestore();
   });
 });
