@@ -1,8 +1,11 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Middleware } from '@reduxjs/toolkit';
 import { IMessage, IRoom, User } from '../types/types';
-import { encryptForPersist, decryptFromPersist } from '../helpers/persistCrypto';
 import type { FailedMessagePayload } from './roomHeapSlice';
+import {
+  getPersistBackend,
+  legacyAsyncStorageBackend,
+  type PersistBackend,
+} from './persistBackend';
 
 // -------------------------------------------------------------------
 // Lightweight RN persistence layer. Mirrors what redux-persist gives
@@ -11,17 +14,21 @@ import type { FailedMessagePayload } from './roomHeapSlice';
 //   - persist chatSettingStore.user (sanitized) and rooms state
 //   - blacklist transient fields (modals, activeRoomJID, etc.)
 //   - cap each room's messages to the most recent MESSAGE_LIMIT (100)
-//   - debounced writes (200ms) on relevant action types
+//   - debounced writes (1 s, at most 4 s apart) of the rooms that changed
 //
-// AES-256-CBC at rest (see `helpers/persistCrypto.ts`): the JSON blob
-// under each key below is encrypted before it reaches AsyncStorage, with
-// the symmetric key held in the platform Keychain/Keystore. `user` here
-// is already secret-free (see `sanitizeUser`) — the encryption is for
-// the message bodies in `rooms`, which aren't.
+// Encrypted at rest either way (see `persistBackend.ts`): natively by
+// MMKV when the host ships it, otherwise AES-256-CBC through crypto-js
+// into AsyncStorage. `user` here is already secret-free (see
+// `sanitizeUser`) — the encryption is for the message bodies in `rooms`,
+// which aren't.
 // -------------------------------------------------------------------
 
+const PERSIST_PREFIX = '@ethora/persist:';
 const KEY_CHAT = '@ethora/persist:chatSettingStore';
 const KEY_ROOMS = '@ethora/persist:rooms';
+const KEY_ROOM_INDEX = '@ethora/persist:roomIndex';
+const KEY_ROOM_PREFIX = '@ethora/persist:room:';
+const roomKey = (jid: string) => `${KEY_ROOM_PREFIX}${jid}`;
 // bug #39: a failed send needs to survive a relaunch as "failed / tap
 // to retry", not silently render as delivered. `roomHeapStore.failedMessages`
 // is the map the bubble reads (`isFailed = failedMessages[id]`, see
@@ -411,11 +418,174 @@ export function computeBootTimeFailures(
   return out;
 }
 
+type RoomTouch = (payload: any) => string[] | 'all';
+const asList = (v: unknown): string[] =>
+  typeof v === 'string' && v ? [v] : [];
+
+const ROOM_ACTIONS: Record<string, RoomTouch> = {
+  'roomMessages/addRoom': (p) => asList(p?.roomData?.jid),
+  'roomMessages/addRooms': (p) =>
+    Array.isArray(p?.rooms) ? p.rooms.map((r: any) => r?.jid).filter(Boolean) : 'all',
+  'roomMessages/addRoomFromApi': (p) => asList(p?.room?.jid),
+  'roomMessages/deleteRoom': (p) => asList(p?.jid),
+  'roomMessages/updateRoom': (p) => asList(p?.jid),
+  'roomMessages/setRoomMessages': (p) => asList(p?.roomJID),
+  'roomMessages/deleteRoomMessage': (p) => asList(p?.roomJID),
+  'roomMessages/editRoomMessage': (p) => asList(p?.roomJID),
+  'roomMessages/removeRoomMessage': (p) => asList(p?.roomJID),
+  'roomMessages/setMessageTranslation': (p) => asList(p?.roomJID),
+  'roomMessages/addRoomMessage': (p) => asList(p?.roomJID),
+  'roomMessages/addRoomMessages': (p) => asList(p?.roomJID),
+  'roomMessages/setReactions': (p) => asList(p?.roomJID),
+  'roomMessages/setLastViewedTimestamp': (p) => asList(p?.chatJID),
+  'roomMessages/setRoomRole': (p) => asList(p?.chatJID),
+  'roomMessages/setRoomNoMessages': (p) => asList(p?.chatJID),
+  'roomMessages/setUnreadCounts': (p) =>
+    p && typeof p === 'object' ? Object.keys(p) : 'all',
+  'roomMessages/applyRoomsPreloadBatch': (p) =>
+    Array.isArray(p?.rooms) ? p.rooms.map((r: any) => r?.jid).filter(Boolean) : 'all',
+  'roomMessages/applyPrivateStoreMarkers': () => 'all',
+  'roomMessages/deleteAllRooms': () => 'all',
+  'roomMessages/setLogoutState': () => 'all',
+};
+
+const TRANSIENT_ROOM_ACTIONS = new Set([
+  'roomMessages/setComposing',
+  'roomMessages/setIsLoading',
+  'roomMessages/setUnreadSyncing',
+  'roomMessages/setCurrentRoom',
+  'roomMessages/setVisibleRoom',
+  'roomMessages/clearVisibleRoom',
+  'roomMessages/setPendingNotificationJid',
+  'roomMessages/clearPendingNotificationJid',
+  'roomMessages/setActiveMessage',
+  'roomMessages/setCloseActiveMessage',
+  'roomMessages/setEditAction',
+  'roomMessages/setReadBoundary',
+  'roomMessages/clearReadBoundary',
+  'roomMessages/setLoadingText',
+  'roomMessages/mergeUsersSet',
+  // Volatile slice-level fields (search jump request, joining flag): not rooms data.
+  'roomMessages/requestJumpToMessage',
+  'roomMessages/clearPendingJump',
+  'roomMessages/setJoiningRoom',
+  'roomMessages/clearJoiningRoom',
+  // The reader's jump window and an archived-message view are separate,
+  // never-persisted copies; they leave the room's cached messages untouched.
+  'roomMessages/setJumpWindow',
+  'roomMessages/prependJumpWindowMessages',
+  'roomMessages/appendJumpWindowMessages',
+  'roomMessages/clearJumpWindow',
+  'roomMessages/showArchivedMessage',
+  'roomMessages/clearArchivedMessage',
+]);
+
+const roomsTouchedBy = (action: any): string[] | 'all' | null => {
+  const type: string = action?.type || '';
+  const touch = ROOM_ACTIONS[type];
+  if (touch) {return touch(action?.payload);}
+  if (!type.startsWith('roomMessages/')) {return null;}
+  if (TRANSIENT_ROOM_ACTIONS.has(type)) {return null;}
+  return 'all';
+};
+
+const DEBOUNCE_MS = 1000;
+const MAX_WAIT_MS = 4000;
+
 let writeTimer: ReturnType<typeof setTimeout> | null = null;
+let firstPendingAt = 0;
+let dirtyRooms = new Set<string>();
+let allRoomsDirty = false;
+let chatDirty = false;
+let heapDirty = false;
+let knownRoomJids = new Set<string>();
+let legacyBlobPresent = false;
+let migrateFromAsyncStorage = false;
+let writeChain: Promise<void> = Promise.resolve();
+
+const schedule = (flush: () => void) => {
+  const now = Date.now();
+  if (!firstPendingAt) {firstPendingAt = now;}
+  if (writeTimer) {clearTimeout(writeTimer);}
+  const remaining = Math.max(0, firstPendingAt + MAX_WAIT_MS - now);
+  writeTimer = setTimeout(flush, Math.min(DEBOUNCE_MS, remaining));
+};
+
+const persistedRoom = (jid: string, room: IRoom | undefined) => {
+  const clean = sanitizeRooms(room ? { [jid]: room } : {});
+  return clean[jid];
+};
+
+async function writePending(getState: () => any): Promise<void> {
+  const backend = await getPersistBackend();
+  const rooms = dirtyRooms;
+  const all = allRoomsDirty;
+  const writeChat = chatDirty;
+  const writeHeap = heapDirty;
+  dirtyRooms = new Set();
+  allRoomsDirty = false;
+  chatDirty = false;
+  heapDirty = false;
+
+  const state = getState();
+  const sets: [string, string][] = [];
+  const removes: string[] = [];
+
+  if (writeChat) {
+    const chatPayload: PersistedChatState = {
+      user: sanitizeUser(state.chatSettingStore?.user) as User,
+    };
+    sets.push([KEY_CHAT, JSON.stringify(chatPayload)]);
+  }
+  if (writeHeap) {
+    const heapPayload: PersistedHeapState = {
+      failedMessages: sanitizeFailedMessages(
+        state.roomHeapSlice?.failedMessages
+      ),
+    };
+    sets.push([KEY_HEAP, JSON.stringify(heapPayload)]);
+  }
+
+  const liveRooms: Record<string, IRoom> = state.rooms?.rooms || {};
+  const jids = all
+    ? new Set<string>([...Object.keys(liveRooms), ...knownRoomJids])
+    : rooms;
+  const nextKnown = new Set(knownRoomJids);
+  for (const jid of jids) {
+    const clean = persistedRoom(jid, liveRooms[jid]);
+    if (clean) {
+      sets.push([roomKey(jid), JSON.stringify(clean)]);
+      nextKnown.add(jid);
+    } else if (knownRoomJids.has(jid)) {
+      removes.push(roomKey(jid));
+      nextKnown.delete(jid);
+    }
+  }
+  if (jids.size > 0 || legacyBlobPresent) {
+    sets.push([KEY_ROOM_INDEX, JSON.stringify({ jids: [...nextKnown] })]);
+  }
+  if (legacyBlobPresent) {
+    removes.push(KEY_ROOMS);
+    legacyBlobPresent = false;
+  }
+
+  if (sets.length) {await backend.setMany(sets);}
+  if (removes.length) {await backend.removeMany(removes);}
+  knownRoomJids = nextKnown;
+
+  if (migrateFromAsyncStorage && backend.name === 'mmkv') {
+    migrateFromAsyncStorage = false;
+    const old = (await legacyAsyncStorageBackend.allKeys()).filter((k) =>
+      k.startsWith(PERSIST_PREFIX)
+    );
+    if (old.length) {await legacyAsyncStorageBackend.removeMany(old);}
+  }
+}
 
 /**
  * Middleware that debounces writes of the persisted slices to AsyncStorage.
- * Only triggers on actions that actually mutate persisted state.
+ * Only the slices — and only the rooms — an action actually changed are
+ * written.
  */
 export const persistenceMiddleware: Middleware = (storeAPI) => (next) => (
   action: any
@@ -423,48 +593,37 @@ export const persistenceMiddleware: Middleware = (storeAPI) => (next) => (
   const result = next(action);
 
   const type: string = action?.type || '';
-  if (
-    !type.startsWith('roomMessages/') &&
-    !type.startsWith('roomHeapStore/') &&
-    !type.startsWith('chat/setUser') &&
-    !type.startsWith('chat/updateUser') &&
-    !type.startsWith('chat/refreshTokens') &&
-    !type.startsWith('chat/logout')
+  let touched = false;
+  if (type.startsWith('roomHeapStore/')) {
+    heapDirty = true;
+    touched = true;
+  } else if (
+    type.startsWith('chat/setUser') ||
+    type.startsWith('chat/updateUser') ||
+    type.startsWith('chat/refreshTokens') ||
+    type.startsWith('chat/logout')
   ) {
-    return result;
+    chatDirty = true;
+    touched = true;
+  } else {
+    const rooms = roomsTouchedBy(action);
+    if (rooms === 'all') {
+      allRoomsDirty = true;
+      touched = true;
+    } else if (rooms && rooms.length) {
+      for (const jid of rooms) {dirtyRooms.add(jid);}
+      touched = true;
+    }
   }
+  if (!touched) {return result;}
 
-  if (writeTimer) {clearTimeout(writeTimer);}
-  writeTimer = setTimeout(() => {
-    (async () => {
-      try {
-        const state = storeAPI.getState();
-        const chatPayload: PersistedChatState = {
-          user: sanitizeUser(state.chatSettingStore?.user) as User,
-        };
-        const roomsPayload: PersistedRoomsState = {
-          rooms: sanitizeRooms(state.rooms?.rooms || {}),
-        };
-        const heapPayload: PersistedHeapState = {
-          failedMessages: sanitizeFailedMessages(
-            state.roomHeapSlice?.failedMessages
-          ),
-        };
-        const [chatCipher, roomsCipher, heapCipher] = await Promise.all([
-          encryptForPersist(JSON.stringify(chatPayload)),
-          encryptForPersist(JSON.stringify(roomsPayload)),
-          encryptForPersist(JSON.stringify(heapPayload)),
-        ]);
-        await AsyncStorage.multiSet([
-          [KEY_CHAT, chatCipher],
-          [KEY_ROOMS, roomsCipher],
-          [KEY_HEAP, heapCipher],
-        ]);
-      } catch (e) {
-        console.warn('persist write failed', e);
-      }
-    })();
-  }, 200);
+  schedule(() => {
+    writeTimer = null;
+    firstPendingAt = 0;
+    writeChain = writeChain
+      .then(() => writePending(storeAPI.getState))
+      .catch((e) => console.warn('persist write failed', e));
+  });
 
   return result;
 };
@@ -474,35 +633,81 @@ export const persistenceMiddleware: Middleware = (storeAPI) => (next) => (
  * we DON'T hydrate synchronously (AsyncStorage is async) — instead, the
  * caller dispatches rehydrate actions when the read resolves.
  */
+async function readFrom(backend: PersistBackend): Promise<{
+  chat: PersistedChatState | null;
+  rooms: PersistedRoomsState | null;
+  heap: PersistedHeapState | null;
+  legacyBlob: boolean;
+  empty: boolean;
+}> {
+  const [chatPlain, indexPlain, legacyPlain, heapPlain] = await backend.getMany([
+    KEY_CHAT,
+    KEY_ROOM_INDEX,
+    KEY_ROOMS,
+    KEY_HEAP,
+  ]);
+
+  const parse = <T>(plain: string | null): T | null => {
+    if (!plain) {return null;}
+    try {
+      return JSON.parse(plain) as T;
+    } catch {
+      return null;
+    }
+  };
+  const chat = parse<PersistedChatState>(chatPlain);
+  const heap = parse<PersistedHeapState>(heapPlain);
+
+  let rooms: PersistedRoomsState | null = null;
+  let legacyBlob = false;
+  const jids = parse<{ jids?: string[] }>(indexPlain)?.jids || [];
+  if (jids.length) {
+    const plains = await backend.getMany(jids.map(roomKey));
+    const out: Record<string, IRoom> = {};
+    plains.forEach((plain, idx) => {
+      const room = parse<IRoom>(plain);
+      if (room) {out[jids[idx]] = room;}
+    });
+    rooms = { rooms: out };
+  } else if (legacyPlain) {
+    rooms = parse<PersistedRoomsState>(legacyPlain);
+    legacyBlob = !!rooms;
+  }
+  return {
+    chat,
+    rooms,
+    heap,
+    legacyBlob,
+    empty: !chat && !rooms && !heap,
+  };
+}
+
 export async function readPersistedState(): Promise<{
   chat: PersistedChatState | null;
   rooms: PersistedRoomsState | null;
   heap: PersistedHeapState | null;
 }> {
   try {
-    const [chatRaw, roomsRaw, heapRaw] = await AsyncStorage.multiGet([
-      KEY_CHAT,
-      KEY_ROOMS,
-      KEY_HEAP,
-    ]);
-    const [chatPlain, roomsPlain, heapPlain] = await Promise.all([
-      chatRaw[1] ? decryptFromPersist(chatRaw[1]) : Promise.resolve(null),
-      roomsRaw[1] ? decryptFromPersist(roomsRaw[1]) : Promise.resolve(null),
-      heapRaw[1] ? decryptFromPersist(heapRaw[1]) : Promise.resolve(null),
-    ]);
-    // `decryptFromPersist` returns null both for "nothing stored" and
-    // for "stored value isn't a valid envelope for the current key" —
-    // notably a plaintext blob left over from a pre-encryption install.
-    // Either way there is nothing safe to parse, so the caller treats it
-    // as a cold start and re-hydrates from the server.
-    const chat = chatPlain ? (JSON.parse(chatPlain) as PersistedChatState) : null;
-    const rooms = roomsPlain
-      ? (JSON.parse(roomsPlain) as PersistedRoomsState)
-      : null;
-    const heap = heapPlain
-      ? (JSON.parse(heapPlain) as PersistedHeapState)
-      : null;
-    return { chat, rooms, heap };
+    const backend = await getPersistBackend();
+    let read = await readFrom(backend);
+    if (read.empty && backend.name === 'mmkv') {
+      read = await readFrom(legacyAsyncStorageBackend);
+      if (!read.empty) {
+        migrateFromAsyncStorage = true;
+        allRoomsDirty = true;
+        chatDirty = !!read.chat;
+        heapDirty = !!read.heap;
+        knownRoomJids = new Set();
+      }
+    }
+    if (read.legacyBlob) {
+      legacyBlobPresent = true;
+      allRoomsDirty = true;
+      knownRoomJids = new Set();
+    } else if (read.rooms && !migrateFromAsyncStorage) {
+      knownRoomJids = new Set(Object.keys(read.rooms.rooms));
+    }
+    return { chat: read.chat, rooms: read.rooms, heap: read.heap };
   } catch (e) {
     console.warn('persist read failed', e);
     return { chat: null, rooms: null, heap: null };
@@ -511,10 +716,27 @@ export async function readPersistedState(): Promise<{
 
 export async function clearPersistedState(): Promise<void> {
   try {
-    await AsyncStorage.multiRemove([KEY_CHAT, KEY_ROOMS, KEY_HEAP]);
+    const backend = await getPersistBackend();
+    const targets: PersistBackend[] =
+      backend.name === 'mmkv' ? [backend, legacyAsyncStorageBackend] : [backend];
+    for (const target of targets) {
+      const keys = (await target.allKeys()).filter((k) => k.startsWith(PERSIST_PREFIX));
+      if (keys.length) {await target.removeMany(keys);}
+    }
+    knownRoomJids = new Set();
+    dirtyRooms = new Set();
+    legacyBlobPresent = false;
+    migrateFromAsyncStorage = false;
   } catch (e) {
     console.warn('persist clear failed', e);
   }
 }
 
-export const PERSIST_KEYS = { KEY_CHAT, KEY_ROOMS, KEY_HEAP };
+export const PERSIST_KEYS = {
+  KEY_CHAT,
+  KEY_ROOMS,
+  KEY_HEAP,
+  KEY_ROOM_INDEX,
+  KEY_ROOM_PREFIX,
+};
+export const persistedRoomKey = roomKey;

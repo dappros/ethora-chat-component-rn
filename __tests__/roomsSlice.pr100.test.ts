@@ -376,7 +376,7 @@ describe('jump window copy stays in sync with the live copy', () => {
     expect(win(s, id).reaction.alice.emoji).toEqual(['x']);
     expect(live(s, id).reaction.alice.emoji).toEqual(['x']);
     s = reducer(s, setReactions({ roomJID: ROOM, messageId: id, reactions: [], from: 'alice@host' } as any));
-    expect(win(s, id).reaction.alice).toBeUndefined();
+    expect(win(s, id).reaction?.alice).toBeUndefined();
   });
 
   it('edit', () => {

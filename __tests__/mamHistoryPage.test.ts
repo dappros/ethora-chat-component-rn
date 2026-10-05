@@ -17,15 +17,17 @@ import {
   getHistory,
   getHistoryPage,
 } from '../src/networking/xmpp/getHistory.xmpp';
-import {
-  onMessageHistory,
-  onReactionHistory,
-} from '../src/networking/stanzaHandlers';
+import { onMessageHistory } from '../src/networking/stanzaHandlers';
+import { __resetMamRouter, routeMamIq } from '../src/networking/xmpp/mamRouter';
 
 const ROOM = 'room1@conference.example.com';
 const REACTOR = '6a2c08adef26ca2d3e1e3677';
 
-function makeClient() {
+// `feedGlobal`: also run every stanza through the global handlers the way the
+// real client does (handleStanza). A live (non-window) page is read by the MAM
+// router, which those handlers feed; a window page and fetchHistoryPage read
+// the wire by themselves and need no feeding.
+function makeClient(feedGlobal = false) {
   const listeners: Record<string, ((arg: any) => void)[]> = {};
   const send = jest.fn(async () => undefined);
   const client: any = {
@@ -38,8 +40,13 @@ function makeClient() {
     }),
     status: 'online',
     options: { service: 'wss://example.com/ws' },
-    trigger: (e: string, payload: any) =>
-      (listeners[e] || []).slice().forEach((fn) => fn(payload)),
+    trigger: (e: string, payload: any) => {
+      (listeners[e] || []).slice().forEach((fn) => fn(payload));
+      if (feedGlobal && e === 'stanza') {
+        if (payload?.is?.('iq')) routeMamIq(payload);
+        else void onMessageHistory(payload);
+      }
+    },
     listenerCount: (e: string) => (listeners[e] || []).length,
   };
   return { client, send };
@@ -135,6 +142,8 @@ const room = () => store.getState().rooms.rooms[ROOM];
 const cursorNow = () => room().messageStats?.firstMessageTimestamp;
 const cached = (id: string) =>
   ({ id, body: 'x', date: new Date().toISOString(), roomJid: ROOM } as any);
+
+beforeEach(() => __resetMamRouter());
 
 const tick = () => new Promise((r) => setImmediate(r));
 
@@ -287,7 +296,7 @@ describe('query shape', () => {
 describe('paging cursor by the server fin', () => {
   it('a late LATEST-page fin does not pull the cursor forward past an older one', async () => {
     seed([cached('1700000000000005')], 1500000000000000);
-    const { client } = makeClient();
+    const { client } = makeClient(true);
     const p = getHistoryPage(client, ROOM, 20, { id: 'a' });
     client.trigger('stanza', fin('a', { first: '1700000000000000', last: '1700000000000009' }));
     await p;
@@ -296,7 +305,7 @@ describe('paging cursor by the server fin', () => {
 
   it('an older page (before set) moves the cursor back', async () => {
     seed([cached('1700000000000005')], 1700000000000000);
-    const { client } = makeClient();
+    const { client } = makeClient(true);
     const p = getHistoryPage(client, ROOM, 20, { before: 1700000000000000, id: 'b' });
     client.trigger('stanza', fin('b', { first: '1600000000000000', last: '1699999999999999' }));
     await p;
@@ -305,7 +314,7 @@ describe('paging cursor by the server fin', () => {
 
   it('an older page never moves the cursor forward', async () => {
     seed([cached('1700000000000005')], 1600000000000000);
-    const { client } = makeClient();
+    const { client } = makeClient(true);
     const p = getHistoryPage(client, ROOM, 20, { before: 1700000000000000, id: 'b2' });
     client.trigger('stanza', fin('b2', { first: '1650000000000000', last: '1699999999999999' }));
     await p;
@@ -314,7 +323,7 @@ describe('paging cursor by the server fin', () => {
 
   it('a latest page for a room with no messages sets the cursor from the page', async () => {
     seed([], 1500000000000000);
-    const { client } = makeClient();
+    const { client } = makeClient(true);
     const p = getHistoryPage(client, ROOM, 20, { id: 'c' });
     client.trigger('stanza', fin('c', { first: '1700000000000000', last: '1700000000000009' }));
     await p;
@@ -324,7 +333,7 @@ describe('paging cursor by the server fin', () => {
 
   it('writes historyComplete from the fin of an older page', async () => {
     seed([cached('1700000000000005')], 1700000000000000);
-    const { client } = makeClient();
+    const { client } = makeClient(true);
     const p = getHistoryPage(client, ROOM, 20, { before: 1700000000000000, id: 'd' });
     client.trigger('stanza', fin('d', { complete: 'true', first: '1600000000000000', last: '1699999999999999' }));
     await p;
@@ -333,7 +342,7 @@ describe('paging cursor by the server fin', () => {
 
   it('an older page keeps the known last-message bound', async () => {
     seed([cached('1700000000000005')], 1700000000000000);
-    const { client } = makeClient();
+    const { client } = makeClient(true);
     const p = getHistoryPage(client, ROOM, 20, { before: 1700000000000000, id: 'e' });
     client.trigger('stanza', fin('e', { first: '1600000000000000', last: '1699999999999999' }));
     await p;
@@ -343,7 +352,7 @@ describe('paging cursor by the server fin', () => {
   it('a latest page that is not complete leaves a known historyComplete alone', async () => {
     seed([cached('1700000000000005')], 1500000000000000);
     store.dispatch(updateRoom({ jid: ROOM, updates: { historyComplete: true } }));
-    const { client } = makeClient();
+    const { client } = makeClient(true);
     const p = getHistoryPage(client, ROOM, 20, { id: 'f' });
     client.trigger('stanza', fin('f', { complete: 'false', first: '1700000000000000', last: '1700000000000009' }));
     await p;
@@ -352,7 +361,7 @@ describe('paging cursor by the server fin', () => {
 
   it('a full latest page that starts after everything cached restarts the cursor at the page', async () => {
     seed([cached('1700000000000005')], 1500000000000000);
-    const { client } = makeClient();
+    const { client } = makeClient(true);
     const p = getHistoryPage(client, ROOM, 2, { id: 'g' });
     client.trigger('stanza', row('g', '1800000000000001', 'n1'));
     client.trigger('stanza', row('g', '1800000000000002', 'n2'));
@@ -364,7 +373,7 @@ describe('paging cursor by the server fin', () => {
 
   it('a failed or timed-out page writes nothing', async () => {
     seed([cached('1700000000000005')], 1500000000000000);
-    const { client } = makeClient();
+    const { client } = makeClient(true);
     const p = getHistoryPage(client, ROOM, 20, { id: 'h' });
     client.trigger('stanza', parse(`<iq type="error" id="h"/>`));
     await p;
@@ -460,27 +469,43 @@ describe('reactions', () => {
     expect(page.messages.map((m) => m.body)).toEqual(['kept']);
   });
 
-  it('onReactionHistory applies the archive reaction to the stored message without touching the preview', async () => {
+  it('an archived reaction applies to the stored message without touching the preview', async () => {
     seed([{ id: '1700000000000001', body: 'target', date: new Date().toISOString(), roomJid: ROOM, user: { id: 'u', name: 'u' } } as any]);
     store.dispatch(updateRoom({ jid: ROOM, updates: { lastMessageTimestamp: 123, lastMessage: { body: 'keep me' } as any } }));
-    onReactionHistory(reactionRow('get-history:9:9', '1700000000000002', '1700000000000001', ['👍']));
+    await onMessageHistory(reactionRow('get-history:9:9', '1700000000000002', '1700000000000001', ['👍']));
     const msg = room().messages.find((m: any) => m.id === '1700000000000001') as any;
     expect(msg.reaction?.[REACTOR]?.emoji).toEqual(['👍']);
     expect((room().lastMessage as any)?.body).toBe('keep me');
     expect(room().lastMessageTimestamp).toBe(123);
   });
 
-  it('onReactionHistory survives an empty room and a malformed stanza', () => {
+  it('an archived reaction survives an empty room and a malformed stanza', async () => {
     seed();
-    expect(() =>
-      onReactionHistory(reactionRow('x', '1700000000000002', 'nope', []))
-    ).not.toThrow();
-    expect(() => onReactionHistory(parse('<message><result/></message>'))).not.toThrow();
+    await expect(
+      onMessageHistory(reactionRow('x', '1700000000000002', 'nope', []))
+    ).resolves.not.toThrow();
+    await expect(onMessageHistory(parse('<message><result/></message>'))).resolves.not.toThrow();
   });
 
-  it('onReactionHistory ignores the reactions of a windowed query', () => {
+  it('a routed page replays a reaction whose target is outside it with meta.fromHistory', async () => {
+    seed([cached('1700000000000005')], 1500000000000000);
+    const spy = jest.spyOn(store, 'dispatch');
+    const { client } = makeClient(true);
+    const p = getHistoryPage(client, ROOM, 20, { id: 'rr' });
+    client.trigger('stanza', reactionRow('rr', '1700000000000009', '1700000000000005', ['👍']));
+    client.trigger('stanza', fin('rr', { first: '1700000000000009', last: '1700000000000009' }));
+    await p;
+    const call = spy.mock.calls
+      .map((c) => c[0] as any)
+      .find((a) => a.type === 'roomMessages/setReactions');
+    spy.mockRestore();
+    expect(call.meta).toEqual({ fromHistory: true });
+    expect(call.payload).toMatchObject({ roomJID: ROOM, messageId: '1700000000000005' });
+  });
+
+  it('the reactions of a windowed query are ignored by the global handler', async () => {
     seed([{ id: '1700000000000001', body: 'target', date: new Date().toISOString(), roomJid: ROOM, user: { id: 'u', name: 'u' } } as any]);
-    onReactionHistory(reactionRow('window:1:1', '1700000000000002', '1700000000000001', ['👍']));
+    await onMessageHistory(reactionRow('window:1:1', '1700000000000002', '1700000000000001', ['👍']));
     const msg = room().messages.find((m: any) => m.id === '1700000000000001') as any;
     expect(msg.reaction).toBeUndefined();
   });
@@ -490,7 +515,7 @@ describe('getHistory compatibility', () => {
   beforeEach(() => seed());
 
   it('still returns IMessage[] and [] on timeout/error, undefined for a non-string jid', async () => {
-    const { client } = makeClient();
+    const { client } = makeClient(true);
     // @ts-expect-error non-string on purpose
     expect(await getHistory(client, null, 10)).toBeUndefined();
     const p = getHistory(client, ROOM, 10, undefined, 'k');

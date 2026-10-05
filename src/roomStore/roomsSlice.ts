@@ -19,6 +19,9 @@ import { getRoomUserCount } from '../helpers/roomUserCount';
 // page backward arbitrarily far without instantly losing what they
 // just fetched. After cap eviction we drop from the head (oldest).
 export const RUNTIME_MESSAGE_LIMIT = 100;
+/** One preload page: "N+" badges only ever mean "at least this many". */
+export const UNREAD_CAP_PAGE = 10;
+export const RUNTIME_MESSAGE_CEILING = 2000;
 
 // Body strings the server uses for call signaling broadcasts (call-token,
 // call-state ringing/ended, etc). These should never reach the chat
@@ -111,11 +114,284 @@ const collapseCallLogDuplicates = (messages: IMessage[]): IMessage[] => {
     });
 };
 
-const enforceMessageCap = (messages: IMessage[]): void => {
+type InsertOutcome = { grew: boolean; atHead: boolean };
+const NO_GROWTH: InsertOutcome = { grew: false, atHead: false };
+
+const insertRoomMessage = (
+  state: WritableDraft<RoomMessagesState>,
+  roomJID: string,
+  message: IMessage,
+  start?: boolean
+): InsertOutcome => {
+  if (isCallSignalMessage(message)) {
+    return NO_GROWTH;
+  }
+
+  if (!state.rooms[roomJID]) {
+    return NO_GROWTH;
+  }
+
+  if (!state.rooms[roomJID].messages) {
+    state.rooms[roomJID].messages = [];
+  }
+
+  const roomMessages = state.rooms[roomJID].messages!;
+
+  const incomingCallLog = message.callLog;
+  if (incomingCallLog?.callId) {
+    const existingCallIdx = roomMessages.findIndex(
+      (msg) => msg.callLog?.callId === incomingCallLog.callId
+    );
+    if (existingCallIdx !== -1) {
+      const existing = roomMessages[existingCallIdx];
+      const merged = mergeCallLogEntries(existing as IMessage, message);
+      if (merged !== (existing as IMessage)) {
+        roomMessages[existingCallIdx] = merged;
+      }
+      return NO_GROWTH;
+    }
+  }
+
+  takePendingReactions(state, roomJID, message);
+  const lengthBefore = roomMessages.length;
+  const tailBefore = roomMessages[lengthBefore - 1];
+
+  if (roomMessages.length === 0 || start) {
+    roomMessages.unshift(message);
+  } else {
+    const lastViewedValue = state.rooms[roomJID].lastViewedTimestamp;
+    const lastViewedTimestamp =
+      state.visibleRoomJID === roomJID
+        ? null
+        : lastViewedValue
+          ? lastViewedValue
+          : null;
+
+    insertMessageWithDelimiter(roomMessages, message, lastViewedTimestamp);
+  }
+
+  const grew = roomMessages.length > lengthBefore;
+  const atHead =
+    grew &&
+    lengthBefore > 0 &&
+    roomMessages[roomMessages.length - 1] === tailBefore;
+  return { grew, atHead };
+};
+
+/**
+ * Keeps the jump window's separate copy of a message in step with the live
+ * list: an echo of a message the reader sees flips it from "sending" to
+ * delivered there too, call-log entries collapse per callId, and (only for a
+ * live single-message add, `allowAppend`) a reader parked at the LIVE END of
+ * a window (hasNewer false) sees what arrives next. While hasNewer is true
+ * the window is not adjacent to the tail and the message waits in
+ * room.messages until the reader returns to live.
+ */
+const syncJumpWindowWithMessage = (
+  state: WritableDraft<RoomMessagesState>,
+  roomJID: string,
+  message: IMessage,
+  start: boolean | undefined,
+  allowAppend: boolean
+): void => {
+  const win = state.jumpWindow;
+  if (!win || win.roomJID !== roomJID || isCallSignalMessage(message)) {return;}
+  const incomingCallLog = message.callLog;
+  if (incomingCallLog?.callId) {
+    const wi = win.messages.findIndex(
+      (msg) => msg.callLog?.callId === incomingCallLog.callId
+    );
+    if (wi !== -1) {
+      const wExisting = win.messages[wi];
+      const wMerged = mergeCallLogEntries(wExisting, message);
+      if (wMerged !== wExisting) {win.messages[wi] = wMerged;}
+      return;
+    }
+  }
+  if (win.messages.length === 0) {return;}
+  const isKnownMessage = (msg: IMessage) =>
+    msg.id === message.id ||
+    (!!message.xmppId && msg.id === message.xmppId) ||
+    (!!msg.xmppId && msg.xmppId === message.id);
+  const wi = win.messages.findIndex(isKnownMessage);
+  if (wi !== -1) {
+    const prev = win.messages[wi];
+    const next: Record<string, unknown> = { ...prev };
+    for (const [key, value] of Object.entries(message)) {
+      if (value !== undefined && isSafeKey(key)) {next[key] = value;}
+    }
+    // The sender identity captured on first insert wins, as in the live
+    // list (the echo parses a different id form).
+    next.user = prev.user;
+    next.pending = false;
+    win.messages[wi] = next as unknown as IMessage;
+  } else if (allowAppend && !win.hasNewer && !start) {
+    win.messages.push({ ...message });
+    if (win.messages.length > JUMP_WINDOW_MAX_MESSAGES) {
+      win.messages = win.messages.slice(-JUMP_WINDOW_MAX_MESSAGES);
+      const oldest = Number(win.messages[0].id);
+      win.olderCursor = Number.isFinite(oldest) ? oldest : win.olderCursor;
+      win.hasOlder = true;
+    }
+  }
+};
+
+const capAfterGrowth = (
+  messages: IMessage[],
+  lengthBefore: number,
+  atHead: boolean
+): void => {
+  if (atHead) {
+    enforceMessageCap(messages, RUNTIME_MESSAGE_CEILING);
+    return;
+  }
+  enforceMessageCap(
+    messages,
+    Math.min(RUNTIME_MESSAGE_CEILING, Math.max(RUNTIME_MESSAGE_LIMIT, lengthBefore))
+  );
+};
+
+const bumpLastMessageTimestamp = (
+  state: WritableDraft<RoomMessagesState>,
+  roomJID: string,
+  message: IMessage
+): void => {
+  const room = state.rooms[roomJID];
+  if (!room || message?.id === 'delimiter-new') {return;}
+  const ts = Number(message?.id);
+  if (!Number.isFinite(ts)) {return;}
+  if ((room.lastMessageTimestamp ?? 0) <= ts) {
+    room.lastMessageTimestamp = ts;
+  }
+};
+
+const upsertRoom = (
+  state: WritableDraft<RoomMessagesState>,
+  roomData: IRoom
+): void => {
+      if (!isSafeKey(roomData?.jid)) {return;}
+      const existing = state.rooms[roomData.jid];
+      let lastViewed: number;
+      const serverMarker = state.privateStoreMarkers?.[roomData.jid] || 0;
+
+      if (roomData.lastViewedTimestamp != null && roomData.lastViewedTimestamp !== 0) {
+        lastViewed = roomData.lastViewedTimestamp;
+      } else if (existing?.lastViewedTimestamp != null && existing.lastViewedTimestamp > 0) {
+        lastViewed = existing.lastViewedTimestamp;
+      } else if (serverMarker > 0) {
+        lastViewed = serverMarker;
+      } else {
+        const msgs = roomData.messages || [];
+        let newest = 0;
+        for (const m of msgs) {
+          const t = (m as any)?.messageTimestampMs ||
+            (m?.date ? new Date(m.date).getTime() : 0);
+          if (t > newest) {newest = t;}
+        }
+        lastViewed = newest; // 0 if no messages → cold-start safe
+      }
+
+      const incomingMessages = Array.isArray(roomData.messages)
+        ? roomData.messages
+        : [];
+      const existingMessages = Array.isArray(existing?.messages)
+        ? existing!.messages
+        : [];
+      state.rooms[roomData.jid] = {
+        ...roomData,
+        usersCnt: resolveIncomingUsersCnt(roomData, existing),
+        // A seed for the room-list preview: take the freshest API value but
+        // never let a payload without one erase what is already there.
+        lastMessage: roomData.lastMessage ?? existing?.lastMessage,
+        ...resolveApiUnread(state, roomData.jid, roomData, existing),
+        icon: roomData.icon !== undefined ? roomData.icon : existing?.icon,
+        roomBg: roomData.roomBg !== undefined ? roomData.roomBg : existing?.roomBg,
+        messages:
+          existingMessages.length > 0 ? existingMessages : incomingMessages,
+        lastViewedTimestamp: lastViewed,
+        // A server-seeded count must not badge a room that is open right now.
+        unreadMessages:
+          roomData.apiUnreadCount !== undefined &&
+          (state.activeRoomJID === roomData.jid ||
+            state.visibleRoomJID === roomData.jid)
+            ? existing?.unreadMessages ?? 0
+            : roomData.unreadMessages ?? existing?.unreadMessages ?? 0,
+        unreadBaselineTimestamp:
+          existing?.unreadBaselineTimestamp ??
+          existing?.lastViewedTimestamp ??
+          (roomData as any).unreadBaselineTimestamp ??
+          0,
+      };
+};
+
+/** Order two numeric stanza ids (microsecond timestamps, too long for a
+ * double) without BigInt: by length, then lexicographically. */
+export const compareStanzaIds = (a: string, b: string): number =>
+  a.length !== b.length ? a.length - b.length : a < b ? -1 : a > b ? 1 : 0;
+
+export const applyReactionToMessage = (
+  message: IMessage,
+  from: string | undefined,
+  reactions: string[],
+  data?: Record<string, string>,
+  ts?: string
+): void => {
+  const fromId = String(from || '').split('/')[0].split('@')[0];
+  if (!fromId) {return;}
+  const list = (reactions || []).filter((r) => !!r);
+  const current = { ...(message.reaction || {}) };
+  const prev = current[fromId];
+  // An older reaction (from a history page loaded after a newer one) never
+  // overwrites what is already known.
+  if (ts && prev?.ts && compareStanzaIds(ts, prev.ts) < 0) {return;}
+  if (list.length === 0) {
+    if (ts) {
+      // Keep a "removed" marker so an older reaction can't come back.
+      current[fromId] = { emoji: [], data: data || {}, ts };
+    } else {
+      delete current[fromId];
+    }
+  } else {
+    current[fromId] = { emoji: list, data: data || {}, ...(ts ? { ts } : {}) };
+  }
+  const anyShown = Object.values(current).some((r) => r?.emoji?.length);
+  message.reaction = anyShown || Object.keys(current).length ? current : undefined;
+};
+
+type PendingReaction = {
+  from: string;
+  reactions: string[];
+  data?: Record<string, string>;
+  ts?: string;
+};
+
+/** Reactions whose message is not loaded yet — applied when it arrives. */
+const takePendingReactions = (
+  state: WritableDraft<RoomMessagesState>,
+  roomJID: string,
+  message: IMessage
+): void => {
+  const byMessage = state.pendingReactions?.[roomJID];
+  if (!byMessage) {return;}
+  const keys = [String(message.id), message.xmppId ? String(message.xmppId) : ''];
+  for (const key of keys) {
+    const list = key ? byMessage[key] : undefined;
+    if (!list) {continue;}
+    for (const r of list) {
+      applyReactionToMessage(message, r.from, r.reactions, r.data, r.ts);
+    }
+    delete byMessage[key];
+  }
+};
+
+const enforceMessageCap = (
+  messages: IMessage[],
+  limit: number = RUNTIME_MESSAGE_LIMIT
+): void => {
   // Trim oldest until we're at/under the limit. Mutates in place
   // (immer-compatible inside reducers).
-  while (messages.length > RUNTIME_MESSAGE_LIMIT) {
-    messages.shift();
+  if (messages.length > limit) {
+    messages.splice(0, messages.length - limit);
   }
 };
 
@@ -206,10 +482,16 @@ function mergeHistoryIntoCache(
     // body). Preserve `isEdited` from the cached copy so a message edited
     // before reload keeps its marker instead of losing it on history sync.
     const prev = byId.get(String(m.id));
-    byId.set(
-      String(m.id),
-      prev?.isEdited && !m.isEdited ? { ...m, isEdited: true } : m
-    );
+    let next = prev?.isEdited && !m.isEdited ? { ...m, isEdited: true } : m;
+
+    if (prev?.reaction && !next.reaction) {
+      next = { ...next, reaction: prev.reaction };
+    }
+    // A history merge must not close a thread the user has open.
+    if ((prev as any)?.activeMessage && !(next as any).activeMessage) {
+      next = { ...next, activeMessage: true } as IMessage;
+    }
+    byId.set(String(m.id), next);
   }
   const merged = collapseCallLogDuplicates(
     Array.from(byId.values()).sort(byMs)
@@ -337,6 +619,9 @@ export interface RoomMessagesState {
   // this names the active room. Set and cleared by useRoomInitialization.
   // Never persisted.
   joiningRoomJID: string | null;
+  /** `{ roomJID: { messageId: reactions[] } }` — reactions that arrived
+   * before their message (a newer history page), applied on insert. */
+  pendingReactions?: Record<string, Record<string, PendingReaction[]>>;
   // The single source of truth for "read up to here, but the user
   // hasn't reached the bottom yet" (`{ roomJID: boundaryMs }`).
   // Set by MessageList (via ChatRoom's `onReadBoundaryChange`) the
@@ -386,6 +671,7 @@ const initialState: RoomMessagesState = {
   usersSet: {},
   jumpWindow: null,
   archivedMessage: null,
+  pendingReactions: {},
 };
 
 const isValidRoomJid = (jid: unknown): jid is string => {
@@ -487,92 +773,26 @@ export const addRoomViaApi = createAsyncThunk(
 // emitted .d.ts (TS4023). See chatSettingsSlice.ts for the same pattern.
 const reducers = {
   addRoom(state: WritableDraft<RoomMessagesState>, action: PayloadAction<{ roomData: IRoom }>) {
-      const { roomData } = action.payload;
-      if (!isSafeKey(roomData?.jid)) {return;}
-      const existing = state.rooms[roomData.jid];
-      // Default-marker resolution (cold-start unread bug):
-      //   1. Explicit value on the payload wins.
-      //   2. Existing redux value wins (preserves persisted/hydrated
-      //      markers when the privateStore pull lands before
-      //      /chats/my).
-      //   3. Otherwise, anchor to the *newest known message* in the
-      //      payload — this marks everything currently in the room
-      //      as "seen" but lets any NEWER incoming message count as
-      //      unread. Previously this fell back to `Date.now()`, which
-      //      stamped a future-leaning marker that hid genuinely-new
-      //      messages received while the app was closed.
-      //   4. If there are no messages at all yet, stamp `0` (=
-      //      "unknown — let the privateStore hydration set the real
-      //      marker before any future message arrives").
-      let lastViewed: number;
-      // Treat an incoming `0` as "unset". stanzaHandlers' addRoom passes
-      // `lastViewedTimestamp: 0` as a placeholder; the old `!= null` check
-      // let that 0 win and OVERWROTE the persisted/hydrated marker from
-      // the previous session, so cold-start showed no unread badge for
-      // messages received while the app was closed (bug #19/#20). A real
-      // (non-zero) explicit value still wins; otherwise keep the existing
-      // value; otherwise fall back to the server-side read marker fetched
-      // from the private store (so a room the user has NEVER opened this
-      // session still gets a real baseline — without it the unread
-      // middleware's `lastViewedTimestamp > 0` gate skipped the room
-      // forever and the badge never lit up); otherwise anchor to the
-      // newest message in the payload.
-      const serverMarker = state.privateStoreMarkers?.[roomData.jid] || 0;
-      if (roomData.lastViewedTimestamp != null && roomData.lastViewedTimestamp !== 0) {
-        lastViewed = roomData.lastViewedTimestamp;
-      } else if (existing?.lastViewedTimestamp != null && existing.lastViewedTimestamp > 0) {
-        lastViewed = existing.lastViewedTimestamp;
-      } else if (serverMarker > 0) {
-        lastViewed = serverMarker;
-      } else {
-        const msgs = roomData.messages || [];
-        let newest = 0;
-        for (const m of msgs) {
-          const t = (m as any)?.messageTimestampMs ||
-            (m?.date ? new Date(m.date).getTime() : 0);
-          if (t > newest) {newest = t;}
-        }
-        lastViewed = newest; // 0 if no messages → cold-start safe
+      upsertRoom(state, action.payload.roomData);
+    },
+
+    setUnreadCounts(state: WritableDraft<RoomMessagesState>, action: PayloadAction<Record<string, number>>) {
+      for (const [jid, count] of Object.entries(action.payload || {})) {
+        const room = state.rooms[jid];
+        if (!room) {continue;}
+        if (room.unreadMessages !== count) {room.unreadMessages = count;}
+        // "N+" only means "a whole page was unread"; an exact count below a
+        // page (or read to zero) settles it.
+        if (room.unreadCapped && count < UNREAD_CAP_PAGE) {room.unreadCapped = false;}
       }
-      // Preserve cached messages + unread when the incoming room carries
-      // none. The /chats/my fetch (rooms.api) builds rooms with
-      // `messages: []` and no unread; without this guard, re-entering the
-      // app replaced every cached room with an empty one — wiping history
-      // AND the unread badge before the history scheduler could re-merge
-      // (the user's "it clears cache, unread and messages" bug). New rooms
-      // (no existing) fall through to the incoming values. Mirrors
-      // addRoomFromApi's preservation.
-      const incomingMessages = Array.isArray(roomData.messages)
-        ? roomData.messages
-        : [];
-      const existingMessages = Array.isArray(existing?.messages)
-        ? existing!.messages
-        : [];
-      state.rooms[roomData.jid] = {
-        ...roomData,
-        usersCnt: resolveIncomingUsersCnt(roomData, existing),
-        // A seed for the room-list preview: take the freshest API value but
-        // never let a payload without one erase what is already there.
-        lastMessage: roomData.lastMessage ?? existing?.lastMessage,
-        ...resolveApiUnread(state, roomData.jid, roomData, existing),
-        icon: roomData.icon !== undefined ? roomData.icon : existing?.icon,
-        roomBg: roomData.roomBg !== undefined ? roomData.roomBg : existing?.roomBg,
-        messages:
-          existingMessages.length > 0 ? existingMessages : incomingMessages,
-        lastViewedTimestamp: lastViewed,
-        // A server-seeded count must not badge a room that is open right now.
-        unreadMessages:
-          roomData.apiUnreadCount !== undefined &&
-          (state.activeRoomJID === roomData.jid ||
-            state.visibleRoomJID === roomData.jid)
-            ? existing?.unreadMessages ?? 0
-            : roomData.unreadMessages ?? existing?.unreadMessages ?? 0,
-        unreadBaselineTimestamp:
-          existing?.unreadBaselineTimestamp ??
-          existing?.lastViewedTimestamp ??
-          (roomData as any).unreadBaselineTimestamp ??
-          0,
-      };
+    },
+    /** Several rooms in one action — the cold-start rehydrate of the whole
+     * cache used to be one `addRoom` per room, each running every
+     * middleware over every room already added (O(rooms²)). */
+    addRooms(state: WritableDraft<RoomMessagesState>, action: PayloadAction<{ rooms: IRoom[] }>) {
+      for (const roomData of action.payload.rooms || []) {
+        if (roomData?.jid) {upsertRoom(state, roomData);}
+      }
     },
     deleteRoom(state: WritableDraft<RoomMessagesState>, action: PayloadAction<{ jid: string }>) {
       const { jid } = action.payload;
@@ -655,6 +875,7 @@ const reducers = {
       }
       forEachMessageCopy(state, roomJID, messageId, (message) => {
         message.isDeleted = true;
+        message.reaction = undefined;
       });
     },
     setEditAction: (state: WritableDraft<RoomMessagesState>, action: PayloadAction<EditAction | undefined>) => {
@@ -741,131 +962,56 @@ const reducers = {
     ) {
       const { roomJID, message, start } = action.payload;
       if (!isSafeKey(roomJID)) {return;}
-
-      // Call signaling broadcasts ("call-token", "call-state", etc.)
-      // sometimes slip past the live XMPP filter (MAM history, mucsub
-      // catch-up), drop them here so they never land in the transcript
-      // or the room-list "last message" preview.
-      if (isCallSignalMessage(message)) {
-        return;
+      const lengthBefore = state.rooms[roomJID]?.messages?.length || 0;
+      const outcome = insertRoomMessage(state, roomJID, message, start);
+      if (outcome.grew) {
+        capAfterGrowth(state.rooms[roomJID].messages!, lengthBefore, outcome.atHead);
       }
-
-      // Guard against the "stanza arrived before /chats/my completed"
-      // race — without this, the optional-chain `?.messages` falls
-      // back to undefined, and the assignment below tries to set
-      // `.messages` on undefined → TypeError. Caller can safely
-      // ignore the message; the room will get its messages array on
-      // `addRoom` when the API response lands.
-      if (!state.rooms[roomJID]) {
-        return;
-      }
-
-      if (!state.rooms[roomJID].messages) {
-        state.rooms[roomJID].messages = [];
-      }
-
-      const roomMessages = state.rooms[roomJID].messages;
-
-      // Collapse multiple call-state events for the same call into a single
-      // log entry. Sources: the client-side fallback written at hangup (id
-      // "calllog-<callId>", exists only locally) and the server broadcast(s),
-      // which can fire once per participant leaving (earlier ones carry a
-      // partial durationMs). Rules:
-      //  - the SERVER copy is canonical for identity (id/date/xmppId): its
-      //    archive id is what MAM and the catch-up anchor return later, so
-      //    keeping a local "calllog-" id around breaks anchor matching and
-      //    duplicates the entry on the next history merge;
-      //  - the LARGEST duration wins for display, so a 2-minute call doesn't
-      //    render as "2 sec".
-      const incomingCallLog = message.callLog;
-      if (incomingCallLog?.callId) {
-        const existingCallIdx = roomMessages.findIndex(
-          (msg) => msg.callLog?.callId === incomingCallLog.callId
-        );
-        if (existingCallIdx !== -1) {
-          const existing = roomMessages[existingCallIdx];
-          const merged = mergeCallLogEntries(existing as IMessage, message);
-          if (merged !== (existing as IMessage)) {
-            roomMessages[existingCallIdx] = merged;
-          }
-          const win = state.jumpWindow;
-          if (win && win.roomJID === roomJID) {
-            const wi = win.messages.findIndex(
-              (msg) => msg.callLog?.callId === incomingCallLog.callId
-            );
-            if (wi !== -1) {
-              const wExisting = win.messages[wi];
-              const wMerged = mergeCallLogEntries(wExisting, message);
-              if (wMerged !== wExisting) {win.messages[wi] = wMerged;}
-            }
-          }
-          return;
-        }
-      }
-
-      const lengthBefore = roomMessages.length;
-      const isKnownMessage = (msg: IMessage) =>
-        msg.id === message.id ||
-        (!!message.xmppId && msg.id === message.xmppId) ||
-        (!!msg.xmppId && msg.xmppId === message.id);
-
-      if (roomMessages.length === 0 || start) {
-        roomMessages.unshift(message);
-      } else {
-        const lastViewedValue = state.rooms[roomJID].lastViewedTimestamp;
-        const lastViewedTimestamp =
-          state.visibleRoomJID === roomJID
-            ? null
-            : lastViewedValue
-              ? lastViewedValue
-              : null;
-
-        insertMessageWithDelimiter(roomMessages, message, lastViewedTimestamp);
-      }
-
-      // Apply the in-memory cap only when the array actually GREW
-      // (i.e. this wasn't a dedupe/merge that left length unchanged).
-      // Otherwise repeated echoes of the same message would chip away
-      // at the oldest history for no reason.
-      if (roomMessages.length > lengthBefore) {
-        enforceMessageCap(roomMessages);
-      }
-
+      bumpLastMessageTimestamp(state, roomJID, message);
       // Keep the jump window's copy in step with the live list.
-      const win = state.jumpWindow;
-      if (win && win.roomJID === roomJID && win.messages.length > 0) {
-        const wi = win.messages.findIndex(isKnownMessage);
-        if (wi !== -1) {
-          // The echo of a message the reader sees in the window: flips it
-          // from "sending" to delivered there too.
-          const prev = win.messages[wi];
-          const next: Record<string, unknown> = { ...prev };
-          for (const [key, value] of Object.entries(message)) {
-            if (value !== undefined && isSafeKey(key)) {next[key] = value;}
-          }
-          // The sender identity captured on first insert wins, as in the
-          // live list (the echo parses a different id form).
-          next.user = prev.user;
-          next.pending = false;
-          win.messages[wi] = next as unknown as IMessage;
-        } else if (!win.hasNewer && !start) {
-          // A reader parked at the LIVE END of a window (hasNewer false: it
-          // already reaches the tail) must see what arrives next, or the
-          // window would silently go stale while the live list moves on. The
-          // message is by definition the newest, so it is appended as-is.
-          // While hasNewer is true the window is not adjacent to the tail and
-          // the message waits in room.messages until the reader returns to
-          // live.
-          win.messages.push({ ...message });
-          if (win.messages.length > JUMP_WINDOW_MAX_MESSAGES) {
-            win.messages = win.messages.slice(-JUMP_WINDOW_MAX_MESSAGES);
-            const oldest = Number(win.messages[0].id);
-            win.olderCursor = Number.isFinite(oldest)
-              ? oldest
-              : win.olderCursor;
-            win.hasOlder = true;
-          }
+      syncJumpWindowWithMessage(state, roomJID, message, start, true);
+    },
+    /**
+     * A whole page of messages (a MAM history page) in ONE action: the same
+     * per-message insert as `addRoomMessage`, but the cap, the middleware
+     * chain and every subscriber run once per page instead of once per
+     * message.
+     */
+    addRoomMessages(
+      state: WritableDraft<RoomMessagesState>,
+      action: PayloadAction<{
+        roomJID: string;
+        messages: IMessage[];
+        start?: boolean;
+      }>
+    ) {
+      const { roomJID, messages, start } = action.payload;
+      if (!isSafeKey(roomJID) || !state.rooms[roomJID] || !Array.isArray(messages)) {
+        return;
+      }
+      const lengthBefore = state.rooms[roomJID].messages?.length || 0;
+      let grew = false;
+      let anyAtTail = false;
+      let newest: IMessage | undefined;
+      for (const message of messages) {
+        const outcome = insertRoomMessage(state, roomJID, message, start);
+        if (outcome.grew) {
+          grew = true;
+          if (!outcome.atHead) {anyAtTail = true;}
         }
+        if (!newest || Number(message?.id) > Number(newest.id)) {
+          newest = message;
+        }
+        // History pages never append to a reader's jump window (they are not
+        // "the newest message"); they only refresh copies it already holds.
+        syncJumpWindowWithMessage(state, roomJID, message, start, false);
+      }
+      if (grew) {
+        // A page that only prepended older history is never trimmed.
+        capAfterGrowth(state.rooms[roomJID].messages!, lengthBefore, !anyAtTail);
+      }
+      if (newest) {
+        bumpLastMessageTimestamp(state, roomJID, newest);
       }
     },
     deleteAllRooms(state: WritableDraft<RoomMessagesState>) {
@@ -1231,22 +1377,41 @@ const reducers = {
         data?: Record<string, string>;
       }>
     ) => {
-      const { roomJID, messageId, reactions, from, data } = action.payload;
+      const { roomJID, messageId, reactions, from, data, latestReactionTimestamp } =
+        action.payload;
       if (!isSafeKey(roomJID) || !from) {return;}
-      const fromId = from.split('@')[0];
       // `fromId` becomes a property name on the message's reaction map.
+      const fromId = String(from).split('/')[0].split('@')[0];
       if (!isSafeKey(fromId)) {return;}
-      forEachMessageCopy(state, roomJID, messageId, (message) => {
-        if (!message.reaction) {message.reaction = {};}
-        if (!Array.isArray(reactions) || reactions.length === 0) {
-          delete message.reaction[fromId];
-        } else {
-          message.reaction[fromId] = { emoji: reactions, data };
+      let found = false;
+      // Applied on every stored copy (live list and jump window).
+      forEachMessageCopy(
+        state,
+        roomJID,
+        (msg) => msg?.id === messageId || msg?.xmppId === messageId,
+        (message) => {
+          found = true;
+          applyReactionToMessage(
+            message as IMessage,
+            from,
+            reactions,
+            data,
+            latestReactionTimestamp
+          );
         }
-      });
+      );
+      if (found) {return;}
+      // The message is not loaded (yet): keep the reaction for it.
+      if (!state.pendingReactions) {state.pendingReactions = {};}
+      const byMessage = (state.pendingReactions[roomJID] ||= {});
+      const list = (byMessage[messageId] ||= []);
+      if (list.length < 50) {
+        list.push({ from, reactions, data, ts: latestReactionTimestamp });
+      }
     },
     setLogoutState: (state: WritableDraft<RoomMessagesState>) => {
       state.rooms = {};
+      state.pendingReactions = {};
       state.activeRoomJID = null;
       state.visibleRoomJID = null;
       state.isLoading = false;
@@ -1354,6 +1519,7 @@ const reducers = {
           room.messageStats = { ...room.messageStats, ...patch.messageStats };
         }
         if (Array.isArray(patch.messages)) {
+          for (const m of patch.messages) {takePendingReactions(state, patch.jid, m);}
           // Merge the fetched page into cache by message id rather than
           // replacing — preserves older history + unread on re-entry. Only
           // a true gap (no overlapping id) clears this chat's cache. See
@@ -1492,6 +1658,9 @@ export const {
   deleteRoom,
   updateRoom,
   applyRoomsPreloadBatch,
+  addRoomMessages,
+  addRooms,
+  setUnreadCounts,
   setPendingNotificationJid,
   clearPendingNotificationJid,
   requestJumpToMessage,

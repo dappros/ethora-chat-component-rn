@@ -14,11 +14,9 @@ export const mapApiLastMessage = (
 ): LastMessage | undefined => {
   const body = String(apiLastMessage?.body || '').trim();
   if (!apiLastMessage || !body) {return undefined;}
-
   const senderName = `${apiLastMessage.senderFirstName || ''} ${
     apiLastMessage.senderLastName || ''
   }`.trim();
-
   return {
     id: apiLastMessage.messageId || apiLastMessage.stanzaId || '',
     xmppId: apiLastMessage.stanzaId,
@@ -64,6 +62,14 @@ export const readApiUsersCnt = (
   return membersLen || fallback;
 };
 
+const seedTimestamp = (seed: LastMessage | undefined): number | undefined => {
+  if (!seed) {return undefined;}
+  const id = Number(seed.id);
+  if (Number.isFinite(id) && id > 0) {return id;}
+  const ms = seed.date ? new Date(seed.date).getTime() : NaN;
+  return Number.isFinite(ms) && ms > 0 ? ms * 1000 : undefined;
+};
+
 export const createRoomFromApi = (
   room: ApiRoom,
   service: string = 'conference.dev.xmpp.ethoradev.com',
@@ -72,6 +78,7 @@ export const createRoomFromApi = (
   try {
     const jid = `${room?.name}@${service}` || '';
     const apiUnreadCount = readApiUnreadCount(room);
+    const lastMessage = mapApiLastMessage(room?.lastMessage, jid);
     const roomData: IRoom = {
       ...room,
       id: (room as any)?._id || '',
@@ -87,7 +94,8 @@ export const createRoomFromApi = (
       apiUnreadCount,
       apiUnreadSeededAt: apiUnreadCount === undefined ? undefined : Date.now(),
       lastViewedTimestamp: 0,
-      lastMessage: mapApiLastMessage(room?.lastMessage, jid),
+      lastMessage,
+      lastMessageTimestamp: seedTimestamp(lastMessage),
     } as IRoom;
     return roomData;
   } catch (error) {

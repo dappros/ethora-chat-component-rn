@@ -2,14 +2,18 @@ import { Client, xml } from '@xmpp/client';
 import { Element } from 'ltx';
 import { IMessage } from '../../types/types';
 import { store } from '../../roomStore';
-import { setReactions } from '../../roomStore/roomsSlice';
 import { getDataFromXml } from '../../helpers/getDataFromXml';
 import { createMessageFromXml } from '../../helpers/createMessageFromXml';
 import { transformCallLogMessage } from '../../helpers/callLogMessage';
-import { applyMamReactions } from '../../helpers/mamReactions';
+import { applyMamReactions, extractReaction, ExtractedReaction } from '../../helpers/mamReactions';
 import { getBooleanFromString } from '../../helpers/getBooleanFromString';
 import { getNumberFromString } from '../../helpers/getNumberFromString';
 import { WINDOW_QUERY_PREFIX } from './mamQueryIds';
+import {
+  beginMamQuery,
+  cancelMamQuery,
+  replayArchivedReaction,
+} from './mamRouter';
 import {
   applyHistoryPageCursor,
   snapshotRoomHistory,
@@ -60,6 +64,12 @@ export interface HistoryPageOptions extends HistoryPageCursor {
    */
   window?: boolean;
   timeoutMs?: number;
+  /**
+   * The caller merges the returned page into the store itself (the preload
+   * scheduler and the catch-up pass do): the MAM router then does not apply
+   * it. Only meaningful for a live (non-window) page.
+   */
+  selfApplied?: boolean;
 }
 
 const DEFAULT_TIMEOUT_MS = 10000;
@@ -102,7 +112,10 @@ const warnRowSkipped = (error: unknown) => {
   console.log('history row skipped', error);
 };
 
-const parseRows = async (rows: Element[]): Promise<IMessage[]> => {
+const parseRows = async (
+  rows: Element[],
+  roomJid: string
+): Promise<IMessage[]> => {
   const parsed: IMessage[] = [];
   // Reaction stanzas carry <reactions> but no body: they update their target
   // message and are not rendered as messages of their own.
@@ -143,14 +156,20 @@ const parseRows = async (rows: Element[]): Promise<IMessage[]> => {
 
   // Reactions whose target is in this page are merged onto it; the rest are
   // replayed into the store (the target may be in an earlier page or live).
-  const { deferred } = applyMamReactions(parsed, reactionStanzas);
+  const reactions: ExtractedReaction[] = [];
+  for (const stanza of reactionStanzas) {
+    try {
+      const reaction = extractReaction(stanza, roomJid);
+      if (reaction) reactions.push(reaction);
+    } catch (error) {
+      warnRowSkipped(error);
+    }
+  }
+  const deferred = applyMamReactions(parsed, reactions);
   for (const reaction of deferred) {
     // A store failure on one reaction must not fail the whole archive page.
     try {
-      store.dispatch({
-        ...setReactions(reaction),
-        meta: { fromHistory: true },
-      });
+      replayArchivedReaction(reaction, roomJid);
     } catch (error) {
       warnRowSkipped(error);
     }
@@ -273,7 +292,7 @@ export const fetchHistoryPage = async (
             const first = set?.getChildText?.('first');
             const last = set?.getChildText?.('last');
             const count = set?.getChildText?.('count');
-            const messages = await parseRows(rows);
+            const messages = await parseRows(rows, roomJid);
             settle({
               ok: true,
               messages,
@@ -317,10 +336,93 @@ export const fetchHistoryPage = async (
 };
 
 /**
+ * A live page: the global stanza handlers parse its rows and the MAM router
+ * batches them into the store (one dispatch per page, capped), so a page is
+ * parsed once. This only watches the wire for what the router does not
+ * keep: the `<fin>` bounds and how many results arrived.
+ */
+const fetchLiveHistoryPage = async (
+  client: Client,
+  chatJID: string,
+  max: number,
+  options: HistoryPageOptions
+): Promise<HistoryPage> => {
+  const roomJid = toConferenceJid(client, chatJID);
+  const id = options.id ?? nextQueryId('get-history:');
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+
+  const page = emptyPage(roomJid);
+  let received = 0;
+  const watcher = (stanza: any) => {
+    try {
+      if (stanza?.is?.('message')) {
+        const result = stanza.getChild('result');
+        if (result && result.attrs?.queryid === id) received += 1;
+        return;
+      }
+      if (stanza?.is?.('iq') && stanza.attrs?.id === id) {
+        if (stanza.attrs?.type === 'error') {
+          page.finSeen = false;
+          return;
+        }
+        const fin = stanza.getChild('fin');
+        const set = fin?.getChild?.('set');
+        const first = set?.getChildText?.('first');
+        const last = set?.getChildText?.('last');
+        const count = set?.getChildText?.('count');
+        page.finSeen = !!fin;
+        page.complete = getBooleanFromString(fin?.attrs?.complete) === true;
+        page.first = first ? getNumberFromString(first) : null;
+        page.last = last ? getNumberFromString(last) : null;
+        page.count = count ? getNumberFromString(count) : null;
+      }
+    } catch (error) {
+      warnRowSkipped(error);
+    }
+  };
+
+  client?.on('stanza', watcher);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const routed = beginMamQuery(id, roomJid, !options.selfApplied);
+    Promise.resolve(
+      client?.send(buildMamQuery(roomJid, id, max, options))
+    ).catch((err: any) => {
+      console.log('err on load', err);
+    });
+    const timeout = new Promise<null>((resolve) => {
+      timer = setTimeout(() => resolve(null), timeoutMs);
+    });
+    try {
+      const messages = await Promise.race<IMessage[] | null>([routed, timeout]);
+      if (messages === null) {
+        // Whatever arrived is still applied by the router and handed back.
+        page.messages = cancelMamQuery(id);
+        page.received = received;
+        return { ...page, ok: false, finSeen: false };
+      }
+      page.messages = messages;
+      page.received = received;
+      page.ok = true;
+      return page;
+    } catch {
+      // The iq error of a fresh room with no history: expected.
+      page.messages = cancelMamQuery(id);
+      page.received = received;
+      return { ...page, ok: false, finSeen: false };
+    }
+  } finally {
+    if (timer) clearTimeout(timer);
+    client?.off('stanza', watcher);
+  }
+};
+
+/**
  * One page of the room's live history: like fetchHistoryPage, and when the
  * page feeds the live list (the latest page, or the one before a cursor) the
  * room's paging cursor follows the server's `<fin>`. A page read by `after`,
- * a time filter or flagged `window` is an isolated query and writes nothing.
+ * a time filter or flagged `window` is an isolated query and writes nothing
+ * (its rows are read by its own listener, never routed into the live list).
  */
 export const getHistoryPage = async (
   client: Client,
@@ -338,7 +440,7 @@ export const getHistoryPage = async (
     return fetchHistoryPage(client, chatJID, max, { ...options, window: true });
   }
   const snapshot = snapshotRoomHistory(toConferenceJid(client, chatJID));
-  const page = await fetchHistoryPage(client, chatJID, max, options);
+  const page = await fetchLiveHistoryPage(client, chatJID, max, options);
   if (page.ok) {
     try {
       applyHistoryPageCursor(page, { before: options.before, max }, snapshot);
@@ -354,12 +456,14 @@ export const getHistory = async (
   chatJID: string,
   max: number,
   before?: number,
-  otherId?: string
+  otherId?: string,
+  options?: { selfApplied?: boolean }
 ): Promise<IMessage[] | undefined> => {
   if (typeof chatJID !== 'string') {return;}
   const page = await getHistoryPage(client, chatJID, max, {
     before,
     id: otherId,
+    selfApplied: options?.selfApplied,
   });
   return page.messages;
 };

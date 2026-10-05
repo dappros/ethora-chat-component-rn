@@ -13,6 +13,7 @@ import { useDispatch } from 'react-redux';
 import { setActiveModal } from '../../roomStore/chatSettingsSlice';
 import { MODAL_TYPES } from '../../helpers/constants/MODAL_TYPES';
 import { showsStandaloneDiscoverButton } from '../../helpers/publicChatsEntry';
+import { resolveHeaderHeight } from '../../helpers/headerLayout';
 
 interface HeaderRoomListProps {
   setDrawerOpen: () => void;
@@ -25,6 +26,9 @@ export const HeaderRoomList: FC<HeaderRoomListProps> = ({ setDrawerOpen }) => {
   const dispatch = useDispatch();
   const insets = useSafeAreaInsets();
   const topInset = config?.headerLayout?.safeAreaTop ? insets.top : 0;
+  // Same fixed band as ChatHeader / modal headers: the safe-area inset is
+  // padded on top and the row (buttons + title) centers in the band below it.
+  const headerHeight = resolveHeaderHeight(config?.headerLayout?.height) + topInset;
 
   const modalUser: any = selectedUser ?? user;
 
@@ -50,7 +54,7 @@ export const HeaderRoomList: FC<HeaderRoomListProps> = ({ setDrawerOpen }) => {
       style={[
         styles.headerContainer,
         { backgroundColor: theme.surface, shadowColor: theme.shadow },
-        topInset ? { paddingTop: 16 + topInset } : null,
+        { height: headerHeight, paddingTop: topInset },
       ]}
     >
       {!config?.disableRoomMenu && config?.headerMenu ? (
@@ -71,7 +75,7 @@ export const HeaderRoomList: FC<HeaderRoomListProps> = ({ setDrawerOpen }) => {
       ) : (
         <View style={styles.leftContainer} />
       )}
-      <View style={styles.centerContainer}>
+      <View style={[styles.centerContainer, { top: topInset }]}>
         {config?.headerLogo ? (
           HeaderLogo
         ) : (
@@ -110,9 +114,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 12,
-    minHeight: 56,
     justifyContent: 'space-between',
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
@@ -136,6 +137,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
+    bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
   },

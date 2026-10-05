@@ -17,7 +17,8 @@ import { BackIcon, BurgerMenuIcon } from '../../assets/icons';
 import { CallButtons } from '../VideoCalls/CallButtons';
 import { LanguageSelectorButton } from './LanguageSelectorButton';
 import { MessageSearchButton } from './MessageSearchButton';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector, useStore } from 'react-redux';
+import type { RootState } from '../../roomStore';
 import Composing from '../styled/StyledInputComponents/Composing';
 import {
   deleteRoom,
@@ -28,7 +29,6 @@ import { useXmppClient } from '../../context/xmppProvider';
 import { setActiveModal } from '../../roomStore/chatSettingsSlice';
 import { MODAL_TYPES } from '../../helpers/constants/MODAL_TYPES';
 import { RoomMenu } from '../MenuRoom/MenuRoom';
-import { useRoomState } from '../../hooks/useRoomState';
 import { useChatSettingState } from '../../hooks/useChatSettingState';
 import { useFileToken } from '../../hooks/useFileToken';
 import { appendFileToken } from '../../helpers/secureFileUrl';
@@ -53,10 +53,18 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   const dispatch = useDispatch();
   const { client } = useXmppClient();
 
-  const { roomsList, activeRoomJID } = useRoomState(currentRoom.jid);
-  const roomState = useRoomState(currentRoom.jid).room;
-  const composing = roomState?.composing;
+  const reduxStore = useStore<RootState>();
+  const activeRoomJID = useSelector(
+    (state: RootState) => state.rooms.activeRoomJID
+  );
+  const roomState = useSelector((state: RootState) =>
+    currentRoom?.jid ? state.rooms.rooms?.[currentRoom.jid] : undefined
+  );
   const { config } = useChatSettingState();
+  const roomsList = useSelector((state: RootState) =>
+    config?.chatHeaderBurgerMenu ? state.rooms.rooms : null
+  );
+  const composing = roomState?.composing;
   const theme = useTheme();
   const t = useT();
 
@@ -73,11 +81,12 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
     client?.leaveTheRoomStanza(activeRoomJID!);
     dispatch(deleteRoom({ jid: activeRoomJID! }));
 
-    const nextRoomJID = Object.keys(roomsList)[0] || null;
+    const nextRoomJID =
+      Object.keys(reduxStore.getState().rooms.rooms || {})[0] || null;
     if (nextRoomJID) {
       dispatch(setCurrentRoom({ roomJID: nextRoomJID }));
     }
-  }, [activeRoomJID, roomsList, dispatch, client]);
+  }, [activeRoomJID, reduxStore, dispatch, client]);
 
   const handleHeaderChatMenu = () => {
     Keyboard.dismiss();

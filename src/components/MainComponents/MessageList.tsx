@@ -33,7 +33,6 @@ import { RootState } from '../../roomStore';
 import Composing from '../styled/StyledInputComponents/Composing';
 import TreadLabel from '../styled/TreadLabel';
 import { MessageContainer } from './MessageContainer';
-import { useRoomState } from '../../hooks/useRoomState';
 import Loader from '../styled/Loader';
 import { ArowDownIcon } from '../../assets/icons';
 import CustomTypingIndicator from '../styled/StyledInputComponents/CustomTypingIndicator';
@@ -60,7 +59,6 @@ import {
 } from '../../helpers/jumpThread';
 import { openThreadForJump } from '../../helpers/openThreadForJump';
 import { setBubbleHighlight } from '../../helpers/bubbleHighlight';
-import { parseMessageReference } from '../../helpers/parseMessageReference';
 import { requestSendersOf } from '../../helpers/userResolver';
 import { useT } from '../../i18n/useT';
 
@@ -141,6 +139,43 @@ interface MessageListProps<TMessage extends IMessage> {
   onReadBoundaryChange?: (boundaryTs: number | null) => void;
 }
 
+const mainIdCache = new WeakMap<object, string | null>();
+const mainMessageIdOf = (m: IMessage): string | null => {
+  if (!m?.mainMessage) {return null;}
+  const cached = mainIdCache.get(m);
+  if (cached !== undefined) {return cached;}
+  let id: string | null = null;
+  try {
+    const parsed = JSON.parse(m.mainMessage);
+    id = parsed?.id != null ? String(parsed.id) : null;
+  } catch {
+    id = null;
+  }
+  mainIdCache.set(m, id);
+  return id;
+};
+
+const sortKeyCache = new WeakMap<object, number>();
+const sortKeyOf = (m: IMessage): number => {
+  const cached = sortKeyCache.get(m);
+  if (cached !== undefined) {return cached;}
+  const key = new Date(m?.date as any).getTime() || 0;
+  sortKeyCache.set(m, key);
+  return key;
+};
+
+const dayKeyCache = new WeakMap<object, string>();
+const dayKeyOf = (m: IMessage): string => {
+  const cached = dayKeyCache.get(m);
+  if (cached !== undefined) {return cached;}
+  const key = new Date(m.date).toDateString();
+  dayKeyCache.set(m, key);
+  return key;
+};
+
+const keyExtractor = (item: IMessage) => String(item.id);
+const EMPTY_LIST: IMessage[] = [];
+
 const MessageList = <TMessage extends IMessage>({
   CustomMessage,
   CustomDaySeparator,
@@ -155,8 +190,13 @@ const MessageList = <TMessage extends IMessage>({
   client,
   onReadBoundaryChange,
 }: MessageListProps<TMessage>) => {
-  const { composing, messages, composingList, historyComplete } =
-    useRoomState(roomJID).room! as IRoom;
+  const room = useSelector(
+    (state: RootState) => state.rooms.rooms?.[roomJID]
+  ) as IRoom | undefined;
+  const composing = room?.composing;
+  const composingList = room?.composingList;
+  const messages = room?.messages || EMPTY_LIST;
+  const historyComplete = room?.historyComplete;
   const theme = useTheme();
   const t = useT();
   const dispatch = useDispatch();
@@ -235,23 +275,25 @@ const MessageList = <TMessage extends IMessage>({
 
   const addReplyMessages = useMemo(() => {
     // Index replies by their parent once instead of filtering the whole list
-    // per message.
-    const repliesByParentId = new Map<string, IMessage[]>();
+    // per message. Only a message that has replies is copied, so the others
+    // keep their identity (memoized rows do not re-render).
+    const repliesByParent = new Map<string, IMessage[]>();
     for (const mess of sourceMessages) {
-      if (mess.isDeleted) {continue;}
-      const parentId = parseMessageReference(mess.mainMessage)?.id;
+      if (!mess?.mainMessage || mess.isDeleted) {continue;}
+      const parentId = mainMessageIdOf(mess);
       if (!parentId) {continue;}
-      const bucket = repliesByParentId.get(String(parentId));
-      if (bucket) {
-        bucket.push(mess);
+      const list = repliesByParent.get(parentId);
+      if (list) {
+        list.push(mess);
       } else {
-        repliesByParentId.set(String(parentId), [mess]);
+        repliesByParent.set(parentId, [mess]);
       }
     }
-    return sourceMessages.map((message: IMessage) => ({
-      ...message,
-      reply: repliesByParentId.get(String(message.id)) ?? [],
-    }));
+    if (repliesByParent.size === 0) {return sourceMessages;}
+    return sourceMessages.map((message: IMessage) => {
+      const reply = repliesByParent.get(String(message.id));
+      return reply ? { ...message, reply } : message;
+    });
   }, [sourceMessages]);
 
   const memoizedMessages = useMemo(() => {
@@ -267,8 +309,7 @@ const MessageList = <TMessage extends IMessage>({
           item.isReply &&
           item.isReply === 'true' &&
           item.mainMessage &&
-          String(parseMessageReference(item.mainMessage)?.id) ===
-            String(activeMessage?.id)
+          mainMessageIdOf(item) === String(activeMessage?.id)
       );
     } else {
       filtered = nonDeletedMessages.filter(
@@ -288,14 +329,21 @@ const MessageList = <TMessage extends IMessage>({
     // settles. Sorting here makes each render a stable, ordered view,
     // even mid-stream, so the user sees them appear from oldest to
     // newest with no swap animation.
-    const sorted = filtered.slice().sort((a, b) => {
-      const aNum = new Date(a?.date as any).getTime() || 0;
-      const bNum = new Date(b?.date as any).getTime() || 0;
-      return aNum - bNum;
-    });
-    const deduped = Array.from(
-      new Map(sorted.map((m) => [m.id, m])).values()
-    );
+    let sorted = filtered;
+    for (let i = 1; i < filtered.length; i++) {
+      if (sortKeyOf(filtered[i - 1]) > sortKeyOf(filtered[i])) {
+        sorted = filtered.slice().sort((a, b) => sortKeyOf(a) - sortKeyOf(b));
+        break;
+      }
+    }
+    const seen = new Set<string>();
+    const deduped: IMessage[] = [];
+    for (const m of sorted) {
+      const key = String(m.id);
+      if (seen.has(key)) {continue;}
+      seen.add(key);
+      deduped.push(m);
+    }
     return deduped;
   }, [addReplyMessages, isReply, roomJID, activeMessage]);
   const memoizedMessagesRef = useRef(memoizedMessages);
@@ -860,8 +908,21 @@ const MessageList = <TMessage extends IMessage>({
         (sourceMessages.length === 0 && !historyComplete)),
   });
 
+  const dateLabelIds = useMemo(() => {
+    const ids = new Set<string>();
+    let nextDay: string | null = null;
+    for (let i = dataMessages.length - 1; i >= 0; i--) {
+      const item = dataMessages[i];
+      if (String(item.id).startsWith('delimiter-new')) {continue;}
+      const day = dayKeyOf(item);
+      if (nextDay === null || day !== nextDay) {ids.add(String(item.id));}
+      nextDay = day;
+    }
+    return ids;
+  }, [dataMessages]);
+
   const renderMessage = useCallback(
-    ({ item, index }: { item: IMessage; index: number }) => {
+    ({ item }: { item: IMessage }) => {
       if (String(item.id).startsWith('delimiter-new')) {
         return (
           <MessageContainer
@@ -878,24 +939,7 @@ const MessageList = <TMessage extends IMessage>({
         );
       }
 
-      const messageDate = new Date(item.date).toDateString();
-      let showDateLabel = false;
-
-      let nextMessage = null;
-      for (let i = index + 1; i < dataMessages.length; i++) {
-        const candidate = dataMessages[i];
-        if (!String(candidate.id).startsWith('delimiter-new')) {
-          nextMessage = candidate;
-          break;
-        }
-      }
-      const nextMessageDate = nextMessage
-        ? new Date(nextMessage.date).toDateString()
-        : null;
-
-      if (!nextMessage || messageDate !== nextMessageDate) {
-        showDateLabel = true;
-      }
+      const showDateLabel = dateLabelIds.has(String(item.id));
 
       // The jump highlight is drawn by the message bubble itself (see
       // BubbleHighlight), so the row, its date label and its avatar stay put.
@@ -919,7 +963,7 @@ const MessageList = <TMessage extends IMessage>({
       CustomDaySeparator,
       CustomMessage,
       CustomNewMessageLabel,
-      dataMessages,
+      dateLabelIds,
       isReply,
       user.xmppUsername,
       user.walletAddress,
@@ -1107,7 +1151,10 @@ const MessageList = <TMessage extends IMessage>({
         ref={flatListRef}
         data={dataMessages}
         renderItem={renderMessage}
-        keyExtractor={(item) => item.id.toString()}
+        keyExtractor={keyExtractor}
+        initialNumToRender={15}
+        maxToRenderPerBatch={10}
+        windowSize={7}
         onEndReached={windowActive ? handleStartReached : handleLoadMore}
         onStartReached={windowActive ? handleStartReached : undefined}
         onScroll={handleScroll}

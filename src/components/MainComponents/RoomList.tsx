@@ -130,10 +130,16 @@ const RoomList: React.FC<RoomListProps> = ({
     setSearchTerm(text);
   }, []);
 
-  const getLastMessage = useCallback(
-    (chat: IRoom) => chat?.messages?.[chat?.messages.length - 1],
-    []
-  );
+  const activityOf = useCallback((chat: IRoom): number => {
+    const last = chat?.messages?.[chat?.messages.length - 1];
+    const fromLive = Number(last?.id);
+    if (Number.isFinite(fromLive) && fromLive > 0) {return fromLive;}
+    const fromStamp = Number(chat?.lastMessageTimestamp);
+    if (Number.isFinite(fromStamp) && fromStamp > 0) {return fromStamp;}
+    const fromSeed = Number(chat?.lastMessage?.id);
+    if (Number.isFinite(fromSeed) && fromSeed > 0) {return fromSeed;}
+    return 0;
+  }, []);
 
   // The same box that filters chats by title also looks inside the messages.
   // Off wherever message search is off (no request, no block).
@@ -167,22 +173,13 @@ const RoomList: React.FC<RoomListProps> = ({
           const hay = `${chat?.title || ''} ${chat?.name || ''}`.toLowerCase();
           return hay.includes(lowerCaseSearchTerm);
         })
-        .sort((a, b) => {
-          if (getLastMessage(a)?.id && getLastMessage(b)?.id) {
-            return Number(getLastMessage(b).id) - Number(getLastMessage(a).id);
-          } else if (getLastMessage(a)?.id) {
-            return -1;
-          } else if (getLastMessage(b)?.id) {
-            return 1;
-          }
-          return -1;
-        });
+        .sort((a, b) => activityOf(b) - activityOf(a));
 
       chatsMap.set(lowerCaseSearchTerm, result);
     }
 
     return chatsMap.get(lowerCaseSearchTerm) || [];
-  }, [chats, searchTerm]);
+  }, [chats, searchTerm, activityOf]);
 
   useEffect(() => {
     if (burgerMenu) {
@@ -308,6 +305,21 @@ const RoomList: React.FC<RoomListProps> = ({
       listRef.current?.scrollToOffset({ offset: 0, animated: true });
     }
   }, [isSearchFocused]);
+
+  const renderRoom = useCallback(
+    ({ item }: { item: IRoom }) => (
+      <Pressable
+        testID={`room-${(item.jid || '').split('@')[0]}`}
+        accessibilityLabel={`room-${item.title || item.name}`}
+        onPress={() => performClick(item)}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+      >
+        <ChatRoomItem chat={item} config={config} />
+      </Pressable>
+    ),
+    [performClick, handlePressIn, handlePressOut, config]
+  );
 
   const toggleDrawer = () => {
     if (isDrawerOpen) {
@@ -493,20 +505,7 @@ const RoomList: React.FC<RoomListProps> = ({
                   onMomentumScrollBegin={handleMomentumBegin}
                   onMomentumScrollEnd={handleMomentumEnd}
                   keyboardShouldPersistTaps="handled"
-                  renderItem={({ item }) => (
-                    <Pressable
-                      // Stable testID so e2e drivers can target a room
-                      // row by its jid local-part (e.g. Main chat under
-                      // app id `..._...759` → testID `room-...759`).
-                      testID={`room-${(item.jid || '').split('@')[0]}`}
-                      accessibilityLabel={`room-${item.title || item.name}`}
-                      onPress={() => performClick(item)}
-                      onPressIn={handlePressIn}
-                      onPressOut={handlePressOut}
-                    >
-                      <ChatRoomItem chat={item} config={config} />
-                    </Pressable>
-                  )}
+                  renderItem={renderRoom}
                   style={[
                     styles.chatList,
                     { backgroundColor: theme.listBackground },

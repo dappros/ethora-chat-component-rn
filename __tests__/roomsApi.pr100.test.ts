@@ -17,7 +17,7 @@ import http from '../src/networking/apiClient';
 import { store } from '../src/roomStore';
 import { setUser, setConfig } from '../src/roomStore/chatSettingsSlice';
 import { getRooms, clearRoomsRestCache } from '../src/networking/api-requests/rooms.api';
-import { PERSIST_KEYS } from '../src/roomStore/persistence';
+import { persistedRoomKey } from '../src/roomStore/persistence';
 import { decryptFromPersist } from '../src/helpers/persistCrypto';
 import { setCurrentRoom } from '../src/roomStore/roomsSlice';
 
@@ -119,13 +119,14 @@ describe('persistence of volatile room state', () => {
       await AsyncStorage.clear();
       mockHttp.get.mockResolvedValueOnce({ data: { items: [{ name: 'u', unreadCount: 5 }] } });
       await getRooms();
-      jest.advanceTimersByTime(300);
+      jest.advanceTimersByTime(5000);
       for (let i = 0; i < 30; i++) await Promise.resolve();
-      const raw = await AsyncStorage.getItem(PERSIST_KEYS.KEY_ROOMS);
+      const raw = await AsyncStorage.getItem(persistedRoomKey('u@conference.my.host'));
       expect(raw).not.toBeNull();
+      // Per-room persistence: one key per room, only the room object itself.
       const plain = JSON.parse((await decryptFromPersist(raw!)) as string);
-      const room = plain.rooms['u@conference.my.host'];
-      expect(room).toBeDefined();
+      const room = plain;
+      expect(room.jid).toBe('u@conference.my.host');
       expect(room.apiUnreadCount).toBeUndefined();
       expect(room.apiUnreadSeededAt).toBeUndefined();
       expect(plain.jumpWindow).toBeUndefined();

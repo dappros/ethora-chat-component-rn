@@ -77,12 +77,13 @@ describe('<MessageReaction />', () => {
       userName: 'Alice Anderson',
       changeReaction: jest.fn(),
     });
-    // The styled ReactionBox sets `active={true}` and the count Text
-    // switches to white on the brand color background.
-    const activeChips = tree.root.findAll(
-      (n) => n.props?.active === true && typeof n.props?.color === 'string'
-    );
-    expect(activeChips.length).toBeGreaterThan(0);
+    // The user's own chip is tinted with the brand colour (border) and
+    // its count takes the brand colour too.
+    const chip = tree.root.findByProps({ testID: 'reaction-chip-joy' });
+    const style = Array.isArray(chip.props.style)
+      ? Object.assign({}, ...chip.props.style.filter(Boolean))
+      : chip.props.style;
+    expect(style.borderColor).toBe('#ff00aa');
   });
 
   it('fires changeReaction(emoji) when the chip is tapped', async () => {

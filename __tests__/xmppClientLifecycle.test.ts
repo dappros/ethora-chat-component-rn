@@ -78,6 +78,9 @@ jest.mock('../src/networking/xmpp/sendTextMessage.xmpp', () => ({
 jest.mock('../src/networking/xmpp/sendTextMessageWithTranslateTag.xmpp', () => ({
   sendTextMessageWithTranslateTag: jest.fn(() => true),
 }));
+jest.mock('../src/networking/xmpp/sendMessageReaction.xmpp', () => ({
+  sendMessageReaction: jest.fn(),
+}));
 jest.mock('../src/networking/xmpp/getHistory.xmpp', () => ({
   getHistory: jest.fn(async () => []),
 }));
@@ -132,6 +135,7 @@ import { getRooms } from '../src/networking/xmpp/getRooms.xmpp';
 import { sendTextMessage } from '../src/networking/xmpp/sendTextMessage.xmpp';
 import { sendTextMessageWithTranslateTag } from '../src/networking/xmpp/sendTextMessageWithTranslateTag.xmpp';
 import { getHistory } from '../src/networking/xmpp/getHistory.xmpp';
+import { sendMessageReaction } from '../src/networking/xmpp/sendMessageReaction.xmpp';
 import { createRoom } from '../src/networking/xmpp/createRoom.xmpp';
 import { presenceInRoom } from '../src/networking/xmpp/presenceInRoom.xmpp';
 import { deleteMessage } from '../src/networking/xmpp/deleteMessage.xmpp';
@@ -553,9 +557,10 @@ describe('XmppClient — credentialsProvider', () => {
 
     // Still attempted a fresh client.
     expect(fakeClientInstances.length).toBeGreaterThan(1);
+    // After a rejection a failed refresh counts toward "password lost"
+    // (one retry is allowed before the session ends).
     expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('credential refresh failed'),
-      expect.any(Error)
+      expect.stringContaining('password recovery failed')
     );
     warnSpy.mockRestore();
   });
@@ -612,8 +617,9 @@ describe('XmppClient — disconnect / close', () => {
 // ---- delegating stanza helpers --------------------------------------
 
 describe('XmppClient — delegating stanza helpers', () => {
-  it('getRoomsStanza calls getRooms(client)', async () => {
+  it('getRoomsStanza calls getRooms(client) once the stream is online', async () => {
     const c = new XmppClient('u', 'p', { devServer: 'h' });
+    last().triggerEvent('online');
     await c.getRoomsStanza();
     expect(getRooms).toHaveBeenCalledWith(last());
   });
@@ -694,7 +700,8 @@ describe('XmppClient — delegating stanza helpers', () => {
       'r@h',
       10,
       1700000000000,
-      'mid'
+      'mid',
+      { selfApplied: undefined }
     );
   });
 
@@ -743,14 +750,19 @@ describe('XmppClient — not-implemented stubs', () => {
     warn.mockRestore();
   });
 
-  it('sendMessageReactionStanza warns and no-ops', () => {
-    const c = new XmppClient('u', 'p', { devServer: 'h' });
-    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
-    c.sendMessageReactionStanza('m1', 'r@h', ['🎉']);
-    expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining('sendMessageReactionStanza: not implemented')
+  it('sendMessageReactionStanza delegates the full list + sender name to the builder', () => {
+    const c = new XmppClient('u', 'p', { devServer: 'h', conference: 'conf.test' });
+    c.sendMessageReactionStanza('m1', 'room', ['joy', '+1'], {
+      firstName: 'Ann',
+      lastName: 'Lee',
+    });
+    expect(sendMessageReaction).toHaveBeenCalledWith(
+      last(),
+      'm1',
+      'room@conf.test',
+      ['joy', '+1'],
+      { firstName: 'Ann', lastName: 'Lee' }
     );
-    warn.mockRestore();
   });
 
   it('sendTextMessageWithTranslateTagStanza emits a translate-tagged stanza with the source language', () => {

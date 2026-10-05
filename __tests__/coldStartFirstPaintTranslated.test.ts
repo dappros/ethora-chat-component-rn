@@ -44,7 +44,7 @@ const makeStore = () =>
 
 // The persist middleware debounces writes by 200ms.
 const flushWrites = async () => {
-  jest.advanceTimersByTime(300);
+  jest.advanceTimersByTime(1100);
   // Debounce, then the at-rest cipher (SecureStore key + AES) before the
   // multiSet - a deeper async chain than a bare write.
   for (let i = 0; i < 20; i++) {
@@ -91,7 +91,7 @@ describe('cold start paints history already translated', () => {
     await flushWrites();
 
     // Sanity: something actually reached storage.
-    const raw = await AsyncStorage.getItem(PERSIST_KEYS.KEY_ROOMS);
+    const raw = await AsyncStorage.getItem(PERSIST_KEYS.KEY_ROOM_INDEX);
     expect(raw).toBeTruthy();
 
     // The exact call the app makes on cold start, before any MAM traffic.

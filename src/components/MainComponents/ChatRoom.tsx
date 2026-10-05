@@ -3,7 +3,8 @@
 import { isJoiningRoom } from '../../helpers/joiningRoom';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ChatContainer, NonRoomChat } from '../styled/StyledComponents';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector, useStore } from 'react-redux';
+import type { RootState } from '../../roomStore';
 import MessageList from './MessageList';
 import ArchivedMessageCard from './ArchivedMessageCard';
 import { loadRoomHistory } from '../../helpers/loadRoomHistory';
@@ -31,8 +32,8 @@ import { ChooseChatMessage } from './ChooseChatMessage';
 import { useRoomUrl } from '../../hooks/useRoomUrl';
 import { useSendMessage } from '../../hooks/useSendMessage';
 import { IConfig } from '../../types/models/config.model';
+import type { IMessage } from '../../types/types';
 import { useRoomInitialization } from '../../hooks/useRoomInitialization';
-import { useRoomState } from '../../hooks/useRoomState';
 import { useChatSettingState } from '../../hooks/useChatSettingState';
 import { useTheme } from '../../hooks/useTheme';
 import { isOwnMessage } from '../../helpers/isOwnMessage';
@@ -52,6 +53,7 @@ import {
   KeyboardAvoidingView,
   KeyboardStickyView,
 } from 'react-native-keyboard-controller';
+import { KeyboardInputDock } from './KeyboardInputDock';
 import useComposing from '../../hooks/useComposing';
 import { store } from '../../roomStore';
 import {
@@ -62,6 +64,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   getInputDockPaddingBottom,
   getKeyboardVerticalOffset,
+  getKeyboardAvoidingOffset,
+  getInputDockKeyboardPadding,
 } from '../../helpers/keyboardLayout';
 
 interface ChatRoomProps {
@@ -73,6 +77,8 @@ interface ChatRoomProps {
   handleBackClick?: (value: boolean) => void;
   eventHandlers?: IConfig['eventHandlers'];
 }
+
+const EMPTY_MESSAGES: IMessage[] = [];
 
 const ChatRoom: React.FC<ChatRoomProps> = React.memo(
   ({
@@ -105,15 +111,25 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
       return storeConfig;
     }, [storeConfig, propsEventHandlers]);
 
-    const {
-      roomsList,
-      activeRoomJID,
-      editAction,
-      loading,
-      globalLoading,
-      roomMessages,
-      joiningRoomJID,
-    } = useRoomState();
+    const reduxStore = useStore<RootState>();
+    const activeRoomJID = useSelector(
+      (state: RootState) => state.rooms.activeRoomJID,
+    );
+    const activeRoom = useSelector((state: RootState) =>
+      activeRoomJID ? state.rooms.rooms?.[activeRoomJID] : undefined,
+    );
+    const hasRooms = useSelector(
+      (state: RootState) => Object.keys(state.rooms.rooms || {}).length > 0,
+    );
+    const editAction = useSelector((state: RootState) => state.rooms.editAction);
+    const globalLoading = useSelector(
+      (state: RootState) => state.rooms.isLoading,
+    );
+    const joiningRoomJID = useSelector(
+      (state: RootState) => state.rooms.joiningRoomJID,
+    );
+    const loading = !!activeRoom?.isLoading;
+    const roomMessages = activeRoom?.messages || EMPTY_MESSAGES;
     const {
       sendMessage: sendMs,
       sendMedia: sendMessageMedia,
@@ -337,9 +353,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
 
     useRoomInitialization(
       activeRoomJID || '',
-      roomsList,
       (configWithEventHandlers || storeConfig || {}) as IConfig,
-      roomMessages.length,
     );
 
     // A join for the requested room is still in flight: the server registers
@@ -347,7 +361,11 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
     // loader instead of the "choose a chat" placeholder (or the empty-list
     // new-chat screen). Bounded: useRoomInitialization clears the flag when
     // the join and the room-list refresh settle, even if the room never shows.
-    if (isJoiningRoom(activeRoomJID, roomsList, joiningRoomJID)) {
+    if (isJoiningRoom(
+        activeRoomJID,
+        activeRoom && activeRoomJID ? { [activeRoomJID]: true } : undefined,
+        joiningRoomJID
+      )) {
       return (
         <View
           testID="chat-room-joining-loader"
@@ -358,7 +376,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
       );
     }
 
-    if (Object.keys(roomsList)?.length < 1 && !loading && !globalLoading) {
+    if (!hasRooms && !loading && !globalLoading) {
       return (
         <NonRoomChat>
           {/* <Text>No room. Let's create one!</Text> */}
@@ -367,7 +385,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
       );
     }
 
-    if (!activeRoomJID || !roomsList?.[activeRoomJID]) {
+    if (!activeRoomJID || !activeRoom) {
       return <ChooseChatMessage />;
     }
 
@@ -381,6 +399,13 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
       bottomInset: insets.bottom,
       configuredPadding: configWithEventHandlers?.inputDockPaddingBottom,
       hostOwnsLayout: !!configWithEventHandlers?.disableKeyboardAvoidingView,
+    });
+    const keyboardAvoidingOffset = getKeyboardAvoidingOffset({
+      configuredOffset: configWithEventHandlers?.keyboardVerticalOffset ?? 0,
+    });
+    const inputDockKeyboardPadding = getInputDockKeyboardPadding({
+      platform: Platform.OS,
+      inputDockPaddingBottom,
     });
 
     // Keyboard avoidance is delegated to react-native-keyboard-controller's
@@ -419,16 +444,26 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
       : View;
     const keyboardWrapperProps = avoidKeyboard
       ? {
-          style: { flex: 1 },
+          // The dock's colour: the keyboard-height padding below the dock is
+          // this view's own box, and it shows around the keyboard's rounded
+          // top corners — it must read as a continuation of the dock.
+          style: { flex: 1, backgroundColor: theme.surface },
           behavior: 'padding' as const,
-          keyboardVerticalOffset,
+          keyboardVerticalOffset: keyboardAvoidingOffset,
         }
       : { style: { flex: 1 } };
     // Input dock: a plain View normally; under the sticky strategy it becomes
     // a KeyboardStickyView so it (and only it) lifts with the keyboard.
+    // Under the avoiding-view strategy the dock's safe-area padding collapses
+    // while the keyboard is open (KeyboardInputDock), so the composer is glued
+    // to the keyboard.
+    const collapsingDock =
+      avoidKeyboard && inputDockKeyboardPadding !== inputDockPaddingBottom;
     const InputDockTag: React.ComponentType<any> = stickyInput
       ? KeyboardStickyView
-      : View;
+      : collapsingDock
+        ? KeyboardInputDock
+        : View;
     const inputDockProps: any = {
       // The dock carries the composer's white surface all the way to the
       // bottom edge, so it needs the same rounded top and upward shadow —
@@ -447,6 +482,12 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
       ...(stickyInput
         ? { offset: { closed: 0, opened: keyboardVerticalOffset } }
         : {}),
+      ...(collapsingDock
+        ? {
+            closedPadding: inputDockPaddingBottom,
+            openedPadding: inputDockKeyboardPadding,
+          }
+        : {}),
     };
 
     return (
@@ -464,7 +505,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
         >
           {!configWithEventHandlers?.disableHeader && (
             <ChatHeader
-              currentRoom={roomsList[activeRoomJID]}
+              currentRoom={activeRoom}
               handleBackClick={handleBackClick}
             />
           )}
@@ -481,7 +522,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
               >
                 <Loader color={configWithEventHandlers?.colors?.primary} />
               </View>
-            ) : Object.keys(roomsList).length < 1 || !activeRoomJID ? (
+            ) : !hasRooms || !activeRoomJID ? (
               <View
                 style={{
                   flex: 1,
@@ -543,18 +584,18 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
                   resetNewMessageCounter: () => {},
                 }}
                 typingIndicator={
-                  roomsList[activeRoomJID]?.composing ? (
+                  activeRoom?.composing ? (
                     configWithEventHandlers?.customTypingIndicator
                       ?.customComponent ? (
                       <configWithEventHandlers.customTypingIndicator.customComponent
                         usersTyping={
-                          roomsList[activeRoomJID]?.composingList || []
+                          activeRoom?.composingList || []
                         }
                         text={
                           typeof configWithEventHandlers.customTypingIndicator
                             .text === 'function'
                             ? configWithEventHandlers.customTypingIndicator.text(
-                                roomsList[activeRoomJID]?.composingList || [],
+                                activeRoom?.composingList || [],
                               )
                             : configWithEventHandlers.customTypingIndicator
                                 .text || 'Typing...'
@@ -626,10 +667,10 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
               'overlay' ||
               configWithEventHandlers.customTypingIndicator.position ===
                 'floating') &&
-            roomsList[activeRoomJID]?.composing && (
+            activeRoom?.composing && (
               <CustomTypingIndicator
                 usersTyping={
-                  roomsList[activeRoomJID]?.composingList || ['User']
+                  activeRoom?.composingList || ['User']
                 }
                 text={configWithEventHandlers.customTypingIndicator.text}
                 position={
@@ -639,7 +680,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
                 customComponent={
                   configWithEventHandlers.customTypingIndicator.customComponent
                 }
-                isVisible={roomsList[activeRoomJID]?.composing || false}
+                isVisible={activeRoom?.composing || false}
               />
             )}
         </ChatContainer>

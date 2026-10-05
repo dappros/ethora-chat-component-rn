@@ -16,6 +16,10 @@ import { getLastMessage } from '../src/networking/xmpp/getLastMessageArchive.xmp
 import { getRoomsPaged } from '../src/networking/xmpp/getRoomsPaged.xmpp';
 import { roomConfig } from '../src/networking/xmpp/roomConfig.xmpp';
 import { getHistory } from '../src/networking/xmpp/getHistory.xmpp';
+import {
+  collectMamMessage,
+  routeMamIq,
+} from '../src/networking/xmpp/mamRouter';
 
 function makeClient(opts: Partial<any> = {}) {
   const listeners: Record<string, ((arg: any) => void)[]> = {};
@@ -214,13 +218,16 @@ describe('getHistory', () => {
     expect(stanza.attrs.id).toBe('hist-id-1');
     const q = stanza.getChild('query');
     expect(q?.attrs?.xmlns).toBe('urn:xmpp:mam:2');
+    // The query id is echoed on every result — that is how the router
+    // matches a page to its request.
+    expect(q?.attrs?.queryid).toBe('hist-id-1');
     expect(q.getChild('set')?.getChild('max')?.getText()).toBe('25');
     // No `before` arg → empty <before/> placeholder.
     expect(q.getChild('set')?.getChild('before')).toBeDefined();
 
     // Synthesize the iq=result terminator (no message stanzas in
     // between) — should resolve to [].
-    client.trigger('stanza', {
+    routeMamIq({
       is: (n: string) => n === 'iq',
       getChild: () => undefined,
       attrs: { id: 'hist-id-1', type: 'result' },
@@ -234,7 +241,7 @@ describe('getHistory', () => {
     const stanza = lastSent(send);
     // service URL is wss://xmpp.test/ws → host xmpp.test → conference.xmpp.test
     expect(stanza.attrs.to).toBe('just-local@conference.xmpp.test');
-    client.trigger('stanza', {
+    routeMamIq({
       is: (n: string) => n === 'iq',
       getChild: () => undefined,
       attrs: { id: 'hist-id-2', type: 'result' },
@@ -249,7 +256,7 @@ describe('getHistory', () => {
     expect(
       stanza.getChild('query').getChild('set').getChild('before').getText()
     ).toBe('1700000000000');
-    client.trigger('stanza', {
+    routeMamIq({
       is: (n: string) => n === 'iq',
       getChild: () => undefined,
       attrs: { id: 'hist-id-3', type: 'result' },
@@ -260,7 +267,7 @@ describe('getHistory', () => {
   it('returns [] when the iq=error terminator arrives', async () => {
     const { client } = makeClient();
     const p = getHistory(client, 'r@h', 10, undefined, 'hist-id-4');
-    client.trigger('stanza', {
+    routeMamIq({
       is: (n: string) => n === 'iq',
       getChild: () => undefined,
       attrs: { id: 'hist-id-4', type: 'error' },
@@ -275,48 +282,30 @@ describe('getHistory', () => {
     const { client } = makeClient();
     const p = getHistory(client, 'r@h', 10, undefined, 'hist-id-5');
 
-    // Build a minimal MAM-style stanza wrapper that getHistory walks:
-    //   <message from=…><result><forwarded><message>
-    //     <body>...</body><data attr=val/></message></forwarded></result></message>
-    // The inner message must expose getChild('body'), getChild('data')
-    // and a few attrs since createMessageFromXml + getDataFromXml read
-    // them.
-    const innerMessage = {
-      attrs: {
+    // Results are parsed once by the stanza handlers (onMessageHistory) and
+    // handed to the router already as IMessages, matched to the query by
+    // the echoed `queryid`.
+    const resultStanza = {
+      getChild: (n: string) =>
+        n === 'result' ? { attrs: { queryid: 'hist-id-5' } } : undefined,
+    };
+    expect(
+      collectMamMessage(resultStanza, {
         id: '1700000000000000xyz',
-        from: 'r@h/sender',
-      },
-      getChild: (name: string) => {
-        if (name === 'body') {return { getText: () => 'hello' };}
-        if (name === 'data') {
-          return {
-            attrs: {
-              senderFirstName: 'Alice',
-              senderLastName: 'Anderson',
-              senderJID: 'alice@host',
-              photo: '',
-            },
-          };
-        }
-        return undefined;
-      },
-    };
-    const forwarded = {
-      getChild: (n: string) => (n === 'message' ? innerMessage : undefined),
-    };
-    const result = {
-      getChild: (n: string) => (n === 'forwarded' ? forwarded : undefined),
-    };
-    const messageStanza = {
-      is: (n: string) => n === 'message',
-      attrs: { from: 'r@h/sender' },
-      getChild: (n: string) => (n === 'result' ? result : undefined),
-    };
-
-    client.trigger('stanza', messageStanza);
+        body: 'hello',
+        user: { name: 'Alice Anderson' },
+      } as any)
+    ).toBe(true);
+    // A result for a query nobody is waiting on is not claimed.
+    expect(
+      collectMamMessage(
+        { getChild: () => ({ attrs: { queryid: 'unknown' } }) },
+        { id: 'x' } as any
+      )
+    ).toBe(false);
 
     // Terminator.
-    client.trigger('stanza', {
+    routeMamIq({
       is: (n: string) => n === 'iq',
       getChild: () => undefined,
       attrs: { id: 'hist-id-5', type: 'result' },

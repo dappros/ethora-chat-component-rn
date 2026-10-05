@@ -6,6 +6,7 @@ import React, {
   useSyncExternalStore,
 } from 'react';
 import {
+  Animated,
   View,
   Pressable,
   StyleSheet,
@@ -21,6 +22,7 @@ import { BubbleHighlight } from './BubbleHighlight';
 import MessageInteractions from './MessageInteractions';
 import { BottomReplyContainer } from './BottomReplyContainer';
 import { MessageReply } from './MessageReply';
+import { parseMessageReference } from '../../helpers/parseMessageReference';
 import { DeletedMessage } from './DeletedMessage';
 import {
   setActiveModal,
@@ -45,7 +47,10 @@ import { DoubleTick } from '../../assets/icons';
 import { useXmppClient } from '../../context/xmppProvider';
 import { useSendMessage } from '../../hooks/useSendMessage';
 import { MessageReaction } from './MessageReaction';
-import { MessageFooter } from '../styled/StyledComponents';
+import { EmojiPickerSheet } from './EmojiPickerSheet';
+import { reactionsEnabled } from '../../helpers/reactionsConfig';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { hapticTap } from '../../helpers/haptics';
 import { useTheme } from '../../hooks/useTheme';
 import { useT } from '../../i18n/useT';
 import { isOpaqueXmppUserId } from '../../helpers/xmppIdShape';
@@ -158,6 +163,20 @@ const CustomTimestampRow = styled.View<{media: boolean}>`
   padding-right: ${({media}) => media ? '10px': 0};
 `;
 
+const clockCache = new Map<string, string>();
+const formatClock = (date: string | Date): string => {
+  const key = String(date);
+  const cached = clockCache.get(key);
+  if (cached !== undefined) {return cached;}
+  const d = new Date(date);
+  const label = Number.isNaN(d.getTime())
+    ? ''
+    : `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  if (clockCache.size > 5000) {clockCache.clear();}
+  clockCache.set(key, label);
+  return label;
+};
+
 const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   const dispatch = useDispatch();
   const { client } = useXmppClient();
@@ -210,12 +229,16 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   // avatars: a cache-restored message carries no profileImage at all (see
   // PERSISTED_MESSAGE_USER_FIELDS), so reading only the message-level copy
   // leaves a blank initials circle for senders whose name resolved fine.
-  const usersSet = useSelector(
-    (state: RootState) => state.rooms.usersSet
-  ) as Record<string, any> | undefined;
   const senderRawId = String(message.user?.id || '');
   const senderLocal = senderRawId.split('@')[0];
-  const senderEntry = usersSet?.[senderLocal] || usersSet?.[senderRawId];
+  // Granular: re-render only when THIS sender's entry changes, not on every
+  // usersSet update.
+  const senderEntry = useSelector(
+    (state: RootState) => {
+      const set = state.rooms.usersSet as Record<string, any> | undefined;
+      return set?.[senderLocal] || set?.[senderRawId];
+    }
+  ) as Record<string, any> | undefined;
   // A usersSet hit with blank names is worth no more than a miss.
   const usersSetDisplayName = senderEntry
     ? `${senderEntry.firstName ?? ''} ${senderEntry.lastName ?? ''}`.trim() ||
@@ -279,10 +302,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   const { retryMessage } = useSendMessage();
 
   const [isPressed, setIsPressed] = useState(false);
-
-  if (__DEV__ && message.id && !(globalThis as any).__loggedMsg?.[message.id]) {
-    ((globalThis as any).__loggedMsg ||= {})[message.id] = true;
-  }
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
 
   const [contextMenuPosition, setContextMenuPosition] = useState<{
     left: number;
@@ -300,15 +320,20 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
     dispatch(setSelectedUser(user));
   };
 
+  const replyRef = parseMessageReference(message);
+
   const handleReplyMessage = () => {
     dispatch(setEditAction({ isEdit: false }));
 
-    if (!isReply && message.mainMessage) {
-      const messageCore = JSON.parse(message.mainMessage);
+    // An in-channel reply opens its PARENT's thread.
+    const parent = !isReply ? parseMessageReference(message) : null;
+    if (parent) {
       dispatch(
-        setActiveMessage({ id: messageCore.id, chatJID: messageCore.roomJid })
+        setActiveMessage({
+          id: parent.id,
+          chatJID: parent.roomJid || message.roomJid,
+        })
       );
-
       return setIsPressed(false);
     }
 
@@ -347,37 +372,13 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   // };
 
   const handleReactionMessage = (emoji: string) => {
-    if (!message.reaction) {
-      return client?.sendMessageReactionStanza(
-        message.id,
-        message.roomJid,
-        [emoji],
-        `${user.firstName} ${user.lastName}` as any
-      );
-    }
-    if (
-      message.reaction &&
-      message.reaction[user.xmppUsername || ''] &&
-      message.reaction[user.xmppUsername || '']?.emoji.includes(emoji)
-    ) {
-      const filterEmoji = message.reaction[user.xmppUsername || '']?.emoji.filter(
-        (reaction: any) => reaction !== emoji
-      );
-
-      return client?.sendMessageReactionStanza(
-        message.id,
-        message.roomJid,
-        filterEmoji,
-        `${user.firstName} ${user.lastName}` as any
-      );
-    }
-
-    client?.sendMessageReactionStanza(
-      message.id,
-      message.roomJid,
-      [...(message.reaction[user.xmppUsername || '']?.emoji || []), emoji],
-      `${user.firstName} ${user.lastName}` as any
-    );
+    if (!reactionsEnabled(config) || config?.disableInteractions) {return;}
+    const sender = { firstName: user.firstName, lastName: user.lastName };
+    const own = message.reaction?.[user.xmppUsername || '']?.emoji || [];
+    const next = own.includes(emoji)
+      ? own.filter((reaction) => reaction !== emoji)
+      : [...own, emoji];
+    client?.sendMessageReactionStanza(message.id, message.roomJid, next, sender);
   };
 
   // Long-press → capture the bubble's on-screen bounding box. The actual
@@ -420,6 +421,38 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
     setIsPressed(true);
   };
 
+  // Long-press is a NATIVE recognizer over the whole bubble column, not the
+  // Pressable's JS timer: the timer was lost whenever an inner responder
+  // (link text, media, reply quote, reactions) took the touch first, or the
+  // list stole it on the slightest drift — "works every other time". The
+  // recognizer fires wherever the finger lands, and once it does the touch
+  // is cancelled for everything underneath, so no tap handler fires on top.
+  const longPress = useMemo(
+    () =>
+      Gesture.LongPress()
+        .runOnJS(true)
+        .minDuration(350)
+        .maxDistance(12)
+        .enabled(!config?.disableInteractions)
+        .onStart(() => {
+          hapticTap();
+          handleLongPress();
+        }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [config?.disableInteractions]
+  );
+
+  // The bubble lifts a touch while its menu is open, and settles back.
+  const lift = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    Animated.spring(lift, {
+      toValue: isPressed ? 1.03 : 1,
+      useNativeDriver: true,
+      speed: 30,
+      bounciness: 6,
+    }).start();
+  }, [isPressed, lift]);
+
   // Body text size/weight is set on the parser's leaf <Text>s — the markdown
   // wraps content in <View>s which break Text-style inheritance, so the bubble
   // wrapper's fontSize alone never reached the actual text.
@@ -440,13 +473,19 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   const bodyToRender = showInlineTranslation
     ? translationDisplay.displayText
     : message.body;
-  const messageText = config?.messageTextFilter?.enabled
-    ? parseMessageBody(
-        config?.messageTextFilter.filterFunction(bodyToRender),
-        bodyTextStyle,
-        theme
-      )
-    : parseMessageBody(bodyToRender, bodyTextStyle, theme);
+  const textFilter = config?.messageTextFilter;
+  const messageText = useMemo(
+    () =>
+      textFilter?.enabled
+        ? parseMessageBody(
+            textFilter.filterFunction(bodyToRender),
+            bodyTextStyle,
+            theme
+          )
+        : parseMessageBody(bodyToRender, bodyTextStyle, theme),
+    [textFilter, bodyToRender, bodyTextStyle, theme]
+  );
+  const timeLabel = useMemo(() => formatClock(message.date), [message.date]);
 
   const isFailed = failedIdSet.has(message.id);
   const isPending =
@@ -465,12 +504,8 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
           styles.customMessageContainer,
           {
             justifyContent: isUser ? 'flex-end' : 'flex-start',
-            marginBottom: !!message?.reply?.length || message?.reaction && !!Object.keys(message?.reaction)?.length
-             ? 20 : 0,
+            marginBottom: 0,
           },
-          isPressed
-            ? { transform: [{ scale: 1.05 }], paddingRight: 16 }
-            : undefined,
           // justify-content: ${({ isUser }) => (isUser ? "flex-end" : "flex-start")},
           // margin-bottom: ${(props) => !!props.reply && "20px"},
         ]}
@@ -498,6 +533,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
             )}
           </CustomMessagePhotoContainer>
         )}
+        <GestureDetector gesture={longPress}>
         <Pressable
           // The Pressable fills the row's content area, so the bubble
           // inside must be aligned to the sender's side — otherwise it
@@ -519,13 +555,8 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
           // fire when onLongPress fires, so opening MessageInteractions via
           // long-press never triggers this dismiss.
           onPress={() => Keyboard.dismiss()}
-          // disableInteractions hides the long-press → context menu
-          // (delete / edit / reply / react). Mirrors web's config gate.
-          onLongPress={
-            config?.disableInteractions ? undefined : handleLongPress
-          }
-          delayLongPress={500}
         >
+          <Animated.View style={{ transform: [{ scale: lift }] }}>
           <CustomMessageBubble
             {...({ ref: bubbleRef, collapsable: false } as any)}
             isUser={isUser}
@@ -546,11 +577,12 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
                 {senderDisplayName}
               </CustomUserName>
             )}
-            {!isReply && message.mainMessage && (
+            {!isReply && !!replyRef?.text && (
               <MessageReply
                 handleReplyMessage={handleReplyMessage}
                 isUser={isUser}
-                text={JSON.parse(message.mainMessage).text}
+                text={replyRef.text}
+                userName={replyRef.userName}
                 color={theme.primary}
               />
             )}
@@ -625,40 +657,46 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
                 <Text style={[styles.editedText, themedStyles.muted]}>edited</Text>
               )}
               <Text style={[styles.timestampText, themedStyles.muted]}>
-                {new Date(message.date).toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
+                {timeLabel}
               </Text>
               {!config?.disableSentLogic && isUser && !isPending && !isFailed && (
                 <DoubleTick />
               )}
             </CustomTimestampRow>
 
-          {message?.reply?.length && message?.reply?.length > 0 ? (
-              <BottomReplyContainer
-                isUser={isUser}
-                onClick={handleReplyMessage}
-                reply={message?.reply}
-              />
-            ) : (
-              <View />
-            )}
-
-          <MessageFooter isUser={isUser}>
-
-            {message.reaction && !config?.disableReactions && (
-              <MessageReaction
-                reaction={message.reaction}
-                changeReaction={handleReactionMessage}
-                color={theme.primary}
-                userName={`${user.firstName} ${user.lastName}`}
-              />
-            )}
-          </MessageFooter>
           <BubbleHighlight messageId={String(message.id)} />
           </CustomMessageBubble>
+          {/* One row on the bubble's bottom edge: the thread pill (as on
+              web) and the reaction chips side by side. */}
+          {((!isReply && (message?.reply?.length || 0) > 0) ||
+            (!!message.reaction && reactionsEnabled(config))) && (
+            <View
+              style={[
+                styles.reactionRow,
+                isUser ? styles.reactionRowUser : styles.reactionRowOther,
+              ]}
+            >
+              {!isReply && (message?.reply?.length || 0) > 0 && (
+                <BottomReplyContainer
+                  isUser={isUser}
+                  onClick={handleReplyMessage}
+                  reply={message.reply!}
+                />
+              )}
+              {message.reaction && reactionsEnabled(config) && (
+                <MessageReaction
+                  reaction={message.reaction}
+                  changeReaction={handleReactionMessage}
+                  color={theme.primary}
+                  userName={`${user.firstName || ''} ${user.lastName || ''}`.trim()}
+                  interactive={!config?.disableInteractions}
+                />
+              )}
+            </View>
+          )}
+          </Animated.View>
         </Pressable>
+        </GestureDetector>
       </View>
       {!config?.disableInteractions && isPressed && (
         <MessageInteractions
@@ -671,13 +709,22 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
           handleDeleteMessage={handleDeleteMessage}
           handleEditMessage={handleEditMessage}
           handleReactionMessage={handleReactionMessage}
+          onOpenEmojiPicker={() => setEmojiPickerOpen(true)}
+        />
+      )}
+      {emojiPickerOpen && (
+        <EmojiPickerSheet
+          visible
+          onClose={() => setEmojiPickerOpen(false)}
+          onPick={handleReactionMessage}
         />
       )}
     </View>
   );
 };
 
-export { Message };
+const MemoMessage = React.memo(Message);
+export { MemoMessage as Message };
 
 const styles = StyleSheet.create({
   pendingName: { opacity: 0.5, minWidth: 14 },
@@ -686,6 +733,22 @@ const styles = StyleSheet.create({
     padding: 10,
     alignItems: 'flex-end',
     position: 'relative',
+  },
+  reactionRow: {
+    marginTop: -10,
+    zIndex: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 6,
+  },
+  reactionRowUser: {
+    alignSelf: 'flex-end',
+    marginRight: 8,
+  },
+  reactionRowOther: {
+    alignSelf: 'flex-start',
+    marginLeft: 8,
   },
   overlay: {
     ...StyleSheet.absoluteFill,

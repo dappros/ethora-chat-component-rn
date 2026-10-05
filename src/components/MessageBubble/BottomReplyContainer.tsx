@@ -2,8 +2,10 @@ import { FC, useMemo } from 'react';
 import { IReply, IUser } from '../../types/types';
 import { Avatar } from './Avatar';
 import { styled } from 'styled-components/native';
-import { Platform, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { useTheme } from '../../hooks/useTheme';
+import { useSelector } from 'react-redux';
+import type { RootState } from '../../roomStore';
 
 interface BottomReplyContainerProps {
   isUser: boolean;
@@ -13,29 +15,13 @@ interface BottomReplyContainerProps {
 
 const ReplyContainer = styled.TouchableOpacity<{ isUser: boolean }>`
   background-color: ${({ theme }) => theme.surface};
-  left: ${(props) => (!props.isUser ? '10px' : 'auto')};
-  right: ${(props) => (props.isUser ? '10px' : 'auto')};
-  padding: 4px 8px 4px 16px;
-  border-radius: 20px;
+  border: 0.5px solid ${({ theme }) => theme.border};
+  padding: 3px 10px 3px 14px;
+  border-radius: 14px;
   flex-direction: row;
   align-items: center;
   gap: 6px;
-  margin: 8px 8px 0;
 
-  ${({ theme }) =>
-    Platform.select({
-      // The light shadow is a soft bluish-grey tuned for a white card; on
-      // the dark palette that would read as a glow, so use the theme shadow.
-      ios: `
-      shadow-color: ${theme.dark ? theme.shadow : 'rgba(185, 198, 199, 1)'};
-      shadow-offset: 0px 0px;
-      shadow-opacity: 1;
-      shadow-radius: 8px;
-    `,
-      android: `
-      elevation: 8;
-    `,
-    })}
 `;
 
 const AvatarCircle = styled.View`
@@ -75,6 +61,17 @@ export const BottomReplyContainer: FC<BottomReplyContainerProps> = ({
   onClick,
 }) => {
   const theme = useTheme();
+  // The repliers' real names: a reply restored from cache carries only the
+  // sender's id, so resolve through the same directory the bubbles use.
+  const usersSet = useSelector((state: RootState) => state.rooms.usersSet);
+  const nameOf = (u: any): string => {
+    const raw = String(u?.id || '');
+    const entry = usersSet?.[raw.split('@')[0]] || usersSet?.[raw];
+    const full = entry
+      ? `${entry.firstName || ''} ${entry.lastName || ''}`.trim() || entry.name
+      : '';
+    return full || u?.name || '';
+  };
   const uniqueUsers: IUser[] = useMemo(() => {
     return Object.values(
       reply.reduce<Record<string, IUser>>((acc, item) => {
@@ -94,7 +91,8 @@ export const BottomReplyContainer: FC<BottomReplyContainerProps> = ({
         {uniqueUsers.slice(0, 3).map((item) => (
           <AvatarCircle key={item.id}>
             <Avatar
-              username={item.name}
+              username={nameOf(item)}
+              textSize={10}
               style={{
                 height: '100%',
                 width: '100%',

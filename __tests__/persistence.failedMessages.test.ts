@@ -85,7 +85,7 @@ function makeStore() {
 }
 
 async function flushDebouncedWrite() {
-  jest.advanceTimersByTime(250);
+  jest.advanceTimersByTime(1100);
   // Encrypting awaits the SecureStore-backed cipher key on top of the
   // AsyncStorage write itself -- yield generously (mirrors
   // persistence.extended.test.ts's flushDebouncedWrite).

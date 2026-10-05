@@ -33,8 +33,10 @@ export interface ChatThemeColors {
   icon: string;
   /** Sender name above incoming bubbles. */
   senderName: string;
-  /** Day-separator pill text; its background is a tint of it. */
+  /** Day-separator pill text (also system-message pills). */
   dateLabel: string;
+  /** Day-separator / system-message pill background. */
+  dateLabelBackground: string;
 
   /** Ground of the room list screen. */
   listBackground: string;
@@ -100,6 +102,7 @@ export const LIGHT_THEME: ChatThemeColors = {
   icon: DEFAULT_PRIMARY,
   senderName: DEFAULT_PRIMARY,
   dateLabel: DEFAULT_PRIMARY,
+  dateLabelBackground: '#E7EDF9',
 
   listBackground: '#E8EDF2',
   chatBackground: '#F3F6FC',
@@ -133,6 +136,7 @@ export const DARK_THEME: ChatThemeColors = {
   icon: '#4C8DFF',
   senderName: '#7FB0FF',
   dateLabel: '#7FB0FF',
+  dateLabelBackground: '#26303D',
 
   listBackground: '#0F1216',
   chatBackground: '#141A21',
@@ -174,6 +178,7 @@ export interface ThemeConfigInput {
     icon?: string;
     senderName?: string;
     dateLabel?: string;
+    dateLabelBackground?: string;
   };
   messageColor?: {
     backgroundMessage?: string;
@@ -239,6 +244,10 @@ export const resolveTheme = (
     icon: pick(c?.icon, c?.primary, LIGHT_THEME.icon)!,
     senderName: pick(c?.senderName, c?.primary, LIGHT_THEME.senderName)!,
     dateLabel: pick(c?.dateLabel, c?.primary, LIGHT_THEME.dateLabel)!,
+    dateLabelBackground: pick(
+      c?.dateLabelBackground,
+      LIGHT_THEME.dateLabelBackground
+    )!,
     chatBackground: pick(config?.backgroundChat?.color, LIGHT_THEME.chatBackground)!,
     messageBackground: pick(
       config?.messageColor?.backgroundMessage,

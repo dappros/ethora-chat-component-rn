@@ -40,6 +40,7 @@ import { startBackgroundJoinSweep } from '../helpers/backgroundJoinSweep';
 import { pushSubscriptionService } from '../services/pushSubscriptionService';
 import { store } from '../roomStore';
 import { logout, setStoreClient, setConfig } from '../roomStore/chatSettingsSlice';
+import { logoutService } from '../hooks/useLogout';
 import {
   setLogoutState,
   setVisibleRoom,
@@ -178,6 +179,22 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
       // Reused clients (steps 1+2 above) also need the provider — config
       // may have changed since the singleton was created.
       created.setCredentialsProvider(credentialsProvider);
+      // The XMPP password is gone for good (rejected, and the refresh could
+      // not produce a working one): end the session the same way the
+      // "Sign out" item does, then let the host route to its login.
+      created.setAuthLostHandler?.(() => {
+        devPushLog('error', 'XMPP password lost — logging out');
+        logoutService
+          .performLogout()
+          .catch(() => {})
+          .finally(() => {
+            try {
+              Promise.resolve(config?.logout?.onAfterLogout?.()).catch(() => {});
+            } catch {
+              /* host callback */
+            }
+          });
+      });
 
       // Re-join MUC rooms on every 'online'. After a reconnect the new
       // XMPP stream isn't a member of any room, so a sent message gets a
@@ -865,16 +882,19 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
     return () => sub.remove();
   }, [client]);
 
+  const contextValue = useMemo(
+    () => ({
+      client,
+      providerBootstrapStatus,
+      initMode,
+      initializeClient,
+      setClient,
+    }),
+    [client, providerBootstrapStatus, initMode, initializeClient, setClient]
+  );
+
   return (
-    <XmppContext.Provider
-      value={{
-        client,
-        providerBootstrapStatus,
-        initMode,
-        initializeClient,
-        setClient,
-      }}
-    >
+    <XmppContext.Provider value={contextValue}>
       {children}
       {/* Lives here, not inside <Chat>: an incoming call-token can arrive
           (and must still ring) while the user is on a different screen of

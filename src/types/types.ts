@@ -408,9 +408,10 @@ export interface IConfig {
      * pastel color from the hash palette (current default). */
     avatar?: string;
     /** Text color of the day-separator pill ("Today", "June 8") in the
-     * message list; the pill background is a light tint of it. Falls
-     * back to `primary`, then `#0052CD`. */
+     * message list. Falls back to `primary`, then `#0052CD`. */
     dateLabel?: string;
+    /** Background of the day-separator / system-message pill. */
+    dateLabelBackground?: string;
   };
   /**
    * Dark theme. `true` switches every surface, text and accent to the dark
@@ -705,6 +706,14 @@ export interface IConfig {
   // ----- interactions / messages -----
   disableInteractions?: boolean;
   disableReactions?: boolean;
+  /** Hide "Reply" in the long-press menu (threads still open from an
+   * existing thread pill or quote). */
+  disableReplies?: boolean;
+  reactions?: {
+    enabled?: boolean;
+    quickReactions?: string[];
+    picker?: boolean;
+  };
   disableProfilesInteractions?: boolean;
   disableUserCount?: boolean;
   /**

@@ -7,6 +7,7 @@ import { useT, useUiLocale } from '../../i18n/useT';
 
 interface DateLabelProps {
   date: Date;
+  /** Unused since the theme carries these; kept for callers' signatures. */
   colors?: { primary?: string; secondary?: string; dateLabel?: string };
 }
 
@@ -71,11 +72,14 @@ const DateLabel: React.FC<DateLabelProps> = ({ date, colors }) => {
     label = date.toLocaleDateString(uiLocale, options);
   }
 
-  // Theme-aware: dark mode ignores the light-only `colors` knobs (the
-  // theme already folds `colors.dateLabel` / `colors.primary` in light).
+  // Both colours come from the theme: the host's `colors.dateLabel` /
+  // `colors.dateLabelBackground` (light) and `darkColors.*` (dark) are
+  // already folded in there, with the palette defaults underneath. The
+  // pill no longer borrows `colors.secondary` — that is the accent for
+  // text on primary, and hosts set it to near-black.
   const theme = useTheme();
   const textColor = theme.dateLabel;
-  const bgColor = theme.dark ? theme.surfaceSecondary : colors?.secondary;
+  const bgColor = theme.dateLabelBackground;
 
   return (
     <Container>

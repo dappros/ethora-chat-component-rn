@@ -171,7 +171,9 @@ describe('history requests always settle and release their keys', () => {
     const c = makeClient();
     mockedGetHistory.mockResolvedValue([msg('1')]);
     await c.getHistoryStanza(ROOM, 10, 1700000000000000, 'mid');
-    expect(mockedGetHistory).toHaveBeenCalledWith(c.client, ROOM, 10, 1700000000000000, 'mid');
+    expect(mockedGetHistory).toHaveBeenCalledWith(c.client, ROOM, 10, 1700000000000000, 'mid', {
+      selfApplied: undefined,
+    });
   });
 });
 

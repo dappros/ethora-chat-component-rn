@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import { RootState } from '../roomStore';
 
@@ -8,8 +9,11 @@ export const useMessageHeapState = () => {
   const failedMessages = useSelector(
     (state: RootState) => state.roomHeapSlice?.failedMessages
   );
-  const idSet = new Set(queue?.map((m) => m.id) ?? []);
-  const failedIdSet = new Set(Object.keys(failedMessages || {}));
+  const idSet = useMemo(() => new Set(queue?.map((m) => m.id) ?? []), [queue]);
+  const failedIdSet = useMemo(
+    () => new Set(Object.keys(failedMessages || {})),
+    [failedMessages]
+  );
 
   return { queue, idSet, failedMessages, failedIdSet };
 };

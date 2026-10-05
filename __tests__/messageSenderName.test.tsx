@@ -35,6 +35,13 @@ jest.mock('../src/context/ToastContext', () => ({
 jest.mock('../src/context/xmppProvider', () => ({
   useXmppClient: () => ({ client: { sendMessageReactionStanza: jest.fn() } }),
 }));
+jest.mock('react-native-gesture-handler', () => {
+  const chain: any = new Proxy({}, { get: () => () => chain });
+  return {
+    Gesture: new Proxy({}, { get: () => () => chain }),
+    GestureDetector: ({ children }: any) => children,
+  };
+});
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
   SafeAreaProvider: ({ children }: any) => children,

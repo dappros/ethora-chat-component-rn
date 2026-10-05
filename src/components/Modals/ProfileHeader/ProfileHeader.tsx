@@ -4,6 +4,7 @@ import React from 'react';
 import {
   Animated,
   Image,
+  Platform,
   StyleProp,
   StyleSheet,
   Text,
@@ -39,7 +40,13 @@ const COLLAPSE_RAMP = 48;
  */
 const BLUR_INTENSITY = 92;
 /** Darkening applied on top of the blur (and used alone without it). */
-const FROST_DIM = 'rgba(0,0,0,0.28)';
+const FROST_DIM = 'rgba(0,0,0,0.5)';
+/**
+ * Blur of the picture itself when expo-blur is not in the binary: RN's own
+ * `Image.blurRadius`, so the collapsed header is still frosted rather than
+ * just dimmed. Android caps the radius at 25.
+ */
+const IMAGE_BLUR_RADIUS = Platform.OS === 'android' ? 25 : 40;
 /** Height of the readability gradient under the name and buttons. */
 const SCRIM_HEIGHT = 220;
 /** Bands the gradient is built from — enough that no step is visible. */
@@ -249,12 +256,25 @@ export const ProfileHero: React.FC<
           ]}
         >
           {onPhoto ? (
-            <Image
-              testID={`${testIDPrefix}-hero-image`}
-              source={{ uri: imageUri as string }}
-              style={StyleSheet.absoluteFill}
-              resizeMode="cover"
-            />
+            <>
+              <Image
+                testID={`${testIDPrefix}-hero-image`}
+                source={{ uri: imageUri as string }}
+                style={StyleSheet.absoluteFill}
+                resizeMode="cover"
+              />
+              {/* Without expo-blur the frost is a blurred copy of the same
+                * picture, inside the same transform so the two line up as
+                * one fades into the other. */}
+              {!BlurView && (
+                <Animated.Image
+                  source={{ uri: imageUri as string }}
+                  style={[StyleSheet.absoluteFill, { opacity: collapsed }]}
+                  resizeMode="cover"
+                  blurRadius={IMAGE_BLUR_RADIUS}
+                />
+              )}
+            </>
           ) : (
             <View style={styles.initialsWrap}>
               <Text
@@ -395,6 +415,7 @@ export const ProfileTopBar: React.FC<
               source={{ uri: imageUri as string }}
               style={StyleSheet.absoluteFill}
               resizeMode="cover"
+              blurRadius={BlurView ? 0 : IMAGE_BLUR_RADIUS}
             />
             <FrostLayer />
           </>
@@ -499,7 +520,7 @@ const styles = StyleSheet.create({
     backgroundColor: FROST_DIM,
   },
   frostFallback: {
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: FROST_DIM,
   },
   // Only over a photo: keeps white text readable without tinting the flat
   // fallback colour.

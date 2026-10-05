@@ -19,6 +19,7 @@ interface HistoryPreloadSchedulerOptions {
   pageSize?: number;
   retryLimit?: number;
   roomLimit?: number;
+  firstWave?: number;
   selectedRoomJid?: string | null;
   defaultRoomJids?: string[];
   forceReload?: boolean;
@@ -42,11 +43,12 @@ interface QueueItem {
 }
 
 const DEFAULT_CONCURRENCY = 3;
-// Fetch the most recent ~20 on re-entry (mirrors web). A larger first page
-// also means more id-overlap with cache, so the merge in
-// `mergeHistoryIntoCache` rarely has to fall back to clear-and-replace.
-const DEFAULT_PAGE_SIZE = 20;
+const DEFAULT_PAGE_SIZE = 10;
 const DEFAULT_RETRY_LIMIT = 2;
+const DEFAULT_FIRST_WAVE = 30;
+// Past the first wave a worker rests this long between rooms, so a long
+// background sweep does not saturate the socket a user is also chatting on.
+const BACKGROUND_ROOM_PAUSE_MS = 400;
 // When the first page is entirely unread (every fetched message is newer
 // than `lastViewedTimestamp`), the true unread count could be far bigger
 // than `pageSize` - `useUnread()` only ever sees what's been loaded. Page
@@ -66,6 +68,8 @@ const JOIN_BEFORE_FETCH_TIMEOUT_MS = 3000;
 const EMPTY_PAGE_ERROR = 'history_empty_page';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+declare const __DEV__: boolean | undefined;
 
 const messageTimestamp = (m: IMessage): number => getMessageTimestamp(m);
 
@@ -91,7 +95,10 @@ const computeUnreadCapped = (
   if (countable.length < pageSize) {return false;}
 
   const lastViewed = Number(room.lastViewedTimestamp) || 0;
-  if (lastViewed <= 0) {return true;}
+  // No read marker yet (the private-store markers often land after the
+  // first preload page): the count is unknown, not "more than a page".
+  // Claiming capped here showed "10+" on rooms with a single unread.
+  if (lastViewed <= 0) {return false;}
 
   const oldestTs = countable.reduce<number>((minTs, m) => {
     const ts = messageTimestamp(m);
@@ -184,6 +191,7 @@ const runHistoryPreloadSweep = async (
     pageSize = DEFAULT_PAGE_SIZE,
     retryLimit = DEFAULT_RETRY_LIMIT,
     roomLimit,
+    firstWave = DEFAULT_FIRST_WAVE,
     selectedRoomJid = null,
     defaultRoomJids = [],
     forceReload = false,
@@ -193,11 +201,19 @@ const runHistoryPreloadSweep = async (
 
   if (signal?.aborted) {return;}
 
+  const startedAt = Date.now();
+  let firstWaveLogged = false;
+  let started = 0;
+  const devLog = (msg: string) => {
+    if (typeof __DEV__ !== 'undefined' && __DEV__) {console.log(msg);}
+  };
+
   activeSweeps += 1;
   if (activeSweeps === 1) {store.dispatch(setUnreadSyncing(true));}
   try {
     await runSweepBody();
   } finally {
+    devLog(`[preload] finished in ${Date.now() - startedAt}ms`);
     activeSweeps -= 1;
     if (activeSweeps === 0) {store.dispatch(setUnreadSyncing(false));}
   }
@@ -244,6 +260,9 @@ const runHistoryPreloadSweep = async (
 
     const inFlightByRoom = new Map<string, Promise<void>>();
     let consecutiveErrorCount = 0;
+    devLog(
+      `[preload] ${queue.length} rooms queued, first wave ${Math.min(firstWave, queue.length)}, page ${pageSize}`
+    );
 
     // Rooms that no longer need this sweep's work: preloaded by another path
     // (the user opened them, a parallel bootstrap, an earlier sweep) or gone.
@@ -300,6 +319,9 @@ const runHistoryPreloadSweep = async (
           await (client as any).ensureRoomPresence?.(item.jid, {
             timeoutMs: JOIN_BEFORE_FETCH_TIMEOUT_MS,
             source: 'background',
+            // The sweep merges pages itself (one batch per room, with gap and
+            // unread detection): the MAM router must not apply them as well.
+            selfApplied: true,
           });
         } catch {}
         if (signal?.aborted) {return;}
@@ -518,6 +540,7 @@ const runHistoryPreloadSweep = async (
         }
 
         activeWorkers += 1;
+        started += 1;
         const task = processItem(item);
         inFlightByRoom.set(item.jid, task);
         try {
@@ -527,8 +550,14 @@ const runHistoryPreloadSweep = async (
           activeWorkers -= 1;
         }
 
-        // Yield to the JS event loop (no requestIdleCallback in RN).
-        await new Promise((resolve) => setTimeout(resolve, 0));
+        // Yield to the JS event loop (no requestIdleCallback in RN); past the
+        // first wave, rest a little between rooms.
+        const inBackgroundWave = started >= firstWave;
+        if (inBackgroundWave && !firstWaveLogged) {
+          firstWaveLogged = true;
+          devLog(`[preload] first wave done in ${Date.now() - startedAt}ms`);
+        }
+        await sleep(inBackgroundWave ? BACKGROUND_ROOM_PAUSE_MS : 0);
       }
     };
 

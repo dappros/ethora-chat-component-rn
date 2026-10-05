@@ -5,10 +5,15 @@ import { configureStore } from '@reduxjs/toolkit';
 import chatSettingsReducer, {
   setUser,
 } from '../src/roomStore/chatSettingsSlice';
-import roomsReducer, { addRoom } from '../src/roomStore/roomsSlice';
+import roomsReducer, {
+  addRoom,
+  addRoomMessage,
+  setComposing,
+} from '../src/roomStore/roomsSlice';
 import {
   PERSIST_KEYS,
   clearPersistedState,
+  persistedRoomKey,
   persistenceMiddleware,
   readPersistedState,
 } from '../src/roomStore/persistence';
@@ -85,15 +90,16 @@ describe('persistence — write', () => {
     store.dispatch(setUser(makeUser()));
     store.dispatch(addRoom({ roomData: makeRoom('r@h') }));
 
-    // No write yet (debounced 200 ms).
+    // No write yet (debounced 1 s).
     expect(await AsyncStorage.getItem(PERSIST_KEYS.KEY_CHAT)).toBeNull();
-    expect(await AsyncStorage.getItem(PERSIST_KEYS.KEY_ROOMS)).toBeNull();
+    expect(await AsyncStorage.getItem(persistedRoomKey('r@h'))).toBeNull();
 
-    jest.advanceTimersByTime(250);
+    jest.advanceTimersByTime(1100);
     await flushMicrotasks();
 
     const chatRaw = await AsyncStorage.getItem(PERSIST_KEYS.KEY_CHAT);
-    const roomsRaw = await AsyncStorage.getItem(PERSIST_KEYS.KEY_ROOMS);
+    // Each room has its own key, listed in the index.
+    const roomsRaw = await AsyncStorage.getItem(persistedRoomKey('r@h'));
     expect(chatRaw).not.toBeNull();
     expect(roomsRaw).not.toBeNull();
     // The raw value is an opaque AES envelope, not the plaintext payload:
@@ -110,8 +116,49 @@ describe('persistence — write', () => {
     expect(persistedChat.user.refreshToken).toBe('');
     expect(persistedChat.user.xmppPassword).toBe('');
 
-    const persistedRooms = await readDecrypted(PERSIST_KEYS.KEY_ROOMS);
-    expect(persistedRooms.rooms['r@h']).toBeDefined();
+    const persistedRoom = await readDecrypted(persistedRoomKey('r@h'));
+    expect(persistedRoom.jid).toBe('r@h');
+    const index = await readDecrypted(PERSIST_KEYS.KEY_ROOM_INDEX);
+    expect(index.jids).toEqual(['r@h']);
+    // And the reader puts the rooms back together.
+    const out = await readPersistedState();
+    expect(out.rooms?.rooms['r@h']).toBeDefined();
+  });
+
+  it('writes only the rooms an action touched, and skips transient actions', async () => {
+    const store = makeStore();
+    store.dispatch(addRoom({ roomData: makeRoom('a@h') }));
+    store.dispatch(addRoom({ roomData: makeRoom('b@h') }));
+    jest.advanceTimersByTime(1100);
+    await flushMicrotasks();
+    const bBefore = await AsyncStorage.getItem(persistedRoomKey('b@h'));
+    expect(bBefore).not.toBeNull();
+
+    // A message in `a` rewrites `a` only.
+    store.dispatch(
+      addRoomMessage({
+        roomJID: 'a@h',
+        message: {
+          id: '1700000000000001',
+          body: 'hi',
+          date: '2026-05-15T10:00:00Z',
+          roomJid: 'a@h',
+          user: { id: 'u', name: 'u' } as any,
+        } as any,
+      })
+    );
+    jest.advanceTimersByTime(1100);
+    await flushMicrotasks();
+    expect(await AsyncStorage.getItem(persistedRoomKey('b@h'))).toBe(bBefore);
+    const a = await readDecrypted(persistedRoomKey('a@h'));
+    expect(a.messages).toHaveLength(1);
+
+    // Typing indicators never touch the disk.
+    const aRaw = await AsyncStorage.getItem(persistedRoomKey('a@h'));
+    store.dispatch(setComposing({ chatJID: 'a@h', composing: true } as any));
+    jest.advanceTimersByTime(1100);
+    await flushMicrotasks();
+    expect(await AsyncStorage.getItem(persistedRoomKey('a@h'))).toBe(aRaw);
   });
 
   it('drops malformed room keys + caps to 100 messages per room', async () => {
@@ -128,14 +175,14 @@ describe('persistence — write', () => {
       addRoom({ roomData: { ...makeRoom('r@h'), messages: msgs } })
     );
 
-    jest.advanceTimersByTime(250);
+    jest.advanceTimersByTime(1100);
     await flushMicrotasks();
 
-    const persistedRooms = await readDecrypted(PERSIST_KEYS.KEY_ROOMS);
-    expect(persistedRooms.rooms['r@h'].messages).toHaveLength(100);
+    const persistedRoom = await readDecrypted(persistedRoomKey('r@h'));
+    expect(persistedRoom.messages).toHaveLength(100);
     // Keeps the most recent 100 — drops m0..m9, keeps m10..m109.
-    expect(persistedRooms.rooms['r@h'].messages[0].body).toBe('m10');
-    expect(persistedRooms.rooms['r@h'].messages[99].body).toBe('m109');
+    expect(persistedRoom.messages[0].body).toBe('m10');
+    expect(persistedRoom.messages[99].body).toBe('m109');
   });
 });
 
@@ -146,12 +193,39 @@ describe('persistence — read + clear', () => {
     expect(out.rooms).toBeNull();
   });
 
-  it('clearPersistedState empties both keys', async () => {
+  it('clearPersistedState empties every key, per-room ones included', async () => {
     await AsyncStorage.setItem(PERSIST_KEYS.KEY_CHAT, JSON.stringify({ user: {} }));
     await AsyncStorage.setItem(PERSIST_KEYS.KEY_ROOMS, JSON.stringify({ rooms: {} }));
+    await AsyncStorage.setItem(PERSIST_KEYS.KEY_ROOM_INDEX, 'x');
+    await AsyncStorage.setItem(persistedRoomKey('r@h'), 'x');
     await clearPersistedState();
     expect(await AsyncStorage.getItem(PERSIST_KEYS.KEY_CHAT)).toBeNull();
     expect(await AsyncStorage.getItem(PERSIST_KEYS.KEY_ROOMS)).toBeNull();
+    expect(await AsyncStorage.getItem(PERSIST_KEYS.KEY_ROOM_INDEX)).toBeNull();
+    expect(await AsyncStorage.getItem(persistedRoomKey('r@h'))).toBeNull();
+  });
+
+  it('migrates the legacy single-blob cache into per-room keys', async () => {
+    const { encryptForPersist } = require('../src/helpers/persistCrypto');
+    await AsyncStorage.setItem(
+      PERSIST_KEYS.KEY_ROOMS,
+      await encryptForPersist(
+        JSON.stringify({ rooms: { 'old@h': makeRoom('old@h') } })
+      )
+    );
+    const out = await readPersistedState();
+    expect(out.rooms?.rooms['old@h']).toBeDefined();
+
+    // The first write after the migration lays the rooms out per key and
+    // drops the blob.
+    const store = makeStore();
+    store.dispatch(addRoom({ roomData: makeRoom('old@h') }));
+    jest.advanceTimersByTime(1100);
+    await flushMicrotasks(60);
+    expect(await AsyncStorage.getItem(PERSIST_KEYS.KEY_ROOMS)).toBeNull();
+    expect(await AsyncStorage.getItem(persistedRoomKey('old@h'))).not.toBeNull();
+    const again = await readPersistedState();
+    expect(again.rooms?.rooms['old@h']).toBeDefined();
   });
 
   it('treats a pre-encryption plaintext cache as a cold start, not a crash', async () => {

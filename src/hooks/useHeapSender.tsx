@@ -89,8 +89,9 @@ export const useHeapSender = (client: XmppClient | null) => {
               msg.user.walletAddress || '',
               msg.body,
               '',
-              !!msg.isReply,
-              !!msg.showInChannel,
+              // Wire values are strings: '"false"' is truthy.
+              String(msg.isReply) === 'true',
+              String(msg.showInChannel) === 'true',
               msg.mainMessage,
               msg.id
             );

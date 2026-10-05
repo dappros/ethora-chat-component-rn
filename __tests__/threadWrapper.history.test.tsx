@@ -64,6 +64,21 @@ jest.mock('../src/components/Modals/ModalHeaderComponent', () => ({
 jest.mock('../src/components/MainComponents/EditWrapper', () => ({
   EditWrapper: () => null,
 }));
+jest.mock('react-native-gesture-handler', () => {
+  const chain: any = new Proxy({}, { get: () => () => chain });
+  return {
+    Gesture: new Proxy({}, { get: () => () => chain }),
+    GestureDetector: ({ children }: any) => children,
+  };
+});
+jest.mock('react-native-keyboard-controller', () => {
+  const { View } = require('react-native');
+  return {
+    KeyboardAvoidingView: View,
+    KeyboardStickyView: View,
+    useReanimatedKeyboardAnimation: () => ({}),
+  };
+});
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
   SafeAreaProvider: ({ children }: any) => children,
@@ -304,7 +319,10 @@ describe('ThreadWrapper history', () => {
     const r = await mount();
     const texts = r.root
       .findAllByType(require('react-native').Text)
-      .map((t: any) => [].concat(t.props.children).join(''));
+      .map((t: any) =>
+        // The label is "<caption> <Text>room</Text>": keep the strings only.
+        [].concat(t.props.children).filter((c: any) => typeof c === 'string').join('').trim()
+      );
     expect(texts).toContain(BUILTIN_STRINGS.en['thread.alsoSendTo']);
     expect(texts).toContain('General');
   });
@@ -321,12 +339,8 @@ describe('ThreadWrapper history', () => {
     expect(mockSendMedia).toHaveBeenLastCalledWith(
       { uri: 'x' }, 'image/png', JID, true, false, main
     );
-    // Press the also-send container (first pressable ancestor of the label)
-    const label = r.root
-      .findAllByType(require('react-native').Text)
-      .find((t: any) => [].concat(t.props.children).join('') === 'Also send to')!;
-    let node: any = label;
-    while (node && typeof node.props.onPress !== 'function') node = node.parent;
+    // Press the also-send checkbox row (testID from the reworked thread UI).
+    const node: any = r.root.find((n: any) => n.props.testID === 'thread-also-send' && typeof n.props.onPress === 'function');
     await act(async () => { node.props.onPress(); });
     mockInputProps.sendMessage('hi2');
     expect(mockSendMessage).toHaveBeenLastCalledWith('hi2', JID, true, true, main);

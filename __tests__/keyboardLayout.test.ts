@@ -1,5 +1,8 @@
 import {
   getKeyboardVerticalOffset,
+  getKeyboardAvoidingOffset,
+  getInputDockKeyboardPadding,
+  IOS_KEYBOARD_DOCK_GAP,
   getInputDockPaddingBottom,
   ANDROID_INPUT_DOCK_GAP,
 } from '../src/helpers/keyboardLayout';
@@ -21,6 +24,29 @@ describe('keyboardLayout', () => {
         platform: 'android',
         configuredOffset: 12,
         bottomInset: 34,
+      })
+    ).toBe(12);
+  });
+
+  it('does not add the bottom inset to the avoiding-view offset', () => {
+    expect(getKeyboardAvoidingOffset({ configuredOffset: 12 })).toBe(12);
+    expect(getKeyboardAvoidingOffset({})).toBe(0);
+  });
+
+  it('collapses the iOS dock padding to a small gap while the keyboard is open', () => {
+    expect(
+      getInputDockKeyboardPadding({ platform: 'ios', inputDockPaddingBottom: 34 })
+    ).toBe(IOS_KEYBOARD_DOCK_GAP);
+    expect(
+      getInputDockKeyboardPadding({ platform: 'ios', inputDockPaddingBottom: 0 })
+    ).toBe(0);
+  });
+
+  it('keeps the Android dock padding while the keyboard is open', () => {
+    expect(
+      getInputDockKeyboardPadding({
+        platform: 'android',
+        inputDockPaddingBottom: 12,
       })
     ).toBe(12);
   });

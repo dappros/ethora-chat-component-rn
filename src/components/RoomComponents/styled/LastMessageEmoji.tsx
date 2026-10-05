@@ -5,22 +5,21 @@ import {
   LastRoomMessageText,
 } from './StyledRoomComponents';
 import { LastMessage } from '../../../types/types';
+import { getEmojiNativeById } from '../../../helpers/emoji';
 
 interface LastMessageEmojiProps extends Pick<LastMessage, 'user' | 'emoji'> {}
 
 /**
- * Renders the per-room last-message preview when the latest message
- * is a reaction (emoji). The `emoji` field is expected to already be
- * a unicode glyph (the reaction stanza carries the rendered character,
- * not an `:id:`) so we just render it as-is — no emoji-id resolution
- * library needed. If a legacy payload still ships an `:id:`, it
- * renders verbatim instead of crashing.
+ * The room-list preview when the latest event in a room is a reaction.
+ * The stanza carries the emoji's short name (`joy`, `+1`), as on web — it
+ * is resolved to the glyph here; a glyph or unknown id renders as is.
  */
 const LastMessageEmoji: FC<LastMessageEmojiProps> = ({ user, emoji }) => {
+  const name = (user?.name || '').trim();
   return (
     <LastRoomMessageContainer>
-      <LastRoomMessageName>{user?.name || ''}:</LastRoomMessageName>
-      <LastRoomMessageText>{emoji || ''}</LastRoomMessageText>
+      {!!name && <LastRoomMessageName>{name}:</LastRoomMessageName>}
+      <LastRoomMessageText>{emoji ? getEmojiNativeById(emoji) : ''}</LastRoomMessageText>
     </LastRoomMessageContainer>
   );
 };

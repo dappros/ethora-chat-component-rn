@@ -48,7 +48,7 @@ const makeStore = () =>
 // (SecureStore-backed key, then AES) before the multiSet, so drain a deep
 // microtask chain rather than a couple of turns.
 const flush = async () => {
-  jest.advanceTimersByTime(250);
+  jest.advanceTimersByTime(1100);
   for (let i = 0; i < 20; i++) {
     await Promise.resolve();
   }
@@ -91,7 +91,7 @@ describe('persisted message fields', () => {
     store.dispatch(addRoom({ roomData: room }));
     await flush();
 
-    const persisted = await readDecrypted(PERSIST_KEYS.KEY_ROOMS);
+    const persisted = { rooms: (await readPersistedState()).rooms?.rooms || {} };
     const restored = persisted.rooms['r@h'].messages[0];
 
     expect(restored.langSource).toBe('en-CA');
