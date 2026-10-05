@@ -1,6 +1,7 @@
-import React, {FC, useEffect, useMemo, useRef, useState} from 'react';
+import React, {FC, useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useDispatch, useSelector} from 'react-redux';
 import ChatRoom from './ChatRoom';
+import {RoomStack, RoomStackHandle} from './RoomStack';
 import {
   setActiveModal,
   setConfig,
@@ -37,7 +38,7 @@ import {ModalWrapper} from '../Modals/ModalWrapper/ModalWrapper';
 import {useChatSettingState} from '../../hooks/useChatSettingState';
 import {useTheme} from '../../hooks/useTheme';
 import { usePendingNotification } from '../../hooks/usePendingNotification';
-import {DeviceEventEmitter, Pressable, Text, View} from 'react-native';
+import {DeviceEventEmitter, Keyboard, Pressable, Text, View} from 'react-native';
 import {pushLog as devPushLog} from '../../utils/devLogger';
 import {normalizeRoomJid} from '../../helpers/normalizeRoomJid';
 import {buildSeedRoom} from '../../helpers/buildSeedRoom';
@@ -70,6 +71,10 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
 
   usePendingNotification();
   const theme = useTheme();
+  const roomStackRef = useRef<RoomStackHandle>(null);
+  // Stable, so ChatRoom's React.memo holds across this root's re-renders.
+  // (A hook: must stay above the early LoginForm return.)
+  const popRoom = useCallback(() => roomStackRef.current?.pop(), []);
 
   const [isInited, setInited] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -92,15 +97,18 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
     initMode,
   } = useXmppClient();
 
-  const {rooms, activeRoomJID} = useSelector((state: RootState) => state.rooms);
+  const rooms = useSelector((state: RootState) => state.rooms.rooms);
+  const activeRoomJID = useSelector(
+    (state: RootState) => state.rooms.activeRoomJID,
+  );
+  const activeRoomMessages = useSelector((state: RootState) =>
+    activeRoomJID ? state.rooms.rooms[activeRoomJID]?.messages : undefined,
+  );
 
-  const activeMessage = useMemo(() => {
-    if (activeRoomJID) {
-      return rooms[activeRoomJID]?.messages?.find(
-        message => message?.activeMessage,
-      );
-    }
-  }, [rooms, activeRoomJID]);
+  const activeMessage = useMemo(
+    () => activeRoomMessages?.find(message => message?.activeMessage),
+    [activeRoomMessages],
+  );
 
   const handleChangeChat = (chat: IRoom) => {
     dispatch(setCurrentRoom({roomJID: chat.jid}));
@@ -122,6 +130,14 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
   const handleCloseDeleteModal = () => {
     dispatch(setDeleteModal({isDeleteModal: false}));
   };
+
+  // A modal (chat profile, user profile, ...) covers the chat, so the
+  // composer's keyboard must not stay open on top of it.
+  useEffect(() => {
+    if (activeModal) {
+      Keyboard.dismiss();
+    }
+  }, [activeModal]);
 
   // A host drives the reader's language from OUTSIDE the component through
   // `config.translates.readerLocale` (their own switcher, or the testbed's
@@ -425,6 +441,22 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
   // the list. With `roomJID` or `disableRooms`, skip the list entirely.
   const showRoomList =
     !config?.disableRooms && !roomJID && !activeRoomJID;
+  // List mode: the room is pushed over the list and can be swiped back
+  // (RoomStack). With `roomJID` / `disableRooms` there is no list to return to.
+  const listMode = !config?.disableRooms && !roomJID;
+
+  // The open thread, over the room (a message with `activeMessage` set).
+  const threadView = activeMessage ? (
+    <ThreadWrapper
+      key={activeMessage.id}
+      activeMessage={activeMessage}
+      user={user}
+      customMessageComponent={CustomMessageComponent || Message}
+    />
+  ) : null;
+  const backToList = () => {
+    dispatch(setCurrentRoom({ roomJID: '' }));
+  };
 
   return (
     <>
@@ -489,10 +521,36 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
                 Android. Wraps only the chat area — the global Modal /
                 ModalWrapper below stay above it. */}
             <InteractionsOverlayProvider>
-              {showRoomList ? (
-                <RoomList
-                  chats={Object.values(rooms)}
-                  onRoomClick={handleChangeChat}
+              {listMode ? (
+                <RoomStack
+                  ref={roomStackRef}
+                  onBack={backToList}
+                  roomBackground={theme.chatBackground}
+                  // An open modal covers the room: back must not pull the
+                  // room out from under it.
+                  hardwareBack={!activeModal}
+                  list={
+                    <RoomList
+                      chats={Object.values(rooms)}
+                      onRoomClick={handleChangeChat}
+                    />
+                  }
+                  room={
+                    showRoomList ? null : (
+                      <ChatWrapperBox
+                        style={{
+                          ...MainComponentStyles,
+                        }}>
+                        <ChatRoom
+                          CustomMessageComponent={
+                            CustomMessageComponent || Message
+                          }
+                          handleBackClick={popRoom}
+                        />
+                        {threadView}
+                      </ChatWrapperBox>
+                    )
+                  }
                 />
               ) : (
                 <ChatWrapperBox
@@ -501,14 +559,8 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
                   }}>
                   <ChatRoom
                     CustomMessageComponent={CustomMessageComponent || Message}
-                    handleBackClick={
-                      roomJID || config?.disableRooms
-                        ? undefined
-                        : () => {
-                            dispatch(setCurrentRoom({ roomJID: '' }));
-                          }
-                    }
                   />
+                  {threadView}
                 </ChatWrapperBox>
               )}
             </InteractionsOverlayProvider>

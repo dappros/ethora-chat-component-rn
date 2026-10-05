@@ -32,6 +32,8 @@ export interface HistoryFetchOptions {
   coalesceRoom?: boolean;
   skipIfPreloaded?: boolean;
   source?: HistorySource;
+  /** The caller merges the page into the store itself. */
+  selfApplied?: boolean;
 }
 
 export interface XmppClientInterface {
@@ -133,11 +135,11 @@ export interface XmppClientInterface {
     chats?: string[]
   ): Promise<void>;
   sendMediaMessageStanza(roomJID: string, data: any, id?: string): void;
-  sendMessageReactionStanza?(
+  sendMessageReactionStanza(
     messageId: string,
     roomJid: string,
     reactionsList: string[],
-    reactionSymbol?: string
+    data?: { firstName?: string; lastName?: string }
   ): void;
   sendTextMessageWithTranslateTagStanza?(
     roomJID: string,

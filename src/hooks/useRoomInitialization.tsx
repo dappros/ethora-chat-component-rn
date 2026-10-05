@@ -6,8 +6,9 @@ import {
 } from '../roomStore/roomsSlice';
 import { useXmppClient } from '../context/xmppProvider';
 import { IConfig, IMessage, IRoom } from '../types/types';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector, useStore } from 'react-redux';
 import useGetNewArchRoom from './useGetNewArchRoom';
+import type { RootState } from '../roomStore';
 
 const countUndefinedText = (arr: IMessage[]) =>
   (Array.isArray(arr) ? arr : []).filter(
@@ -25,14 +26,32 @@ const hasLoadedRoomHistory = (room?: IRoom): boolean => {
   );
 };
 
+const defaultRoomJids = (config: IConfig): string[] =>
+  (config?.defaultRooms || []).map((room: any) =>
+    typeof room === 'string' ? room : room?.jid
+  );
+
 export const useRoomInitialization = (
   activeRoomJID: string,
-  roomsList: Record<string, IRoom>,
-  config: IConfig,
-  messageLength: number
+  config: IConfig
 ) => {
   const { client } = useXmppClient();
   const dispatch = useDispatch();
+  const reduxStore = useStore<RootState>();
+
+  const hasRooms = useSelector(
+    (state: RootState) => Object.keys(state.rooms.rooms || {}).length > 0
+  );
+  const activeRoomExists = useSelector(
+    (state: RootState) => !!activeRoomJID && !!state.rooms.rooms?.[activeRoomJID]
+  );
+  const activeHistoryLoaded = useSelector((state: RootState) =>
+    hasLoadedRoomHistory(state.rooms.rooms?.[activeRoomJID])
+  );
+  const defaultRoomsMissing = useSelector((state: RootState) => {
+    const jids = defaultRoomJids(config);
+    return jids.length > 0 && jids.some((jid) => !state.rooms.rooms?.[jid]);
+  });
 
   const syncRooms = useGetNewArchRoom();
 
@@ -68,9 +87,8 @@ export const useRoomInitialization = (
   }, [client, activeRoomJID]);
 
   useEffect(() => {
-    const activeRoom = roomsList?.[activeRoomJID];
-    const shouldLoadActiveHistory =
-      !!activeRoomJID && !hasLoadedRoomHistory(activeRoom);
+    const roomsList = reduxStore.getState().rooms.rooms || {};
+    const shouldLoadActiveHistory = !!activeRoomJID && !activeHistoryLoaded;
 
     const getDefaultHistory = async () => {
       if (!client || !activeRoomJID) {return;}
@@ -155,7 +173,7 @@ export const useRoomInitialization = (
         // real, non-pending message in the room counts as "loaded").
         dispatch(setIsLoading({ loading: true, chatJID: activeRoomJID }));
         getDefaultHistory();
-      } else {
+      } else if (roomsList?.[activeRoomJID]?.isLoading) {
         dispatch(setIsLoading({ loading: false, chatJID: activeRoomJID }));
       }
     } else if (!roomsList?.[activeRoomJID]) {
@@ -163,10 +181,7 @@ export const useRoomInitialization = (
     }
 
     if (client && config?.defaultRooms) {
-      const allExist = config?.defaultRooms.every(
-        (room) => roomsList[typeof room === 'string' ? room : room.jid] !== undefined
-      );
-      if (roomsList && !allExist) {
+      if (defaultRoomsMissing) {
         config?.defaultRooms.map(async (room) => {
           client.presenceInRoomStanza(typeof room === 'string' ? room : room.jid);
         });
@@ -177,10 +192,12 @@ export const useRoomInitialization = (
         }
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     activeRoomJID,
-    Object.keys(roomsList).length,
-    messageLength,
-    roomsList?.[activeRoomJID]?.messages?.length,
+    hasRooms,
+    activeRoomExists,
+    activeHistoryLoaded,
+    defaultRoomsMissing,
   ]);
 };

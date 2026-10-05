@@ -1,4 +1,5 @@
 import { Element } from 'ltx';
+import { routeMamIq } from './mamRouter';
 import {
   onDeleteMessage,
   onEditMessage,
@@ -80,6 +81,7 @@ export function handleStanza(stanza: Element, xmppWs: XmppClient) {
       onPresenceInRoom(stanza);
       break;
     case 'iq':
+      if (routeMamIq(stanza)) {break;}
       onGetChatRooms(stanza, xmppWs);
       onRealtimeMessage(stanza);
       onPresenceInRoom(stanza);

@@ -15,6 +15,7 @@ interface HistoryPreloadSchedulerOptions {
   pageSize?: number;
   retryLimit?: number;
   roomLimit?: number;
+  firstWave?: number;
   selectedRoomJid?: string | null;
   defaultRoomJids?: string[];
   forceReload?: boolean;
@@ -29,20 +30,14 @@ interface QueueItem {
 }
 
 const DEFAULT_CONCURRENCY = 3;
-// Fetch the most recent ~20 on re-entry (mirrors web). A larger first page
-// also means more id-overlap with cache, so the merge in
-// `mergeHistoryIntoCache` rarely has to fall back to clear-and-replace.
-const DEFAULT_PAGE_SIZE = 20;
+const DEFAULT_PAGE_SIZE = 10;
 const DEFAULT_RETRY_LIMIT = 2;
-// When the first page is entirely unread (every fetched message is newer
-// than `lastViewedTimestamp`), the true unread count could be far bigger
-// than `pageSize` — `useUnread()` only ever sees what's been loaded. Page
-// further back, up to this many extra fetches, until we either find the
-// boundary or give up (`unreadCapped` then stays true so callers at least
-// know the count is a floor, not exact). Customer-reported #34.
-const MAX_UNREAD_CATCHUP_PAGES = 8;
+const DEFAULT_FIRST_WAVE = 30;
+const BACKGROUND_BATCH_PAUSE_MS = 400;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+declare const __DEV__: boolean | undefined;
 
 const messageTimestamp = (m: IMessage): number => {
   if (!m) {return 0;}
@@ -54,8 +49,12 @@ const messageTimestamp = (m: IMessage): number => {
 };
 
 const getRoomLastActivityScore = (room: IRoom): number => {
-  if (!room?.messages?.length) {return 0;}
-  return room.messages.reduce((max, m) => Math.max(max, messageTimestamp(m)), 0);
+  const fromMessages = room?.messages?.length
+    ? room.messages.reduce((max, m) => Math.max(max, messageTimestamp(m)), 0)
+    : 0;
+  const fromStamp = Number(room?.lastMessageTimestamp) || 0;
+  const fromSeed = Number(room?.lastMessage?.id) || 0;
+  return Math.max(fromMessages, fromStamp, fromSeed);
 };
 
 const computeUnreadCapped = (
@@ -73,7 +72,10 @@ const computeUnreadCapped = (
   if (countable.length < pageSize) {return false;}
 
   const lastViewed = Number(room.lastViewedTimestamp) || 0;
-  if (lastViewed <= 0) {return true;}
+  // No read marker yet (the private-store markers often land after the
+  // first preload page): the count is unknown, not "more than a page".
+  // Claiming capped here showed "10+" on rooms with a single unread.
+  if (lastViewed <= 0) {return false;}
 
   const oldestTs = countable.reduce<number>((minTs, m) => {
     const ts = messageTimestamp(m);
@@ -116,12 +118,19 @@ export const runHistoryPreloadScheduler = async (
     pageSize = DEFAULT_PAGE_SIZE,
     retryLimit = DEFAULT_RETRY_LIMIT,
     roomLimit,
+    firstWave = DEFAULT_FIRST_WAVE,
     selectedRoomJid = null,
     defaultRoomJids = [],
     forceReload = false,
   } = options;
 
   if (signal?.aborted) {return;}
+
+  const startedAt = Date.now();
+  let firstWaveLogged = false;
+  const devLog = (msg: string) => {
+    if (typeof __DEV__ !== 'undefined' && __DEV__) {console.log(msg);}
+  };
 
   store.dispatch(setUnreadSyncing(true));
   try {
@@ -153,6 +162,10 @@ export const runHistoryPreloadScheduler = async (
 
   const inFlightByRoom = new Map<string, Promise<void>>();
   let consecutiveErrorCount = 0;
+  let started = 0;
+  devLog(
+    `[preload] ${queue.length} rooms queued, first wave ${Math.min(firstWave, queue.length)}, page ${pageSize}`
+  );
 
   while (queue.length > 0) {
     if (signal?.aborted) {return;}
@@ -176,6 +189,12 @@ export const runHistoryPreloadScheduler = async (
     }
 
     const batch = readyItems.slice(0, Math.max(1, concurrency));
+    const inBackgroundWave = started >= firstWave;
+    if (inBackgroundWave && !firstWaveLogged) {
+      firstWaveLogged = true;
+      devLog(`[preload] first wave done in ${Date.now() - startedAt}ms`);
+    }
+    started += batch.length;
 
     // Snapshot each room's historyPreloadState BEFORE marking the
     // batch as 'loading'. Without this snapshot the per-task
@@ -229,6 +248,7 @@ export const runHistoryPreloadScheduler = async (
                 coalesceRoom: true,
                 skipIfPreloaded: !forceReload,
                 source: 'background',
+                selfApplied: true,
               }
             );
             if (signal?.aborted) {return;}
@@ -237,59 +257,7 @@ export const runHistoryPreloadScheduler = async (
             }
 
             const nextRoom = store.getState().rooms.rooms[item.jid];
-            let combined: IMessage[] = fetchedMessages || [];
-            const lastViewed = Number(nextRoom?.lastViewedTimestamp) || 0;
-
-            // The first page was entirely unread — keep paging older until
-            // we find a message at/before `lastViewedTimestamp` (the true
-            // boundary) or run out of catch-up budget, so the count isn't
-            // silently truncated at `pageSize`.
-            if (lastViewed > 0 && computeUnreadCapped(nextRoom, combined, pageSize)) {
-              let lastPageLen = combined.length;
-              let extraPages = 0;
-              while (
-                extraPages < MAX_UNREAD_CATCHUP_PAGES &&
-                lastPageLen >= pageSize &&
-                !signal?.aborted
-              ) {
-                const oldestId = combined.reduce<number | null>((min, m) => {
-                  const idNum = Number((m as any)?.id);
-                  if (!Number.isFinite(idNum)) {return min;}
-                  return min === null || idNum < min ? idNum : min;
-                }, null);
-                if (oldestId === null) {break;}
-
-                let older: IMessage[] | undefined;
-                try {
-                  older = await client.getHistoryStanza(
-                    item.jid,
-                    pageSize,
-                    oldestId,
-                    undefined,
-                    {
-                      coalesceRoom: true,
-                      skipIfPreloaded: !forceReload,
-                      source: 'background',
-                    }
-                  );
-                } catch {
-                  break;
-                }
-                if (!older || !older.length) {break;}
-
-                combined = [...older, ...combined];
-                lastPageLen = older.length;
-                extraPages++;
-
-                const oldestTs = combined.reduce<number>((minTs, m) => {
-                  const ts = messageTimestamp(m);
-                  return ts > 0 ? Math.min(minTs, ts) : minTs;
-                }, Number.MAX_SAFE_INTEGER);
-                if (oldestTs !== Number.MAX_SAFE_INTEGER && oldestTs <= lastViewed) {
-                  break;
-                }
-              }
-            }
+            const combined: IMessage[] = fetchedMessages || [];
 
             // `mergeHistoryIntoCache` (roomsSlice) caps whatever we dispatch
             // here to the newest RUNTIME_MESSAGE_LIMIT messages before it
@@ -353,10 +321,10 @@ export const runHistoryPreloadScheduler = async (
       })
     );
 
-    // Yield to JS event loop (no requestIdleCallback in RN).
-    await new Promise((r) => setTimeout(r, 0));
+    await sleep(inBackgroundWave ? BACKGROUND_BATCH_PAUSE_MS : 0);
   }
   } finally {
+    devLog(`[preload] finished in ${Date.now() - startedAt}ms`);
     store.dispatch(setUnreadSyncing(false));
   }
 };

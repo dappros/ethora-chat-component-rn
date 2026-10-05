@@ -11,6 +11,8 @@ interface AvatarProps {
   firstName?: string;
   lastName?: string;
   style?: object;
+  /** Initials size (default 16) — small avatars need smaller text. */
+  textSize?: number;
 }
 
 const AvatarCircle = styled.View<{ bgColor?: string }>`
@@ -41,6 +43,7 @@ export const Avatar: React.FC<AvatarProps> = ({
   firstName,
   lastName,
   style,
+  textSize,
 }) => {
   const { config } = useChatSettingState();
   const backgroundColor = useMemo(() => {
@@ -85,7 +88,10 @@ export const Avatar: React.FC<AvatarProps> = ({
 
   return (
     <AvatarCircle style={style} bgColor={backgroundColor?.backgroundColor}>
-      <AvatarText color={getAvatarTextColor(backgroundColor?.backgroundColor)}>
+      <AvatarText
+        color={getAvatarTextColor(backgroundColor?.backgroundColor)}
+        style={textSize ? { fontSize: textSize } : undefined}
+      >
         {getInitials()}
       </AvatarText>
     </AvatarCircle>

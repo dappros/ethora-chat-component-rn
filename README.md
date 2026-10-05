@@ -18,6 +18,8 @@ React Native chat UI + chat core for iOS and Android, powered by the Ethora plat
 - [Unread tracking in tab-based hosts](#unread-tracking-in-tab-based-hosts)
 - [Logging out](#logging-out)
 - [Customization flags worth knowing](#customization-flags-worth-knowing)
+- [Message reactions](#message-reactions)
+- [Replies & threads](#replies--threads)
 - [Keyboard handling](#keyboard-handling)
 - [Header height & font sizing](#header-height--font-sizing)
 - [Dark theme](#dark-theme)
@@ -77,6 +79,8 @@ npx expo install \
 ```
 
 > `expo-blur` is only used to frost the chat picture as the chat-profile header collapses. Skip it and that layer falls back to a plain dim — everything else is unaffected.
+
+> Two more optional peers: `expo-haptics` (a short haptic tap when the message menu opens on long-press; without it the gesture is silent) and `react-native-mmkv` (the chat cache is stored in MMKV with native encryption; without it the SDK falls back to AsyncStorage with AES on the JS thread — noticeably slower with many rooms). Both need a native rebuild after installing.
 
 > Video playback uses **`expo-video`** (`useVideoPlayer` / `VideoView`) and audio uses **`expo-audio`** (`createAudioPlayer` / `useAudioRecorder`). Install both. The discontinued `expo-av` is no longer used anywhere in the SDK, so consumers on Expo SDK 57 / RN 0.86 with the New Architecture can drop it.
 
@@ -318,6 +322,57 @@ Why awaitable: the persistence layer debounces writes by 200 ms, and the chat sl
 | `enableMessageSearch` | Opt-in message search, **off by default**. Set `true` to show the "Search messages" button in the chat header and the chat profile, and the search screen behind it. The screen searches the platform's message archive (`GET /v2/apps/{appId}/messages/search`) for the current chat or all chats, with an optional sender and date filter, and a tapped hit opens its chat and scrolls to the message (paging older history when needed, or saying so when the message is too far back to load). It needs `appId`; without one search stays off. Without this flag there is no search UI and no search request. |
 | `disableMessageSearch` | Deprecated. Search is already off by default; when `true` it stays off even if `enableMessageSearch` is set. |
 | `disablePublicChatsDirectory` | Hide the "Discover chats" entry of the room list menu (the bottom sheet behind the avatar), a directory of the app's public chats (`GET /v1/chats/public`, 50 per page, filtered client-side on what has loaded) where a chat can be joined without a link or QR code. A host that takes the burger over (`headerMenu` as a function) or hides the menu (`chatHeaderSettings.disableMenu`) also gets a button of its own in the room list header; `disableRoomMenu` removes that button. |
+
+## Message reactions
+
+Emoji reactions on messages, WhatsApp-style. **On by default**, shared with the web SDK: a reaction set from either client shows up on the other.
+
+- **Long-press a message** → a row of quick reactions appears above the bubble (👍 ❤️ 😂 😮 😢 🙏 by default) together with the Copy / Edit / Delete menu. Tapping an emoji sets it; tapping the same one again removes it.
+- **"+"** at the end of the row opens a bottom sheet with the full emoji set: search, "Frequently used" (remembered on the device), categories, and a category bar at the bottom.
+- **Under the bubble** every emoji used on the message shows as a chip with its count; the current user's own ones are tinted. Tap a chip to toggle your own reaction; long-press it to see who reacted.
+- **In the room list** the preview shows the latest reaction (`Ann: 👍`) when it is the newest event in the room.
+
+```tsx
+<Chat
+  config={{
+    reactions: {
+      enabled: true,                       // false → no row, no chips, no picker
+      quickReactions: ['+1', 'heart', 'joy', 'open_mouth', 'cry', 'pray'], // up to 8
+      picker: true,                        // false → hides the "+" (quick row only)
+    },
+  }}
+/>
+```
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `reactions.enabled` | `true` | Turns the feature on/off. When off, reactions other users send are still received and stored, just not shown — switching it back on shows them. |
+| `reactions.quickReactions` | `['+1','heart','joy','open_mouth','cry','pray']` | Ids shown in the row above the menu, in order (max 8). |
+| `reactions.picker` | `true` | Whether the "+" that opens the full emoji picker is shown. |
+| `disableReactions` | `false` | Legacy alias of `reactions.enabled: false`. |
+| `disableInteractions` | `false` | Disables the whole long-press menu, the reaction row included; existing chips are still shown but no longer toggle. |
+
+**Ids, not glyphs.** Reactions travel on the wire and are stored as emoji *short names* — `+1`, `heart`, `joy`, `fire`, `pray`, … — the same ids the web SDK uses, so both platforms read each other's reactions. The SDK ships its own id→glyph table (~1850 emoji, up to Emoji 14 so every supported OS renders them) and resolves ids when rendering; no emoji library is needed. In `message.reaction` the data is keyed by the reactor's XMPP local part: `{ alice: { emoji: ['joy', '+1'], data: { senderFirstName, senderLastName } } }`.
+
+**Protocol.** One `<message type="groupchat" id="message-reaction:…">` with `<reactions xmlns="urn:xmpp:reactions:0" id="<target stanza id>" from="<reactor jid>">` and one `<reaction>` child per id — always the reactor's **full current list** (an empty `<reactions/>` clears them). Reactions are archived with the room's history and restored with it on every history fetch.
+
+## Replies & threads
+
+Same model as the web SDK, so threads are shared across platforms.
+
+- **Reply** in the long-press menu opens the message's **thread**: the parent on top, its replies below, its own input. It slides in over the room and closes with the back arrow, Android back, or a swipe from the left edge.
+- **"Also send to <room>"** under the thread input posts the reply in the channel too. There it shows a **quote** of the parent (author + two lines); tapping the quote opens the parent's thread.
+- A message with replies gets a **"N replies" pill** under the bubble with the repliers' avatars; tapping it opens the thread.
+- On the wire a reply is a normal message with `isReply="true"`, `showInChannel="true|false"` and `mainMessage` (JSON of the parent: `id`, `text`, `userName`, `roomJid`, …) in its `<data>`. Replies live in the room's history; nothing extra is fetched.
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `disableReplies` | `false` | Hides "Reply" in the long-press menu. Existing pills and quotes still open threads. |
+| `disableInteractions` | `false` | Hides the whole long-press menu, Reply included. |
+
+## Session loss
+
+When the server rejects the XMPP password (SASL `not-authorized`) the SDK refreshes credentials and reconnects. If that cannot produce a working password — the refresh request fails, returns no new password, or the new one is rejected too — twice in a row, the session is ended exactly like **Sign out** (`performLogout`, then `logout.onAfterLogout`), so the host can route to its login screen. A network outage never triggers this: without a reachable server there is no rejection, and the client keeps reconnecting with backoff.
 
 ## Keyboard handling
 

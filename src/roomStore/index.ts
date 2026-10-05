@@ -1,6 +1,6 @@
 import { configureStore, combineReducers } from '@reduxjs/toolkit';
 import chatSettingsReducer, { setUser } from './chatSettingsSlice';
-import roomsSlice, { addRoom } from './roomsSlice';
+import roomsSlice, { addRooms } from './roomsSlice';
 import { roomHeapSlice, markMessageFailed } from './roomHeapSlice';
 import callReducer from './callSlice';
 import { IRoom } from '../types/types';
@@ -8,6 +8,7 @@ import { unreadMiddleware } from './Middleware/unreadMidlleware';
 import { logoutMiddleware } from './Middleware/logoutMiddleware';
 import { newMessageMidlleware } from './Middleware/newMessageMidlleware';
 import { reactionsMiddleware } from './Middleware/reactionsMiddleware';
+import { isPerfProfilingEnabled, perfMiddleware } from './Middleware/perfMiddleware';
 import {
   persistenceMiddleware,
   readPersistedState,
@@ -29,29 +30,27 @@ export type RootState = ReturnType<typeof rootReducer>;
 const createChatStore = () =>
   configureStore({
     reducer: rootReducer,
-    middleware: (getDefaultMiddleware) =>
-      getDefaultMiddleware({
-        serializableCheck: {
-          // Slice names: chatSlice→'chat', roomsStore→'roomMessages'.
-          ignoredActions: [
-            'chat/addMessage',
-            'chat/setStoreClient',
-            'chat/setConfig',
-            'roomMessages/addRoom',
-          ],
-          ignoredActionPaths: ['payload.client', 'payload.config'],
-          ignoredPaths: [
-            'chat.messages.timestamp',
-            'chatSettingStore.client',
-            'chatSettingStore.config',
-          ],
-        },
-      })
-        .concat(unreadMiddleware)
-        .concat(newMessageMidlleware)
-        .concat(reactionsMiddleware)
-        .concat(logoutMiddleware)
-        .concat(persistenceMiddleware),
+    middleware: (getDefaultMiddleware) => {
+      const base = getDefaultMiddleware({
+        // Both dev-only invariant checks walk the WHOLE state on every
+        // action. With rooms + message history in the store that took
+        // 60-80 ms per dispatch (RTK's own "took Xms" warning), blocking
+        // the JS thread long enough to make taps feel dead in dev builds.
+        // Production builds never ran them.
+        serializableCheck: false,
+        immutableCheck: false,
+      });
+      const chain = [
+        unreadMiddleware,
+        newMessageMidlleware,
+        reactionsMiddleware,
+        logoutMiddleware,
+        persistenceMiddleware,
+      ];
+      return isPerfProfilingEnabled()
+        ? base.concat(perfMiddleware, ...chain)
+        : base.concat(...chain);
+    },
   });
 
 const globalScope = globalThis as typeof globalThis & {
@@ -82,9 +81,11 @@ export const persistorReady =
       store.dispatch(setUser(chat.user));
     }
     if (rooms?.rooms) {
-      for (const [jid, room] of Object.entries(rooms.rooms)) {
-        if (!jid || !room) {continue;}
-        store.dispatch(addRoom({ roomData: room as IRoom }));
+      const restored = Object.entries(rooms.rooms)
+        .filter(([jid, room]) => !!jid && !!room)
+        .map(([, room]) => room as IRoom);
+      if (restored.length) {
+        store.dispatch(addRooms({ rooms: restored }));
       }
     }
 

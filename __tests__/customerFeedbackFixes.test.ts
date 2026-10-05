@@ -75,7 +75,8 @@ describe('customer feedback round — locked behaviour', () => {
         require.resolve('../src/components/Thread/ThreadWrapper'),
         'utf-8'
       );
-      expect(src).toMatch(/getHistoryStanza[\s\S]{0,300}?\.catch/);
+      // A .catch on the chain, or an awaited call inside try/catch.
+      expect(src).toMatch(/getHistoryStanza[\s\S]{0,300}?(\.catch|catch \()/);
     });
   });
 

@@ -50,6 +50,10 @@ export interface IMessage {
 export interface ReactionMessage {
   emoji: string[];
   data: Record<string, string> | undefined;
+  /** Server stanza id of the reaction (microsecond timestamp). History
+   * pages arrive newest-first, so an older reaction must never overwrite
+   * a newer one; an empty `emoji` with a `ts` is a "removed" marker. */
+  ts?: string;
 }
 
 export interface IReply extends IMessage {}

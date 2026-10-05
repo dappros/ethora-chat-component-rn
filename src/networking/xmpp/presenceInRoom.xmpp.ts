@@ -6,10 +6,44 @@ let presenceIdCounter = 0;
 const nextPresenceId = () =>
   `presenceInRoom-${Date.now().toString(36)}-${(++presenceIdCounter).toString(36)}`;
 
-export const presenceInRoom = async (
+const joinedByClient = new WeakMap<Client, Map<string, Promise<Element>>>();
+
+const joinedRooms = (client: Client): Map<string, Promise<Element>> => {
+  let map = joinedByClient.get(client);
+  if (!map) {
+    map = new Map();
+    joinedByClient.set(client, map);
+    const forget = () => joinedByClient.get(client)?.clear();
+    client.on('disconnect', forget);
+    client.on('offline', forget);
+  }
+  return map;
+};
+
+export const __forgetJoinedRooms = (client: Client) =>
+  joinedByClient.get(client)?.clear();
+
+export const presenceInRoom = (
   client: Client,
   roomJID: string,
-  delay = 2000
+  delay = 0
+): Promise<Element> => {
+  const joined = joinedRooms(client);
+  const existing = joined.get(roomJID);
+  if (existing) {return existing;}
+  const join = joinRoom(client, roomJID, delay);
+  joined.set(roomJID, join);
+  // A failed join is not a join: let the next caller try again.
+  join.catch(() => {
+    if (joined.get(roomJID) === join) {joined.delete(roomJID);}
+  });
+  return join;
+};
+
+const joinRoom = async (
+  client: Client,
+  roomJID: string,
+  delay: number
 ): Promise<Element> => {
   let stanzaHandler: (stanza: Element) => void;
   const unsubscribe = () => client.off('stanza', stanzaHandler);
@@ -27,6 +61,11 @@ export const presenceInRoom = async (
       if (settled) {return;}
       settled = true;
 
+      if (delay <= 0) {
+        unsubscribe();
+        cb(value);
+        return;
+      }
       setTimeout(() => {
         unsubscribe();
         cb(value);
@@ -52,7 +91,11 @@ export const presenceInRoom = async (
         to: `${roomJID}/${client.jid?.getLocal()}`,
         id: stanzaId,
       },
-      xml('x', { xmlns: 'http://jabber.org/protocol/muc' })
+      xml(
+        'x',
+        { xmlns: 'http://jabber.org/protocol/muc' },
+        xml('history', { maxstanzas: '0' })
+      )
     );
 
     // Side-effects sequence: send the presence (handles its own

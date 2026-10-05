@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { useTheme } from '../../hooks/useTheme';
 
 interface SystemMessageProps {
   messageText?: string;
@@ -10,6 +11,9 @@ const SystemMessage: React.FC<SystemMessageProps> = ({
   messageText,
   colors,
 }) => {
+  // Same pill as the day separator; `colors.secondary` is not a pill
+  // colour (see DateLabel).
+  const theme = useTheme();
   return (
     <View style={styles.container}>
       {/* maxWidth lives on this View (not the Text) so the Text reliably
@@ -19,10 +23,10 @@ const SystemMessage: React.FC<SystemMessageProps> = ({
       <View
         style={[
           styles.bubble,
-          { backgroundColor: colors?.secondary || '#e7edf9' },
+          { backgroundColor: theme.dateLabelBackground },
         ]}
       >
-        <Text style={[styles.text, { color: colors?.primary || '#0052cd' }]}>
+        <Text style={[styles.text, { color: colors?.primary || theme.dateLabel }]}>
           {messageText}
         </Text>
       </View>

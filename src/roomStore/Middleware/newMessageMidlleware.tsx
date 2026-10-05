@@ -1,8 +1,7 @@
 import { Middleware } from '@reduxjs/toolkit';
-import { updateRoom } from '../roomsSlice';
 import { clearMessageFailure } from '../roomHeapSlice';
 import { removeOutboundSend } from '../../networking/outboundQueue';
-import { IRoom } from '../../types/types';
+import { IMessage } from '../../types/types';
 
 export const newMessageMidlleware: Middleware =
   (storeAPI) => (next) => (action: any) => {
@@ -11,7 +10,9 @@ export const newMessageMidlleware: Middleware =
       return next(action);
     }
 
-    if (action.type !== 'roomMessages/addRoomMessage') {
+    const isSingle = action.type === 'roomMessages/addRoomMessage';
+    const isBatch = action.type === 'roomMessages/addRoomMessages';
+    if (!isSingle && !isBatch) {
       return next(action);
     }
 
@@ -22,48 +23,44 @@ export const newMessageMidlleware: Middleware =
 
     const result = next(action);
     const state = storeAPI.getState();
-    const rooms: { [jid: string]: IRoom } = state.rooms.rooms;
 
-    const { roomJID, message } = action.payload;
+    // `lastMessageTimestamp` is now bumped inside the reducer itself (no
+    // second `updateRoom` pass per message). What is left here are the
+    // side effects outside the rooms slice.
+    const messages: IMessage[] = isBatch
+      ? action.payload.messages || []
+      : [action.payload.message];
+    const failedMap = state.roomHeapSlice?.failedMessages || {};
 
-    // Un-fail on confirmed delivery. A server-confirmed copy (echo or MAM
-    // history, never `pending`) arriving for a message we'd flagged failed
-    // means the send actually went through — e.g. a slow send that completed
-    // just after the 5s watchdog window, or a queued auto-resend landing on
-    // reconnect. The failed flag is keyed by our optimistic/stanza id, which
-    // the echo carries back as `id`/`xmppId`, so clear it here and let the
-    // bubble flip to delivered instead of staying stuck on "Failed".
-    if (message && !message.pending) {
-      // The confirmed copy carries our optimistic/stanza id back as id/xmppId.
-      // Drop any still-buffered replay for it so a later reconnect flush can't
-      // re-send an already-delivered message.
-      removeOutboundSend(message.id);
-      removeOutboundSend(message.xmppId);
+    for (const message of messages) {
+      // Un-fail on confirmed delivery. A server-confirmed copy (echo or MAM
+      // history, never `pending`) arriving for a message we'd flagged failed
+      // means the send actually went through — e.g. a slow send that completed
+      // just after the 5s watchdog window, or a queued auto-resend landing on
+      // reconnect. The failed flag is keyed by our optimistic/stanza id, which
+      // the echo carries back as `id`/`xmppId`, so clear it here and let the
+      // bubble flip to delivered instead of staying stuck on "Failed".
+      if (message && !message.pending) {
+        // The confirmed copy carries our optimistic/stanza id back as id/xmppId.
+        // Drop any still-buffered replay for it so a later reconnect flush can't
+        // re-send an already-delivered message.
+        removeOutboundSend(message.id);
+        if (message.xmppId) {removeOutboundSend(message.xmppId);}
 
-      const failedMap = state.roomHeapSlice?.failedMessages || {};
-      const failedKey = [message.id, message.xmppId].find(
-        (k: string | undefined) => k && failedMap[k]
-      );
-      if (failedKey) {
-        storeAPI.dispatch(clearMessageFailure(failedKey as string));
+        const failedKey = [message.id, message.xmppId].find(
+          (k: string | undefined) => k && failedMap[k]
+        );
+        if (failedKey) {
+          storeAPI.dispatch(clearMessageFailure(failedKey as string));
+        }
       }
-    }
-
-    if ((rooms[roomJID]?.lastMessageTimestamp ?? 0) <= Number(message.id)) {
-      storeAPI.dispatch(
-        updateRoom({
-          jid: roomJID,
-          updates: { lastMessageTimestamp: Number(message.id) ?? 0 },
-        })
-      );
     }
 
     return result;
   };
 
 //   import { Middleware, PayloadAction } from '@reduxjs/toolkit';
-// import { updateRoom } from '../roomsSlice';
-// import { AddRoomMessageAction, IRoom } from '../../types/types';
+// // import { AddRoomMessageAction, IRoom } from '../../types/types';
 // import { nanoToMs } from '../../helpers/nanoToMs';
 
 // export const newMessageMidlleware: Middleware =
