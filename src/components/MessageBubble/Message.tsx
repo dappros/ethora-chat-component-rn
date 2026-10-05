@@ -17,6 +17,7 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '../../roomStore';
 import { Avatar } from './Avatar';
+import { BubbleHighlight } from './BubbleHighlight';
 import MessageInteractions from './MessageInteractions';
 import { BottomReplyContainer } from './BottomReplyContainer';
 import { MessageReply } from './MessageReply';
@@ -655,6 +656,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
               />
             )}
           </MessageFooter>
+          <BubbleHighlight messageId={String(message.id)} />
           </CustomMessageBubble>
         </Pressable>
       </View>

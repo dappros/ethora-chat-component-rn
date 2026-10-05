@@ -7,7 +7,8 @@ import {
   requestJumpToMessage,
 } from '../src/roomStore/roomsSlice';
 import {
-  EXHAUSTED_GRACE_MS,
+  HIGHLIGHT_SETTLE_MS,
+  JUMP_PAGE_SIZE,
   MAX_HISTORY_PAGES,
   useJumpToMessage,
 } from '../src/hooks/useJumpToMessage';
@@ -161,11 +162,14 @@ describe('useJumpToMessage', () => {
     await flush(10);
     // listData is newest-first: ['3','2','1'], so message 2 is row 1.
     expect(scrollToIndex).toHaveBeenCalledWith(1);
-    expect(onHighlight).toHaveBeenCalledWith('2');
+    // The highlight waits for the scroll to settle.
+    expect(onHighlight).not.toHaveBeenCalled();
     expect(props.isUserAtBottomRef.current).toBe(false);
     expect(store.getState().rooms.pendingJump).toBeNull();
     expect(toasts).toHaveLength(0);
-    await flush(2100);
+    await flush(HIGHLIGHT_SETTLE_MS);
+    expect(onHighlight).toHaveBeenCalledWith('2');
+    await flush(1100);
     expect(onHighlight).toHaveBeenLastCalledWith(null);
   });
 
@@ -179,17 +183,20 @@ describe('useJumpToMessage', () => {
     expect(store.getState().rooms.pendingJump).not.toBeNull();
   });
 
-  it('pages older history until the message turns up', async () => {
-    const loadMore = jest.fn().mockResolvedValue(undefined);
-    update({ loadMoreMessages: loadMore });
+  it('pages older history by the server cursor until the message turns up', async () => {
+    const fetchOlderPage = jest
+      .fn()
+      .mockResolvedValueOnce({ ok: true, cursor: 0, complete: false })
+      // The second page is still in flight when the first one's rows arrive.
+      .mockReturnValue(new Promise(() => undefined));
+    props = { ...props, fetchOlderPage };
     mount();
     act(() => {
       store.dispatch(requestJumpToMessage({ roomJID: ROOM, ids: ['0'] }));
     });
     await flush(0);
-    expect(loadMore).toHaveBeenCalledTimes(1);
     // The request asks for the page BEFORE the oldest loaded message.
-    expect(loadMore).toHaveBeenCalledWith(ROOM, 50, 1);
+    expect(fetchOlderPage).toHaveBeenNthCalledWith(1, ROOM, 1, JUMP_PAGE_SIZE);
 
     setMessages(['0', '1', '2', '3']);
     await flush(10);
@@ -197,16 +204,16 @@ describe('useJumpToMessage', () => {
     expect(toasts).toHaveLength(0);
   });
 
-  it('ends in a not-found message when the archive has nothing older', async () => {
+  it('ends in a not-found message when a page makes no progress', async () => {
     mount();
     act(() => {
       store.dispatch(requestJumpToMessage({ roomJID: ROOM, ids: ['missing'] }));
     });
-    // The page comes back empty: oldest message unchanged. One retry is
-    // allowed (the load may have been swallowed), then it gives up.
-    for (let i = 0; i < 4; i++) {
-      await flush(EXHAUSTED_GRACE_MS + 10);
-    }
+    // The room reports no cursor and no completion: the page did not move
+    // anything, so asking again would repeat it. No timing guess involved.
+    await flush(0);
+    await flush(0);
+    expect(props.loadMoreMessages).toHaveBeenCalledTimes(1);
     expect(scrollToIndex).not.toHaveBeenCalled();
     expect(toasts).toHaveLength(1);
     expect(toasts[0].message).toBe('That message is too far back to load.');
@@ -214,7 +221,7 @@ describe('useJumpToMessage', () => {
   });
 
   it('says not-found at once when the history is already complete', async () => {
-    update({ historyComplete: true });
+    props = { ...props, historyComplete: true };
     mount();
     act(() => {
       store.dispatch(requestJumpToMessage({ roomJID: ROOM, ids: ['missing'] }));
@@ -226,29 +233,28 @@ describe('useJumpToMessage', () => {
   });
 
   it('stops after the page budget even if the archive keeps delivering', async () => {
-    let n = 1;
-    const loadMore = jest.fn(async () => undefined);
-    update({ loadMoreMessages: loadMore });
+    // Every page moves the server cursor, so only the budget ends the paging.
+    const fetchOlderPage = jest.fn(async (_jid: string, before: number) => ({
+      ok: true,
+      cursor: before - 1,
+      complete: false,
+    }));
+    props = { ...props, fetchOlderPage };
     mount();
     act(() => {
       store.dispatch(requestJumpToMessage({ roomJID: ROOM, ids: ['never'] }));
     });
     for (let i = 0; i < MAX_HISTORY_PAGES + 3; i++) {
       await flush(0);
-      // each page delivers one older message
-      const ids = ['3', '2', '1'];
-      for (let k = 0; k < n; k++) {ids.push(String(-(k + 1)));}
-      n += 1;
-      setMessages(ids.slice().reverse());
     }
     await flush(10);
-    expect(loadMore).toHaveBeenCalledTimes(MAX_HISTORY_PAGES);
+    expect(fetchOlderPage).toHaveBeenCalledTimes(MAX_HISTORY_PAGES);
     expect(toasts).toHaveLength(1);
     expect(store.getState().rooms.pendingJump).toBeNull();
   });
 
   it('drops a request nobody fulfilled within the TTL', async () => {
-    update({ messages: [], listData: [] });
+    props = { ...props, messages: [], listData: [] };
     mount();
     act(() => {
       store.dispatch(requestJumpToMessage({ roomJID: ROOM, ids: ['x'] }));

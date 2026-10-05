@@ -43,6 +43,7 @@ import {normalizeRoomJid} from '../../helpers/normalizeRoomJid';
 import {buildSeedRoom} from '../../helpers/buildSeedRoom';
 import {shallowEqual} from '../../helpers/shallowEqual';
 import {InteractionsOverlayProvider} from '../MessageBubble/InteractionsOverlay';
+import {useJumpThread} from '../../helpers/jumpThread';
 
 interface ChatWrapperProps {
   token?: string;
@@ -94,13 +95,29 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
 
   const {rooms, activeRoomJID} = useSelector((state: RootState) => state.rooms);
 
+  // The thread's parent: the live message flagged active or, when the thread
+  // was opened on a message that exists only in a jump window (or that a jump
+  // to a thread reply fetched), the window's copy or the one kept by
+  // helpers/jumpThread, which outlives the window.
+  const jumpWindow = useSelector((state: RootState) => state.rooms.jumpWindow);
+  const jumpThread = useJumpThread();
   const activeMessage = useMemo(() => {
     if (activeRoomJID) {
-      return rooms[activeRoomJID]?.messages?.find(
+      const live = rooms[activeRoomJID]?.messages?.find(
         message => message?.activeMessage,
       );
+      if (live) {return live;}
+      if (jumpWindow && jumpWindow.roomJID === activeRoomJID) {
+        const inWindow = jumpWindow.messages.find(
+          message => message?.activeMessage,
+        );
+        if (inWindow) {return inWindow;}
+      }
+      if (jumpThread?.parent && jumpThread.roomJID === activeRoomJID) {
+        return {...jumpThread.parent, activeMessage: true};
+      }
     }
-  }, [rooms, activeRoomJID]);
+  }, [rooms, activeRoomJID, jumpWindow, jumpThread]);
 
   const handleChangeChat = (chat: IRoom) => {
     dispatch(setCurrentRoom({roomJID: chat.jid}));
