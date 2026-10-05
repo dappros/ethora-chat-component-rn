@@ -1,4 +1,4 @@
-import { FC, useCallback, useEffect, useRef, useState } from 'react';
+import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { IMessage, User } from '../../types/types';
 import {
   AlsoCheckbox,
@@ -7,7 +7,11 @@ import {
   ThreadContainer,
 } from '../styled/StyledComponents';
 import SendInput from '../styled/SendInput';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useStore } from 'react-redux';
+import { RootState } from '../../roomStore';
+import Loader from '../styled/Loader';
+import { useT } from '../../i18n/useT';
+import { parseMessageReference } from '../../helpers/parseMessageReference';
 import { useXmppClient } from '../../context/xmppProvider';
 import MessageList from '../MainComponents/MessageList';
 import ModalHeaderComponent from '../Modals/ModalHeaderComponent';
@@ -25,12 +29,15 @@ import { useChatSettingState } from '../../hooks/useChatSettingState';
 import { useTheme } from '../../hooks/useTheme';
 import {
   Animated,
+  View,
   Text,
   TouchableOpacity,
   StyleSheet,
   PanResponder,
 } from 'react-native';
 import CustomTypingIndicator from '../styled/StyledInputComponents/CustomTypingIndicator';
+
+export const THREAD_HISTORY_PAGE_SIZE = 15;
 
 interface ThreadWrapperProps {
   activeMessage: IMessage;
@@ -57,6 +64,21 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
 
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
   const [isChecked, setIsChecked] = useState<boolean>(false);
+  const t = useT();
+  const store = useStore<RootState>();
+
+  const roomJid = activeMessage.roomJid;
+  const room = roomsList?.[roomJid];
+  const parentTs = Number(activeMessage.id);
+
+  // One page request at a time, and never the same page twice: a page that
+  // returns only reactions or receipts leaves the cursor where it was, and
+  // repeating it would loop forever.
+  const inFlightRef = useRef(false);
+  const lastRequestKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    lastRequestKeyRef.current = null;
+  }, [roomJid, activeMessage.id]);
 
   const slideAnim = useRef(new Animated.Value(300)).current;
 
@@ -86,47 +108,108 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
     })
   ).current;
 
+  // Reads the LATEST room state at call time (no stale closure), pages by the
+  // server cursor like the main list does, and stops at the thread's parent:
+  // every reply is newer than the message it answers.
   const loadMoreMessages = useCallback(
     async (chatJID: string, max: number, idOfMessageBefore?: number) => {
-      if (!isLoadingMore) {
-        client?.getHistoryStanza(chatJID, max, idOfMessageBefore)
-          .then(() => {
-            setIsLoadingMore(false);
-          })
+      if (!client || inFlightRef.current) return;
+      const current = store.getState().rooms.rooms?.[chatJID];
+      if (!current || current.historyComplete) return;
+
+      const cursor = current.messageStats?.firstMessageTimestamp;
+      const hint =
+        typeof idOfMessageBefore === 'number' &&
+        Number.isFinite(idOfMessageBefore)
+          ? idOfMessageBefore
+          : undefined;
+      const candidates = [cursor, hint].filter(
+        (n): n is number => typeof n === 'number' && Number.isFinite(n)
+      );
+      const before = candidates.length ? Math.min(...candidates) : undefined;
+      if (before === undefined) return;
+      if (Number.isFinite(parentTs) && before <= parentTs) return;
+
+      const requestKey = `${chatJID}|${before}`;
+      if (requestKey === lastRequestKeyRef.current) return;
+
+      inFlightRef.current = true;
+      lastRequestKeyRef.current = requestKey;
+      setIsLoadingMore(true);
+      try {
+        await client
+          .getHistoryStanza(chatJID, max, before)
           .catch((err: unknown) => {
+            // Let the same page be retried later.
+            lastRequestKeyRef.current = null;
             console.warn('getHistoryStanza failed', err);
-            setIsLoadingMore(false);
           });
+      } finally {
+        inFlightRef.current = false;
+        setIsLoadingMore(false);
       }
     },
-    [client]
+    [client, store, parentTs]
   );
+
+  // Replies of this parent already in the store.
+  const replyCount = useMemo(() => {
+    let n = 0;
+    for (const m of room?.messages ?? []) {
+      if (
+        m.isReply === 'true' &&
+        parseMessageReference(m.mainMessage)?.id === activeMessage.id
+      ) {
+        n += 1;
+      }
+    }
+    return n;
+  }, [room?.messages, activeMessage.id]);
+
+  // Opening a thread whose parent is older than the loaded window: the list
+  // has no replies to scroll, so nothing would ask for history. Keep paging
+  // until the cursor reaches the parent (or the archive ends).
+  const cursor = room?.messageStats?.firstMessageTimestamp;
+  const historyComplete = Boolean(room?.historyComplete);
+  useEffect(() => {
+    if (historyComplete || isLoadingMore) return;
+    if (!Number.isFinite(parentTs)) return;
+    if (typeof cursor !== 'number' || cursor <= parentTs) return;
+    loadMoreMessages(roomJid, THREAD_HISTORY_PAGE_SIZE, cursor);
+  }, [
+    cursor,
+    historyComplete,
+    isLoadingMore,
+    parentTs,
+    roomJid,
+    loadMoreMessages,
+  ]);
 
   const sendMessage = useCallback(
     (message: string) => {
       sendMs(
         message,
-        activeMessage.roomJid,
+        roomJid,
         true,
         isChecked,
         createMainMessageForThread(activeMessage)
       );
     },
-    [activeMessage, isChecked]
+    [activeMessage, isChecked, roomJid, sendMs]
   );
 
   const sendMedia = useCallback(
     (data: any, type: string) => {
-      sendMessageMedia(
+      return sendMessageMedia(
         data,
         type,
-        activeMessage.roomJid,
+        roomJid,
         true,
         isChecked,
         createMainMessageForThread(activeMessage)
       );
     },
-    [activeMessage, isChecked]
+    [activeMessage, isChecked, roomJid, sendMessageMedia]
   );
 
   const sendStartComposing = useCallback(() => {
@@ -138,7 +221,13 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
       `${user.firstName} ${user.lastName}`,
       true
     );
-  }, []);
+  }, [
+    client,
+    config?.disableTypingIndicator,
+    user.firstName,
+    user.lastName,
+    activeMessage.roomJid,
+  ]);
 
   const sendEndComposing = useCallback(() => {
     if (config?.disableTypingIndicator) {
@@ -149,7 +238,13 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
       `${user.firstName} ${user.lastName}`,
       false
     );
-  }, []);
+  }, [
+    client,
+    config?.disableTypingIndicator,
+    user.firstName,
+    user.lastName,
+    activeMessage.roomJid,
+  ]);
 
   const onCloseEdit = () => {
     dispatch(setEditAction({ isEdit: false }));
@@ -187,9 +282,18 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
       ]}
     >
       <ModalHeaderComponent
-        headerTitle="Thread"
+        headerTitle={t('thread.title')}
         handleCloseModal={closeThread}
       />
+      {isLoadingMore && replyCount === 0 && (
+        <View
+          testID="thread-history-loader"
+          pointerEvents="none"
+          style={styles.historyLoader}
+        >
+          <Loader size={24} color={theme.primary} />
+        </View>
+      )}
       <MessageList
         loadMoreMessages={loadMoreMessages}
         CustomMessage={CustomMessageComponent}
@@ -206,7 +310,7 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
           // checked={isChecked}
           // onPress={() => setIsChecked(!isChecked)}
         />
-        <Text style={{ color: theme.text }}>Also send to</Text>
+        <Text style={{ color: theme.text }}>{t('thread.alsoSendTo')}</Text>
         <TouchableOpacity onPress={closeThread}>
           <Text
             style={{
@@ -214,7 +318,7 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
               fontWeight: 500,
             }}
           >
-            {roomsList[activeMessage.roomJid].name}
+            {room?.name}
           </Text>
         </TouchableOpacity>
       </AlsoContainer>
@@ -268,6 +372,14 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     justifyContent: 'space-between',
     flex: 1,
+  },
+  historyLoader: {
+    position: 'absolute',
+    top: 72,
+    left: 0,
+    right: 0,
+    zIndex: 2,
+    alignItems: 'center',
   },
   text: {
     color: '#fff',

@@ -8,6 +8,7 @@ import { CloseIcon } from '../../assets/icons';
 import { useDispatch } from 'react-redux';
 import { setCloseActiveMessage } from '../../roomStore/roomsSlice';
 import { View } from 'react-native';
+import { useT } from '../../i18n/useT';
 
 interface ThreadHeaderProps {
   chatJID: string;
@@ -15,6 +16,7 @@ interface ThreadHeaderProps {
 
 const ThreadHeader: FC<ThreadHeaderProps> = ({ chatJID }) => {
   const dispatch = useDispatch();
+  const t = useT();
 
   const handleCloseThread = () => {
     dispatch(setCloseActiveMessage({ chatJID: chatJID }));
@@ -23,7 +25,7 @@ const ThreadHeader: FC<ThreadHeaderProps> = ({ chatJID }) => {
   return (
     <ChatContainerHeader>
       <View style={{ display: 'flex', gap: 8 }}>
-        <ChatContainerHeaderLabel>Thread</ChatContainerHeaderLabel>
+        <ChatContainerHeaderLabel>{t('thread.title')}</ChatContainerHeaderLabel>
       </View>
 
       <View style={{ display: 'flex', gap: 16 }}>
