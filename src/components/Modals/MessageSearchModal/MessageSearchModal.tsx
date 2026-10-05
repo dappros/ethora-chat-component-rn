@@ -15,18 +15,24 @@ import { RootState } from '../../../roomStore';
 import { ModalContainerFullScreen } from '../styledModalComponents';
 import ModalHeaderComponent from '../ModalHeaderComponent';
 import { SearchIcon } from '../../../assets/icons';
-import { useT, useUiLocale } from '../../../i18n/useT';
+import { useT } from '../../../i18n/useT';
 import { useTheme } from '../../../hooks/useTheme';
 import { getIconColor } from '../../../helpers/getIconColor';
 import { useChatSettingState } from '../../../hooks/useChatSettingState';
+import { dedupeMembers } from '../../../helpers/dedupeMembers';
+import { isRoomMembersTruncated } from '../../../helpers/roomUserCount';
+import { useRoomDirectory } from '../../../hooks/useRoomDirectory';
 import { isMessageSearchEnabled } from '../../../helpers/isMessageSearchEnabled';
 import type { ChatTheme } from '../../../theme/theme';
 import {
   hitKey,
   MessageSearchHit,
 } from '../../../networking/api-requests/messageSearch.api';
-import { buildSnippet } from './snippet';
-import { resolveSender } from './resolveSender';
+import {
+  HitSeparator,
+  MessageHitRow,
+  SecondaryPillButton,
+} from './MessageHitResults';
 import {
   dayEndISO,
   dayStartISO,
@@ -39,41 +45,16 @@ import {
   SearchScope,
   useMessageSearch,
 } from './useMessageSearch';
-import { openSearchHit, resolveHitRoomJid } from './openHit';
-
-const Separator = () => {
-  const theme = useTheme();
-  return (
-    <View
-      style={{ height: StyleSheet.hairlineWidth, backgroundColor: theme.divider }}
-    />
-  );
-};
+import { openSearchHit } from './openHit';
 
 interface MessageSearchModalProps {
   handleCloseModal: () => void;
 }
 
-const formatWhen = (iso: string, locale?: string): string => {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) {return '';}
-  const sameYear = date.getFullYear() === new Date().getFullYear();
-  try {
-    return new Intl.DateTimeFormat(locale, {
-      day: 'numeric',
-      month: 'short',
-      ...(sameYear ? {} : { year: 'numeric' }),
-    }).format(date);
-  } catch {
-    return date.toDateString();
-  }
-};
-
 const MessageSearchModalContent: React.FC<MessageSearchModalProps> = ({
   handleCloseModal,
 }) => {
   const t = useT();
-  const locale = useUiLocale();
   const dispatch = useDispatch();
   const theme = useTheme();
   const { config } = useChatSettingState();
@@ -86,9 +67,6 @@ const MessageSearchModalContent: React.FC<MessageSearchModalProps> = ({
     (state: RootState) => state.rooms.activeRoomJID
   );
   const usersSet = useSelector((state: RootState) => state.rooms.usersSet);
-  const myXmppUsername = useSelector(
-    (state: RootState) => state.chatSettingStore.user?.xmppUsername
-  );
 
   const [query, setQuery] = useState('');
   const roomName = activeRoomJID ? activeRoomJID.split('@')[0] : undefined;
@@ -129,15 +107,30 @@ const MessageSearchModalContent: React.FC<MessageSearchModalProps> = ({
   // Who can be picked as the sender: this room's members, or everyone the
   // app knows when searching across chats. Members carry `_id`, the user id
   // the search endpoint filters on.
+  // A big room only carries its first members (usersCnt is the true total),
+  // so in 'This chat' scope the sender filter loads the whole room directory
+  // (once per room) as soon as the filters open or a sender is typed.
+  const searchedRoom: any = activeRoomJID ? rooms[activeRoomJID] : undefined;
+  const { members: directoryMembers } = useRoomDirectory(
+    activeRoomJID || undefined,
+    scope === 'chat' &&
+      isRoomMembersTruncated(searchedRoom) &&
+      (filtersOpen || senderQuery.trim() !== '')
+  );
   const senderCandidates = useMemo(() => {
     if (!senderQuery.trim()) {return [];}
-    const people =
-      scope === 'chat'
-        ? ((activeRoomJID && (rooms[activeRoomJID] as any)?.members) as any[]) ||
-          []
-        : Object.values(usersSet || {});
-    return matchPeople(people as any[], senderQuery);
-  }, [senderQuery, scope, rooms, activeRoomJID, usersSet]);
+    let people: any[];
+    if (scope === 'chat') {
+      const known = (searchedRoom?.members as any[]) || [];
+      people =
+        directoryMembers.length > 0
+          ? dedupeMembers([...known, ...directoryMembers])
+          : known;
+    } else {
+      people = Object.values(usersSet || {});
+    }
+    return matchPeople(people, senderQuery);
+  }, [senderQuery, scope, searchedRoom, usersSet, directoryMembers]);
 
   // A backwards range has no honest result, so it searches nothing (and says
   // so) instead of quietly dropping the dates.
@@ -155,59 +148,16 @@ const MessageSearchModalContent: React.FC<MessageSearchModalProps> = ({
     return () => clearTimeout(timer);
   }, []);
 
-  const senderName = (hit: MessageSearchHit): string => {
-    const room: any = rooms[hit.room];
-    const { name, isSelf } = resolveSender(hit, {
-      usersSet: usersSet as Record<string, any>,
-      members: room?.members as any[],
-      myXmppUsername,
-    });
-    if (isSelf) {return t('search.messages.you');}
-    return name || t('search.messages.someone');
-  };
-
   const trimmed = query.trim();
 
-  const renderHit = ({ item: hit }: { item: MessageSearchHit }) => {
-    const room: any = rooms[hit.room];
-    const reachable = Boolean(resolveHitRoomJid(rooms, hit));
-    const title =
-      scope === 'all'
-        ? `${room?.title || t('search.messages.chat')} · ${senderName(hit)}`
-        : senderName(hit);
-    return (
-      <TouchableOpacity
-        testID={`message-search-hit-${hitKey(hit)}`}
-        activeOpacity={0.7}
-        disabled={!reachable}
-        onPress={() =>
-          openSearchHit(dispatch as any, rooms, activeRoomJID, hit)
-        }
-        style={[styles.hit, !reachable && styles.hitDisabled]}
-      >
-        <View style={styles.hitHead}>
-          <Text style={styles.hitTitle} numberOfLines={1}>
-            {title}
-          </Text>
-          <Text style={styles.hitWhen}>{formatWhen(hit.createdAt, locale)}</Text>
-        </View>
-        <Text style={styles.snippet} numberOfLines={4}>
-          {buildSnippet(hit.body, trimmed).map((part, index) => (
-            <Text
-              key={index}
-              style={
-                part.match
-                  ? [styles.match, { color: primary, backgroundColor: primary + '1F' }]
-                  : undefined
-              }
-            >
-              {part.text}
-            </Text>
-          ))}
-        </Text>
-      </TouchableOpacity>
-    );
-  };
+  const renderHit = ({ item: hit }: { item: MessageSearchHit }) => (
+    <MessageHitRow
+      hit={hit}
+      query={trimmed}
+      showRoom={scope === 'all'}
+      onOpen={(h) => openSearchHit(dispatch as any, rooms, activeRoomJID, h)}
+    />
+  );
 
   const header = (
     <View style={styles.controls}>
@@ -428,25 +378,20 @@ const MessageSearchModalContent: React.FC<MessageSearchModalProps> = ({
         ListHeaderComponent={header}
         ListFooterComponent={
           search.items.length > 0 && search.hasMore ? (
-            <TouchableOpacity
+            <SecondaryPillButton
               testID="message-search-more"
               onPress={search.loadMore}
               disabled={search.status === 'loadingMore'}
-              style={[
-                styles.more,
-                search.status === 'loadingMore' && styles.hitDisabled,
-              ]}
-            >
-              <Text style={styles.scopeLabel}>
-                {search.status === 'loadingMore'
+              label={
+                search.status === 'loadingMore'
                   ? t('search.messages.searching')
-                  : t('search.messages.loadMore')}
-              </Text>
-            </TouchableOpacity>
+                  : t('search.messages.loadMore')
+              }
+            />
           ) : null
         }
         keyboardShouldPersistTaps="handled"
-        ItemSeparatorComponent={Separator}
+        ItemSeparatorComponent={HitSeparator}
       />
     </ModalContainerFullScreen>
   );
@@ -524,27 +469,7 @@ const createStyles = (theme: ChatTheme) =>
     error: { color: theme.danger, fontSize: 14 },
     link: { fontSize: 14, fontWeight: '500' },
     count: { color: theme.textMuted, fontSize: 12 },
-    hit: { paddingHorizontal: 16, paddingVertical: 10, gap: 4 },
     hitDisabled: { opacity: 0.5 },
-    hitHead: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
-    hitTitle: {
-      flex: 1,
-      color: theme.textSecondary,
-      fontSize: 13,
-      fontWeight: '600',
-    },
-    hitWhen: { color: theme.textMuted, fontSize: 12 },
-    snippet: { color: theme.text, fontSize: 15 },
-    match: { fontWeight: '600' },
-    more: {
-      alignSelf: 'center',
-      marginVertical: 12,
-      paddingHorizontal: 14,
-      paddingVertical: 6,
-      borderRadius: 999,
-      borderWidth: 1,
-      borderColor: theme.border,
-    },
   });
 
 /**
