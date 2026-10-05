@@ -18,6 +18,8 @@ React Native chat UI + chat core for iOS and Android, powered by the Ethora plat
 - [Unread tracking in tab-based hosts](#unread-tracking-in-tab-based-hosts)
 - [Logging out](#logging-out)
 - [Customization flags worth knowing](#customization-flags-worth-knowing)
+- [Server events](#server-events)
+- [Startup behaviour](#startup-behaviour)
 - [Keyboard handling](#keyboard-handling)
 - [Header height & font sizing](#header-height--font-sizing)
 - [Dark theme](#dark-theme)
@@ -317,7 +319,22 @@ Why awaitable: the persistence layer debounces writes by 200 ms, and the chat sl
 | `eventHandlers.onMessageRetry` | `(event) => void` fired when the user taps the "Failed — tap to retry" indicator on a stuck send. Use for telemetry / surfacing a retry banner. |
 | `enableMessageSearch` | Opt-in message search, **off by default**. Set `true` to show the "Search messages" button in the chat header and the chat profile, and the search screen behind it. The screen searches the platform's message archive (`GET /v2/apps/{appId}/messages/search`) for the current chat or all chats, with an optional sender and date filter, and a tapped hit opens its chat and scrolls to the message (paging older history when needed, or saying so when the message is too far back to load). It needs `appId`; without one search stays off. Without this flag there is no search UI and no search request. |
 | `disableMessageSearch` | Deprecated. Search is already off by default; when `true` it stays off even if `enableMessageSearch` is set. |
+| `historyPreload` | Background history preload for the room list: `{ mode, topRooms, concurrency }`. `mode` is `'staged'` (default: previews for rooms without one, then a full page for the `topRooms` most recently active rooms), `'all'` (every room, for accounts with few rooms) or `'off'` (rooms load when opened). `topRooms` defaults to 8, `concurrency` to 3. A room the user opens jumps the queue. Falls back to `historyQoS.preloadTopKRooms` / `stagedPreloadConcurrency` when a field is not set. |
+| `historyQoS.joinHistoryStanzas` | Messages the MUC service replays on each room join (`<history maxstanzas="N"/>`). Default `0`: history comes from MAM only. Raise it only for a room without MAM archiving. |
+| `historyQoS.joinConcurrency` | Rooms joined in parallel by the background join sweep. Default `5`. |
+| `userLookupRoute` | `'auto'` (default), `'v1'` or `'v2'`. Route used to look up one unknown sender. `'auto'` tries `GET /v1/apps/users/<id>` and, when the backend rejects the user token there, uses `GET /v2/chats/users` for 10 minutes before probing v1 again. `'v1'` / `'v2'` pin one route with no fallback. |
+| `trustedEventSenders` | `string[]`. Pins who may push `ethora-event` headlines (see [Server events](#server-events)), as bare JIDs (`admin@xmpp.example.com`) or local parts (`admin`). Unset or empty: any bare JID on the session's own XMPP domain. |
 | `disablePublicChatsDirectory` | Hide the "Discover chats" entry of the room list menu (the bottom sheet behind the avatar), a directory of the app's public chats (`GET /v1/chats/public`, 50 per page, filtered client-side on what has loaded) where a chat can be joined without a link or QR code. A host that takes the burger over (`headerMenu` as a function) or hides the menu (`chatHeaderSettings.disableMenu`) also gets a button of its own in the room list header; `disableRoomMenu` removes that button. |
+
+## Server events
+
+The server can push `ethora-event` headlines (namespace `urn:ethora:events:1`) to refresh a client without a reload. Two types are handled: `user-profile-updated` (refreshes that user's cached profile and name) and `chat-meta-updated` (schedules a refresh of that room's metadata, for rooms the client already holds). A headline is accepted only from a trusted sender: a bare server JID (no resource) on the session's own XMPP domain, delivered as a headline. Room occupants, other users, and other domains are ignored. Set `trustedEventSenders` to pin the exact sender(s) instead of accepting any bare JID of the domain.
+
+## Startup behaviour
+
+The room list renders as soon as `GET /v1/chats/my` returns; it does not wait for MUC joins. With `initBeforeLoad`, `XmppProvider` reports ready right after `/chats/my`. Joins then run as a background sweep (open room first, then by recent activity, `historyQoS.joinConcurrency` at a time, up to 3 retries for rooms that did not join). Sending, fetching history and opening a room each join that room on demand, and the offline send queue drains after the first wave. Background history preload is staged by default (see `historyPreload`).
+
+Breaking change for hosts that read client flags: `client.presencesReady` now means the whole join sweep has finished, no longer that the socket is online. `client.priorityPresencesReady` marks the first wave (open room plus the most recently active rooms). Wait on the status or `priorityPresencesReady` if you only need the connection and the first rooms.
 
 ## Keyboard handling
 

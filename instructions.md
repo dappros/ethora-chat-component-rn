@@ -142,6 +142,11 @@ Pick **one** auth mode. Mixing is undefined behavior.
 | `xmppSettings.historyQoS` | `HistoryQoSConfig` | Tuning for the MAM-history preload scheduler. |
 | `disableLastRead` | `boolean` | Skip the `chatjson:store` private-store read/write (unread tracking off). See [docs/unread-tracking.md](docs/unread-tracking.md). |
 | `historyQoS` | `HistoryQoSConfig` | Top-level mirror of `xmppSettings.historyQoS`; either works. |
+| `historyPreload` | `{ mode?: 'staged' \| 'all' \| 'off'; topRooms?: number; concurrency?: number }` | Background history preload. Default `staged`, `topRooms` 8, `concurrency` 3. Falls back to `historyQoS.preloadTopKRooms` / `stagedPreloadConcurrency`. |
+| `historyQoS.joinHistoryStanzas` | `number` | MUC join replay size (`maxstanzas`). Default 0 (history from MAM only). |
+| `historyQoS.joinConcurrency` | `number` | Rooms joined in parallel by the background join sweep. Default 5. |
+| `userLookupRoute` | `'auto' \| 'v1' \| 'v2'` | Route for resolving one unknown sender. Default `auto` (v1, falling back to `GET /v2/chats/users` for 10 minutes). |
+| `trustedEventSenders` | `string[]` | Allow-list of senders for `ethora-event` headlines. Unset: any bare JID on the session's XMPP domain. |
 
 ### Bootstrap
 
