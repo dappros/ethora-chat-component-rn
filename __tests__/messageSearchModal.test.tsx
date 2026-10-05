@@ -49,7 +49,7 @@ const pageOf = (items: any[], total = items.length) => ({
   nextOffset: items.length,
 });
 
-const seed = async (config: any = { appId: 'app1' }) => {
+const seed = async (config: any = { appId: 'app1', enableMessageSearch: true }) => {
   await act(async () => {
     for (const [jid, title] of [[JID, 'General'], [OTHER, 'Other']] as const) {
       store.dispatch(
@@ -253,10 +253,14 @@ describe('MessageSearchModal', () => {
 });
 
 describe('entry point gating', () => {
-  it('needs an appId and honours disableMessageSearch', () => {
-    expect(isMessageSearchEnabled({ appId: 'a' } as any)).toBe(true);
+  it('is opt-in, needs an appId and honours disableMessageSearch', () => {
+    expect(isMessageSearchEnabled({ appId: 'a' } as any)).toBe(false);
+    expect(isMessageSearchEnabled({ appId: 'a', enableMessageSearch: true } as any)).toBe(true);
+    expect(isMessageSearchEnabled({ enableMessageSearch: true } as any)).toBe(false);
     expect(isMessageSearchEnabled({} as any)).toBe(false);
-    expect(isMessageSearchEnabled({ appId: 'a', disableMessageSearch: true } as any)).toBe(false);
+    expect(
+      isMessageSearchEnabled({ appId: 'a', enableMessageSearch: true, disableMessageSearch: true } as any)
+    ).toBe(false);
     expect(isMessageSearchEnabled(undefined)).toBe(false);
   });
 
@@ -277,14 +281,43 @@ describe('entry point gating', () => {
   };
 
   it('the header button opens the search screen', async () => {
-    const tree = await renderButton({ appId: 'app1' });
+    const tree = await renderButton({ appId: 'app1', enableMessageSearch: true });
     const btn = tree.root.findAllByType(TouchableOpacity)[0];
     await act(async () => btn.props.onPress());
     expect(store.getState().chatSettingStore.activeModal).toBe(MODAL_TYPES.MESSAGE_SEARCH);
   });
 
-  it('renders nothing when disabled or without an appId', async () => {
-    expect((await renderButton({ appId: 'app1', disableMessageSearch: true })).toJSON()).toBeNull();
+  it('renders nothing by default, without an appId, or when disableMessageSearch wins', async () => {
+    expect((await renderButton({ appId: 'app1' })).toJSON()).toBeNull();
+    expect((await renderButton({ enableMessageSearch: true })).toJSON()).toBeNull();
+    expect(
+      (await renderButton({ appId: 'app1', enableMessageSearch: true, disableMessageSearch: true })).toJSON()
+    ).toBeNull();
     expect((await renderButton({})).toJSON()).toBeNull();
+  });
+});
+
+describe('search screen gating', () => {
+  it('default config renders nothing and makes no search request', async () => {
+    await seed({ appId: 'app1' });
+    const { tree } = await render();
+    expect(tree.toJSON()).toBeNull();
+    await advance(1000);
+    expect(mockSearch).not.toHaveBeenCalled();
+  });
+
+  it('enabled without appId or with disableMessageSearch stays off', async () => {
+    await seed({ enableMessageSearch: true });
+    expect((await render()).tree.toJSON()).toBeNull();
+    await seed({ appId: 'app1', enableMessageSearch: true, disableMessageSearch: true });
+    expect((await render()).tree.toJSON()).toBeNull();
+    await advance(1000);
+    expect(mockSearch).not.toHaveBeenCalled();
+  });
+
+  it('enabled with appId renders the screen', async () => {
+    await seed({ appId: 'app1', enableMessageSearch: true });
+    const { tree } = await render();
+    expect(tree.toJSON()).not.toBeNull();
   });
 });

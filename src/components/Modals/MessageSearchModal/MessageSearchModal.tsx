@@ -19,6 +19,7 @@ import { useT, useUiLocale } from '../../../i18n/useT';
 import { useTheme } from '../../../hooks/useTheme';
 import { getIconColor } from '../../../helpers/getIconColor';
 import { useChatSettingState } from '../../../hooks/useChatSettingState';
+import { isMessageSearchEnabled } from '../../../helpers/isMessageSearchEnabled';
 import type { ChatTheme } from '../../../theme/theme';
 import {
   hitKey,
@@ -68,7 +69,7 @@ const formatWhen = (iso: string, locale?: string): string => {
   }
 };
 
-const MessageSearchModal: React.FC<MessageSearchModalProps> = ({
+const MessageSearchModalContent: React.FC<MessageSearchModalProps> = ({
   handleCloseModal,
 }) => {
   const t = useT();
@@ -545,5 +546,17 @@ const createStyles = (theme: ChatTheme) =>
       borderColor: theme.border,
     },
   });
+
+/**
+ * Gate for the modal registry: with search off (the default) nothing renders
+ * and the search hook never mounts, so no request can be made.
+ */
+const MessageSearchModal: React.FC<MessageSearchModalProps> = (props) => {
+  const { config } = useChatSettingState();
+  if (!isMessageSearchEnabled(config)) {
+    return null;
+  }
+  return <MessageSearchModalContent {...props} />;
+};
 
 export default MessageSearchModal;

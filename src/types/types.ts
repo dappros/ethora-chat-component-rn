@@ -637,9 +637,17 @@ export interface IConfig {
   disableProfilesInteractions?: boolean;
   disableUserCount?: boolean;
   /**
-   * Hide the "Search messages" button in the chat header and the chat
-   * profile (and so the search screen). Search is also hidden when `appId`
-   * is not set, since the archive it queries is scoped by app.
+   * Opt-in message search (OFF by default). Set to `true` to show the
+   * "Search messages" button in the chat header and the chat profile and the
+   * search screen behind it. Requires `appId`, since the archive it queries
+   * is scoped by app. Without this flag there is no search UI and no search
+   * request.
+   */
+  enableMessageSearch?: boolean;
+  /**
+   * @deprecated Search is off unless `enableMessageSearch` is set. Kept as a
+   * hard off: when `true` message search stays disabled even if
+   * `enableMessageSearch` is set.
    */
   disableMessageSearch?: boolean;
   /**

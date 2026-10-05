@@ -7,14 +7,9 @@ import { getIconColor } from '../../helpers/getIconColor';
 import { useT } from '../../i18n/useT';
 import { setActiveModal } from '../../roomStore/chatSettingsSlice';
 import { MODAL_TYPES } from '../../helpers/constants/MODAL_TYPES';
-import type { IConfig } from '../../types/types';
+import { isMessageSearchEnabled } from '../../helpers/isMessageSearchEnabled';
 
-/**
- * Message search needs the app id (the archive it queries is scoped by app)
- * and can be switched off by the host.
- */
-export const isMessageSearchEnabled = (config?: IConfig): boolean =>
-  Boolean(config?.appId) && !config?.disableMessageSearch;
+export { isMessageSearchEnabled };
 
 /** Magnifier in the chat header that opens the message search screen. */
 export const MessageSearchButton: FC = () => {

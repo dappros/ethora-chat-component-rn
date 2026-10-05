@@ -48,7 +48,7 @@ import SelectUsersModal from '../SelectUsersModal/SelectUsersModal';
 import { useToast } from '../../../context/ToastContext';
 import { useT } from '../../../i18n/useT';
 import DeleteChatModal from './DeleteChatModal';
-import { isMessageSearchEnabled } from '../../MainComponents/MessageSearchButton';
+import { isMessageSearchEnabled } from '../../../helpers/isMessageSearchEnabled';
 import ReportChatModal from './ReportChatModal';
 import {
   ProfileHero,
