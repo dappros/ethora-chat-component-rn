@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { withFileToken } from '../../../helpers/secureFileUrl';
 import styled from 'styled-components/native';
 import {
@@ -16,6 +16,7 @@ import { RootState } from '../../../roomStore';
 import { FullScreenImage } from '../../styled/StyledInputComponents/MediaComponents';
 import { setActiveFile } from '../../../roomStore/chatSettingsSlice';
 import {
+  ActivityIndicator,
   Alert,
   Text,
   View,
@@ -33,6 +34,13 @@ import PdfViewer from './PdfView';
 import DocumentViewer from './DocumentViewer';
 import AudioMessage from '../../styled/AudioMessage';
 import { isLikelyAudio } from '../../../helpers/mimeToExtension';
+import {
+  downloadVideoToCache,
+  findCachedVideo,
+  isRemoteUrl,
+  isStreamingUnsupported,
+  markStreamingUnsupported,
+} from '../../../helpers/videoCache';
 import {
   getDisplayFileName,
   getUniqueFileName,
@@ -62,52 +70,163 @@ const isGviewPreviewable = (mime: string | undefined | null) => {
 // the area with the surrounding letterbox painted as the view's own
 // (transparent → theme) background, NOT black. `textureView` so the play
 // overlay composites on top and nothing is clipped on Android.
-const ModalVideo: React.FC<{ uri: string }> = ({ uri }) => {
+//
+// The clip is streamed when the server allows it. AVPlayer does not play
+// from a server that ignores byte-range requests (it answers 200 instead of
+// 206 and the player stops with "server is not correctly configured"), so
+// a failed stream falls back to a downloaded copy in the cache — which is
+// also what a reopened video plays from.
+const ModalVideo: React.FC<{ uri: string; mimetype?: string }> = ({
+  uri,
+  mimetype,
+}) => {
+  const theme = useTheme();
+  const remote = isRemoteUrl(uri);
+  // What the player is given; null until we know where to play from.
+  const [source, setSource] = useState<string | null>(remote ? null : uri);
   const [showPlay, setShowPlay] = useState(true);
+  // null = not downloading, otherwise 0..1 (0 while the size is unknown).
+  const [progress, setProgress] = useState<number | null>(null);
+  const [failed, setFailed] = useState(false);
+  const wantsPlay = useRef(false);
+  const downloadStarted = useRef(false);
+  const mounted = useRef(true);
+  useEffect(
+    () => () => {
+      mounted.current = false;
+    },
+    []
+  );
 
-  const player = useVideoPlayer(uri, (p) => {
+  const download = useCallback(() => {
+    if (downloadStarted.current) {return;}
+    downloadStarted.current = true;
+    setProgress(0);
+    downloadVideoToCache(uri, mimetype, (fraction) => {
+      if (mounted.current) {setProgress(fraction);}
+    })
+      .then((localUri) => {
+        if (!mounted.current) {return;}
+        setProgress(null);
+        setSource(localUri);
+      })
+      .catch((err) => {
+        console.warn('video download failed', err);
+        if (!mounted.current) {return;}
+        setProgress(null);
+        setFailed(true);
+      });
+  }, [mimetype, uri]);
+
+  useEffect(() => {
+    if (!remote) {return;}
+    let active = true;
+    findCachedVideo(uri, mimetype).then((cached) => {
+      if (!active) {return;}
+      if (cached) {
+        setSource(cached);
+      } else if (isStreamingUnsupported(uri)) {
+        download();
+      } else {
+        setSource(uri);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [download, mimetype, remote, uri]);
+
+  const player = useVideoPlayer(source, (p) => {
     p.muted = false;
+    // A player made for the downloaded copy picks up a play the user
+    // already asked for.
+    if (wantsPlay.current) {p.play();}
   });
 
   useEffect(() => {
-    const sub = player.addListener('playingChange', ({ isPlaying }) => {
+    const playing = player.addListener('playingChange', ({ isPlaying }) => {
       if (isPlaying) {setShowPlay(false);}
     });
-    return () => sub.remove();
-  }, [player]);
+    const status = player.addListener('statusChange', (event) => {
+      if (event.status !== 'error') {return;}
+      if (source === uri && remote) {
+        markStreamingUnsupported(uri);
+        download();
+      } else {
+        setFailed(true);
+      }
+    });
+    return () => {
+      playing.remove();
+      status.remove();
+    };
+  }, [download, player, remote, source, uri]);
 
   const handlePlay = () => {
+    wantsPlay.current = true;
     setShowPlay(false);
     player.play();
   };
 
+  if (failed) {
+    return (
+      <View style={styles.videoMessage}>
+        <Text style={{ fontSize: 16, fontWeight: '600', color: theme.text }}>
+          This video can't be played
+        </Text>
+        <Text style={{ color: theme.textSecondary, textAlign: 'center' }}>
+          Tap the save icon above to download it.
+        </Text>
+      </View>
+    );
+  }
+
+  const loading = progress !== null || source === null;
+
   return (
     <View style={{ flex: 1, width: '100%' }}>
-      <VideoView
-        player={player}
-        style={{ flex: 1, backgroundColor: 'transparent' }}
-        contentFit="contain"
-        nativeControls
-        surfaceType="textureView"
-        // Fullscreen stays available by default on both expo-video lines:
-        // `allowsFullscreen` (SDK 54, default true) was replaced by
-        // `fullscreenOptions.enable` (SDK 57, default true). Passing neither
-        // keeps this file compiling against both.
-      />
-      {/* Play affordance shown immediately on open; tapping starts
-          playback and the native controls take over. */}
-      {showPlay && (
-        <TouchableOpacity
-          activeOpacity={0.8}
-          onPress={handlePlay}
-          style={StyleSheet.absoluteFill}
-        >
-          <View style={styles.playOverlay}>
-            <View style={styles.playButton}>
-              <PlayIcon width={28} height={28} />
-            </View>
+      {/* No surface while the copy downloads: the failed stream would
+          show the system's "can't play" glyph under the spinner. */}
+      {!loading && (
+        <VideoView
+          player={player}
+          style={{ flex: 1, backgroundColor: 'transparent' }}
+          contentFit="contain"
+          nativeControls
+          surfaceType="textureView"
+          // Fullscreen stays available by default on both expo-video lines:
+          // `allowsFullscreen` (SDK 54, default true) was replaced by
+          // `fullscreenOptions.enable` (SDK 57, default true). Passing
+          // neither keeps this file compiling against both.
+        />
+      )}
+      {loading ? (
+        <View style={styles.playOverlay} pointerEvents="none">
+          <View style={styles.playButton}>
+            <ActivityIndicator color="#FFFFFF" />
           </View>
-        </TouchableOpacity>
+          {!!progress && (
+            <Text style={[styles.progress, { color: theme.textSecondary }]}>
+              {Math.round(progress * 100)}%
+            </Text>
+          )}
+        </View>
+      ) : (
+        showPlay && (
+          // Play affordance shown immediately on open; tapping starts
+          // playback and the native controls take over.
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={handlePlay}
+            style={StyleSheet.absoluteFill}
+          >
+            <View style={styles.playOverlay}>
+              <View style={styles.playButton}>
+                <PlayIcon width={28} height={28} />
+              </View>
+            </View>
+          </TouchableOpacity>
+        )
       )}
     </View>
   );
@@ -332,7 +451,14 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           />
         );
       case activeFile.mimetype.startsWith('video/'):
-        return <ModalVideo uri={withFileToken(activeFile.fileURL)} />;
+        return (
+          <ModalVideo
+            // Remount per file: the player state belongs to one clip.
+            key={activeFile.fileURL}
+            uri={withFileToken(activeFile.fileURL)}
+            mimetype={activeFile.mimetype}
+          />
+        );
       case activeFile.mimetype.includes('application/octet-stream'):
         return (
           <View
@@ -485,6 +611,16 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.55)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  progress: {
+    marginTop: 10,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  videoMessage: {
+    alignItems: 'center',
+    gap: 8,
+    padding: 20,
   },
 });
 
