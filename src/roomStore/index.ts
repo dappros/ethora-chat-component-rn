@@ -8,11 +8,15 @@ import { unreadMiddleware } from './Middleware/unreadMidlleware';
 import { logoutMiddleware } from './Middleware/logoutMiddleware';
 import { newMessageMidlleware } from './Middleware/newMessageMidlleware';
 import { reactionsMiddleware } from './Middleware/reactionsMiddleware';
+import { jumpThreadMiddleware } from './Middleware/jumpThreadMiddleware';
 import {
   persistenceMiddleware,
   readPersistedState,
   computeBootTimeFailures,
+  resetSessionRoomState,
 } from './persistence';
+
+export { resetSessionRoomState };
 
 const rootReducer = combineReducers({
   chatSettingStore: chatSettingsReducer,
@@ -50,6 +54,7 @@ const createChatStore = () =>
         .concat(unreadMiddleware)
         .concat(newMessageMidlleware)
         .concat(reactionsMiddleware)
+        .concat(jumpThreadMiddleware)
         .concat(logoutMiddleware)
         .concat(persistenceMiddleware),
   });
@@ -82,7 +87,12 @@ export const persistorReady =
       store.dispatch(setUser(chat.user));
     }
     if (rooms?.rooms) {
-      for (const [jid, room] of Object.entries(rooms.rooms)) {
+      // Per-session state (preload progress, the API unread snapshot) must
+      // not outlive the session that produced it.
+      const restored = resetSessionRoomState(
+        rooms.rooms as Record<string, IRoom>
+      );
+      for (const [jid, room] of Object.entries(restored)) {
         if (!jid || !room) {continue;}
         store.dispatch(addRoom({ roomData: room as IRoom }));
       }

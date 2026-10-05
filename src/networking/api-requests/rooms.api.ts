@@ -3,6 +3,11 @@ import { store } from '../../roomStore';
 import { addRoom, mergeUsersSet } from '../../roomStore/roomsSlice';
 import { IRoom } from '../../types/types';
 import http from '../apiClient';
+import {
+  mapApiLastMessage,
+  readApiUnreadCount,
+  readApiUsersCnt,
+} from '../../helpers/createRoomFromApi';
 
 /**
  * Populate `state.rooms.usersSet` (the identity cache Message.tsx resolves
@@ -118,12 +123,15 @@ function dispatchRoomsFromRestItems(items: ApiRoom[]): void {
       jid = `${item.name}@${conference}`;
     }
     if (!jid.includes('@')) continue;
+    const apiUnreadCount = readApiUnreadCount(item);
     const room: IRoom = {
       id: item._id || jid,
       jid,
       name: item.name,
       title: item.title || item.name,
-      usersCnt: item.participants ?? item.members?.length ?? 0,
+      // /chats/my lists at most 30 members of a big room but reports the
+      // true total in usersCnt (older backends: participants).
+      usersCnt: readApiUsersCnt(item),
       messages: [],
       isLoading: false,
       roomBg: '',
@@ -131,6 +139,12 @@ function dispatchRoomsFromRestItems(items: ApiRoom[]): void {
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
       muted: item.muted === true,
+      // Server-reported unread (backends that send it) and the API's last
+      // message, both seeds for the room list before any history is loaded.
+      ...(apiUnreadCount !== undefined ? { unreadMessages: apiUnreadCount } : {}),
+      apiUnreadCount,
+      apiUnreadSeededAt: apiUnreadCount === undefined ? undefined : Date.now(),
+      lastMessage: mapApiLastMessage(item.lastMessage, jid),
       description: (item as any).description,
       type: (item as any).type,
       // ChatProfileModal renders this list under the description/type

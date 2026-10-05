@@ -1,6 +1,7 @@
 import { IMessage } from '../types/types';
 import { isDateAfter, isDateBefore } from './dateComparison';
 import { msgSortableMs } from './msgSortableMs';
+import { isSafeKey } from '../roomStore/safeKey';
 
 // Robustly resolve a caller-supplied read marker to epoch milliseconds.
 // Callers pass a plain number (the redux read boundary, or a room's
@@ -33,6 +34,8 @@ function resolveMarkerMs(
 
 function deepMerge(target: any, source: any): any {
   for (const key in source) {
+    // Never walk into the prototype chain through attacker-shaped keys.
+    if (!isSafeKey(key)) {continue;}
     if (source[key] === undefined) {
       // `for...in` visits a key even when its value is `undefined` — every
       // stanza parser (getDataFromXml/createMessageFromXml) returns an

@@ -415,7 +415,6 @@ export const useSendMessage = (_configOverride?: IConfig) => {
               isDeleted: false,
               xmppId: id,
               xmppFrom: `${activeRoomJID}/${selfId}`,
-              isSystemMessage: 'false',
               isMediafile: 'true',
               fileName: data?.name,
               location: normalizedFileUri,

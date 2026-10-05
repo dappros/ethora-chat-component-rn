@@ -303,6 +303,13 @@ const en: UiStringTable = {
   'publicChats.emptyFilterMore': 'No match among the chats loaded so far. Show more to keep looking.',
   'publicChats.join': 'Join',
   'publicChats.open': 'Open',
+  'action.jumpToLatest': 'Jump to latest messages',
+  'thread.alsoSendTo': 'Also send to',
+  'user.unknown': 'Unknown user',
+  'modal.chatProfile.membersLoadingAll': 'Loading all members...',
+  'search.clear': 'Clear search',
+  'search.messages.archivedTitle': 'Older message',
+  'search.messages.archivedNote': 'This message is older than the history available in this chat, so it cannot be shown in place.',
 };
 
 const fr: UiStringTable = {
@@ -595,6 +602,13 @@ const fr: UiStringTable = {
   'publicChats.emptyFilterMore': 'Aucun résultat parmi les discussions chargées. Affichez-en plus pour continuer.',
   'publicChats.join': 'Rejoindre',
   'publicChats.open': 'Ouvrir',
+  'action.jumpToLatest': 'Aller aux derniers messages',
+  'thread.alsoSendTo': 'Envoyer aussi dans',
+  'user.unknown': 'Utilisateur inconnu',
+  'modal.chatProfile.membersLoadingAll': 'Chargement de tous les membres...',
+  'search.clear': 'Effacer la recherche',
+  'search.messages.archivedTitle': 'Message plus ancien',
+  'search.messages.archivedNote': 'Ce message est plus ancien que l\'historique disponible dans cette discussion, il ne peut donc pas être affiché à sa place.',
 };
 
 const es: UiStringTable = {
@@ -887,6 +901,13 @@ const es: UiStringTable = {
   'publicChats.emptyFilterMore': 'Sin coincidencias entre los chats cargados. Muestra más para seguir buscando.',
   'publicChats.join': 'Unirse',
   'publicChats.open': 'Abrir',
+  'action.jumpToLatest': 'Ir a los últimos mensajes',
+  'thread.alsoSendTo': 'Enviar también a',
+  'user.unknown': 'Usuario desconocido',
+  'modal.chatProfile.membersLoadingAll': 'Cargando todos los miembros...',
+  'search.clear': 'Borrar búsqueda',
+  'search.messages.archivedTitle': 'Mensaje anterior',
+  'search.messages.archivedNote': 'Este mensaje es anterior al historial disponible en este chat, por lo que no se puede mostrar en su lugar.',
 };
 
 const pt: UiStringTable = {
@@ -1179,6 +1200,13 @@ const pt: UiStringTable = {
   'publicChats.emptyFilterMore': 'Nenhuma correspondência entre as conversas carregadas. Mostre mais para continuar.',
   'publicChats.join': 'Entrar',
   'publicChats.open': 'Abrir',
+  'action.jumpToLatest': 'Ir para as últimas mensagens',
+  'thread.alsoSendTo': 'Enviar também para',
+  'user.unknown': 'Utilizador desconhecido',
+  'modal.chatProfile.membersLoadingAll': 'Carregando todos os membros...',
+  'search.clear': 'Limpar pesquisa',
+  'search.messages.archivedTitle': 'Mensagem antiga',
+  'search.messages.archivedNote': 'Esta mensagem é anterior ao histórico disponível nesta conversa, por isso não pode ser exibida no lugar.',
 };
 
 const ht: UiStringTable = {
@@ -1471,6 +1499,13 @@ const ht: UiStringTable = {
   'publicChats.emptyFilterMore': 'Pa gen rezilta nan chat ki chaje yo. Montre plis pou kontinye.',
   'publicChats.join': 'Antre',
   'publicChats.open': 'Louvri',
+  'action.jumpToLatest': 'Ale nan dènye mesaj yo',
+  'thread.alsoSendTo': 'Voye tou nan',
+  'user.unknown': 'Itilizatè enkoni',
+  'modal.chatProfile.membersLoadingAll': 'N ap chaje tout manm yo...',
+  'search.clear': 'Efase rechèch',
+  'search.messages.archivedTitle': 'Mesaj ki pi ansyen',
+  'search.messages.archivedNote': 'Mesaj sa a pi ansyen pase istwa ki disponib nan chat sa a, kidonk nou pa ka montre l kote li ye a.',
 };
 
 const zh: UiStringTable = {
@@ -1763,6 +1798,13 @@ const zh: UiStringTable = {
   'publicChats.emptyFilterMore': '已加载的聊天中没有匹配项。显示更多以继续查找。',
   'publicChats.join': '加入',
   'publicChats.open': '打开',
+  'action.jumpToLatest': '跳到最新消息',
+  'thread.alsoSendTo': '同时发送到',
+  'user.unknown': '未知用户',
+  'modal.chatProfile.membersLoadingAll': '正在加载全部成员...',
+  'search.clear': '清除搜索',
+  'search.messages.archivedTitle': '较早的消息',
+  'search.messages.archivedNote': '这条消息早于此聊天中可用的历史记录，因此无法在原位显示。',
 };
 
 // Built-in tables keyed by base language. Add a language here (plus the code

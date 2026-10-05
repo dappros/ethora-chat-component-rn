@@ -68,7 +68,6 @@ export const sendTextMessage = (
         senderJID: client.jid?.toString(),
         senderWalletAddress: walletAddress,
         roomJid: roomJID,
-        isSystemMessage: false,
         tokenAmount: 0,
         quickReplies: '',
         notDisplayedValue: '',

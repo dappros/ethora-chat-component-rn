@@ -50,6 +50,15 @@ export interface IRoom {
   composingList?: string[];
   lastViewedTimestamp?: number;
   unreadMessages?: number;
+  /**
+   * Unread count the server reported for this room in `GET /v1/chats/my`
+   * (`unreadCount`) and when it was read (epoch ms). Only present on backends
+   * that send it. Used as a floor while the local message list is too short
+   * to count from; ignored once the user has read past the API's last
+   * message, cleared when the room is opened, never persisted.
+   */
+  apiUnreadCount?: number;
+  apiUnreadSeededAt?: number;
   noMessages?: boolean;
   role?: string;
 
@@ -60,9 +69,31 @@ export interface IRoom {
   historyComplete?: boolean;
 }
 
+/**
+ * The flattened `lastMessage` object `GET /v1/chats/my` embeds per room.
+ * Every field is optional: backends differ in what they send.
+ */
+export interface ApiRoomLastMessage {
+  body?: string;
+  truncated?: boolean;
+  from?: string;
+  fromUserId?: string;
+  messageId?: string;
+  stanzaId?: string;
+  createdAt?: string;
+  isOwn?: boolean;
+  senderFirstName?: string;
+  senderLastName?: string;
+}
+
 export interface ApiRoom {
   name: string;
   type: 'public' | 'group' | 'private';
+  /** True total; `members` is capped at 30 for big public rooms. */
+  usersCnt?: number;
+  /** Unread messages for the caller, on backends that report it. */
+  unreadCount?: number;
+  lastMessage?: ApiRoomLastMessage;
 
   title?: string;
   description?: string;
