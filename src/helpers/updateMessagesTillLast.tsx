@@ -1,6 +1,6 @@
 import XmppClient from '../networking/xmppClient';
 import { store } from '../roomStore';
-import { setRoomMessages } from '../roomStore/roomsSlice';
+import { addRoomMessages, setRoomMessages } from '../roomStore/roomsSlice';
 import { IMessage, IRoom } from '../types/types';
 import { checkUniqueUsers } from './checkUniqueUsers';
 
@@ -86,6 +86,13 @@ export const updateMessagesTillLast = async (
               isMessageFound = currentJidNewMessages.some(
                 (message: IMessage) =>
                   Number(message.id) === Number(lastCachedMessagesTimeStamp)
+              );
+
+              // Merge the page now, whatever comes next: what the cache
+              // already holds is skipped, the rest is what arrived while
+              // the stream was down.
+              store.dispatch(
+                addRoomMessages({ roomJID: jid, messages: fetchedMessages })
               );
 
               if (!isMessageFound && !(counter <= maxFetchAttempts - 1)) {

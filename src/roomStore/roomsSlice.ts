@@ -4,6 +4,7 @@ import { EditAction, HistoryPreloadState, IMessage, IRoom } from '../types/types
 import { insertMessageWithDelimiter } from '../helpers/insertMessageWithDelimiter';
 import { msgSortableMs } from '../helpers/msgSortableMs';
 import type XmppClient from '../networking/xmppClient';
+import { subscribeRoomForPush } from '../services/pushSubscriptionService';
 
 // Per-room runtime message cap. Mirrors the persistence layer's
 // MESSAGE_LIMIT so what's in memory matches what's on disk; otherwise
@@ -509,11 +510,13 @@ const isValidRoomJid = (jid: unknown): jid is string => {
 export const addRoomViaApi = createAsyncThunk(
   'roomMessages/addRoomViaApi',
   async (
-    { room, xmpp: _xmpp }: { room: IRoom; xmpp: XmppClient },
+    { room, xmpp }: { room: IRoom; xmpp: XmppClient },
     { dispatch }
   ) => {
     if (!room || !room.jid) return;
     dispatch(roomsStore.actions.addRoomFromApi({ room }));
+    // A room made now was not in the bootstrap's MucSub pass.
+    subscribeRoomForPush(xmpp, room.jid);
   }
 );
 

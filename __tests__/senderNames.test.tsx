@@ -309,6 +309,50 @@ describe('room members beyond the preview', () => {
     });
   });
 
+  it('learns that a room which came through XMPP is encrypted', async () => {
+    // The room list stanza knows nothing of encryption: the row shows no
+    // padlock until the room's REST record has been asked for.
+    await quiet(() =>
+      store.dispatch(
+        addRoom({
+          roomData: {
+            id: '', jid: 'sealed@conference.host', name: 'sealed', title: 'sealed',
+            usersCnt: 2, messages: [], isLoading: false, roomBg: null,
+          } as unknown as IRoom,
+        })
+      )
+    );
+    expect(store.getState().rooms.rooms['sealed@conference.host']!.e2ee).toBeUndefined();
+    mockHttpGet.mockResolvedValueOnce({
+      data: { result: item(all.slice(0, 2), { name: 'sealed', jid: 'sealed@conference.host', usersCnt: 2, e2ee: true, picture: 'p.png' }) },
+    });
+    await quiet(async () => {
+      expect(await loadRoomMembers('sealed@conference.host', { force: true })).toBe(true);
+    });
+    const room = store.getState().rooms.rooms['sealed@conference.host']!;
+    expect(room.e2ee).toBe(true);
+    expect(room.members).toHaveLength(2);
+    expect(room.icon).toBe('p.png');
+    // A record without members still tells about encryption.
+    await quiet(() =>
+      store.dispatch(
+        addRoom({
+          roomData: {
+            id: '', jid: 'bare@conference.host', name: 'bare', title: 'bare',
+            usersCnt: 0, messages: [], isLoading: false, roomBg: null,
+          } as unknown as IRoom,
+        })
+      )
+    );
+    mockHttpGet.mockResolvedValueOnce({
+      data: { result: { name: 'bare', jid: 'bare@conference.host', e2ee: true } },
+    });
+    await quiet(async () => {
+      await loadRoomMembers('bare@conference.host', { force: true });
+    });
+    expect(store.getState().rooms.rooms['bare@conference.host']!.e2ee).toBe(true);
+  });
+
   it('encrypts for the whole room, not for the 30 the list previews', async () => {
     mockHttpGet.mockResolvedValueOnce({
       data: { items: [item(all.slice(0, 30), { name: 'sealed', jid: 'sealed@conference.host', e2ee: true })] },

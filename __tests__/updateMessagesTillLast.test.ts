@@ -124,6 +124,15 @@ describe('updateMessagesTillLast', () => {
       1
     );
     expect(client.getHistoryStanza).toHaveBeenCalledTimes(1);
+    // The page is fetched `selfApplied` (the MAM router hands it back
+    // instead of storing it), so what arrived while the stream was down
+    // must be merged here - the message after the boundary is now in
+    // the room, the boundary itself not duplicated. Dropping the page
+    // (26.8.6) left a message a push had announced missing from the chat.
+    const ids = sharedStore
+      .getState()
+      .rooms.rooms['a@h']!.messages.map((m: IMessage) => m.id);
+    expect(ids).toEqual([String(TARGET_TS), '1700000001000']);
   });
 
   it('retries up to maxFetchAttempts then dispatches setRoomMessages with the accumulated batch', async () => {

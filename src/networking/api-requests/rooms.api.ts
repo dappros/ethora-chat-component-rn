@@ -212,11 +212,25 @@ function dispatchRoomsFromRestItems(items: ApiRoom[]): void {
 const ROOM_MEMBERS_TTL_MS = 5 * 60_000;
 const roomMembersLoads = new Map<string, { at: number; done: Promise<boolean> }>();
 
-export function loadRoomMembers(roomJid: string): Promise<boolean> {
+/**
+ * Fetches the room's own REST record (`/chats/my/{name}`) and applies what
+ * only the backend knows: the full roster, and whether the room is
+ * end-to-end encrypted. Skipped while the roster is already complete,
+ * unless `force` - a room that arrived through XMPP (the room list
+ * stanza, an invite) was never described by REST at all, so it has no
+ * `e2ee` and shows no padlock until this runs.
+ */
+export function loadRoomMembers(
+  roomJid: string,
+  options: { force?: boolean } = {}
+): Promise<boolean> {
   const jid = String(roomJid || '').split('/')[0]!;
   const room = store.getState().rooms.rooms?.[jid];
   if (!room) {return Promise.resolve(false);}
-  if ((room.roomMembers?.length ?? 0) >= Number(room.usersCnt || 0)) {
+  if (
+    !options.force &&
+    (room.roomMembers?.length ?? 0) >= Number(room.usersCnt || 0)
+  ) {
     return Promise.resolve(false);
   }
   const running = roomMembersLoads.get(jid);
@@ -227,23 +241,35 @@ export function loadRoomMembers(roomJid: string): Promise<boolean> {
       const response: any = await getRoomByName(jid.split('@')[0]!);
       const item: ApiRoom = response?.result ?? response;
       const members = Array.isArray(item?.members) ? item.members : [];
-      if (members.length === 0) {return false;}
+      if (!item || typeof item !== 'object') {return false;}
       dispatchUsersSetFromRestItems([item]);
       const current = store.getState().rooms.rooms?.[jid];
       if (!current) {return false;}
+      const e2ee = item.e2ee === true || current.e2ee === true;
       store.dispatch(
         updateRoom({
           jid,
           updates: {
-            roomMembers: toRoomMembers(members),
-            usersCnt: Math.max(memberCount(item), members.length),
-            ...(current.e2ee
+            ...(members.length > 0
+              ? {
+                  roomMembers: toRoomMembers(members),
+                  usersCnt: Math.max(memberCount(item), members.length),
+                }
+              : {}),
+            ...(e2ee ? { e2ee: true } : {}),
+            ...(e2ee && members.length > 0
               ? { members: toE2eeMembers(members, ownAppId()) }
               : {}),
+            // What the stanza list did not carry.
+            ...(!current.title && item.title ? { title: item.title } : {}),
+            ...(!current.icon && (item.picture || item.icon)
+              ? { icon: item.picture || item.icon }
+              : {}),
+            ...(!current.type && (item as any).type ? { type: (item as any).type } : {}),
           },
         })
       );
-      return true;
+      return members.length > 0;
     } catch (error) {
       roomMembersLoads.delete(jid);
       console.warn('[ethora-rn] rooms.api: could not load room members', jid, error);
