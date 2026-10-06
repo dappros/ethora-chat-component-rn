@@ -211,6 +211,12 @@ Pick **one** auth mode. Mixing is undefined behavior.
 | `whitelistSystemMessage` | `string[]` | Render only the listed `isSystemMessage` types. |
 | `customSystemMessage` | `React.ComponentType<MessageProps>` | Replace the default system-message bubble. |
 
+### End-to-end encryption
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `e2ee` | `{ enabled: boolean }` | OMEMO 2 in rooms the backend marks `e2ee`, wire-compatible with the web SDK. **Off by default** - leave the block out or set `enabled: false`, and nothing is generated or published; encrypted rooms are still shown as such but cannot be written to from this app. With `enabled: true` this device publishes its keys after connecting and encrypts text and attachments (up to 20 MB) in those rooms; a user's devices and fingerprints appear in Settings and on profiles. See the README's "End-to-end encrypted rooms" and `docs/e2ee-port.md`. |
+
 ### Typing and sending control
 
 | Option | Type | Description |

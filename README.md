@@ -371,9 +371,19 @@ Same model as the web SDK, so threads are shared across platforms.
 
 OMEMO 2 in rooms the backend marks `e2ee` (`room.e2ee` from `GET /v1/chats/my`), wire-compatible with the web SDK. Status, measurements and limits are tracked in [`docs/e2ee-port.md`](docs/e2ee-port.md).
 
+Off by default. The host turns it on or off through the config it passes to the chat:
+
 ```ts
-config = { e2ee: { enabled: true } }; // default: off
+// On: this device publishes its keys; text and attachments in `e2ee` rooms are encrypted.
+config = { e2ee: { enabled: true } };
+
+// Off (the default): leave the block out, or set `enabled: false`. Nothing is
+// generated or published, and encrypted rooms are shown as such but cannot be
+// written to from this app.
+config = { e2ee: { enabled: false } };
 ```
+
+The switch can be flipped at any time; it takes effect on the next mount of the chat. Keys made while it was on stay on the device and are reused when it is on again.
 
 **With it on**, after connecting the SDK creates this device's keys (once per account per install; they survive logout), publishes them, and in encrypted rooms:
 
