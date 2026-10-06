@@ -12,6 +12,9 @@ import { useT } from '../../i18n/useT';
 import { useConnectionLabel } from '../../hooks/useConnectionLabel';
 import { resolveHeaderHeight } from '../../helpers/headerLayout';
 
+export const ROOM_LIST_HEADER_TRIM = 5;
+const ROOM_LIST_HEADER_LIFT = 6;
+
 interface HeaderRoomListProps {
   setDrawerOpen: () => void;
 }
@@ -25,7 +28,8 @@ export const HeaderRoomList: FC<HeaderRoomListProps> = ({ setDrawerOpen }) => {
   const topInset = config?.headerLayout?.safeAreaTop ? insets.top : 0;
   // Same fixed band as ChatHeader / modal headers: the safe-area inset is
   // padded on top and the row (buttons + title) centers in the band below it.
-  const headerHeight = resolveHeaderHeight(config?.headerLayout?.height) + topInset;
+  const headerHeight =
+    resolveHeaderHeight(config?.headerLayout?.height) - ROOM_LIST_HEADER_TRIM + topInset;
 
   const modalUser: any = selectedUser ?? user;
 
@@ -51,7 +55,7 @@ export const HeaderRoomList: FC<HeaderRoomListProps> = ({ setDrawerOpen }) => {
       style={[
         styles.headerContainer,
         { backgroundColor: theme.surface, shadowColor: theme.shadow },
-        { height: headerHeight, paddingTop: topInset },
+        { height: headerHeight, paddingTop: topInset, paddingBottom: ROOM_LIST_HEADER_LIFT },
       ]}
     >
       {!config?.disableRoomMenu && config?.headerMenu ? (
@@ -72,7 +76,12 @@ export const HeaderRoomList: FC<HeaderRoomListProps> = ({ setDrawerOpen }) => {
       ) : (
         <View style={styles.leftContainer} />
       )}
-      <View style={[styles.centerContainer, { top: topInset }]}>
+      <View
+        style={[
+          styles.centerContainer,
+          { top: topInset, bottom: ROOM_LIST_HEADER_LIFT },
+        ]}
+      >
         {connectionLabel ? (
           // The title gives way to the session's state: the list is not
           // live until the stream is up and the rooms re-joined.
@@ -139,7 +148,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
   },
