@@ -89,6 +89,23 @@ jest.mock('react-native-reanimated', () => {
     return {};
   }
 });
+// The room list's swipeable rows: render the row and its actions side by
+// side, so tests reach the buttons without a gesture; `close` is a no-op.
+jest.mock('react-native-gesture-handler/ReanimatedSwipeable', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  const methods = { close: () => {}, openLeft: () => {}, openRight: () => {}, reset: () => {} };
+  const Swipeable = React.forwardRef((props, ref) => {
+    React.useImperativeHandle(ref, () => methods);
+    return React.createElement(
+      View,
+      { testID: props.testID },
+      props.children,
+      props.renderRightActions ? props.renderRightActions(null, null, methods) : null
+    );
+  });
+  return { __esModule: true, default: Swipeable };
+});
 jest.mock('@react-native-clipboard/clipboard', () => ({}), { virtual: true });
 jest.mock('react-native-fs', () => ({}), { virtual: true });
 jest.mock('react-native-video', () => 'Video', { virtual: true });

@@ -652,6 +652,8 @@ export interface IConfig {
   };
   disableProfilesInteractions?: boolean;
   disableUserCount?: boolean;
+  /** No Report / Leave behind a room-list row swiped to the left. */
+  disableRoomSwipeActions?: boolean;
   disableSentLogic?: boolean;
   disableTypingIndicator?: boolean;
   // Hide the full-screen "Connection error" overlay (the dark modal with
