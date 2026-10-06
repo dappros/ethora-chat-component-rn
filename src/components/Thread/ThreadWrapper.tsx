@@ -29,6 +29,7 @@ import { useSendMessage } from '../../hooks/useSendMessage';
 import { createMainMessageForThread } from '../../helpers/createMainMessageForThread';
 import { useChatSettingState } from '../../hooks/useChatSettingState';
 import { useTheme } from '../../hooks/useTheme';
+import { useT } from '../../i18n/useT';
 import CustomTypingIndicator from '../styled/StyledInputComponents/CustomTypingIndicator';
 import { KeyboardInputDock } from '../MainComponents/KeyboardInputDock';
 import {
@@ -69,6 +70,7 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
   const reduxStore = useStore<RootState>();
   const { config } = useChatSettingState();
   const theme = useTheme();
+  const t = useT();
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const roomJid = activeMessage.roomJid;
@@ -217,7 +219,7 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
           style={[styles.fill, { backgroundColor: theme.surface }]}
         >
           <View style={[styles.fill, { backgroundColor: theme.chatBackground }]}>
-            <ModalHeaderComponent headerTitle="Thread" handleCloseModal={close} />
+            <ModalHeaderComponent headerTitle={t('thread.title')} handleCloseModal={close} />
             <MessageList
               loadMoreMessages={loadMoreMessages}
               CustomMessage={CustomMessageComponent}
@@ -267,7 +269,7 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
                 numberOfLines={1}
                 style={[styles.alsoText, { color: theme.textSecondary }]}
               >
-                Also send to{' '}
+                {t('thread.alsoSendTo')}{' '}
                 <Text style={{ color: theme.primary, fontWeight: '600' }}>
                   {roomDisplayName}
                 </Text>

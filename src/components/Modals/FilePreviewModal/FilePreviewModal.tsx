@@ -30,6 +30,7 @@ import { PlayIcon } from '../../../assets/icons';
 import * as FileSystem from 'expo-file-system/legacy';
 import { getMediaLibrary } from '../../../helpers/mediaLibraryRuntime';
 import { useToast } from '../../../context/ToastContext';
+import { useT } from '../../../i18n/useT';
 import PdfViewer from './PdfView';
 import DocumentViewer from './DocumentViewer';
 import AudioMessage from '../../styled/AudioMessage';
@@ -250,6 +251,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
 }) => {
   const dispatch = useDispatch();
   const { showToast } = useToast();
+  const t = useT();
   const { config } = useChatSettingState();
   const theme = useTheme();
   // Info / audio cards: light keeps its warm tint (not in the palette),
@@ -309,8 +311,8 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
         await getMediaLibrary()?.saveToLibraryAsync(download.uri);
         showToast({
           id: Date.now().toString(),
-          title: 'Success',
-          message: 'Save successful',
+          title: t('toast.successTitle'),
+          message: t('toast.saveSuccessful'),
           type: 'success',
         });
       } else {
@@ -394,8 +396,8 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
 
         showToast({
           id: Date.now().toString(),
-          title: 'Success',
-          message: 'Save successful',
+          title: t('toast.successTitle'),
+          message: t('toast.saveSuccessful'),
           type: 'success',
         });
         return;
@@ -576,7 +578,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
     <ModalContainerFullScreen>
       <ModalHeaderComponent
         handleCloseModal={closeModal}
-        headerTitle={'File preview'}
+        headerTitle={t('modal.filePreview.title')}
         titleStyle={chatTextStyle(config?.typography?.profile?.screenTitle)}
         rightMenu={
           <>

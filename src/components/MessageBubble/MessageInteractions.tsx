@@ -22,6 +22,7 @@ import * as Clipboard from 'expo-clipboard';
 import { useToast } from '../../context/ToastContext';
 import { useInteractionsOverlay } from './InteractionsOverlay';
 import { useTheme } from '../../hooks/useTheme';
+import { useT } from '../../i18n/useT';
 import { getEmojiNativeById } from '../../helpers/emoji';
 import {
   quickReactionIds,
@@ -61,6 +62,7 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
   onOpenEmojiPicker,
 }) => {
   const { showToast } = useToast();
+  const t = useT();
   const { present, dismiss, originX, originY } = useInteractionsOverlay();
   const overlayId = useId();
   const theme = useTheme();
@@ -144,15 +146,15 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
       await Clipboard.setStringAsync(text);
       showToast({
         id: Date.now().toString(),
-        title: 'Success',
-        message: 'Copied to clipboard!',
+        title: t('toast.successTitle'),
+        message: t('toast.copied'),
         type: 'success',
       });
     } catch (err) {
       console.log(err);
       showToast({
         id: Date.now().toString(),
-        title: 'Copy failed',
+        title: t('toast.copyFailed'),
         message: (err as Error)?.message || 'Unknown error',
         type: 'error',
       });

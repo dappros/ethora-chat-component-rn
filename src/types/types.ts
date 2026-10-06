@@ -811,6 +811,27 @@ export interface IConfig {
     hideAppearance?: boolean;
     /** Hide the push-notifications toggle. */
     hidePushToggle?: boolean;
+    /**
+     * A "Language" card with two pickers, off by default: the interface
+     * language (the backend's `user.appLanguage`) and the language messages
+     * are translated into (`user.chatLanguage`). A choice is applied at
+     * once, kept on the device, and written to the profile with
+     * `PUT /v1/users`, one field per request; the profile's values are
+     * applied when a session starts. Translation itself is the server's,
+     * per the reader's chat language - so `translates.enabled` is what
+     * shows the result. Options default to the built-in list (en-CA, es-US,
+     * fr-CA); pass BCP-47 tags to offer others.
+     */
+    languages?: {
+      enabled: boolean;
+      appLanguages?: string[];
+      chatLanguages?: string[];
+    };
+    /**
+     * A "Change password" screen, off by default: the current password and
+     * the new one, sent to `PUT /v2/users/me/password`.
+     */
+    changePassword?: boolean;
   };
 
   // ----- event hooks -----

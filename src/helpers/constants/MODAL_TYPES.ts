@@ -15,6 +15,7 @@ export const MODAL_TYPES = {
   CHAT_PROFILE: 'chatprofile',
   MANAGE_DATA: 'managedata',
   VISIBILITY: 'visibility',
+  CHANGE_PASSWORD: 'change_password',
 
   PROFILE_SHARES: 'profile_shares',
   DOCUMENT_SHARES: 'document_shares',

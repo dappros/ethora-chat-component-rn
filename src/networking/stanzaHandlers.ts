@@ -132,6 +132,7 @@ const onRealtimeMessage = async (stanza: Element) => {
       // (stanza handler, not a component), so resolve the locale from the
       // store directly and call `translateKey` instead of `useT()`.
       const locale =
+        state.chatSettingStore.uiLocale ||
         state.chatSettingStore.config?.i18n?.locale ||
         state.chatSettingStore.langSource;
       const overrides = state.chatSettingStore.config?.i18n?.strings;

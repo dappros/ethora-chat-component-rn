@@ -9,6 +9,9 @@ export const useChatSettingState = () => {
   const activeModal = useSelector(
     (state: RootState) => state.chatSettingStore.activeModal
   );
+  const uiLocale = useSelector(
+    (state: RootState) => state.chatSettingStore.uiLocale
+  );
   const config = useSelector(
     (state: RootState) => state.chatSettingStore.config
   );
@@ -29,6 +32,7 @@ export const useChatSettingState = () => {
   );
 
   return {
+    uiLocale,
     user,
     activeFile,
     activeModal,

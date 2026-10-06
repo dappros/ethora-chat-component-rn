@@ -1,7 +1,7 @@
 /** @format */
 
-import EncryptionCard from '../../MainComponents/EncryptionCard';
 import React, { useCallback, useMemo } from 'react';
+import LanguageCard from './LanguageCard';
 import {
   StyleSheet,
   Switch,
@@ -64,12 +64,17 @@ const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
     [t]
   );
 
+  const showPassword = config?.settings?.changePassword === true;
   const options = useMemo(
     () => [
       { label: t('settings.manageData.title'), key: MODAL_TYPES.MANAGE_DATA },
       { label: t('settings.visibility.title'), key: MODAL_TYPES.VISIBILITY },
+      // Off unless the host turned it on: not every backend has the endpoint.
+      ...(showPassword
+        ? [{ label: t('settings.password.title'), key: MODAL_TYPES.CHANGE_PASSWORD }]
+        : []),
     ],
-    [t]
+    [t, showPassword]
   );
 
   const handleClick = useCallback(
@@ -160,8 +165,10 @@ const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
           </View>
         ) : null}
 
-        {config?.e2ee?.enabled === true ? (
-          <EncryptionCard style={styles.card} testID="settings-e2ee" />
+        {/* The interface language and the translation language; off
+            unless the host turned it on, as it writes to the profile. */}
+        {config?.settings?.languages?.enabled === true ? (
+          <LanguageCard style={styles.card} />
         ) : null}
 
         {options.map((option) => (

@@ -16,6 +16,7 @@ import {
 } from '../SharedStyledComponents';
 import { RadioInput } from './RadioInput';
 import { useTheme } from '../../../../hooks/useTheme';
+import { useT } from '../../../../i18n/useT';
 
 interface VisibilityModalProps {
   handleCloseModal: any;
@@ -27,6 +28,7 @@ const VisibilityModal: React.FC<VisibilityModalProps> = ({
   const dispatch = useDispatch();
   const { user } = useSelector((state: RootState) => state.chatSettingStore);
   const theme = useTheme();
+  const t = useT();
 
   const doUpdateUser = (user: User) => dispatch(setUser(user));
   const [isProfileOpen, setIsProfileOpen] = useState(user?.isProfileOpen);
@@ -67,17 +69,17 @@ const VisibilityModal: React.FC<VisibilityModalProps> = ({
     <ModalContainerFullScreen>
       <ModalHeaderComponent
         handleCloseModal={handleCloseModal}
-        headerTitle={'Visibility'}
+        headerTitle={t('settings.visibility.title')}
       />
       <SharedSettingsCenterContainer>
         <SharedSettingsColumnContainer>
           <SharedSettingsStyledLabel>
-            Profile Visiblility
+            {t('settings.visibility.profileLabel')}
           </SharedSettingsStyledLabel>
           <RadioGroup>
             <RadioLabel>
               <RadioInput
-                option={{ label: 'Open (default)', value: isProfileOpen }}
+                option={{ label: t('settings.visibility.open'), value: isProfileOpen }}
                 radioColor={theme.primary}
                 checked={isProfileOpen === true}
                 onChange={() => setIsProfileOpen(true)}
@@ -85,50 +87,47 @@ const VisibilityModal: React.FC<VisibilityModalProps> = ({
             </RadioLabel>
 
             <SharedSettingsLabelData>
-              Your profile can be viewed by anyone who follows your profile link
-              or QR code.
+              {t('settings.visibility.openDescription')}
             </SharedSettingsLabelData>
             <RadioLabel>
               <RadioInput
-                option={{ label: 'Restricted', value: isProfileOpen }}
+                option={{ label: t('settings.visibility.restricted'), value: isProfileOpen }}
                 radioColor={theme.primary}
                 checked={isProfileOpen === false}
                 onChange={() => setIsProfileOpen(false)}
               />
             </RadioLabel>
             <SharedSettingsLabelData>
-              Only users with your permission or temporary secure link can see
-              your profile.
+              {t('settings.visibility.restrictedDescription')}
             </SharedSettingsLabelData>
           </RadioGroup>
         </SharedSettingsColumnContainer>
         <SharedSettingsColumnContainer>
           <SharedSettingsStyledLabel>
-            Documents Visibility
+            {t('settings.visibility.documentsLabel')}
           </SharedSettingsStyledLabel>
           <RadioGroup>
             <RadioLabel>
               <RadioInput
-                option={{ label: 'Full (default)', value: isAssetsOpen }}
+                option={{ label: t('settings.visibility.full'), value: isAssetsOpen }}
                 radioColor={theme.primary}
                 checked={isAssetsOpen === true}
                 onChange={() => setIsAssetsOpen(true)}
               />
             </RadioLabel>
             <SharedSettingsLabelData>
-              Show all Documents to those who can see your profile.
+              {t('settings.visibility.fullDescription')}
             </SharedSettingsLabelData>
             <RadioLabel>
               <RadioInput
-                option={{ label: 'InViewidual', value: isAssetsOpen }}
+                option={{ label: t('settings.visibility.individual'), value: isAssetsOpen }}
                 radioColor={theme.primary}
                 checked={isAssetsOpen === false}
                 onChange={() => setIsAssetsOpen(false)}
               />
             </RadioLabel>
             <SharedSettingsLabelData>
-              You need to share each document inViewidually before others can
-              see them.
+              {t('settings.visibility.individualDescription')}
             </SharedSettingsLabelData>
           </RadioGroup>
         </SharedSettingsColumnContainer>

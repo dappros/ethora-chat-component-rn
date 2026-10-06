@@ -37,6 +37,7 @@ import ThreadWrapper from '../Thread/ThreadWrapper';
 import {ModalWrapper} from '../Modals/ModalWrapper/ModalWrapper';
 import {useChatSettingState} from '../../hooks/useChatSettingState';
 import {useTheme} from '../../hooks/useTheme';
+import { useT } from '../../i18n/useT';
 import { usePendingNotification } from '../../hooks/usePendingNotification';
 import {DeviceEventEmitter, Keyboard, Pressable, Text, View} from 'react-native';
 import {pushLog as devPushLog} from '../../utils/devLogger';
@@ -71,6 +72,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
 
   usePendingNotification();
   const theme = useTheme();
+  const t = useT();
   const roomStackRef = useRef<RoomStackHandle>(null);
   // Stable, so ChatRoom's React.memo holds across this root's re-renders.
   // (A hook: must stay above the early LoginForm return.)
@@ -572,9 +574,9 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
             />
             {deleteModal?.isDeleteModal && (
               <ModalWrapper
-                title="Delete Message"
-                description="Are you sure you want to delete this message?"
-                buttonText="Delete"
+                title={t('modal.deleteMessage.title')}
+                description={t('modal.deleteMessage.description')}
+                buttonText={t('action.delete')}
                 backgroundColorButton={theme.danger}
                 handleClick={handleDeleteClick}
                 handleCloseModal={handleCloseDeleteModal}

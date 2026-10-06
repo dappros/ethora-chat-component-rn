@@ -38,6 +38,12 @@ export interface ChatState {
   themePreference?: ThemePreference;
   /** Push notifications toggle from Settings. `undefined` = on. */
   pushEnabled?: boolean;
+  /**
+   * The interface language the user picked in Settings (BCP-47, e.g.
+   * "fr-CA") - the backend's `user.appLanguage`. Wins over the host's
+   * `config.i18n.locale`, which is the default for a user who never chose.
+   */
+  uiLocale?: string;
 }
 
 export const unpackAndTransform = (input?: User): User => {
@@ -219,6 +225,12 @@ const reducers = {
   ) => {
     state.translateMode = action.payload;
   },
+  setUiLocale: (
+    state: WritableDraft<ChatState>,
+    action: PayloadAction<string | undefined>
+  ) => {
+    state.uiLocale = action.payload || undefined;
+  },
 };
 
 export const chatSlice: Slice<ChatState, typeof reducers, 'chat'> = createSlice({
@@ -242,6 +254,7 @@ export const {
   setTranslateMode,
   setThemePreference,
   setPushEnabled,
+  setUiLocale,
 } = chatSlice.actions;
 
 export default chatSlice.reducer;

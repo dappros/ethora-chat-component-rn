@@ -644,7 +644,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
             <CustomTimestampRow media={message?.isMediafile === 'true'}>
               {!config?.disableSentLogic && isUser && isPending && (
                 <Text style={[styles.timestampText, themedStyles.muted]}>
-                  sending...
+                  {t('message.sending')}
                 </Text>
               )}
               {!config?.disableSentLogic && isUser && isFailed && (
@@ -654,11 +654,11 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
                   accessibilityRole="button"
                   accessibilityLabel="Retry sending message"
                 >
-                  ! Failed — tap to retry
+                  {t('message.failedRetry')}
                 </Text>
               )}
               {message?.isEdited && !message?.isDeleted && (
-                <Text style={[styles.editedText, themedStyles.muted]}>edited</Text>
+                <Text style={[styles.editedText, themedStyles.muted]}>{t('message.edited')}</Text>
               )}
               {message?.unencrypted && !message?.isDeleted && (
                 <Pressable

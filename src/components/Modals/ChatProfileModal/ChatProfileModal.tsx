@@ -379,7 +379,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
       console.warn('[ethora-rn] mute toggle failed', error);
       showToast({
         id: Date.now().toString(),
-        title: 'Error',
+        title: t('toast.error'),
         message: t('toast.muteFailed'),
         type: 'error',
       });

@@ -288,8 +288,8 @@ Don't want to build your own button? Enable the item in the room-list header men
   config={{
     logout: {
       enabled: true,
-      label: 'Sign out',                        // default
-      confirm: { message: 'Sign out of chat?' }, // `true` (default) uses stock copy, `false` skips the dialog
+      label: 'Sign out',                        // optional; omit for the SDK's own, in the UI language
+      confirm: { message: 'Sign out of chat?' }, // `true` (default) uses stock copy (localized), `false` skips the dialog
       onBeforeLogout: async () => {
         // return false to cancel (e.g. unsaved draft guard)
       },
@@ -302,6 +302,28 @@ Don't want to build your own button? Enable the item in the room-list header men
 Tap flow: close drawer → confirmation (native `Alert`) → `await onBeforeLogout?.()` (`false` cancels) → `await logoutService.performLogout()` → `await onAfterLogout?.()`. The host-side session/navigation logout belongs in `onAfterLogout` — by the time it runs, XMPP is disconnected and every persisted key is gone. Errors thrown by either callback are caught and logged via `console.warn`; a throwing `onBeforeLogout` cancels the logout. With `enabled: false` (or the option omitted) the menu is unchanged.
 
 Why awaitable: the persistence layer debounces writes by 200 ms, and the chat slice removes its persisted user fire-and-forget. If the host navigated / re-mounted `<Chat>` immediately after a non-awaited call, the next bootstrap could occasionally rehydrate stale state ("old chats reappear"). Awaiting the returned promise eliminates that race. The function never rejects — any internal failure is logged via `console.warn`, so a non-awaited call still won't crash the host. For non-React contexts you can call `logoutService.performLogout()` directly (same Promise).
+
+## Settings screen
+
+The Settings screen (the gear in the room-list menu) shows Appearance and the push toggle by default, plus Manage data and Visibility. Two more sections are off until the host turns them on:
+
+```ts
+config = {
+  settings: {
+    // "Language": the interface language (user.appLanguage) and the language
+    // messages are translated into (user.chatLanguage). Kept on the device and
+    // written to the profile (`PUT /v1/users`, one field per request); the
+    // profile's values are applied when a session starts.
+    languages: { enabled: true, appLanguages: ['en-CA', 'fr-CA'], chatLanguages: ['en-CA', 'fr-CA', 'es-US'] },
+    // "Change password": current password, new one twice, `PUT /v2/users/me/password`.
+    changePassword: true,
+  },
+  // Translation is the server's, per the reader's chat language; this shows it.
+  translates: { enabled: true, mode: 'auto' },
+};
+```
+
+The user's interface language wins over `config.i18n.locale`, which stays the default for a user who never chose. `hideAppearance` and `hidePushToggle` hide the built-in cards.
 
 ## Customization flags worth knowing
 
@@ -395,7 +417,7 @@ An encrypted chat is started from a user's profile: **Encrypted message**, next 
 
 What is protected is the message text and the attachments. The sender, the room, the time and the quoted text of a reply stay readable to the server — it builds push notifications from them — and deletions and reactions travel in clear. An edit would too, so a message that went out encrypted cannot be edited from this SDK. Details and the open points are in `docs/e2ee-port.md`.
 
-**Devices and trust.** Settings lists this account's devices with their fingerprints; a person's profile lists theirs, each marked *Not verified*, *Verified* or *Not trusted*, changed with a tap. A device is trusted on first sight until one of that person's devices has been verified; after that an unverified one is no longer encrypted for.
+**Devices and trust.** A person's profile lists their devices with their fingerprints, each marked *Not verified*, *Verified* or *Not trusted*, changed with a tap. A device is trusted on first sight until one of that person's devices has been verified; after that an unverified one is no longer encrypted for.
 
 **With it off** nothing is generated, published or loaded, and an encrypted room is presented honestly rather than misread: the composer is replaced by a notice (`sendMessage` / `sendMedia` refuse the room), and what other clients encrypted shows as a padlock line instead of the sender's fallback body.
 

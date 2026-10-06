@@ -7,10 +7,6 @@ import { setConfig, setPushEnabled, setThemePreference } from '../src/roomStore/
 import UserSettingsModal from '../src/components/Modals/UserSettingsModal/UserSettingsModal';
 import { MODAL_TYPES } from '../src/helpers/constants/MODAL_TYPES';
 
-jest.mock('../src/context/ToastContext', () => ({
-  useToast: () => ({ showToast: jest.fn() }),
-}));
-
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 47, bottom: 34, left: 0, right: 0 }),
   SafeAreaProvider: ({ children }: any) => children,
@@ -111,16 +107,32 @@ describe('Settings screen', () => {
     ).toHaveLength(1);
   });
 
-  it('shows this account\'s devices only when encryption is on', async () => {
-    const off = await render({});
+  it('shows the language card and the password row only when the host turned them on', async () => {
+    const off = await render({ e2ee: { enabled: true } });
+    expect(off.tree.root.findAll((n) => n.props?.testID === 'settings-languages')).toHaveLength(0);
+    expect(off.tree.root.findAll((n) => n.props?.testID === `settings-row-${MODAL_TYPES.CHANGE_PASSWORD}`)).toHaveLength(0);
+    // Encryption has no card here: devices are on profiles.
     expect(off.tree.root.findAll((n) => n.props?.testID === 'settings-e2ee')).toHaveLength(0);
     await act(async () => off.tree.unmount());
 
-    const on = await render({ e2ee: { enabled: true } });
+    const on = await render({
+      settings: { languages: { enabled: true }, changePassword: true },
+    });
     expect(
-      on.tree.root.findAll((n) => n.props?.testID === 'settings-e2ee', { deep: false })
+      on.tree.root.findAll((n) => n.props?.testID === 'settings-languages', { deep: false })
     ).toHaveLength(1);
-    expect(on.texts()).toContain('End-to-end encryption');
+    expect(on.texts()).toContain('App language');
+    expect(on.texts()).toContain('Chat language');
+    expect(
+      on.tree.root.findAll(
+        (n) => n.props?.testID === `settings-row-${MODAL_TYPES.CHANGE_PASSWORD}`,
+        { deep: false }
+      )
+    ).toHaveLength(1);
+    await act(async () => {
+      on.node(`settings-row-${MODAL_TYPES.CHANGE_PASSWORD}`).props.onPress();
+    });
+    expect(store.getState().chatSettingStore.activeModal).toBe(MODAL_TYPES.CHANGE_PASSWORD);
     await act(async () => on.tree.unmount());
   });
 });

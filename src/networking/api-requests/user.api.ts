@@ -59,6 +59,15 @@ export function updateMe(data: any) {
   return http.put('/v1/users', data);
 }
 
+/**
+ * Change the account password. The backend checks `currentPassword` and
+ * answers with a 4xx and a reason when it does not match or the new one is
+ * not acceptable; the caller shows that reason.
+ */
+export function changePassword(currentPassword: string, newPassword: string) {
+  return http.put('/v2/users/me/password', { currentPassword, newPassword });
+}
+
 export async function updateProfile(fd: FormData): Promise<{ user: User }> {
   const token = store.getState().chatSettingStore.user.token || '';
 

@@ -11,6 +11,8 @@ import {
   setConfig,
   setPushEnabled,
   setThemePreference,
+  setUiLocale,
+  setLangSource,
 } from '../../roomStore/chatSettingsSlice';
 import {loadPreferences} from '../../helpers/preferencesStorage';
 import {ConfigUser, IConfig, MessageProps} from '../../types/types';
@@ -90,6 +92,10 @@ const ChatThemeProvider: React.FC<{config?: IConfig; children: React.ReactNode}>
       if (typeof prefs.pushEnabled === 'boolean') {
         dispatch(setPushEnabled(prefs.pushEnabled));
       }
+      // The user's languages, as last picked here; the profile's values
+      // take over once the session is up (see languageSettings).
+      if (prefs.uiLocale) {dispatch(setUiLocale(prefs.uiLocale));}
+      if (prefs.chatLanguage) {dispatch(setLangSource(prefs.chatLanguage as any));}
     });
   }, [dispatch]);
 

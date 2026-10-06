@@ -211,6 +211,15 @@ Pick **one** auth mode. Mixing is undefined behavior.
 | `whitelistSystemMessage` | `string[]` | Render only the listed `isSystemMessage` types. |
 | `customSystemMessage` | `React.ComponentType<MessageProps>` | Replace the default system-message bubble. |
 
+### Settings screen
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `settings.hideAppearance` | `boolean` | Hide the Light / Dark / System picker. |
+| `settings.hidePushToggle` | `boolean` | Hide the push-notifications toggle. |
+| `settings.languages` | `{ enabled: boolean; appLanguages?: string[]; chatLanguages?: string[] }` | **Off by default.** A "Language" card: the interface language (`user.appLanguage`; the user's pick wins over `config.i18n.locale`) and the language messages are translated into (`user.chatLanguage`). Applied at once, kept on the device, written to the profile with `PUT /v1/users` one field per request; the profile's values are applied at session start. BCP-47 tags; defaults to en-CA / es-US / fr-CA. Pair with `translates.enabled` to show the server's translations. |
+| `settings.changePassword` | `boolean` | **Off by default.** A "Change password" row: current password and the new one, `PUT /v2/users/me/password`. |
+
 ### End-to-end encryption
 
 | Field | Type | Description |

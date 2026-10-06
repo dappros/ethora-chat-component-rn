@@ -39,7 +39,6 @@ import { MODAL_TYPES } from '../../../helpers/constants/MODAL_TYPES';
 import {
   setActiveFile,
   setActiveModal,
-  setLangSource,
 } from '../../../roomStore/chatSettingsSlice';
 import { addRoomViaApi, setCurrentRoom } from '../../../roomStore/roomsSlice';
 import { runLogoutFlow } from '../../Menu/HeaderRoomListMenu';
@@ -51,6 +50,7 @@ import {
 } from '../../../networking/api-requests/rooms.api';
 import EncryptionCard from '../../MainComponents/EncryptionCard';
 import { accountNameOf } from '../../../helpers/accountName';
+import { setChatLanguage } from '../../../services/languageSettings';
 import { composeName } from '../../../helpers/displayName';
 import { isUnresolvedSenderId } from '../../../helpers/isUnresolvedSenderId';
 
@@ -66,7 +66,7 @@ import {
 } from '../../../networking/api-requests/user.api';
 import { createRoomFromApi } from '../../../helpers/createRoomFromApi';
 import { walletToUsername } from '../../../helpers/walletUsername';
-import { Iso639_1Codes } from '../../../types/types';
+import {  } from '../../../types/types';
 import {
   ProfileHero,
   ProfileTopBar,
@@ -206,8 +206,12 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
   // AsyncStorage), including the host's confirm copy and callbacks.
   const performLogout = useLogout();
   const handleLogout = useCallback(() => {
-    runLogoutFlow(config?.logout ?? { enabled: true }, performLogout).catch(() => {});
-  }, [config?.logout, performLogout]);
+    runLogoutFlow(config?.logout ?? { enabled: true }, performLogout, {
+      label: t('menu.logout'),
+      message: t('menu.logoutConfirm'),
+      cancel: t('action.cancel'),
+    }).catch(() => {});
+  }, [config?.logout, performLogout, t]);
 
   const handleShare = useCallback(async () => {
     const name =
@@ -243,8 +247,8 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
       showToast({
         id: Date.now().toString(),
-        title: 'Success!',
-        message: 'Room created succusfully!',
+        title: t('toast.success'),
+        message: t('toast.roomCreatedSuccess'),
         type: 'success',
         duration: 3000,
       });
@@ -256,8 +260,8 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const openPrivateRoom = useCallback(async (e2ee: boolean) => {
     showToast({
       id: Date.now().toString(),
-      title: 'Room creation',
-      message: 'Room is being created...',
+      title: t('toast.roomCreationTitle'),
+      message: t('toast.roomCreating'),
       type: 'info',
       duration: 3000,
     });
@@ -297,7 +301,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     }
 
     dispatch(setActiveModal(undefined));
-  }, [selectedUser]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedUser, t]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handlePrivateMessage = useCallback(
     () => openPrivateRoom(false),
@@ -430,9 +434,12 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 testID={`${PREFIX}-language-${option.id}`}
                 activeOpacity={0.7}
                 style={styles.languageRow}
-                onPress={() =>
-                  dispatch(setLangSource(option.id as Iso639_1Codes))
-                }
+                // The same choice Settings offers as "chat language": kept
+                // on the device, and written to the profile when the host
+                // turned that on.
+                onPress={() => {
+                  setChatLanguage(option.id).catch(() => {});
+                }}
               >
                 <Text style={styles.languageLabel}>{option.name}</Text>
                 {selected && (

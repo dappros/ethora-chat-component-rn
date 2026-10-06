@@ -48,7 +48,7 @@ function placeholder(error: E2eeError): Element {
   return new Element('body', {}).t(
     translateKey(
       placeholderKey(error),
-      settings?.config?.i18n?.locale || settings?.langSource,
+      settings?.uiLocale || settings?.config?.i18n?.locale || settings?.langSource,
       settings?.config?.i18n?.strings
     )
   );

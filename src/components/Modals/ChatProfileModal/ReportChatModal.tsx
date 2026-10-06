@@ -72,7 +72,7 @@ const ReportChatModal: React.FC<ReportChatModalProps> = ({
       });
       showToast({
         id: Date.now().toString(),
-        title: 'Success',
+        title: t('toast.successTitle'),
         message: t('modal.report.chatTitle'),
         type: 'success',
       });
@@ -81,7 +81,7 @@ const ReportChatModal: React.FC<ReportChatModalProps> = ({
       console.error('Failed to report chat:', error);
       showToast({
         id: Date.now().toString(),
-        title: 'Error',
+        title: t('toast.error'),
         message: t('modal.report.chatTitle'),
         type: 'error',
       });

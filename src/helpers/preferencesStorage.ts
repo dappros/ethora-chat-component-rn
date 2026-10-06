@@ -9,6 +9,10 @@ const KEY = '@ethora/preferences';
 export interface StoredPreferences {
   theme?: ThemePreference;
   pushEnabled?: boolean;
+  /** Interface language picked in Settings (BCP-47). */
+  uiLocale?: string;
+  /** Language messages are translated into, picked in Settings (BCP-47). */
+  chatLanguage?: string;
 }
 
 export const loadPreferences = async (): Promise<StoredPreferences> => {
