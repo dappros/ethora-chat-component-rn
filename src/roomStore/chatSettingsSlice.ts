@@ -44,7 +44,17 @@ export interface ChatState {
    * `config.i18n.locale`, which is the default for a user who never chose.
    */
   uiLocale?: string;
+  /**
+   * Where the XMPP session stands, for the headers: `connecting` until the
+   * stream is up (also while it is being re-established), `syncing` while
+   * rooms are re-joined and the archive caught up after a (re)connect,
+   * `online` once that is done, `offline` when the stream is down and
+   * nothing is trying (logged out).
+   */
+  connection?: ConnectionState;
 }
+
+export type ConnectionState = 'connecting' | 'syncing' | 'online' | 'offline';
 
 export const unpackAndTransform = (input?: User): User => {
   return {
@@ -231,6 +241,12 @@ const reducers = {
   ) => {
     state.uiLocale = action.payload || undefined;
   },
+  setConnectionState: (
+    state: WritableDraft<ChatState>,
+    action: PayloadAction<ConnectionState>
+  ) => {
+    state.connection = action.payload;
+  },
 };
 
 export const chatSlice: Slice<ChatState, typeof reducers, 'chat'> = createSlice({
@@ -255,6 +271,7 @@ export const {
   setThemePreference,
   setPushEnabled,
   setUiLocale,
+  setConnectionState,
 } = chatSlice.actions;
 
 export default chatSlice.reducer;

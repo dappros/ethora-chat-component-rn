@@ -16,7 +16,6 @@ import {
   ChatIcon,
   EditIcon,
   IconDoc,
-  LeaveIcon,
   LockIcon,
   LogoutIcon,
   ProfileIcon,
@@ -541,19 +540,6 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
           scrollY={scrollY}
           actions={heroActions}
           titleStyle={chatTextStyle(config?.typography?.profile?.title)}
-          titleAccessory={
-            isOwnProfile ? (
-              <TouchableOpacity
-                testID={`${PREFIX}-logout`}
-                activeOpacity={0.7}
-                style={styles.leaveButton}
-                onPress={handleLogout}
-              >
-                <LeaveIcon color="#FFFFFF" width={18} height={18} />
-                <Text style={styles.leaveLabel}>{t('action.leave')}</Text>
-              </TouchableOpacity>
-            ) : undefined
-          }
         />
 
         <View style={styles.body}>
@@ -684,20 +670,6 @@ const createStyles = (theme: ChatTheme) => StyleSheet.create({
     color: theme.text,
     fontSize: 16,
     marginTop: 4,
-  },
-  leaveButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 18,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-  },
-  leaveLabel: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '500',
   },
   tabsRow: {
     flexDirection: 'row',

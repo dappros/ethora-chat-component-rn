@@ -16,6 +16,8 @@ export type UiStringTable = Record<string, string>;
 const en: UiStringTable = {
   'search.placeholder': 'Search...',
   'roomList.title': 'Chats',
+  'connection.connecting': 'Connecting…',
+  'connection.updating': 'Updating…',
   'menu.newChat': 'New Chat',
   'menu.profile': 'Profile',
   'menu.settings': 'Settings',
@@ -335,6 +337,8 @@ const en: UiStringTable = {
 const fr: UiStringTable = {
   'search.placeholder': 'Rechercher...',
   'roomList.title': 'Discussions',
+  'connection.connecting': 'Connexion…',
+  'connection.updating': 'Mise à jour…',
   'menu.newChat': 'Nouvelle discussion',
   'menu.profile': 'Profil',
   'menu.settings': 'Paramètres',
@@ -654,6 +658,8 @@ const fr: UiStringTable = {
 const es: UiStringTable = {
   'search.placeholder': 'Buscar...',
   'roomList.title': 'Conversaciones',
+  'connection.connecting': 'Conectando…',
+  'connection.updating': 'Actualizando…',
   'menu.newChat': 'Nuevo chat',
   'menu.profile': 'Perfil',
   'menu.settings': 'Configuración',
@@ -973,6 +979,8 @@ const es: UiStringTable = {
 const pt: UiStringTable = {
   'search.placeholder': 'Pesquisar...',
   'roomList.title': 'Conversas',
+  'connection.connecting': 'A ligar…',
+  'connection.updating': 'A atualizar…',
   'menu.newChat': 'Nova conversa',
   'menu.profile': 'Perfil',
   'menu.settings': 'Definições',
@@ -1292,6 +1300,8 @@ const pt: UiStringTable = {
 const ht: UiStringTable = {
   'search.placeholder': 'Chèche...',
   'roomList.title': 'Chat yo',
+  'connection.connecting': 'Ap konekte…',
+  'connection.updating': 'Ap mete ajou…',
   'menu.newChat': 'Nouvo chat',
   'menu.profile': 'Pwofil',
   'menu.settings': 'Paramèt',
@@ -1611,6 +1621,8 @@ const ht: UiStringTable = {
 const zh: UiStringTable = {
   'search.placeholder': '搜索...',
   'roomList.title': '聊天',
+  'connection.connecting': '连接中…',
+  'connection.updating': '更新中…',
   'menu.newChat': '新聊天',
   'menu.profile': '个人资料',
   'menu.settings': '设置',

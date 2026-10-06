@@ -37,6 +37,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { resolveHeaderHeight } from '../../helpers/headerLayout';
 import { getElementFont } from '../../helpers/getElementFont';
 import { useT } from '../../i18n/useT';
+import { useConnectionLabel } from '../../hooks/useConnectionLabel';
 
 interface ChatHeaderProps {
   currentRoom: IRoom;
@@ -65,6 +66,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   const composing = roomState?.composing;
   const theme = useTheme();
   const t = useT();
+  const connectionLabel = useConnectionLabel();
 
   const handleChangeChat = (chat: IRoom) => {
     dispatch(setCurrentRoom({ roomJID: chat.jid }));
@@ -200,7 +202,20 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                 )}
               </View>
               <View>
-                {composing ? (
+                {connectionLabel ? (
+                  // The session's state takes the subtitle's place: no
+                  // typing or member count is current while it is off.
+                  <ChatContainerHeaderLabel
+                    testID="chat-header-connection"
+                    style={[
+                      styles.subLabel,
+                      { color: theme.textSecondary },
+                      getElementFont(config, 'headerSubtitle'),
+                    ]}
+                  >
+                    <Text>{connectionLabel}</Text>
+                  </ChatContainerHeaderLabel>
+                ) : composing ? (
                   <Composing usersTyping={currentRoom?.composingList} />
                 ) : config?.disableUserCount ? undefined : (
                   <ChatContainerHeaderLabel

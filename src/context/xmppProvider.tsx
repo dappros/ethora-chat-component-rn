@@ -39,7 +39,12 @@ import { getRooms as prefetchRoomsViaRest } from '../networking/api-requests/roo
 import { allRoomPresences } from '../networking/xmpp/allRoomPresences.xmpp';
 import { pushSubscriptionService } from '../services/pushSubscriptionService';
 import { store } from '../roomStore';
-import { logout, setStoreClient, setConfig } from '../roomStore/chatSettingsSlice';
+import {
+  logout,
+  setStoreClient,
+  setConfig,
+  setConnectionState,
+} from '../roomStore/chatSettingsSlice';
 import { logoutService } from '../hooks/useLogout';
 import {
   setLogoutState,
@@ -260,7 +265,12 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
       created.setOnOnline(() => {
         const underlying = (created as any).client;
         if (!underlying) {return;}
-        allRoomPresences(underlying)
+        // The headers say "Updating…" until the rooms are joined again and
+        // the archive caught up - a stream that is up is not yet a chat
+        // that is. Same tick as the client's own 'online', so the title
+        // never shows the plain state in between.
+        store.dispatch(setConnectionState('syncing'));
+        const rejoin = allRoomPresences(underlying)
           .catch((e) =>
             devPushLog('warn', 'reconnect: allRoomPresences re-join failed', e)
           )
@@ -268,7 +278,7 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
         // Also refresh the private store so unread / lastViewed markers
         // are accurate after a long reconnect — the MUC re-join above only
         // restores delivery, not unread state. Idempotent on first connect.
-        created
+        const markers = created
           .getChatsPrivateStoreRequestStanza()
           .catch((e: unknown) =>
             devPushLog('warn', 'reconnect: privateStore refresh failed', e)
@@ -283,9 +293,16 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
         // point, so this is a no-op until the bootstrap's own history load
         // populates it. Customer-reported #32.
         const rooms = store.getState().rooms?.rooms || {};
-        updateMessagesTillLast(rooms, created).catch((e: unknown) =>
+        const catchUp = updateMessagesTillLast(rooms, created).catch((e: unknown) =>
           devPushLog('warn', 'reconnect: offline catch-up sync failed', e)
         );
+        Promise.allSettled([rejoin, markers, catchUp]).then(() => {
+          // Only if this stream is still the live one: a drop meanwhile
+          // has already put the headers back to "Connecting…".
+          if (created.status === 'online') {
+            store.dispatch(setConnectionState('online'));
+          }
+        });
       });
 
       setClient(created);

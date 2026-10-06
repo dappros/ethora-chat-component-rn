@@ -2,13 +2,14 @@
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import React, { FC, useMemo } from 'react';
-import { View, StyleSheet, Image, Text } from 'react-native';
+import { ActivityIndicator, View, StyleSheet, Image, Text } from 'react-native';
 import { ProfileImagePlaceholder } from '../MainComponents/ProfileImagePlaceholder';
 import { useChatSettingState } from '../../hooks/useChatSettingState';
 import { BurgerMenuIcon } from '../../assets/icons';
 import Button from '../styled/Button';
 import { useTheme } from '../../hooks/useTheme';
 import { useT } from '../../i18n/useT';
+import { useConnectionLabel } from '../../hooks/useConnectionLabel';
 import { resolveHeaderHeight } from '../../helpers/headerLayout';
 
 interface HeaderRoomListProps {
@@ -19,6 +20,7 @@ export const HeaderRoomList: FC<HeaderRoomListProps> = ({ setDrawerOpen }) => {
   const { config, user, selectedUser } = useChatSettingState();
   const theme = useTheme();
   const t = useT();
+  const connectionLabel = useConnectionLabel();
   const insets = useSafeAreaInsets();
   const topInset = config?.headerLayout?.safeAreaTop ? insets.top : 0;
   // Same fixed band as ChatHeader / modal headers: the safe-area inset is
@@ -71,7 +73,16 @@ export const HeaderRoomList: FC<HeaderRoomListProps> = ({ setDrawerOpen }) => {
         <View style={styles.leftContainer} />
       )}
       <View style={[styles.centerContainer, { top: topInset }]}>
-        {config?.headerLogo ? (
+        {connectionLabel ? (
+          // The title gives way to the session's state: the list is not
+          // live until the stream is up and the rooms re-joined.
+          <View style={styles.connection} testID="room-list-connection">
+            <ActivityIndicator size="small" color={theme.textSecondary} />
+            <Text style={{ fontWeight: 500, fontSize: 16, color: theme.textSecondary }}>
+              {connectionLabel}
+            </Text>
+          </View>
+        ) : config?.headerLogo ? (
           HeaderLogo
         ) : (
           <Text style={{ fontWeight: 500, fontSize: 18, color: theme.text }}>
@@ -95,6 +106,12 @@ export const HeaderRoomList: FC<HeaderRoomListProps> = ({ setDrawerOpen }) => {
 };
 
 const styles = StyleSheet.create({
+  connection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+
   headerContainer: {
     flexDirection: 'row',
     alignItems: 'center',

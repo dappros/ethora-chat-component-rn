@@ -339,7 +339,7 @@ The user's interface language wins over `config.i18n.locale`, which stays the de
 | `disableChatInfo.disableMemberTap` | Disables the tap on a member row in the chat-info list — the user-profile popup never opens. Set when no per-member interaction is appropriate (e.g. patient-facing apps). |
 | `hideMemberSendMessageAction` | Hides only the "Message" button, keeps everything else. |
 | `hideMemberCopyIdAction` | Hides only the "Copy User Id" button, keeps everything else. |
-| `disableConnectionErrorOverlay` | Replaces the full-screen "Connection error" overlay with a small, non-blocking `ConnectionBanner`. Set this when a transient reconnect shouldn't take over the whole screen. |
+| `disableConnectionErrorOverlay` | Replaces the full-screen "Connection error" overlay with a small, non-blocking `ConnectionBanner`. Set this when a transient reconnect shouldn't take over the whole screen. Independently of it, the room list's title and the room header's subtitle read "Connecting…" while the stream is down or being set up and "Updating…" while rooms are re-joined and the archive caught up afterwards (`useChatSettingState().connection`: `'connecting' \| 'syncing' \| 'online' \| 'offline'`). |
 | `eventHandlers.onMessageRetry` | `(event) => void` fired when the user taps the "Failed — tap to retry" indicator on a stuck send. Use for telemetry / surfacing a retry banner. |
 
 ## Message reactions

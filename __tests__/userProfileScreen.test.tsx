@@ -159,8 +159,9 @@ describe('User profile screen', () => {
       'logout',
     ]);
     expect(has('user-profile-action-message')).toBe(false);
-    // Leave sits at the right end of the name row.
-    expect(has('user-profile-logout')).toBe(true);
+    // Signing out is the action row's "Log Out" alone - no second "Leave"
+    // button on the name row doing the same thing.
+    expect(has('user-profile-logout')).toBe(false);
     // Everything moved out of the overflow menu, so there is no "…" left.
     expect(has('user-profile-menu')).toBe(false);
   });
