@@ -12,6 +12,7 @@ import { clearRoomsRestCache } from '../networking/api-requests/rooms.api';
 import { clearPersistedState } from '../roomStore/persistence';
 import { secureUserStorage } from '../helpers/secureUserStorage';
 import { getFlushBoundaryTs } from '../helpers/getServerReadTimestamp';
+import { stopOmemo } from '../e2ee';
 
 // AsyncStorage keys the library writes but that aren't cleared by any
 // slice reducer. Listed here so a single logout call wipes the full
@@ -107,6 +108,14 @@ const logoutService = {
       await pushSubscriptionService.reset();
     } catch (e) {
       console.warn('logoutService: push reset failed', e);
+    }
+
+    stopOmemo();
+    try {
+      const { clearOpenedFiles } =
+        require('../e2ee/sealedFiles') as typeof import('../e2ee/sealedFiles');
+      clearOpenedFiles();
+    } catch {
     }
 
     // 3. REST: nuke the in-memory `/chats/my` cache so the next login

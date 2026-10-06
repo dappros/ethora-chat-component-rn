@@ -23,6 +23,8 @@ import MessageList from '../MainComponents/MessageList';
 import ModalHeaderComponent from '../Modals/ModalHeaderComponent';
 import { setCloseActiveMessage, setEditAction } from '../../roomStore/roomsSlice';
 import { EditWrapper } from '../MainComponents/EditWrapper';
+import EncryptedSendNotice from '../MainComponents/EncryptedSendNotice';
+import { MAX_SEAL_BYTES } from '../../e2ee/limits';
 import { useSendMessage } from '../../hooks/useSendMessage';
 import { createMainMessageForThread } from '../../helpers/createMainMessageForThread';
 import { useChatSettingState } from '../../hooks/useChatSettingState';
@@ -84,6 +86,10 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
   // human name.
   // Same field the room header and the list show (`name` can be the id).
   const roomDisplayName = String(room?.title || room?.name || 'chat').trim();
+
+  const e2eeRoom = !!room?.e2ee;
+  const e2eeOn = config?.e2ee?.enabled === true;
+  const maxMediaBytes = e2eeRoom && e2eeOn ? MAX_SEAL_BYTES : undefined;
 
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
@@ -233,6 +239,10 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
               DockTag === View ? { paddingBottom: dockPadding } : null,
             ]}
           >
+            {e2eeRoom && !e2eeOn && !editAction?.isEdit ? (
+              <EncryptedSendNotice />
+            ) : (
+            <>
             <Pressable
               testID="thread-also-send"
               accessibilityRole="checkbox"
@@ -274,11 +284,14 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
               sendMedia={sendMedia}
               sendMessage={editAction?.isEdit ? sendEditMessage : sendMessage}
               config={config}
+              maxMediaBytes={maxMediaBytes}
               onFocus={sendStartComposing}
               onBlur={sendEndComposing}
               isLoading={!!room?.isLoading}
               isMessageProcessing={isLastMessageFromUserAndProcessing(roomJid)}
             />
+            </>
+            )}
           </DockTag>
         </KeyboardAvoidingView>
 

@@ -60,6 +60,15 @@ const GVIEW_PREVIEWABLE = new Set<string>([
   'text/csv',
   'application/rtf',
 ]);
+
+const isLocalFile = (url: string | undefined | null) =>
+  /^file:\/\//i.test(url || '');
+
+const fetchToCache = async (url: string, cachePath: string) =>
+  isLocalFile(url)
+    ? { status: 200, uri: url }
+    : FileSystem.downloadAsync(withFileToken(url), cachePath);
+
 const isGviewPreviewable = (mime: string | undefined | null) => {
   if (!mime) {return false;}
   return GVIEW_PREVIEWABLE.has(mime.toLowerCase().split(';')[0]!.trim());
@@ -294,7 +303,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
 
     try {
       const filePath = FileSystem.cacheDirectory + displayFileName;
-      const download = await FileSystem.downloadAsync(withFileToken(activeFile.fileURL), filePath);
+      const download = await fetchToCache(activeFile.fileURL, filePath);
 
       if (download.status === 200) {
         await getMediaLibrary()?.saveToLibraryAsync(download.uri);
@@ -341,7 +350,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   const saveFileToDownloads = async () => {
     try {
       const filePath = FileSystem.cacheDirectory + displayFileName;
-      const download = await FileSystem.downloadAsync(withFileToken(activeFile.fileURL), filePath);
+      const download = await fetchToCache(activeFile.fileURL, filePath);
 
       if (download.status !== 200) {
         Alert.alert('Error', 'Failed to save the file.');
@@ -520,13 +529,14 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
             />
           </View>
         );
-      case activeFile.mimetype === 'application/pdf':
+      case activeFile.mimetype === 'application/pdf' &&
+        !(Platform.OS === 'android' && isLocalFile(activeFile.fileURL)):
         return <PdfViewer pdfUrl={withFileToken(activeFile.fileURL)} />;
       default: {
         // Office docs (.docx / .xlsx / .pptx / .doc / .xls / .ppt /
         // .txt / .csv / .rtf) → render inline via Google's gview embed
         // — fixes the "blank preview" complaint for docs (bug #9).
-        if (isGviewPreviewable(activeFile.mimetype)) {
+        if (isGviewPreviewable(activeFile.mimetype) && !isLocalFile(activeFile.fileURL)) {
           return (
             <DocumentViewer
               url={activeFile.fileURL}

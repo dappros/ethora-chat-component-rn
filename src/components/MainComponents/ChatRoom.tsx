@@ -21,6 +21,9 @@ import ChatHeader from './ChatHeader';
 import NoMessagesPlaceholder from './NoMessagesPlaceholder';
 import NewChatModal from '../Modals/NewChatModal/NewChatModal';
 import { EditWrapper } from './EditWrapper';
+import EncryptedSendNotice from './EncryptedSendNotice';
+import { MAX_SEAL_BYTES } from '../../e2ee/limits';
+import { loadRoomMembers } from '../../networking/api-requests/rooms.api';
 import { EmptyChatIllustration } from '../../assets/EmptyChatIllustration';
 import { getIconColor } from '../../helpers/getIconColor';
 import { getChatBackgroundColor } from '../../helpers/getChatBackground';
@@ -122,6 +125,9 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
       (state: RootState) => state.rooms.isLoading,
     );
     const loading = !!activeRoom?.isLoading;
+    const e2eeRoom = !!activeRoom?.e2ee;
+    const e2eeOn = storeConfig?.e2ee?.enabled === true;
+    const maxMediaBytes = e2eeRoom && e2eeOn ? MAX_SEAL_BYTES : undefined;
     const roomMessages = activeRoom?.messages || EMPTY_MESSAGES;
     const {
       sendMessage: sendMs,
@@ -276,6 +282,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
       lastBoundarySentRef.current = null;
       dispatch(setReadBoundary({ jid: activeRoomJID, ts: null }));
       dispatch(setVisibleRoom({ roomJID: activeRoomJID }));
+      void loadRoomMembers(activeRoomJID);
       setIsLoadingMore(false);
       return () => {
         const state = store.getState();
@@ -592,7 +599,9 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
             <EditWrapper text={editAction.text || ''} onClose={onCloseEdit} />
           )}
           <InputDockTag {...inputDockProps}>
-            {CustomInputComponent ? (
+            {e2eeRoom && !e2eeOn && !editAction?.isEdit ? (
+              <EncryptedSendNotice />
+            ) : CustomInputComponent ? (
               <CustomInputComponent
                 sendMessage={
                   editAction && editAction.isEdit ? sendEditMessage : sendMessage
@@ -615,6 +624,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
                 }
                 sendMedia={sendMedia}
                 config={configWithEventHandlers}
+                maxMediaBytes={maxMediaBytes}
                 isLoading={loading}
                 onFocus={sendStartComposing}
                 onBlur={sendEndComposing}

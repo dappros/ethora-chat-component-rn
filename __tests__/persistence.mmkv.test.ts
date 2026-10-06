@@ -7,11 +7,25 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { configureStore } from '@reduxjs/toolkit';
 
 const mockMmkvStore = new Map<string, string>();
+// The file is encrypted: opened with another key, what it held is gone.
+// Modelled because the first version of the backend stored its key under a
+// name the secure store rejects, got a new key on every launch, and never
+// read its own cache back - invisible to a mock that ignores the key.
+const mockMmkvFile: { key?: string; opens: number } = { opens: 0 };
 jest.mock(
   'react-native-mmkv',
   () => ({
     MMKV: class {
-      constructor(_options: { id: string; encryptionKey?: string }) {}
+      constructor(options: { id: string; encryptionKey?: string }) {
+        if (mockMmkvFile.opens > 0 && mockMmkvFile.key !== options.encryptionKey) {
+          mockMmkvStore.clear();
+        }
+        mockMmkvFile.key = options.encryptionKey;
+        mockMmkvFile.opens += 1;
+      }
+      clearAll() {
+        mockMmkvStore.clear();
+      }
       getString(k: string) {
         return mockMmkvStore.get(k);
       }
@@ -55,6 +69,9 @@ const makeStore = () =>
 
 beforeEach(async () => {
   mockMmkvStore.clear();
+  mockMmkvFile.key = undefined;
+  mockMmkvFile.opens = 0;
+  (jest.requireMock('expo-secure-store') as any).__store.clear();
   await AsyncStorage.clear();
   __resetPersistBackend();
   jest.useFakeTimers();
@@ -62,6 +79,37 @@ beforeEach(async () => {
 afterEach(() => jest.useRealTimers());
 
 describe('persistence over MMKV', () => {
+  it('reads its own cache back after a restart', async () => {
+    const first = await getPersistBackend();
+    expect(first.name).toBe('mmkv');
+    await first.setMany([['@ethora/persist:roomIndex', '["a@b"]']]);
+
+    // Next launch: a new backend object over the same file and secure store.
+    __resetPersistBackend();
+    const second = await getPersistBackend();
+    expect(second.name).toBe('mmkv');
+    expect(await second.getMany(['@ethora/persist:roomIndex'])).toEqual(['["a@b"]']);
+    expect(mockMmkvFile.opens).toBe(2);
+  });
+
+  it('starts clean when its key is new, and falls back when no key can be kept', async () => {
+    // Bytes left by an install whose key was never stored.
+    mockMmkvStore.set('@ethora/persist:roomIndex', 'undecodable');
+    const backend = await getPersistBackend();
+    expect(backend.name).toBe('mmkv');
+    expect(await backend.getMany(['@ethora/persist:roomIndex'])).toEqual([null]);
+
+    // A secure store that drops writes: MMKV would be a cache that never
+    // restores, so the sealed AsyncStorage path is used instead.
+    __resetPersistBackend();
+    const secureStore = jest.requireMock('expo-secure-store') as any;
+    secureStore.__store.clear();
+    secureStore.setItemAsync.mockImplementationOnce(async () => {
+      throw new Error('keychain unavailable');
+    });
+    expect((await getPersistBackend()).name).toBe('async-storage');
+  });
+
   it('picks MMKV, keys it from the secure store and writes plain JSON', async () => {
     const backend = await getPersistBackend();
     expect(backend.name).toBe('mmkv');

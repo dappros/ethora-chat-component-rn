@@ -1,6 +1,6 @@
 import { ApiRoom, DeleteRoomMember, PostAddRoomMember, PostReportRoom, PostRoom, RoomMember } from '../../types/models/room.model';
 import { store } from '../../roomStore';
-import { addRoom, mergeUsersSet } from '../../roomStore/roomsSlice';
+import { addRoom, mergeUsersSet, updateRoom } from '../../roomStore/roomsSlice';
 import { IRoom } from '../../types/types';
 import http from '../apiClient';
 
@@ -19,6 +19,11 @@ import http from '../apiClient';
  *   - `_id`            (fallback)
  *   - `xmppUsername`   (raw + localpart) when the API does return one
  */
+const usableImage = (value: unknown): string => {
+  const url = typeof value === 'string' ? value.trim() : '';
+  return url && url !== 'none' ? url : '';
+};
+
 function dispatchUsersSetFromRestItems(items: ApiRoom[]): void {
   if (!items?.length) {return;}
   const ownXmpp = String(
@@ -26,16 +31,24 @@ function dispatchUsersSetFromRestItems(items: ApiRoom[]): void {
   );
   const appId = ownXmpp.includes('_') ? ownXmpp.split('_')[0] : '';
 
+  const known = (store.getState().rooms?.usersSet || {}) as Record<string, RoomMember>;
   const members: Record<string, RoomMember> = {};
   for (const item of items) {
     const list = Array.isArray((item as any)?.members) ? (item as any).members : [];
     for (const m of list) {
       if (!m) {continue;}
+      const before: RoomMember | undefined =
+        (m._id && (members[m._id] || known[m._id])) || undefined;
       const entry: RoomMember = {
-        firstName: m.firstName || '',
-        lastName: m.lastName || '',
+        firstName: m.firstName ?? before?.firstName ?? '',
+        lastName: m.lastName ?? before?.lastName ?? '',
         xmppUsername: m.xmppUsername || (appId && m._id ? `${appId}_${m._id}` : m._id || ''),
         _id: m._id || '',
+        profileImage:
+          m.profileImage !== undefined
+            ? usableImage(m.profileImage)
+            : before?.profileImage ?? '',
+        description: m.description ?? before?.description,
         role: m.role,
         ban_status: m.ban_status,
         last_active: m.last_active,
@@ -85,9 +98,53 @@ interface ApiRoomMember {
  *      manifested as a phantom "ethora" room stub on third-party servers,
  *      customer-reported #23)
  */
+export function memberAccount(member: any, appId: string): string {
+  const explicit = String(member?.xmppUsername || '').split('@')[0];
+  if (explicit) {return explicit;}
+  return appId && member?._id ? `${appId}_${member._id}` : '';
+}
+
+export function ownAppId(): string {
+  const ownXmpp = String(
+    store.getState().chatSettingStore?.user?.xmppUsername || ''
+  );
+  return ownXmpp.includes('_') ? ownXmpp.split('_')[0]! : '';
+}
+
+const toRoomMembers = (members: any[] | undefined): RoomMember[] => {
+  const known = (store.getState().rooms?.usersSet || {}) as Record<string, RoomMember>;
+  return (members || []).map((m: any) => ({
+    firstName: m.firstName,
+    lastName: m.lastName,
+    profileImage:
+      m.profileImage !== undefined
+        ? usableImage(m.profileImage)
+        : known[m._id]?.profileImage ?? '',
+    xmppUsername: m._id || '',
+    role: m.role,
+    ban_status: m.ban_status,
+    last_active: m.last_active,
+    jid: m.jid || '',
+  })) as any;
+};
+
+const toE2eeMembers = (members: any[] | undefined, appId: string): RoomMember[] =>
+  (members || [])
+    .map((m: any) => ({
+      _id: m._id || '',
+      firstName: m.firstName || '',
+      lastName: m.lastName || '',
+      xmppUsername: memberAccount(m, appId),
+    }))
+    .filter((m) => m.xmppUsername) as RoomMember[];
+
+const memberCount = (item: ApiRoom): number =>
+  item.usersCnt ?? item.participants ?? item.members?.length ?? 0;
+
 function dispatchRoomsFromRestItems(items: ApiRoom[]): void {
   if (!items?.length) return;
   const config = store.getState().chatSettingStore?.config as any;
+  const appId = ownAppId();
   // Best: explicit xmpp settings.
   let host: string | undefined =
     config?.xmppSettings?.host ||
@@ -118,12 +175,16 @@ function dispatchRoomsFromRestItems(items: ApiRoom[]): void {
       jid = `${item.name}@${conference}`;
     }
     if (!jid.includes('@')) continue;
+    const known = store.getState().rooms.rooms?.[jid];
+    const preview = (item.members?.length ?? 0) < memberCount(item);
+    const keep = <T,>(fresh: T[], existing: T[] | undefined): T[] =>
+      preview && (existing?.length ?? 0) > fresh.length ? existing! : fresh;
     const room: IRoom = {
       id: item._id || jid,
       jid,
       name: item.name,
       title: item.title || item.name,
-      usersCnt: item.participants ?? item.members?.length ?? 0,
+      usersCnt: memberCount(item),
       messages: [],
       isLoading: false,
       roomBg: '',
@@ -133,23 +194,64 @@ function dispatchRoomsFromRestItems(items: ApiRoom[]): void {
       muted: item.muted === true,
       description: (item as any).description,
       type: (item as any).type,
-      // ChatProfileModal renders this list under the description/type
-      // fields. The REST API returns `members` (an array of {_id,
-      // firstName?, lastName?}); map to the shape RoomMember expects.
-      roomMembers: (item.members || []).map((m: any) => ({
-        firstName: m.firstName,
-        lastName: m.lastName,
-        xmppUsername: m._id || '',
-        role: m.role,
-        ban_status: m.ban_status,
-        last_active: m.last_active,
-        jid: m.jid || '',
-      })) as any,
+
+      ...(item.e2ee === true
+        ? {
+            e2ee: true,
+            members: keep(toE2eeMembers(item.members, appId), known?.members),
+          }
+        : {}),
+      roomMembers: keep(toRoomMembers(item.members), known?.roomMembers),
     };
     store.dispatch(addRoom({ roomData: room }));
   }
   // Hydrate the sender-name identity cache from the same REST payload.
   dispatchUsersSetFromRestItems(items);
+}
+
+const ROOM_MEMBERS_TTL_MS = 5 * 60_000;
+const roomMembersLoads = new Map<string, { at: number; done: Promise<boolean> }>();
+
+export function loadRoomMembers(roomJid: string): Promise<boolean> {
+  const jid = String(roomJid || '').split('/')[0]!;
+  const room = store.getState().rooms.rooms?.[jid];
+  if (!room) {return Promise.resolve(false);}
+  if ((room.roomMembers?.length ?? 0) >= Number(room.usersCnt || 0)) {
+    return Promise.resolve(false);
+  }
+  const running = roomMembersLoads.get(jid);
+  if (running && Date.now() - running.at < ROOM_MEMBERS_TTL_MS) {return running.done;}
+
+  const done = (async () => {
+    try {
+      const response: any = await getRoomByName(jid.split('@')[0]!);
+      const item: ApiRoom = response?.result ?? response;
+      const members = Array.isArray(item?.members) ? item.members : [];
+      if (members.length === 0) {return false;}
+      dispatchUsersSetFromRestItems([item]);
+      const current = store.getState().rooms.rooms?.[jid];
+      if (!current) {return false;}
+      store.dispatch(
+        updateRoom({
+          jid,
+          updates: {
+            roomMembers: toRoomMembers(members),
+            usersCnt: Math.max(memberCount(item), members.length),
+            ...(current.e2ee
+              ? { members: toE2eeMembers(members, ownAppId()) }
+              : {}),
+          },
+        })
+      );
+      return true;
+    } catch (error) {
+      roomMembersLoads.delete(jid);
+      console.warn('[ethora-rn] rooms.api: could not load room members', jid, error);
+      return false;
+    }
+  })();
+  roomMembersLoads.set(jid, { at: Date.now(), done });
+  return done;
 }
 
 const GET_ROOMS_CACHE_MS = 60_000;
@@ -235,14 +337,14 @@ export async function postRoom(data: PostRoom) {
 
 export async function postPrivateRoom(
   username: string,
-  title: string = 'Private chat'
+  e2ee: boolean = false
 ): Promise<ApiRoom> {
   const token = store.getState().chatSettingStore.user.token || '';
 
   try {
     const response = await http.post(
       '/v1/chats/private',
-      { username },
+      e2ee === true ? { username, e2ee: true } : { username },
       {
         headers: {
           Authorization: token,
@@ -391,6 +493,7 @@ export async function createChatCall(
 }
 
 export function clearRoomsRestCache() {
+  roomMembersLoads.clear();
   lastGetRoomsResponse = null;
   lastGetRoomsResponseAt = 0;
   lastGetRoomsResponseToken = '';

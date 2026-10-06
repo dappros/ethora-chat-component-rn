@@ -1,5 +1,6 @@
 /** @format */
 
+import { composeName } from '../../../helpers/displayName';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
@@ -268,7 +269,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
   const confirmRemoveMember = (user: RoomMember) => {
     Alert.alert(
       t('modal.chatProfile.removeMember'),
-      `${user.firstName} ${user.lastName}`.trim(),
+      composeName(user.firstName, user.lastName),
       [
         { text: t('action.cancel'), style: 'cancel' },
         {
@@ -287,7 +288,8 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
         id: user._id,
         firstName: user.firstName,
         lastName: user.lastName,
-        name: `${user.firstName} ${user.lastName}`,
+        name: composeName(user.firstName, user.lastName),
+        profileImage: user.profileImage,
         userJID: user?.xmppUsername,
         token: '',
         refreshToken: '',
@@ -488,7 +490,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
   const query = memberQuery.trim().toLowerCase();
   const visibleMembers = query
     ? members.filter((user) =>
-        `${user.firstName ?? ''} ${user.lastName ?? ''}`
+        composeName(user.firstName, user.lastName)
           .toLowerCase()
           .includes(query)
       )
@@ -648,7 +650,8 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
                         disabled={!!config?.disableChatInfo?.disableMemberTap}
                       >
                         <ProfileImagePlaceholder
-                          name={`${user.firstName} ${user.lastName}`}
+                          name={composeName(user.firstName, user.lastName)}
+                          icon={appendFileToken(user.profileImage, fileToken) || null}
                           size={40}
                         />
                         <View style={styles.memberText}>

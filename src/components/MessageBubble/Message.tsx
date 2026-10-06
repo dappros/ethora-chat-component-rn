@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   Animated,
   View,
   Pressable,
@@ -36,7 +37,16 @@ import { useChatSettingState } from '../../hooks/useChatSettingState';
 import { parseMessageBody } from '../../helpers/parseMessageBody';
 import { chatTextStyle } from '../../helpers/typography';
 import { useMessageHeapState } from '../../hooks/useMessageHeapState';
-import { DoubleTick } from '../../assets/icons';
+import { DoubleTick, LockIcon, LockOffIcon } from '../../assets/icons';
+import { useT } from '../../i18n/useT';
+import { composeName } from '../../helpers/displayName';
+import { useFileToken } from '../../hooks/useFileToken';
+import {
+  appendFileToken,
+  isSecureFileUrl,
+  requestFileTokenRecovery,
+} from '../../helpers/secureFileUrl';
+import { placeholderKey } from '../../e2ee/stanza';
 import { useXmppClient } from '../../context/xmppProvider';
 import { useSendMessage } from '../../hooks/useSendMessage';
 import { MessageReaction } from './MessageReaction';
@@ -168,6 +178,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   // only per-render allocations added for theming (memoized on the theme
   // object, which useTheme keeps stable across renders).
   const theme = useTheme();
+  const t = useT();
   const themedStyles = useMemo(
     () => ({
       muted: { color: theme.textMuted },
@@ -226,7 +237,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   // (which may carry senderFirstName/senderLastName from the wire) only when
   // usersSet has never seen this sender.
   const senderDisplayName = senderEntry
-    ? `${senderEntry.firstName ?? ''} ${senderEntry.lastName ?? ''}`.trim() ||
+    ? composeName(senderEntry.firstName, senderEntry.lastName) ||
       senderEntry.name ||
       senderLocal
     : message.user?.name || senderLocal || 'Unknown';
@@ -235,8 +246,18 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   // ends at 50 characters of hex. Captioning a bubble with that tells the
   // reader strictly less than showing nothing.
   const hasRealSenderName = !isUnresolvedSenderId(senderDisplayName);
+  const fileToken = useFileToken();
+  const [avatarFailed, setAvatarFailed] = useState<string | null>(null);
+  const rawProfileImage = String(
+    senderEntry?.profileImage ||
+      message.user?.profileImage ||
+      (message.user as any)?.photoURL ||
+      ''
+  ).trim();
   const senderProfileImage =
-    senderEntry?.profileImage || message.user?.profileImage || '';
+    rawProfileImage && rawProfileImage !== 'none' && rawProfileImage !== avatarFailed
+      ? appendFileToken(rawProfileImage, fileToken)
+      : '';
   const { idSet, failedIdSet } = useMessageHeapState();
   const { retryMessage } = useSendMessage();
 
@@ -407,8 +428,13 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   );
   // In auto mode, render the translation as the primary body — but NEVER for
   // the reader's own messages (they wrote it; no point translating it back).
+  const isUndecryptable =
+    message.undecryptable === 'true' && !message.isDeleted;
   const showInlineTranslation =
-    isAutoTranslate && translationDisplay.hasTranslation && !isUser;
+    isAutoTranslate &&
+    translationDisplay.hasTranslation &&
+    !isUser &&
+    !isUndecryptable;
   const bodyToRender = showInlineTranslation
     ? translationDisplay.displayText
     : message.body;
@@ -460,13 +486,32 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
             onPress={
               config?.disableProfilesInteractions
                 ? undefined
-                : () => handleUserAvatarClick(message.user)
+                : () =>
+                    handleUserAvatarClick({
+                      ...message.user,
+                      ...(senderEntry
+                        ? {
+                            firstName: senderEntry.firstName,
+                            lastName: senderEntry.lastName,
+                            profileImage: senderEntry.profileImage,
+                            description: senderEntry.description,
+                          }
+                        : {}),
+                      name: hasRealSenderName ? senderDisplayName : '',
+                    } as IUser)
             }
             disabled={!!config?.disableProfilesInteractions}
             accessible={!config?.disableProfilesInteractions}
           >
             {senderProfileImage ? (
-              <CustomMessagePhoto source={{ uri: senderProfileImage }} />
+              <CustomMessagePhoto
+                testID="message-sender-avatar"
+                source={{ uri: senderProfileImage }}
+                onError={() => {
+                  if (isSecureFileUrl(rawProfileImage)) {requestFileTokenRecovery();}
+                  setAvatarFailed(rawProfileImage);
+                }}
+              />
             ) : (
               <Avatar username={senderDisplayName} />
             )}
@@ -537,6 +582,26 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
               <>
                 {message.isDeleted && message.id !== 'delimiter-new' ? (
                   <DeletedMessage />
+                ) : isUndecryptable ? (
+                  <View style={styles.undecryptable}>
+                    <LockIcon
+                      width={15}
+                      height={15}
+                      color={theme.textSecondary}
+                    />
+                    <Text
+                      style={[
+                        styles.undecryptableText,
+                        themedStyles.muted,
+                        {
+                          fontSize:
+                            config?.typography?.messageText?.fontSize ?? 15,
+                        },
+                      ]}
+                    >
+                      {t(placeholderKey(message.e2eeError))}
+                    </Text>
+                  </View>
                 ) : (
                   <CustomMessageText
                     isUser={isUser}
@@ -565,6 +630,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
                 renders the translation inline in the body above). Never on
                 the reader's own messages. */}
             {!isUser &&
+              !isUndecryptable &&
               isTranslatesEnabled &&
               effectiveTranslateMode === 'manual' && (
                 <MessageTranslate
@@ -593,6 +659,20 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
               )}
               {message?.isEdited && !message?.isDeleted && (
                 <Text style={[styles.editedText, themedStyles.muted]}>edited</Text>
+              )}
+              {message?.unencrypted && !message?.isDeleted && (
+                <Pressable
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('e2ee.notEncrypted')}
+                  accessibilityHint={t('e2ee.notEncryptedHint')}
+                  testID="message-not-encrypted"
+                  onPress={() =>
+                    Alert.alert(t('e2ee.notEncrypted'), t('e2ee.notEncryptedHint'))
+                  }
+                >
+                  <LockOffIcon width={13} height={13} color={theme.danger} />
+                </Pressable>
               )}
               <Text style={[styles.timestampText, themedStyles.muted]}>
                 {timeLabel}
@@ -717,6 +797,16 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
     marginTop: 4,
     gap: 4,
+  },
+  undecryptable: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    maxWidth: 260,
+  },
+  undecryptableText: {
+    flexShrink: 1,
+    fontStyle: 'italic',
   },
   timestampText: {
     fontSize: 12,

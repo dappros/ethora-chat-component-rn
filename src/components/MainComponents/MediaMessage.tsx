@@ -18,6 +18,7 @@ import { defaultMediaDims } from '../../helpers/mediaDimensions';
 import { useFileToken } from '../../hooks/useFileToken';
 import { appendFileToken } from '../../helpers/secureFileUrl';
 import { useTheme } from '../../hooks/useTheme';
+import SealedAttachment from './SealedAttachment';
 
 interface MediaMessageProps {
   mimeType?: string;
@@ -166,6 +167,10 @@ const MediaMessage: React.FC<MediaMessageProps> = ({
   const theme = useTheme();
   const location = appendFileToken(rawLocation, fileToken);
   const messageText = appendFileToken(rawMessageText, fileToken);
+
+  if (message?.clientEncrypted === 'true') {
+    return <SealedAttachment message={message} isUser={isUser} />;
+  }
 
   if (mimeType) {
     const displayName = getDisplayFileName({

@@ -123,3 +123,5 @@ export {
 export type { ChatTheme, ChatThemeColors, ChatThemeOverrides } from './theme';
 export type { ThemePreference } from './theme/theme';
 export { setThemePreference, setPushEnabled } from './roomStore/chatSettingsSlice';
+export { omemo, isE2eeEnabled } from './e2ee';
+export type { DeviceInfo, Trust } from './e2ee';

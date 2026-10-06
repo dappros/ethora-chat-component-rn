@@ -1,5 +1,6 @@
 /** @format */
 
+import EncryptionCard from '../../MainComponents/EncryptionCard';
 import React, { useCallback, useMemo } from 'react';
 import {
   StyleSheet,
@@ -157,6 +158,10 @@ const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
               ios_backgroundColor={theme.surfaceSecondary}
             />
           </View>
+        ) : null}
+
+        {config?.e2ee?.enabled === true ? (
+          <EncryptionCard style={styles.card} testID="settings-e2ee" />
         ) : null}
 
         {options.map((option) => (

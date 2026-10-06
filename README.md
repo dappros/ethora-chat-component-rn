@@ -367,6 +367,34 @@ Same model as the web SDK, so threads are shared across platforms.
 | `disableReplies` | `false` | Hides "Reply" in the long-press menu. Existing pills and quotes still open threads. |
 | `disableInteractions` | `false` | Hides the whole long-press menu, Reply included. |
 
+## End-to-end encrypted rooms
+
+OMEMO 2 in rooms the backend marks `e2ee` (`room.e2ee` from `GET /v1/chats/my`), wire-compatible with the web SDK. Status, measurements and limits are tracked in [`docs/e2ee-port.md`](docs/e2ee-port.md).
+
+```ts
+config = { e2ee: { enabled: true } }; // default: off
+```
+
+**With it on**, after connecting the SDK creates this device's keys (once per account per install; they survive logout), publishes them, and in encrypted rooms:
+
+- encrypts the text of outgoing messages for every device of every member, and decrypts incoming ones — live, from mucsub and from history alike;
+- sends in clear when no member has a device to encrypt for (nobody else has opened the room with encryption on yet), exactly as the web SDK does — and marks that message, like any other that arrived in clear, with a struck-through padlock;
+- seals attachments and voice messages before upload, so the server stores opaque bytes under a random name and never sees the file, its name or its type; the receiver's "Encrypted file" card downloads and opens one on a tap, and then shows it as what it is. The cipher is pure JS: about 1.4 s per megabyte, capped at 20 MB per file. An attachment is never sent in clear - if it cannot be encrypted, it is not sent.
+
+An encrypted chat is started from a user's profile: **Encrypted message**, next to **Message** (needs `newArch`). It opens the encrypted room of the pair, a room of its own beside their ordinary chat.
+
+What is protected is the message text and the attachments. The sender, the room, the time and the quoted text of a reply stay readable to the server — it builds push notifications from them — and deletions and reactions travel in clear. An edit would too, so a message that went out encrypted cannot be edited from this SDK. Details and the open points are in `docs/e2ee-port.md`.
+
+**Devices and trust.** Settings lists this account's devices with their fingerprints; a person's profile lists theirs, each marked *Not verified*, *Verified* or *Not trusted*, changed with a tap. A device is trusted on first sight until one of that person's devices has been verified; after that an unverified one is no longer encrypted for.
+
+**With it off** nothing is generated, published or loaded, and an encrypted room is presented honestly rather than misread: the composer is replaced by a notice (`sendMessage` / `sendMedia` refuse the room), and what other clients encrypted shows as a padlock line instead of the sender's fallback body.
+
+**Either way**, a room marked `e2ee` carries a padlock next to its name in the list and the header; a message that could not be opened says why ("Encrypted for another device", "Could not decrypt this message", or that this app does not read encrypted messages); a sealed attachment shows as an "Encrypted file" card rather than a voice message; none of these is offered for translation.
+
+Message flags a custom message component can read: `unencrypted`, `undecryptable` (`'true'` when the body is a placeholder) with `e2eeError` (`'unsupported' | 'other-device' | 'failed'`), `clientEncrypted` (`'true'` for a sealed attachment) and `e2eeKeys`. The captions are the `e2ee.*` and `media.sealed*` keys of `config.i18n.strings`. `omemo()` returns the live device (`devices(jid)`, `setTrust`, `fingerprint`) for a host that wants to show them.
+
+Requires an XMPP server that lets members read each other's OMEMO PEP nodes (`access_model: open`).
+
 ## Session loss
 
 When the server rejects the XMPP password (SASL `not-authorized`) the SDK refreshes credentials and reconnects. If that cannot produce a working password — the refresh request fails, returns no new password, or the new one is rejected too — twice in a row, the session is ended exactly like **Sign out** (`performLogout`, then `logout.onAfterLogout`), so the host can route to its login screen. A network outage never triggers this: without a reachable server there is no rejection, and the client keeps reconnecting with backoff.
@@ -602,6 +630,8 @@ npm test                          # jest, ~2s for the full suite
 npm test -- --watch               # watch mode
 npm test -- some.test.ts          # single file
 ```
+
+`npm run e2ee:interop` checks the end-to-end encryption against the web SDK's (sessions, mixed rooms, attachments). It needs `ethora-chat-component` checked out next to this repository, or `WEB_SDK=/path`; without it, it skips.
 
 ### E2E (Maestro)
 

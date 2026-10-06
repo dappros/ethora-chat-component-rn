@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { canEditMessage } from '../../e2ee';
 import { Delimeter, MenuItem } from '../ContextMenu/ContextMenuComponents';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../roomStore';
@@ -362,9 +363,7 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
           </MenuItem>
           {isUser && (
             <>
-              {/* Edit only for non-media messages (upstream guard) +
-                  consistent label styling (menuText). */}
-              {message?.isMediafile !== 'true' && (
+              {message?.isMediafile !== 'true' && canEditMessage(message) && (
                 <>
                   <Delimeter />
                   <MenuItem onPress={handleEditMessage}>

@@ -17,6 +17,11 @@ export interface IMessage {
   mimetype?: string;
   location?: string;
   pending?: boolean;
+  unencrypted?: boolean;
+  undecryptable?: string;
+  e2eeError?: string;
+  e2eeKeys?: string[];
+  clientEncrypted?: string;
   timestamp?: number;
   showInChannel?: string;
   activeMessage?: boolean;

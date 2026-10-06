@@ -20,6 +20,12 @@ import {
 } from '../stanzaHandlers';
 import XmppClient from '../xmppClient';
 import { onCallTokenMessage } from '../callTokenStanza';
+import { accountDomain, isE2eeEnabled } from '../../e2ee';
+import {
+  decryptStanzaInPlace,
+  encryptedCarrier,
+  rewriteEncryptedStanza,
+} from '../../e2ee/stanza';
 
 /**
  * Unwrap a mucsub event wrapper so the chat handlers see the real inner
@@ -49,7 +55,46 @@ const unwrapMucsubMessage = (stanza: Element): Element => {
   return (inner as Element) || stanza;
 };
 
+let held = 0;
+let queue: Promise<void> = Promise.resolve();
+
 export function handleStanza(stanza: Element, xmppWs: XmppClient) {
+  if (!isE2eeEnabled()) {
+    dispatchStanza(stanza, xmppWs);
+    return;
+  }
+  const carrier =
+    stanza?.name === 'message' ? encryptedCarrier(stanza) : undefined;
+  if (!carrier && held === 0) {
+    dispatchStanza(stanza, xmppWs);
+    return;
+  }
+
+  held++;
+  queue = queue.then(async () => {
+    try {
+      if (carrier) {
+        const outcome = await decryptStanzaInPlace(
+          stanza,
+          accountDomain(xmppWs.client)
+        );
+        if (outcome === 'drop') {return;}
+      }
+      dispatchStanza(stanza, xmppWs);
+    } catch (err) {
+      console.warn('OMEMO: failed to handle stanza', err);
+    } finally {
+      held--;
+    }
+  });
+}
+
+export const __resetStanzaQueueForTests = (): void => {
+  held = 0;
+  queue = Promise.resolve();
+};
+
+function dispatchStanza(stanza: Element, xmppWs: XmppClient) {
   if (stanza?.attrs?.type === 'headline') {return;}
 
   // Call signaling is swallowed before any chat handler sees it. A
@@ -58,6 +103,10 @@ export function handleStanza(stanza: Element, xmppWs: XmppClient) {
   // fires new-message notifications for a call that never happened.
   // Returns false for server call-LOGS, which do belong in the chat.
   if (stanza?.name === 'message' && onCallTokenMessage(stanza)) {
+    return;
+  }
+
+  if (stanza?.name === 'message' && rewriteEncryptedStanza(stanza) === 'drop') {
     return;
   }
 

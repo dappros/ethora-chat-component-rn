@@ -24,6 +24,7 @@ import { editMessage } from './xmpp/editMessage.xmpp';
 import { inviteRoomRequest } from './xmpp/inviteRoomRequest.xmpp';
 import { getRooms } from './xmpp/getRooms.xmpp';
 import { handleStanza } from './xmpp/handleStanzas.xmpp';
+import { onOnline as e2eeOnOnline } from '../e2ee';
 import { pushLog as devPushLog, isDevLogActive } from '../utils/devLogger';
 import { normalizeRoomJid } from '../helpers/normalizeRoomJid';
 import { store } from '../roomStore';
@@ -568,6 +569,11 @@ export class XmppClient {
         this.onOnlineCallback?.();
       } catch (err) {
         console.warn('onOnline callback failed', err);
+      }
+      try {
+        e2eeOnOnline(this.client);
+      } catch (err) {
+        console.warn('e2ee onOnline failed', err);
       }
       // Drain any sends that were buffered while the stream was down. The
       // presence stanzas from onOnlineCallback above were written to the

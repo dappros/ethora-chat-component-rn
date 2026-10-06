@@ -266,10 +266,18 @@ const canFallBackToLegacyUpload = (error: unknown): boolean => {
 
 let secureUploadUnavailable = false;
 
+export interface UploadFileOptions {
+  clientEncrypted?: boolean;
+}
+
 export async function uploadFileV2(
   formData: FormData,
-  activeRoomJID: string
+  activeRoomJID: string,
+  options: UploadFileOptions = {}
 ): Promise<{ data: any }> {
+  if (options.clientEncrypted) {
+    formData.append('clientEncrypted', 'true');
+  }
   const chatName = (activeRoomJID || '').split('@')[0];
   const apiRoot = getCurrentBaseURL().replace(/\/$/, '');
 

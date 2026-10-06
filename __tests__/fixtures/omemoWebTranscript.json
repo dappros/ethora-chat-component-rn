@@ -1,0 +1,77 @@
+{
+  "comment": "Produced by the web SDK (ethora-chat-component 26.9.0, src/e2ee) - not by this repository. Regenerate only from the web implementation.",
+  "bob": {
+    "identity": {
+      "seed": "Cwk/64OUWyTd1MZjcWK9whS3zejCIWbx4l6QR673teQ=",
+      "pub": "rFyFRJzf2/KhcfyPEsc6WrXvKRxAs0DM5NRQo4waYC4="
+    },
+    "spk": {
+      "id": 7,
+      "priv": "oTSGc6uxoLurlkicTm8OUSUrcPd0HDgTxyFl5OjK/X8=",
+      "pub": "2B27FkbQRs7sldVk5U35KkYSYsktpSvZe8ABH/0Hl3c=",
+      "signature": "78C/yomZ8Nigsqz6z/O8fNFghB+zBlU1USUfjy2f9GGXLv55xy9M3XyxGEv35Vn9jMAykQ911FrrwLGAplNQBQ=="
+    },
+    "pk": {
+      "id": 42,
+      "priv": "mWtTSk19AciutgG37Ma0+7eODgeyn5VL+dluVsHRjxw=",
+      "pub": "x9iTtx1IYED8UL8qElTpX8taTbWFNdvpNi2GaPW1hVk="
+    }
+  },
+  "alice": {
+    "identityPub": "T9VAkzzJBy/StDYtUTQdJFjqYsdS4TobqxqwGfN39sw=",
+    "sessionBeforeReplies": {
+      "rk": "j3ZQs1f6Hq9eds4QvfJWKRYjrCdlS621oIoFQ6MKSuQ=",
+      "dhs": {
+        "priv": "P2x+2sMjI3jwHWjC/yz/QQnClpxlGFhDICwsb8LEXX0=",
+        "pub": "OWZH16BmJHAChGTgguttP1kPdYBBLiOQraDDQyRjEjE="
+      },
+      "dhr": "2B27FkbQRs7sldVk5U35KkYSYsktpSvZe8ABH/0Hl3c=",
+      "cks": "/ZLmRr7YHG3o1lW/nqA5sRoXN+vPkcM8Zshqb+qm+jo=",
+      "ns": 2,
+      "nr": 0,
+      "pn": 0,
+      "skipped": {},
+      "ad": "T9VAkzzJBy/StDYtUTQdJFjqYsdS4TobqxqwGfN39sysXIVEnN/b8qFx/I8Sxzpate8pHECzQMzk1FCjjBpgLg==",
+      "peerIk": "rFyFRJzf2/KhcfyPEsc6WrXvKRxAs0DM5NRQo4waYC4=",
+      "pendingKex": {
+        "pkId": 42,
+        "spkId": 7,
+        "ek": "nXIJNAevVa9Ls7gS3Xgs9cplxqoJ4O0cJEuxSZ6sNWA="
+      }
+    }
+  },
+  "keyExchange": "CCoQBxogT9VAkzzJBy/StDYtUTQdJFjqYsdS4TobqxqwGfN39swiIJ1yCTQHr1WvS7O4Et14LPXKZcaqCeDtHCRLsUmerDVgKkwKECkd0U4zRwBJbFHN4bQ9GvYSOAgAEAAaIDlmR9egZiRwAoRk4ILrbT9ZD3WAQS4jkK2gw0MkYxIxIhC78WIzUFMOrg2fd/zuG8lx",
+  "fromAlice": [
+    {
+      "data": "ChApHdFOM0cASWxRzeG0PRr2EjgIABAAGiA5ZkfXoGYkcAKEZOCC620/WQ91gEEuI5CtoMNDJGMSMSIQu/FiM1BTDq4Nn3f87hvJcQ==",
+      "text": "hello bob"
+    },
+    {
+      "data": "ChBxztFNWisC0vTVRQ1Ja0KMEkgIARAAGiA5ZkfXoGYkcAKEZOCC620/WQ91gEEuI5CtoMNDJGMSMSIgi2Gel8zr8V2f+S2srOB3VxW7wi7N4+EWcMvQAi3qYUk=",
+      "text": "second, before any reply"
+    },
+    {
+      "data": "ChARxo8dZqJx9ht15Quk7lxbEkgIABACGiD4rV2pri+zyAVzhHJhbmO9rNGuNTlP+e+grPcuttgwJiIgs6Nq2V/MJigrQ5J7oNRNJjCGDBuIDD29vXk+QotbC7w=",
+      "text": "third, after the ratchet step"
+    },
+    {
+      "data": "ChAG/2z80cyW6jEE3D0hP3MdEkgIARACGiD4rV2pri+zyAVzhHJhbmO9rNGuNTlP+e+grPcuttgwJiIgopAIgU2fn/2ZsuwdV/VSqULy9QeGrwQt3BuVnw8mxdI=",
+      "text": "fourth ✓ привет"
+    }
+  ],
+  "fromBob": [
+    {
+      "data": "ChAVu+AJtt+ljOZYFwJNZy+jEjgIABAAGiDVutu8TrquogFDBeq9IJi2E+TjWFJwC/tadmU8kM+2ICIQ/8o2boFf7xTKR4wZcK9neQ==",
+      "text": "hi alice"
+    },
+    {
+      "data": "ChDDRTHSXkJpZYImnGOeizSJEjgIARAAGiDVutu8TrquogFDBeq9IJi2E+TjWFJwC/tadmU8kM+2ICIQBfXM7myx/dabLIweJHyQBg==",
+      "text": "reply two"
+    }
+  ],
+  "payload": {
+    "keyMaterial": "BovOVVGx0lmaTfSm4mog26kvM5bYWtjU8/tIAk1rKVxJYynT/m62nCK+GUvv4NeJ",
+    "payload": "0qeq+pczjuIhEV+o9O92oyCfUwjukTR8Gvq89Usb/jnsSeAyRxSo38ogwf3QaNSWE7cHkuWzc3zJGYyiVz62KMtmLoUJGPvHnkYmoOpWEq9Lnvx7iqOGC53cB0kKJ8E/",
+    "text": "<envelope xmlns=\"urn:xmpp:sce:1\"><content><body>sealed text</body></content></envelope>"
+  }
+}

@@ -1,4 +1,5 @@
 import { IMessage, RoomMember } from '../types/types';
+import { composeName } from './displayName';
 
 /**
  * Cache-only lookup. Returns the literal "Deleted User" as a MISS sentinel
@@ -21,7 +22,7 @@ export const createUserNameFromSetUser = (
   // fall back to that before giving up and returning the raw id.
   const bareName = user.name?.trim() || '';
 
-  return `${firstName} ${lastName}`.trim() || bareName || userId;
+  return composeName(firstName, lastName) || bareName || userId;
 };
 
 /**

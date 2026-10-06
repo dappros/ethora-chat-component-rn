@@ -20,6 +20,10 @@ import LastMessageItem from './LastMessageItem';
 import { LastRoomMessageText } from './styled/StyledRoomComponents';
 import { useTheme } from '../../hooks/useTheme';
 import { resolveTheme } from '../../theme/theme';
+import { LockIcon } from '../../assets/icons';
+import { useT } from '../../i18n/useT';
+import { composeName } from '../../helpers/displayName';
+import { isUnresolvedSenderId } from '../../helpers/isUnresolvedSenderId';
 
 interface ChatRoomItemProps {
   chat: IRoom;
@@ -37,6 +41,7 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
   // Rows can be rendered with an explicit `config` prop (tests, hosts
   // composing their own list); honour its colours over the store's.
   const storeTheme = useTheme();
+  const t = useT();
   const theme = useMemo(
     () => (config ? resolveTheme(config) : storeTheme),
     [config, storeTheme]
@@ -61,19 +66,12 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
       const localId = rawUserId.split('@')[0];
       const entry = usersSet?.[localId] ?? usersSet?.[rawUserId];
       const fromUsersSet = entry
-        ? `${entry.firstName ?? ''} ${entry.lastName ?? ''}`.trim()
+        ? composeName(entry.firstName, entry.lastName)
         : '';
 
-      // usersSet first, exactly like Message.tsx: it's the live store, so
-      // a renamed user updates here too. The message's own `name` is the
-      // fallback that carries broadcast/system senders ("Ethora"), which
-      // never appear in usersSet.
+      const ownName = String(message?.user?.name || '').trim();
       const safeName =
-        fromUsersSet ||
-        String(message?.user?.name || '').trim() ||
-        localId ||
-        rawUserId ||
-        'Unknown';
+        fromUsersSet || (isUnresolvedSenderId(ownName) ? '' : ownName);
 
       return {
         ...message,
@@ -176,7 +174,21 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
           }}
         >
           <ChatInfo>
-            <ChatName text={displayName} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+              <View style={{ flexShrink: 1 }}>
+                <ChatName text={displayName} />
+              </View>
+              {chat?.e2ee && (
+                <View
+                  accessible
+                  accessibilityRole="image"
+                  accessibilityLabel={t('e2ee.roomEncrypted')}
+                  testID="room-e2ee-lock"
+                >
+                  <LockIcon width={13} height={13} color={theme.textSecondary} />
+                </View>
+              )}
+            </View>
           </ChatInfo>
           {stamp ? (
             <UserCount

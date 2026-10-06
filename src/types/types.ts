@@ -47,6 +47,7 @@ export interface IRoom {
   // in ChatProfileModal under Description / Chat type fields.
   description?: string;
   type?: string;
+  e2ee?: boolean;
 
   roomMembers?: RoomMember[];
   members?: RoomMember[];
@@ -358,6 +359,9 @@ export interface TypographyConfig {
 export interface IConfig {
   // ----- identity / network -----
   appId?: string;
+  e2ee?: {
+    enabled: boolean;
+  };
   baseUrl?: string;
   customAppToken?: string;
   projectName?: string;

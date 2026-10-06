@@ -1,4 +1,7 @@
 import { IMessage } from '../types/types';
+import { isE2eeRoom } from '../e2ee';
+import { composeName } from './displayName';
+import { parseSealedMediaBody } from '../e2ee/sealedBody';
 
 interface IMessageWithNewData extends IMessage {
   [x: string]: any;
@@ -86,13 +89,25 @@ export const createMessageFromXml = async (
   // Synthesize user.name from sender attrs (web reads usersSet from
   // redux in <Message>; we fix it once at the source so Avatar /
   // MessageHeader render the actual sender instead of "??").
-  const firstName = (merged.senderFirstName || '').toString().trim();
-  const lastName = (merged.senderLastName || '').toString().trim();
+  const firstName = (merged.senderFirstName || merged.firstName || '')
+    .toString()
+    .trim();
+  const lastName = (merged.senderLastName || merged.lastName || '')
+    .toString()
+    .trim();
   const fullName = (merged.fullName || '').toString().trim();
   const senderJID = (merged.senderJID || '').toString();
-  const senderLocal = senderJID.includes('@')
-    ? senderJID.split('@')[0]
-    : senderJID;
+  const senderBare = senderJID.split('/')[0] || '';
+  const senderResource = senderJID.includes('/') ? senderJID.split('/')[1] || '' : '';
+  const senderIsOccupant =
+    !!senderResource &&
+    (senderBare === String(merged.roomJid || '') ||
+      /@conference\./i.test(senderBare));
+  const senderLocal = senderIsOccupant
+    ? senderResource
+    : senderBare.includes('@')
+      ? senderBare.split('@')[0]
+      : senderBare;
 
   // Bug #41 root cause: the resource of the MUC `from` (room@conference/
   // occupant-id) is the SAME field getDataFromXml uses to derive
@@ -112,7 +127,7 @@ export const createMessageFromXml = async (
   const xmppFrom = (merged.xmppFrom || '').toString();
   const fromResource = xmppFrom.includes('/') ? xmppFrom.split('/')[1] : '';
 
-  const composed = [firstName, lastName].filter(Boolean).join(' ').trim();
+  const composed = composeName(firstName, lastName);
   const existingName = String(merged?.user?.name || '').trim();
   const resolvedName =
     existingName ||
@@ -122,8 +137,18 @@ export const createMessageFromXml = async (
     merged?.user?.id ||
     '';
 
+  const unencrypted =
+    merged.omemoEncrypted !== 'true' && isE2eeRoom(String(merged.roomJid || ''));
+
+  const sealedKeys =
+    merged.clientEncrypted === 'true'
+      ? parseSealedMediaBody(merged.body)
+      : undefined;
+
   const message: IMessage = {
     ...merged,
+    ...(unencrypted ? { unencrypted: true } : {}),
+    ...(sealedKeys ? { e2eeKeys: sealedKeys, body: 'media' } : {}),
     user: {
       ...(merged.user || {}),
       id: merged?.user?.id || fromResource || senderLocal,

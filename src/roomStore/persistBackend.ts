@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { secureGet, secureSet } from '../helpers/secureKeyValue';
+import { secureGetOrCreate } from '../helpers/secureKeyValue';
 import { encryptForPersist, decryptFromPersist } from '../helpers/persistCrypto';
 
 
@@ -12,7 +12,7 @@ export interface PersistBackend {
 }
 
 const MMKV_INSTANCE_ID = 'ethora-chat-persist';
-const MMKV_KEY_STORE_KEY = '@ethora/persist:mmkvKey';
+const MMKV_KEY_STORE_KEY = 'ethora_persist_mmkv_key';
 const MMKV_KEY_LENGTH = 16;
 
 const randomKey = (length: number): string => {
@@ -25,13 +25,6 @@ const randomKey = (length: number): string => {
   return out;
 };
 
-const loadOrCreateMmkvKey = async (): Promise<string> => {
-  const existing = await secureGet(MMKV_KEY_STORE_KEY);
-  if (existing) {return existing;}
-  const key = randomKey(MMKV_KEY_LENGTH);
-  await secureSet(MMKV_KEY_STORE_KEY, key);
-  return key;
-};
 
 const createMmkvBackend = async (): Promise<PersistBackend | null> => {
   let MMKV: any;
@@ -42,9 +35,13 @@ const createMmkvBackend = async (): Promise<PersistBackend | null> => {
   }
   if (typeof MMKV !== 'function') {return null;}
   try {
-    const encryptionKey = await loadOrCreateMmkvKey();
+    const key = await secureGetOrCreate(MMKV_KEY_STORE_KEY, () =>
+      randomKey(MMKV_KEY_LENGTH)
+    );
+    if (!key) {return null;}
     // Throws when the native module is missing from the binary.
-    const storage = new MMKV({ id: MMKV_INSTANCE_ID, encryptionKey });
+    const storage = new MMKV({ id: MMKV_INSTANCE_ID, encryptionKey: key.value });
+    if (key.created) {storage.clearAll();}
     return {
       name: 'mmkv',
       getMany: async (keys) => keys.map((k) => storage.getString(k) ?? null),

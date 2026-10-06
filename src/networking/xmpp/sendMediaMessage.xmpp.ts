@@ -1,4 +1,5 @@
 import { Client, xml } from '@xmpp/client';
+import { sendSealedMedia, shouldEncrypt } from '../../e2ee/send';
 
 // Monotonic counter — see sendTextMessage for the rationale (avoids
 // Date.now() id collisions on <1ms-apart sends).
@@ -63,6 +64,23 @@ export function sendMediaMessage(
     push: 'true',
   };
 
+  const keys: string[] | undefined = data?.e2eeKeys;
+  if (keys?.length) {
+    (dataToSend as Record<string, unknown>).clientEncrypted = 'true';
+  }
+  const hints = xml('store', { xmlns: 'urn:xmpp:hints' });
+
+  if (keys?.length && shouldEncrypt(roomJID)) {
+    sendSealedMedia(
+      client,
+      roomJID,
+      id,
+      xml('body', {}, JSON.stringify({ v: 1, keys })),
+      [xml('data', dataToSend), hints]
+    );
+    return id;
+  }
+
   const message = xml(
     'message',
     {
@@ -72,7 +90,7 @@ export function sendMediaMessage(
       to: roomJID,
     },
     xml('body', {}, 'media'),
-    xml('store', { xmlns: 'urn:xmpp:hints' }),
+    hints,
     xml('data', dataToSend)
   );
 

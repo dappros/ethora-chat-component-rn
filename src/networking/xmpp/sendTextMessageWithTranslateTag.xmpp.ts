@@ -1,6 +1,7 @@
 import { Client, xml } from '@xmpp/client';
 import { Iso639_1Codes } from '../../types/types';
 import { toServiceXmlns } from './sendTextMessage.xmpp';
+import { sendEncrypted, shouldEncrypt } from '../../e2ee/send';
 
 /**
  * Same wire message as `sendTextMessage`, plus a `<translate source="xx"/>`
@@ -39,14 +40,7 @@ export const sendTextMessageWithTranslateTag = (
 
   try {
     const dataXmlns = toServiceXmlns(stanzaMessage.devServer, client);
-    const message = xml(
-      'message',
-      {
-        to: stanzaMessage.roomJID,
-        type: 'groupchat',
-        id,
-      },
-      xml('data', {
+    const data = xml('data', {
         xmlns: dataXmlns,
         senderFirstName: stanzaMessage.firstName,
         senderLastName: stanzaMessage.lastName,
@@ -63,8 +57,27 @@ export const sendTextMessageWithTranslateTag = (
         isReply: stanzaMessage.isReply || false,
         mainMessage: stanzaMessage.mainMessage || '',
         push: 'true',
-      }),
-      xml('body', {}, stanzaMessage.userMessage),
+      });
+    const body = xml('body', {}, stanzaMessage.userMessage);
+    const envelope = { to: stanzaMessage.roomJID, type: 'groupchat', id };
+
+    if (shouldEncrypt(stanzaMessage.roomJID)) {
+      sendEncrypted(
+        client,
+        stanzaMessage.roomJID,
+        id,
+        data,
+        body,
+        xml('message', envelope, data, body)
+      );
+      return true;
+    }
+
+    const message = xml(
+      'message',
+      envelope,
+      data,
+      body,
       // `<translate source>` only DECLARES the language this text is in; it
       // costs nothing to send and is what lets each reader translate the
       // message into their own language on their side.

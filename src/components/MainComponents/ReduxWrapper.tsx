@@ -22,6 +22,7 @@ import '../../helpers/storeConsole';
 import {installPromiseRejectionTracker} from '../../utils/installPromiseRejectionTracker';
 import {useChatFonts} from '../../hooks/useChatFonts';
 import {installPushTokenHook} from '../../services/pushRegistration';
+import {setE2eeEnabled} from '../../e2ee';
 
 // Mount-time, dev-only — wire a global unhandled-promise-rejection
 // tracker so any future leak surfaces with a real stack trace in Metro
@@ -57,6 +58,10 @@ const ConfigEnabler: React.FC<{config?: IConfig}> = ({config}) => {
     if (!config) {return;}
     dispatch(setConfig(config));
   }, [config, dispatch]);
+  const e2eeEnabled = config?.e2ee?.enabled === true;
+  React.useEffect(() => {
+    setE2eeEnabled(e2eeEnabled);
+  }, [e2eeEnabled]);
   return null;
 };
 

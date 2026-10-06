@@ -69,6 +69,11 @@ const loadOrCreateKey = (): Promise<CryptoJS.lib.WordArray> => {
   return cachedKeyPromise;
 };
 
+export async function isPersistKeyKept(): Promise<boolean> {
+  const key = await loadOrCreateKey();
+  return (await secureGet(CIPHER_KEY_STORE_KEY)) === CryptoJS.enc.Base64.stringify(key);
+}
+
 /** Encrypt a JSON-serialisable payload for storage. Returns the string to persist. */
 export async function encryptForPersist(plaintext: string): Promise<string> {
   const key = await loadOrCreateKey();

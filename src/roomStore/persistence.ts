@@ -132,6 +132,11 @@ const PERSISTED_MESSAGE_FIELDS: (keyof IMessage)[] = [
   // computeBootTimeFailures below) find exactly the messages that never
   // got confirmed and flip them to failed instead.
   'pending',
+  'unencrypted',
+  'undecryptable',
+  'e2eeError',
+  'clientEncrypted',
+  'e2eeKeys',
 ];
 
 // The sender identity that rides along on every message over the wire
@@ -164,6 +169,7 @@ const PERSISTED_MESSAGE_USER_FIELDS = ['id', 'name'] as const;
 // repopulates from /chats/my on the very next load. `usersCnt`, which the
 // header actually reads, is its own scalar field and is preserved below.
 const REFETCHED_ROOM_FIELDS = ['members'] as const;
+const PERSISTED_ROOM_MEMBERS = 30;
 
 const pickDefined = <T extends object>(
   source: T,
@@ -217,6 +223,15 @@ const sanitizeRooms = (
     }
     for (const field of REFETCHED_ROOM_FIELDS) {
       delete compactRoom[field];
+    }
+    // The same reasoning, one size down: the full roster a room gets once
+    // it is opened (loadRoomMembers) is re-fetched on the next open, so only
+    // the preview-sized head of it is worth a place in the cache.
+    if (
+      Array.isArray(compactRoom.roomMembers) &&
+      compactRoom.roomMembers.length > PERSISTED_ROOM_MEMBERS
+    ) {
+      compactRoom.roomMembers = compactRoom.roomMembers.slice(0, PERSISTED_ROOM_MEMBERS);
     }
 
     out[jid] = {

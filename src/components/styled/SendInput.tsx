@@ -87,12 +87,14 @@ interface SendInputProps {
   inputHeight?: number;
   showPreview?: boolean;
   previewParser?: (text: string) => (string | JSX.Element)[];
+  maxMediaBytes?: number;
 }
 
 const SendInput: React.FC<SendInputProps> = ({
   sendMessage,
   sendMedia,
   config,
+  maxMediaBytes,
   onFocus,
   onBlur,
   editMessage,
@@ -151,14 +153,15 @@ const SendInput: React.FC<SendInputProps> = ({
     // Enforce the upload size cap before anything reaches the network.
     // The backend rejects oversized bodies with HTTP 413; catching it
     // here gives a clear message instead of a silent failed bubble.
+    const limit = maxMediaBytes ?? MAX_MEDIA_BYTES;
     const oversize = files.find(
-      (f) => typeof f.size === 'number' && f.size > MAX_MEDIA_BYTES
+      (f) => typeof f.size === 'number' && f.size > limit
     );
     if (oversize) {
       Alert.alert(
         'File too large',
         `"${oversize.name}" is ${formatBytes(oversize.size!)}. The maximum allowed size is ${Math.round(
-          MAX_MEDIA_BYTES / (1024 * 1024)
+          limit / (1024 * 1024)
         )} MB.`
       );
       return;

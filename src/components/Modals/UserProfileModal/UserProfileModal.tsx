@@ -17,6 +17,7 @@ import {
   EditIcon,
   IconDoc,
   LeaveIcon,
+  LockIcon,
   LogoutIcon,
   ProfileIcon,
   ShareIcon,
@@ -43,7 +44,21 @@ import {
 import { addRoomViaApi, setCurrentRoom } from '../../../roomStore/roomsSlice';
 import { runLogoutFlow } from '../../Menu/HeaderRoomListMenu';
 import { useLogout } from '../../../hooks/useLogout';
-import { ApiRoom, postPrivateRoom } from '../../../networking/api-requests/rooms.api';
+import {
+  ApiRoom,
+  ownAppId,
+  postPrivateRoom,
+} from '../../../networking/api-requests/rooms.api';
+import EncryptionCard from '../../MainComponents/EncryptionCard';
+import { accountNameOf } from '../../../helpers/accountName';
+import { composeName } from '../../../helpers/displayName';
+import { isUnresolvedSenderId } from '../../../helpers/isUnresolvedSenderId';
+
+/** A name, unless it is only the account's id standing in for one. */
+const nameOrNothing = (name?: string | null): string => {
+  const trimmed = String(name ?? '').trim();
+  return isUnresolvedSenderId(trimmed) ? '' : trimmed;
+};
 import {
   getUserFiles,
   isMediaFile,
@@ -196,8 +211,8 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
   const handleShare = useCallback(async () => {
     const name =
-      profileUser?.name ||
-      `${profileUser?.firstName ?? ''} ${profileUser?.lastName ?? ''}`.trim();
+      nameOrNothing(profileUser?.name) ||
+      composeName(profileUser?.firstName, profileUser?.lastName);
     const id =
       profileUser?.userJID ||
       profileUser?.defaultWallet?.walletAddress ||
@@ -238,7 +253,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     }
   };
 
-  const handlePrivateMessage = useCallback(async () => {
+  const openPrivateRoom = useCallback(async (e2ee: boolean) => {
     showToast({
       id: Date.now().toString(),
       title: 'Room creation',
@@ -248,7 +263,8 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     });
     if (config?.newArch) {
       const newRoom = await postPrivateRoom(
-        selectedUser?.userJID ?? (selectedUser?.id || '')
+        selectedUser?.userJID ?? (selectedUser?.id || ''),
+        e2ee
       );
       handleRoomCreation(newRoom, 2);
     } else {
@@ -282,6 +298,17 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
     dispatch(setActiveModal(undefined));
   }, [selectedUser]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handlePrivateMessage = useCallback(
+    () => openPrivateRoom(false),
+    [openPrivateRoom]
+  );
+  const handleEncryptedPrivateMessage = useCallback(
+    () => openPrivateRoom(true),
+    [openPrivateRoom]
+  );
+  const canStartEncrypted =
+    config?.e2ee?.enabled === true && !!config?.newArch;
 
   const openFile = (file: UserFile) => {
     dispatch(
@@ -333,6 +360,16 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     icon: (color: string) => <ChatIcon color={color} />,
                     onPress: handlePrivateMessage,
                   },
+                  ...(canStartEncrypted
+                    ? [
+                        {
+                          key: 'encrypted-message',
+                          label: t('action.encryptedMessage'),
+                          icon: (color: string) => <LockIcon color={color} />,
+                          onPress: handleEncryptedPrivateMessage,
+                        },
+                      ]
+                    : []),
                 ]),
             {
               key: 'share',
@@ -341,7 +378,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
               onPress: handleShare,
             },
           ],
-    [isOwnProfile, t, handleShare, handlePrivateMessage, handleLogout] // eslint-disable-line react-hooks/exhaustive-deps
+    [isOwnProfile, t, handleShare, handlePrivateMessage, handleEncryptedPrivateMessage, canStartEncrypted, handleLogout] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   // Collapsed, the hero's round buttons are gone — the "…" menu carries
@@ -373,8 +410,8 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
   }
 
   const displayName =
-    profileUser?.name ||
-    `${profileUser?.firstName ?? ''} ${profileUser?.lastName ?? ''}`.trim() ||
+    nameOrNothing(profileUser?.name) ||
+    composeName(profileUser?.firstName, profileUser?.lastName) ||
     t('modal.profile.title');
   const heroImage =
     appendFileToken(profileUser?.profileImage, fileToken) || null;
@@ -528,6 +565,14 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 : t('modal.profile.noDescription')}
             </Text>
           </View>
+
+          {!isOwnProfile && config?.e2ee?.enabled === true && (
+            <EncryptionCard
+              account={accountNameOf(profileUser, ownAppId())}
+              style={styles.card}
+              testID="user-profile-e2ee"
+            />
+          )}
 
           {tabs.length > 0 && (
             <View style={styles.card}>

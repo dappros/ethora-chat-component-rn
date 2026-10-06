@@ -7,6 +7,10 @@ import { setConfig, setPushEnabled, setThemePreference } from '../src/roomStore/
 import UserSettingsModal from '../src/components/Modals/UserSettingsModal/UserSettingsModal';
 import { MODAL_TYPES } from '../src/helpers/constants/MODAL_TYPES';
 
+jest.mock('../src/context/ToastContext', () => ({
+  useToast: () => ({ showToast: jest.fn() }),
+}));
+
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 47, bottom: 34, left: 0, right: 0 }),
   SafeAreaProvider: ({ children }: any) => children,
@@ -105,5 +109,18 @@ describe('Settings screen', () => {
     expect(
       tree.root.findAll((n) => n.props?.testID === `settings-row-${MODAL_TYPES.VISIBILITY}`, { deep: false })
     ).toHaveLength(1);
+  });
+
+  it('shows this account\'s devices only when encryption is on', async () => {
+    const off = await render({});
+    expect(off.tree.root.findAll((n) => n.props?.testID === 'settings-e2ee')).toHaveLength(0);
+    await act(async () => off.tree.unmount());
+
+    const on = await render({ e2ee: { enabled: true } });
+    expect(
+      on.tree.root.findAll((n) => n.props?.testID === 'settings-e2ee', { deep: false })
+    ).toHaveLength(1);
+    expect(on.texts()).toContain('End-to-end encryption');
+    await act(async () => on.tree.unmount());
   });
 });

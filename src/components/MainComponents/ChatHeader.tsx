@@ -13,7 +13,7 @@ import RoomList from './RoomList';
 import { IRoom } from '../../types/types';
 import { ProfileImagePlaceholder } from './ProfileImagePlaceholder';
 import Button from '../styled/Button';
-import { BackIcon, BurgerMenuIcon } from '../../assets/icons';
+import { BackIcon, BurgerMenuIcon, LockIcon } from '../../assets/icons';
 import { CallButtons } from '../VideoCalls/CallButtons';
 import { LanguageSelectorButton } from './LanguageSelectorButton';
 import { useDispatch, useSelector, useStore } from 'react-redux';
@@ -178,14 +178,27 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
               }
             />
             <ChatContainerHeaderInfo>
-              <ChatContainerHeaderLabel
-                numberOfLines={1}
-                ellipsizeMode="tail"
-                fontSize={config?.typography?.headerTitle?.fontSize}
-                fontWeight={config?.typography?.headerTitle?.fontWeight as any}
-              >
-              {currentRoom?.title || currentRoom?.name}
-              </ChatContainerHeaderLabel>
+              <View style={styles.titleRow}>
+                <ChatContainerHeaderLabel
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                  fontSize={config?.typography?.headerTitle?.fontSize}
+                  fontWeight={config?.typography?.headerTitle?.fontWeight as any}
+                  style={styles.title}
+                >
+                  {currentRoom?.title || currentRoom?.name}
+                </ChatContainerHeaderLabel>
+                {currentRoom?.e2ee && (
+                  <View
+                    accessible
+                    accessibilityRole="image"
+                    accessibilityLabel={t('e2ee.roomEncrypted')}
+                    testID="header-e2ee-lock"
+                  >
+                    <LockIcon width={15} height={15} color={theme.textSecondary} />
+                  </View>
+                )}
+              </View>
               <View>
                 {composing ? (
                   <Composing usersTyping={currentRoom?.composingList} />
@@ -232,6 +245,14 @@ const styles = StyleSheet.create({
   subLabel: {
     color: '#8C8C8C',
     fontSize: 14,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  title: {
+    flexShrink: 1,
   },
   menuButton: {
     padding: 8,

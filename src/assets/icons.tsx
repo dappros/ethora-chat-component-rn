@@ -743,3 +743,30 @@ export function IconDoc({ width = 16, height = 20 }) {
     </Svg>
   );
 }
+
+export const LockIcon = ({ color = '#8C8C8C', ...props }) => (
+  <Svg width="24" height="24" viewBox="0 0 24 24" fill="none" {...props}>
+    <Rect x="5" y="10.5" width="14" height="10" rx="2" stroke={color} strokeWidth="1.8" />
+    <Path
+      d="M8 10.5V7.5C8 5.29 9.79 3.5 12 3.5C14.21 3.5 16 5.29 16 7.5V10.5"
+      stroke={color}
+      strokeWidth="1.8"
+      strokeLinecap="round"
+    />
+  </Svg>
+);
+
+// The same padlock struck through - a message that went out in clear in a
+// room that is supposed to be encrypted.
+export const LockOffIcon = ({ color = '#D92D20', ...props }) => (
+  <Svg width="24" height="24" viewBox="0 0 24 24" fill="none" {...props}>
+    <Rect x="5" y="10.5" width="14" height="10" rx="2" stroke={color} strokeWidth="1.8" />
+    <Path
+      d="M8 10.5V7.5C8 5.29 9.79 3.5 12 3.5C14.21 3.5 16 5.29 16 7.5V10.5"
+      stroke={color}
+      strokeWidth="1.8"
+      strokeLinecap="round"
+    />
+    <Path d="M3 3L21 21" stroke={color} strokeWidth="1.8" strokeLinecap="round" />
+  </Svg>
+);
