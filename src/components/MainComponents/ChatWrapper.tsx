@@ -18,7 +18,7 @@ import {Overlay, StyledModal} from '../styled/MediaModal';
 import ConnectionBanner from './ConnectionBanner';
 import {Message} from '../MessageBubble/Message';
 import {IConfig, IRoom, MessageProps, ModalType, User} from '../../types/types';
-import {useXmppClient} from '../../context/xmppProvider';
+import {useXmppClient, SESSION_LOST_EVENT} from '../../context/xmppProvider';
 import LoginForm from '../AuthForms/Login';
 import {RootState} from '../../roomStore';
 import Loader from '../styled/Loader';
@@ -81,6 +81,22 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
   const [isInited, setInited] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // Set when the session ended on its own (the password is gone for
+  // good): the overlay then says so instead of "Connection error".
+  const [sessionLost, setSessionLost] = useState(false);
+
+  // The host may keep <Chat> mounted after the session ended: say what
+  // happened on the chat's own screen, with a way to try again (the
+  // host's refresh may work later, or the host may have signed in anew).
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener(SESSION_LOST_EVENT, () => {
+      setSessionLost(true);
+      setErrorMsg(null);
+      setShowModal(true);
+      setInited(false);
+    });
+    return () => sub.remove();
+  }, []);
   // const [isModalDeleteOpen, setIsModalDeleteOpen] = useState(false);
 
   const [isChatVisible, setIsChatVisible] = useState(false);
@@ -485,15 +501,21 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
                 marginBottom: 8,
                 color: theme.text,
               }}>
-              Connection error
+              {sessionLost ? t('session.expiredTitle') : t('connection.errorTitle')}
             </Text>
-            <Text style={{fontSize: 13, color: theme.textSecondary, marginBottom: 16}}>
-              {errorMsg ?? 'Something went wrong while connecting to chat.'}
+            <Text
+              testID="chat-error-body"
+              style={{fontSize: 13, color: theme.textSecondary, marginBottom: 16}}
+            >
+              {errorMsg ??
+                (sessionLost ? t('session.expiredBody') : t('connection.errorBody'))}
             </Text>
             <Pressable
+              testID="chat-error-retry"
               onPress={() => {
                 setShowModal(false);
                 setErrorMsg(null);
+                setSessionLost(false);
                 setInited(false);
                 // Signal a clean re-bootstrap. XmppProvider listens and
                 // resets its state machine so the next effect run resolves
@@ -507,7 +529,7 @@ const ChatWrapper: FC<ChatWrapperProps> = ({
                 backgroundColor: pressed ? '#0040A0' : theme.primary,
                 alignItems: 'center',
               })}>
-              <Text style={{color: theme.textOnPrimary, fontWeight: '600'}}>Retry</Text>
+              <Text style={{color: theme.textOnPrimary, fontWeight: '600'}}>{t('action.retry')}</Text>
             </Pressable>
           </View>
         </Overlay>

@@ -253,14 +253,55 @@ The SDK does **not** mint push tokens and has no Firebase dependency. Your app o
 - `config.pushNotifications.getPushTokens` is the declarative alternative: the SDK calls it once per signed-in session (again after a logout and a new login) and registers what it returns — one `{ token, tokenType? }`, an array, or `null`. A rejection is logged and retried after 30 s. Both ways can be combined.
 - A device holds up to two tokens: the chat token (`expo` / `fcm` / `apns`) and, optionally, a PushKit `apns-voip` token for ringing calls on a killed iOS app. Registering into a slot replaces what was there; `getRegisteredPushTokens()` lists both.
 - The Settings screen's "Push notifications" switch (and `setPushEnabled`, exported) is honoured: off releases every registration on the backend and keeps the tokens, on registers them again; `registerPushToken` resolves `'disabled'` meanwhile.
-- On logout the SDK releases the registration itself (`DELETE`, while the access token is still valid) and keeps the token, so the next login — any account — is registered again without another call.
+- **Logout must go through the SDK.** `performLogout` (the built-in "Sign out" item, `useLogout()`, or `logoutService.performLogout()` from your own button) releases the registration (`DELETE`, while the access token is still valid) and keeps the token, so the next login — any account — is registered again without another call. The SDK has no other way to learn that your app signed out: clearing your own session and unmounting `<Chat>` leaves the device registered and pushes keep arriving. Call the SDK's logout **before** dropping your own tokens (the `DELETE` is authorized with them), or `unregisterPushToken()` if you must sign out some other way.
+- When the XMPP password is gone for good (the server rejects it and your `refreshTokens.refreshFunction` cannot produce a working one, twice in a row) the SDK runs the same `performLogout` itself — the registration is released, `logout.onAfterLogout` fires so you can route to your sign-in, and a `<Chat>` left mounted shows "Session expired" with a Retry that re-runs the bootstrap. A network outage never triggers this.
 - `unregisterPushToken({ tokenType? })` removes the registration(s) from the backend and forgets the token(s), so no later login re-registers them; pass `tokenType` to drop just one slot. Call it while signed in, e.g. from your own "notifications off" switch. Resolves `'unregistered' | 'forgotten'`.
 - `getRegisteredPushToken()` returns the chat token (`{ token, tokenType } | null`); `getRegisteredPushTokens()` returns every held token.
 - `detectPushTokenType(token)` — `'expo'` for `ExponentPushToken[...]`, `'apns'` for a 64+ hex device token, `'fcm'` otherwise. Used automatically; pass `{ tokenType }` to override (`'apns-voip'` must be passed, it cannot be detected).
 - `handlePushPayload(data)` / `openRoomFromPush(jid)` — hand the tapped notification's `data` to the SDK: a call push rings, a message push opens its room (immediately, or as soon as the room list loads).
 - Room-level MucSub subscriptions (what ejabberd uses to decide whom to push for) are sent by the SDK itself on every login and reconnect; nothing to do on your side.
 
-Native tokens with `expo-notifications` (what the Ethora app does — raw APNs on iOS, FCM on Android, no Firebase SDK in the app):
+The whole host side, with `expo-notifications` (raw APNs on iOS, FCM on Android, no Firebase SDK in the app). The sender keys — the APNs `.p8` with its Key ID / Team ID / bundle id, the Firebase service account — go to the backend (app settings), never into the app; `google-services.json` goes into the Android build.
+
+```tsx
+import * as Notifications from 'expo-notifications';
+import { Chat, handlePushPayload, useLogout } from '@ethora/chat-component-rn';
+
+// 1. The token: the SDK asks once per signed-in session and does the rest
+//    (registration, room subscriptions, re-registration after a new login).
+const config = {
+  ...,
+  pushNotifications: {
+    getPushTokens: async () => {
+      const { status } = await Notifications.requestPermissionsAsync();
+      if (status !== 'granted') return null;
+      const { data: token } = await Notifications.getDevicePushTokenAsync();
+      return { token };
+    },
+  },
+};
+
+// 2. The tap: the listener belongs to the notifications library, so it is
+//    yours; hand the data to the SDK and it opens the room (or rings).
+useEffect(() => {
+  const last = Notifications.getLastNotificationResponse(); // cold start
+  if (last) handlePushPayload(last.notification.request.content.data);
+  const sub = Notifications.addNotificationResponseReceivedListener((r) => {
+    handlePushPayload(r.notification.request.content.data);
+    navigation.navigate('Chat'); // if <Chat> is not on screen
+  });
+  return () => sub.remove();
+}, []);
+
+// 3. Your own sign-out button: through the SDK, before your own session goes.
+const logoutChat = useLogout();
+const onSignOut = async () => {
+  await logoutChat();
+  await myAuth.signOut();
+};
+```
+
+Imperative registration instead of `getPushTokens` (same effect):
 
 ```ts
 import * as Notifications from 'expo-notifications';
@@ -310,8 +351,7 @@ Privacy: for regulated deployments keep message text out of push payloads; a rel
 | `pushNotifications.getPushTokens` | `() => Promise<PushTokenRegistration \\| PushTokenRegistration[] \\| null>` | Called once per signed-in session; the SDK registers what it returns. `PushTokenRegistration = { token, tokenType? }`. |
 | `appId` | `string` | App the token is registered under. Falls back to the signed-in user's `appId`. |
 | `pushNotifications.apiUrl` | `string` | **Legacy.** Base URL of a self-hosted push gateway (`ethora-node-push`), e.g. `https://push.example.com/api/v1`. When set, tokens go to `POST {apiUrl}/subscriptions` (needs `projectName`) instead of the main API, and there is no unregister. Omit on the hosted clusters. |
-| `pushNotifications.onClick` | `(params) => void \| Promise<void>` | Fires when the user taps a push, including cold-start. Args: `{ roomJID?, messageId?, data?, notification? }`. |
-| `pushNotifications.onNotificationPress` | `(data) => void` | Legacy alias of `onClick`; prefer `onClick`. |
+| `pushNotifications.onClick` / `onNotificationPress` | — | **Deprecated, never called.** Hand the tapped notification's data to `handlePushPayload` (below); the SDK opens the room. |
 | `pushNotifications.firebaseConfig` | `FBConfig` | **Deprecated, no effect.** The SDK never talks to Firebase. |
 
 ### Theming and styling

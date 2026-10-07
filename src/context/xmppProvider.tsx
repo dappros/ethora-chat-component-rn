@@ -103,10 +103,16 @@ const subscribeAllRoomsForPush = (client: any, reason: string) => {
     .catch((e) => devPushLog('warn', `${reason}: mucsub subscribe failed`, e));
 };
 
+/** Emitted once the session ended because the XMPP password is gone for good. */
+export const SESSION_LOST_EVENT = 'ethora:sessionLost';
+
 export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, isVisible }) => {
   const [client, setClient] = useState<XmppClient | null>(null);
   const [providerBootstrapStatus, setProviderBootstrapStatus] =
     useState<ProviderBootstrapStatus>('idle');
+  // Bumped by "Retry": the bootstrap effect keys on it, so a retry re-runs
+  // the bootstrap with the same config instead of waiting for a change.
+  const [bootstrapNonce, setBootstrapNonce] = useState(0);
 
   // Track which "init mode" this provider runs in. When config.initBeforeLoad
   // is true, the provider owns bootstrap and ChatWrapper just waits.
@@ -248,6 +254,10 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
           .performLogout()
           .catch(() => {})
           .finally(() => {
+            // The chat says so on its own screen (ChatWrapper's overlay)
+            // for a host that keeps it mounted; the host is told too, so
+            // it can route to its sign-in.
+            DeviceEventEmitter.emit(SESSION_LOST_EVENT);
             try {
               Promise.resolve(config?.logout?.onAfterLogout?.()).catch(() => {});
             } catch {
@@ -584,6 +594,7 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
     config?.jwtLogin?.enabled,
     config?.jwtLogin?.token,
     config?.xmppSettings?.devServer,
+    bootstrapNonce,
   ]);
 
   // -----------------------------------------------------------
@@ -933,6 +944,7 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
       completedBootstrapKeyRef.current = '';
       inflightBootstrapKeyRef.current = '';
       setProviderBootstrapStatus('idle');
+      setBootstrapNonce((n) => n + 1);
     });
     return () => sub.remove();
   }, []);

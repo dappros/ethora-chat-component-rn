@@ -794,12 +794,14 @@ export interface IConfig {
     apiUrl?: string;
     iconPath?: string;
     badgePath?: string;
+    /** @deprecated Never called. Hand the tapped notification's data to `handlePushPayload`; the SDK opens the room itself. */
     onClick?: (params: {
       roomJID?: string;
       messageId?: string;
       data?: Record<string, any>;
       notification?: { title?: string; body?: string };
     }) => void | Promise<void>;
+    /** @deprecated Never called; see `onClick`. */
     onNotificationPress?: (data: any) => void;
     getPushTokens?: () => Promise<
       PushTokenRegistration[] | PushTokenRegistration | null | undefined
