@@ -1,12 +1,14 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { withFileToken } from '../../helpers/secureFileUrl';
 import {
   View,
-  TouchableOpacity,
+  Pressable,
   Text,
   StyleSheet,
   ActivityIndicator,
   Platform,
+  type GestureResponderEvent,
+  type LayoutChangeEvent,
 } from 'react-native';
 import {
   createAudioPlayer,
@@ -15,27 +17,31 @@ import {
   type AudioStatus,
 } from 'expo-audio';
 import * as FileSystem from 'expo-file-system/legacy';
-import { WebView, WebViewMessageEvent } from 'react-native-webview';
-import { PauseIcon, PlayIcon } from '../../assets/icons';
+import Svg, { Path, Rect } from 'react-native-svg';
 import { useTheme } from '../../hooks/useTheme';
+import { useT } from '../../i18n/useT';
 import { getIosAudioPlaybackCacheExtension } from '../../helpers/mimeToExtension';
+import {
+  MIN_BAR,
+  formatClipTime,
+  parseDurationSeconds,
+  parseWaveForm,
+  resamplePeaks,
+} from '../../helpers/audioWaveform';
 import { pushLog as devPushLog } from '../../utils/devLogger';
-
-const formatTime = (millis: number) => {
-  const safe = Number.isFinite(millis) && millis > 0 ? millis : 0;
-  const totalSec = Math.floor(safe / 1000);
-  const min = Math.floor(totalSec / 60);
-  const sec = totalSec % 60;
-  return `${min}:${sec.toString().padStart(2, '0')}`;
-};
+import { MAX_DECODE_BYTES, decodeAudioClip } from './AudioDecoderHost';
 
 type AudioMessageProps = {
   src: string;
   mimeType?: string;
   fileName?: string;
   originalName?: string;
+  /** Seconds, when the sender attached it. */
   duration?: number | string;
+  /** Bars the sender attached (see helpers/audioWaveform). */
   waveForm?: string;
+  /** Own message: the player takes the bubble's ink instead of the brand. */
+  isUser?: boolean;
 };
 
 type AudioContainer =
@@ -50,19 +56,25 @@ type AudioContainer =
 type PreparedSource = {
   localUri: string;
   container: AudioContainer;
-  base64?: string;
+  /** The local file is already a natively playable copy (decoded WAV). */
+  playable?: boolean;
 };
 
-type WebDecoderMessage =
-  | { type: 'bridge_ready' }
-  | { type: 'decoded'; durationMillis: number; wavBase64: string }
-  | { type: 'error'; message?: string };
+type Analysis = { peaks: number[]; durationMillis: number };
 
-// Largest payload we will pull into JS for decoding (input opus) and the
-// largest WAV we will ship back over the bridge (output PCM). Voice
-// messages are a few dozen KB / a couple hundred KB of WAV; these only
-// guard against a pathological multi-minute attachment.
-const MAX_DECODE_BYTES = 25 * 1024 * 1024;
+const SPEEDS = [1, 1.5, 2];
+const BAR_WIDTH = 3;
+const BAR_GAP = 2;
+const WAVE_HEIGHT = 24;
+
+/** Waveforms already worked out this session, by source URL. */
+const analysisCache = new Map<string, Analysis>();
+
+/**
+ * Only one voice note plays at a time, as in the messengers: starting one
+ * pauses whichever was playing.
+ */
+let pauseActive: (() => void) | null = null;
 
 const hashString = (value: string) => {
   let hash = 0;
@@ -210,139 +222,76 @@ const getContainerExtension = (container: AudioContainer) => {
 const requiresWebAudioDecode = (container: AudioContainer) =>
   Platform.OS === 'ios' && (container === 'webm' || container === 'ogg');
 
-// The WebView is used ONLY as a decoder, never as a player. Two iOS facts
-// force this shape:
-//   • `decodeAudioData` is the only iOS API that understands WebM/Ogg Opus,
-//     and it works on a suspended AudioContext (decoding needs no gesture).
-//   • Playing audio OUT of a WebView — via AudioContext OR an <audio>
-//     element — is gated behind an in-page user gesture that an RN-side tap
-//     cannot supply, so both hang silently.
-// Therefore the page decodes Opus → PCM, re-encodes to a WAV blob, and ships
-// the bytes back to RN as base64. RN writes the WAV to cache and plays it
-// through expo-audio (native, no gesture limits, real play/pause/seek).
-const WEB_DECODER_HTML = `<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <style>html,body{margin:0;padding:0;width:1px;height:1px;overflow:hidden;background:transparent}</style>
-  </head>
-  <body>
-    <script>
-      (function () {
-        var MAX_WAV = ${MAX_DECODE_BYTES};
-        var post = function (payload) {
-          if (window.ReactNativeWebView) {
-            window.ReactNativeWebView.postMessage(JSON.stringify(payload));
-          }
-        };
-        var ctx = null;
-        var encodeWav = function (buffer) {
-          var numCh = buffer.numberOfChannels;
-          var frames = buffer.length;
-          var sr = buffer.sampleRate;
-          var bytesLen = 44 + frames * numCh * 2;
-          var ab = new ArrayBuffer(bytesLen);
-          var view = new DataView(ab);
-          var off = 0;
-          var ws = function (s) { for (var i = 0; i < s.length; i += 1) { view.setUint8(off++, s.charCodeAt(i)); } };
-          var u32 = function (d) { view.setUint32(off, d, true); off += 4; };
-          var u16 = function (d) { view.setUint16(off, d, true); off += 2; };
-          ws('RIFF'); u32(bytesLen - 8); ws('WAVE');
-          ws('fmt '); u32(16); u16(1); u16(numCh); u32(sr); u32(sr * numCh * 2); u16(numCh * 2); u16(16);
-          ws('data'); u32(frames * numCh * 2);
-          var chans = [];
-          for (var c = 0; c < numCh; c += 1) { chans.push(buffer.getChannelData(c)); }
-          for (var f = 0; f < frames; f += 1) {
-            for (var c2 = 0; c2 < numCh; c2 += 1) {
-              var s = Math.max(-1, Math.min(1, chans[c2][f]));
-              view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true);
-              off += 2;
-            }
-          }
-          return ab;
-        };
-        var abToBase64 = function (ab) {
-          var bytes = new Uint8Array(ab);
-          var binary = '';
-          var chunk = 0x8000;
-          for (var i = 0; i < bytes.length; i += chunk) {
-            binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
-          }
-          return window.btoa(binary);
-        };
-        window.__decodeAudio = function (base64) {
-          try {
-            if (!ctx) {
-              var Ctx = window.AudioContext || window.webkitAudioContext;
-              ctx = new Ctx();
-            }
-            var bin = window.atob(base64);
-            var len = bin.length;
-            var bytes = new Uint8Array(len);
-            for (var i = 0; i < len; i += 1) { bytes[i] = bin.charCodeAt(i); }
-            ctx.decodeAudioData(
-              bytes.buffer,
-              function (decoded) {
-                try {
-                  var wav = encodeWav(decoded);
-                  if (wav.byteLength > MAX_WAV) {
-                    post({ type: 'error', message: 'audio_too_long' });
-                    return;
-                  }
-                  post({
-                    type: 'decoded',
-                    durationMillis: Math.floor(decoded.duration * 1000),
-                    wavBase64: abToBase64(wav),
-                  });
-                } catch (e) {
-                  post({ type: 'error', message: 'encode_failed:' + (e && e.message ? e.message : e) });
-                }
-              },
-              function (err) {
-                post({ type: 'error', message: 'decode_failed:' + (err && err.message ? err.message : err) });
-              }
-            );
-          } catch (e) {
-            post({ type: 'error', message: 'load_failed:' + (e && e.message ? e.message : e) });
-          }
-        };
-        post({ type: 'bridge_ready' });
-      })();
-    </script>
-  </body>
-</html>`;
+const PlayGlyph = ({ color }: { color: string }) => (
+  <Svg width={26} height={26} viewBox="0 0 24 24">
+    <Path
+      d="M7.5 5.2v13.6c0 .95 1.05 1.5 1.8.95l9.9-6.8c.65-.45.65-1.45 0-1.9L9.3 4.25c-.75-.55-1.8 0-1.8.95z"
+      fill={color}
+    />
+  </Svg>
+);
 
+const PauseGlyph = ({ color }: { color: string }) => (
+  <Svg width={24} height={24} viewBox="0 0 24 24">
+    <Rect x={6.5} y={5} width={4} height={14} rx={1.4} fill={color} />
+    <Rect x={13.5} y={5} width={4} height={14} rx={1.4} fill={color} />
+  </Svg>
+);
+
+/**
+ * A voice message the way the messengers draw it: a round play button,
+ * the clip's waveform filling in as it plays (tap it to jump), and its
+ * length — elapsed while playing — under the bars.
+ *
+ * The bars come from the sender's `waveForm` when there is one, otherwise
+ * from decoding the file in the shared decoder (AudioDecoderHost), which
+ * is also what makes the web client's WebM/Opus playable on iOS.
+ */
 const AudioMessage = ({
   src,
   mimeType,
   fileName,
   originalName,
+  duration: durationProp,
+  waveForm,
+  isUser = false,
 }: AudioMessageProps) => {
   const theme = useTheme();
+  const t = useT();
   const soundRef = useRef<AudioPlayer | null>(null);
-  // expo-audio delivers progress through an event subscription instead of
-  // expo-av's `onPlaybackStatusUpdate` callback argument, so the handle has
-  // to be held and removed alongside the player itself.
+  // expo-audio delivers progress through an event subscription, so the
+  // handle has to be held and removed alongside the player itself.
   const statusSubRef = useRef<{ remove: () => void } | null>(null);
-  const webViewRef = useRef<WebView | null>(null);
   const preparedRef = useRef<PreparedSource | null>(null);
-  const bridgeReadyRef = useRef(false);
-  const injectedRef = useRef(false);
+  const preparingRef = useRef<Promise<PreparedSource> | null>(null);
   const didFinishRef = useRef(false);
   const unmountedRef = useRef(false);
   const loadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Where to start once the player is up (a tap on the bars before play).
+  const pendingSeekRef = useRef<number | null>(null);
+  const rateRef = useRef(1);
+
+  // The file's identity without its (rotating) access token, so caches
+  // survive a token refresh.
+  const cacheKey = src.split(/[?#]/)[0] || src;
+  const metaPeaks = useMemo(() => parseWaveForm(waveForm), [waveForm]);
+  const metaDuration = parseDurationSeconds(durationProp) * 1000;
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [playbackError, setPlaybackError] = useState(false);
   const [position, setPosition] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [webViewEnabled, setWebViewEnabled] = useState(false);
-  const primaryColor = theme.primary;
-  const onPrimary = theme.textOnPrimary;
-  const trackStyle = { backgroundColor: theme.border };
-  const timeStyle = { color: theme.textSecondary };
+  const [duration, setDuration] = useState(metaDuration);
+  const [peaks, setPeaks] = useState<number[] | null>(metaPeaks);
+  const [rate, setRate] = useState(1);
+  const [waveWidth, setWaveWidth] = useState(0);
+
+  // The brand colour from the config (the same tint as the composer's mic
+  // and send buttons), on own and others' bubbles alike.
+  const ink = theme.icon;
+  const buttonFill = ink;
+  const buttonGlyph = theme.textOnPrimary;
+  const metaColor = isUser ? theme.messageTextUser : theme.textSecondary;
 
   const clearLoadingGuard = () => {
     if (loadingTimerRef.current) {
@@ -353,8 +302,7 @@ const AudioMessage = ({
 
   // expo-audio players are native shared objects: they are NOT garbage
   // collected with the component, so every one we create has to be
-  // explicitly `remove()`d (expo-av's `unloadAsync` equivalent) and its
-  // status subscription torn down first.
+  // explicitly `remove()`d and its status subscription torn down first.
   const releasePlayer = () => {
     statusSubRef.current?.remove();
     statusSubRef.current = null;
@@ -372,6 +320,22 @@ const AudioMessage = ({
         /* already released */
       }
     }
+  };
+
+  // Stable for this bubble's lifetime: what another bubble calls to pause
+  // this one when it starts playing.
+  const pauseSelf = useRef(() => {
+    try {
+      soundRef.current?.pause();
+    } catch {
+      /* released */
+    }
+    if (!unmountedRef.current) {setIsPlaying(false);}
+  }).current;
+
+  const claimPlayback = () => {
+    if (pauseActive && pauseActive !== pauseSelf) {pauseActive();}
+    pauseActive = pauseSelf;
   };
 
   const fail = (reason: unknown) => {
@@ -396,76 +360,75 @@ const AudioMessage = ({
   };
 
   // Hard ceiling on the loading spinner — whatever stalls (a hung network
-  // request, a WebView that never decodes, a player that never loads)
-  // the control resolves to an error state instead of spinning forever
-  // (the customer-reported "stuck spinner").
+  // request, a decode that never returns, a player that never loads) the
+  // control resolves to an error state instead of spinning forever.
   const armLoadingGuard = () => {
     clearLoadingGuard();
     loadingTimerRef.current = setTimeout(() => {
       if (!unmountedRef.current && !soundRef.current) {
         fail(new Error('audio_timeout'));
       }
-    }, 15000);
+    }, 25000);
   };
 
-  const prepareSource = async (): Promise<PreparedSource> => {
-    if (preparedRef.current) {
-      return preparedRef.current;
-    }
-    if (!/^https?:\/\//i.test(src)) {
-      const prepared: PreparedSource = { localUri: src, container: 'unknown' };
-      preparedRef.current = prepared;
-      return prepared;
-    }
-    const cacheDirectory = FileSystem.cacheDirectory;
-    if (!cacheDirectory) {
-      const prepared: PreparedSource = { localUri: src, container: 'unknown' };
-      preparedRef.current = prepared;
-      return prepared;
-    }
+  const cacheBase = () =>
+    FileSystem.cacheDirectory
+      ? `${FileSystem.cacheDirectory}ethora-audio-${hashString(cacheKey)}`
+      : null;
 
-    const base = `${cacheDirectory}ethora-audio-${hashString(src)}`;
-    const part = `${base}.part`;
-    const partInfo = await FileSystem.getInfoAsync(part);
-    if (!partInfo.exists) {
-      const download = await withTimeout(
-        FileSystem.downloadAsync(withFileToken(src), part),
-        12000,
-        'audio_download_timeout'
-      );
-      logAudioDebug('audio downloaded', {
-        src,
-        uri: download.status === 200 ? download.uri : undefined,
-        status: download.status,
-      });
-      if (download.status !== 200) {
-        throw new Error(`audio_download_status_${download.status}`);
-      }
-    }
-
-    const head = await FileSystem.readAsStringAsync(part, {
-      encoding: FileSystem.EncodingType.Base64,
-      position: 0,
-      length: 32,
-    });
-    const container = detectContainer(decodeBase64Head(head, 16));
-
-    let base64: string | undefined;
-    let localUri = part;
-    if (requiresWebAudioDecode(container)) {
-      // WebView-decode path: extension is irrelevant, we hand over the bytes.
-      const info = await FileSystem.getInfoAsync(part);
-      const size = 'size' in info ? info.size ?? 0 : 0;
-      if (size > MAX_DECODE_BYTES) {
-        throw new Error('audio_too_large_to_decode');
-      }
-      base64 = await FileSystem.readAsStringAsync(part, {
+  const sniff = async (uri: string): Promise<AudioContainer> => {
+    try {
+      const head = await FileSystem.readAsStringAsync(uri, {
         encoding: FileSystem.EncodingType.Base64,
+        position: 0,
+        length: 32,
       });
-    } else {
-      // Native path: give the cached file a real extension so AVFoundation
-      // / ExoPlayer pick the right demuxer instead of choking on an opaque
-      // `.blob` (the original `audio_timeout` cause).
+      return detectContainer(decodeBase64Head(head, 16));
+    } catch {
+      return 'unknown';
+    }
+  };
+
+  // Download once (shared by the waveform and playback), sniff the real
+  // container, and give the cached file a real extension so AVFoundation /
+  // ExoPlayer pick the right demuxer instead of choking on an opaque
+  // `.blob` (the original `audio_timeout` cause).
+  const prepareSource = (): Promise<PreparedSource> => {
+    if (preparedRef.current) {
+      return Promise.resolve(preparedRef.current);
+    }
+    if (preparingRef.current) {
+      return preparingRef.current;
+    }
+    const run = async (): Promise<PreparedSource> => {
+      const base = cacheBase();
+      if (!/^https?:\/\//i.test(src) || !base) {
+        // Local file (the sender's own clip while it uploads).
+        return { localUri: src, container: await sniff(src) };
+      }
+      const wav = `${base}.wav`;
+      if ((await FileSystem.getInfoAsync(wav)).exists) {
+        return { localUri: wav, container: 'wav', playable: true };
+      }
+      const part = `${base}.part`;
+      if (!(await FileSystem.getInfoAsync(part)).exists) {
+        const download = await withTimeout(
+          FileSystem.downloadAsync(withFileToken(src), part),
+          12000,
+          'audio_download_timeout'
+        );
+        if (download.status !== 200) {
+          await FileSystem.deleteAsync(part, { idempotent: true }).catch(
+            () => {}
+          );
+          throw new Error(`audio_download_status_${download.status}`);
+        }
+      }
+      const container = await sniff(part);
+      if (requiresWebAudioDecode(container)) {
+        // Decoded to WAV before playing; the extension is irrelevant.
+        return { localUri: part, container };
+      }
       const ext =
         container !== 'unknown'
           ? getContainerExtension(container)
@@ -476,55 +439,161 @@ const AudioMessage = ({
               url: src,
             });
       const finalUri = `${base}${ext}`;
-      const finalInfo = await FileSystem.getInfoAsync(finalUri);
-      if (finalInfo.exists) {
-        await FileSystem.deleteAsync(part, { idempotent: true }).catch(
-          () => {}
-        );
+      if ((await FileSystem.getInfoAsync(finalUri)).exists) {
+        await FileSystem.deleteAsync(part, { idempotent: true }).catch(() => {});
       } else {
         await FileSystem.moveAsync({ from: part, to: finalUri });
       }
-      localUri = finalUri;
-    }
+      return { localUri: finalUri, container };
+    };
+    const pending = run().then(
+      (prepared) => {
+        preparedRef.current = prepared;
+        preparingRef.current = null;
+        logAudioDebug('audio prepared', {
+          src,
+          container: prepared.container,
+          platform: Platform.OS,
+        });
+        return prepared;
+      },
+      (error) => {
+        preparingRef.current = null;
+        throw error;
+      }
+    );
+    preparingRef.current = pending;
+    return pending;
+  };
 
-    const prepared: PreparedSource = { localUri, container, base64 };
-    preparedRef.current = prepared;
-    logAudioDebug('audio prepared', {
-      src,
-      mimeType,
-      fileName,
-      originalName,
-      container,
-      platform: Platform.OS,
-      decode: requiresWebAudioDecode(container) ? 'web-audio' : 'native',
+  const readBase64 = async (uri: string) => {
+    const info = await FileSystem.getInfoAsync(uri);
+    const size = 'size' in info ? info.size ?? 0 : 0;
+    if (size > MAX_DECODE_BYTES) {
+      throw new Error('audio_too_large_to_decode');
+    }
+    return FileSystem.readAsStringAsync(uri, {
+      encoding: FileSystem.EncodingType.Base64,
     });
-    return prepared;
   };
 
-  const maybeInjectDecode = () => {
-    const base64 = preparedRef.current?.base64;
-    if (
-      bridgeReadyRef.current &&
-      base64 &&
-      !injectedRef.current &&
-      webViewRef.current
-    ) {
-      injectedRef.current = true;
-      webViewRef.current.injectJavaScript(
-        `window.__decodeAudio(${JSON.stringify(base64)}); true;`
-      );
+  const remember = (analysis: Analysis) => {
+    analysisCache.set(cacheKey, analysis);
+    const base = cacheBase();
+    if (base) {
+      FileSystem.writeAsStringAsync(
+        `${base}.wave.json`,
+        JSON.stringify(analysis)
+      ).catch(() => {});
     }
   };
 
-  // expo-audio reports times in SECONDS (expo-av used milliseconds); the
-  // whole UI below is millisecond-based, so convert at this boundary and
-  // nowhere else.
+  const applyAnalysis = (analysis: Analysis) => {
+    if (unmountedRef.current) {return;}
+    if (!metaPeaks && analysis.peaks.length) {setPeaks(analysis.peaks);}
+    if (analysis.durationMillis > 0) {
+      setDuration((current) => current || analysis.durationMillis);
+    }
+  };
+
+  // Decode the clip once: its bars, its real length (MediaRecorder writes
+  // WebM without a duration header), and — where the native player cannot
+  // read it — a WAV copy to play.
+  const decodeClip = async (prepared: PreparedSource) => {
+    const wantWav = requiresWebAudioDecode(prepared.container) && !prepared.playable;
+    const clip = await decodeAudioClip(await readBase64(prepared.localUri), {
+      wantWav,
+    });
+    const analysis = { peaks: clip.peaks, durationMillis: clip.durationMillis };
+    remember(analysis);
+    applyAnalysis(analysis);
+    const base = cacheBase();
+    if (clip.wavBase64 && base) {
+      const wavUri = `${base}.wav`;
+      await FileSystem.writeAsStringAsync(wavUri, clip.wavBase64, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      await FileSystem.deleteAsync(prepared.localUri, { idempotent: true }).catch(
+        () => {}
+      );
+      preparedRef.current = { localUri: wavUri, container: 'wav', playable: true };
+    }
+    return preparedRef.current ?? prepared;
+  };
+
+  // Full reset whenever the source changes (component reused for a new
+  // message / re-render with a different src).
+  const lastSrcRef = useRef(src);
+  useEffect(() => {
+    if (lastSrcRef.current === src) {return;}
+    lastSrcRef.current = src;
+    releasePlayer();
+    preparedRef.current = null;
+    preparingRef.current = null;
+    didFinishRef.current = false;
+    pendingSeekRef.current = null;
+    clearLoadingGuard();
+    setIsPlaying(false);
+    setIsLoading(false);
+    setPlaybackError(false);
+    setPosition(0);
+    setDuration(metaDuration);
+    setPeaks(metaPeaks);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [src]);
+
+  // The waveform, as soon as the bubble shows: from the message itself,
+  // from this session's cache, from the disk cache, or by decoding.
+  useEffect(() => {
+    if (!src || (metaPeaks && metaDuration > 0)) {return;}
+    const cached = analysisCache.get(cacheKey);
+    if (cached) {
+      applyAnalysis(cached);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const base = cacheBase();
+      if (base) {
+        try {
+          const stored = await FileSystem.readAsStringAsync(`${base}.wave.json`);
+          const parsed = JSON.parse(stored) as Analysis;
+          if (Array.isArray(parsed?.peaks)) {
+            analysisCache.set(cacheKey, parsed);
+            if (!cancelled) {applyAnalysis(parsed);}
+            return;
+          }
+        } catch {
+          /* not analysed yet */
+        }
+      }
+      try {
+        const prepared = await prepareSource();
+        if (cancelled) {return;}
+        await decodeClip(prepared);
+      } catch (error) {
+        // Not fatal: the bubble keeps flat bars and still plays.
+        logAudioDebug('audio waveform unavailable', {
+          src,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [src]);
+
+  // expo-audio reports times in SECONDS; the UI is millisecond-based, so
+  // convert at this boundary and nowhere else.
   const onPlaybackStatusUpdate = (status: AudioStatus) => {
-    if (!status.isLoaded) {
+    if (!status.isLoaded || unmountedRef.current) {
       return;
     }
     setPosition(Math.max(0, status.currentTime * 1000));
-    setDuration(status.duration > 0 ? status.duration * 1000 : 0);
+    // A WebM without a duration header reports 0 here: keep the decoded one.
+    if (status.duration > 0) {setDuration(status.duration * 1000);}
     setIsPlaying(status.playing);
     if (status.didJustFinish) {
       didFinishRef.current = true;
@@ -544,12 +613,10 @@ const AudioMessage = ({
     } catch {
       /* non-fatal — still plays through the ringer channel */
     }
-    // expo-audio has no awaitable `createAsync`: the player is constructed
-    // synchronously and loads in the background, reporting `isLoaded` via
-    // the status event. Wait for that first loaded status (same 12s budget
-    // expo-av's createAsync had) so the spinner still resolves to either
-    // real playback or the error state, never to a silent dead button.
-    const player = createAudioPlayer({ uri: localUri }, { updateInterval: 250 });
+    // expo-audio has no awaitable create: the player loads in the
+    // background and reports `isLoaded` via the status event. Wait for it
+    // so the spinner resolves to real playback or the error state.
+    const player = createAudioPlayer({ uri: localUri }, { updateInterval: 100 });
     let settleLoaded: (() => void) | null = null;
     const loaded = new Promise<void>((resolve) => {
       settleLoaded = resolve;
@@ -579,67 +646,21 @@ const AudioMessage = ({
     }
     soundRef.current = player;
     statusSubRef.current = subscription;
+    if (rateRef.current !== 1) {
+      player.shouldCorrectPitch = true;
+      player.setPlaybackRate(rateRef.current);
+    }
+    const seek = pendingSeekRef.current;
+    pendingSeekRef.current = null;
+    if (seek !== null && player.duration > 0) {
+      await player.seekTo(seek * player.duration);
+    }
+    claimPlayback();
     player.play();
     clearLoadingGuard();
     setIsLoading(false);
     setPlaybackError(false);
     setIsPlaying(true);
-    logAudioDebug('native audio playback started', {
-      src,
-      container: preparedRef.current?.container,
-      localUri,
-    });
-  };
-
-  // WebView finished decoding Opus → WAV: persist the WAV and play it
-  // natively. From here it is indistinguishable from any other native clip.
-  const onDecoded = async (durationMillis: number, wavBase64: string) => {
-    try {
-      const cacheDirectory = FileSystem.cacheDirectory || '';
-      const wavUri = `${cacheDirectory}ethora-audio-${hashString(src)}.wav`;
-      await FileSystem.writeAsStringAsync(wavUri, wavBase64, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      if (unmountedRef.current) {
-        return;
-      }
-      preparedRef.current = {
-        localUri: wavUri,
-        container: preparedRef.current?.container ?? 'webm',
-      };
-      if (durationMillis > 0) {
-        setDuration(durationMillis);
-      }
-      setWebViewEnabled(false); // decoder no longer needed
-      await startNativePlayback(wavUri);
-    } catch (error) {
-      fail(error);
-    }
-  };
-
-  const handleWebMessage = (event: WebViewMessageEvent) => {
-    let payload: WebDecoderMessage;
-    try {
-      payload = JSON.parse(event.nativeEvent.data) as WebDecoderMessage;
-    } catch {
-      return;
-    }
-    if (payload.type === 'bridge_ready') {
-      bridgeReadyRef.current = true;
-      maybeInjectDecode();
-      return;
-    }
-    if (payload.type === 'decoded') {
-      logAudioDebug('web audio decoded', {
-        src,
-        durationMillis: payload.durationMillis,
-        wavBytes: payload.wavBase64 ? payload.wavBase64.length : 0,
-      });
-      void onDecoded(payload.durationMillis, payload.wavBase64);
-      return;
-    }
-    // type === 'error'
-    fail(new Error(payload.message || 'web_audio_error'));
   };
 
   const togglePlayback = async () => {
@@ -647,15 +668,12 @@ const AudioMessage = ({
       return;
     }
 
-    // Already-loaded native sound (covers both native formats AND the
-    // decoded-WAV from the WebView path) → plain toggle.
+    // Already-loaded player → plain toggle.
     if (soundRef.current) {
       try {
-        // `play()` / `pause()` emit NO status event of their own (expo-av's
-        // playAsync/pauseAsync resolved with one). Playing state only ever
-        // reaches us through the periodic time observer, and that observer
-        // stops while paused — so without setting this here the button
-        // would latch on "pause" forever and never resume.
+        // `play()` / `pause()` emit no status event of their own, and the
+        // time observer stops while paused — so set the state here or the
+        // button latches on "pause" forever.
         if (isPlaying) {
           soundRef.current.pause();
           setIsPlaying(false);
@@ -664,6 +682,7 @@ const AudioMessage = ({
             await soundRef.current.seekTo(0);
             didFinishRef.current = false;
           }
+          claimPlayback();
           soundRef.current.play();
           setIsPlaying(true);
         }
@@ -673,26 +692,21 @@ const AudioMessage = ({
       return;
     }
 
-    // First tap → prepare (download + sniff) then route to the right engine.
+    // First tap → download (unless the waveform already did), decode where
+    // the native player cannot, then play.
     setPlaybackError(false);
     setIsLoading(true);
     armLoadingGuard();
     try {
-      const prepared = await withTimeout(
+      let prepared = await withTimeout(
         prepareSource(),
         14000,
         'audio_prepare_timeout'
       );
-      if (unmountedRef.current) {
-        return;
+      if (requiresWebAudioDecode(prepared.container) && !prepared.playable) {
+        prepared = await decodeClip(prepared);
       }
-      if (requiresWebAudioDecode(prepared.container)) {
-        // Mount the decoder WebView; decoding + playback continue when the
-        // 'decoded' message arrives (→ onDecoded → startNativePlayback).
-        if (!webViewEnabled) {
-          setWebViewEnabled(true);
-        }
-        maybeInjectDecode();
+      if (unmountedRef.current) {
         return;
       }
       await startNativePlayback(prepared.localUri);
@@ -701,98 +715,145 @@ const AudioMessage = ({
     }
   };
 
+  // A tap on the bars jumps there (and starts playing, as in Telegram).
+  const seekFromTap = (event: GestureResponderEvent) => {
+    if (!waveWidth || playbackError) {return;}
+    const ratio = Math.max(
+      0,
+      Math.min(1, event.nativeEvent.locationX / waveWidth)
+    );
+    const player = soundRef.current;
+    if (player && player.duration > 0) {
+      didFinishRef.current = false;
+      void player.seekTo(ratio * player.duration);
+      setPosition(ratio * player.duration * 1000);
+      if (!isPlaying) {
+        claimPlayback();
+        player.play();
+        setIsPlaying(true);
+      }
+      return;
+    }
+    if (isLoading) {return;}
+    pendingSeekRef.current = ratio;
+    void togglePlayback();
+  };
+
+  const cycleSpeed = () => {
+    const next = SPEEDS[(SPEEDS.indexOf(rate) + 1) % SPEEDS.length]!;
+    rateRef.current = next;
+    setRate(next);
+    const player = soundRef.current;
+    if (player) {
+      player.shouldCorrectPitch = true;
+      player.setPlaybackRate(next);
+    }
+  };
+
   useEffect(() => {
     unmountedRef.current = false;
     return () => {
       unmountedRef.current = true;
+      if (pauseActive === pauseSelf) {pauseActive = null;}
       clearLoadingGuard();
       releasePlayer();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Full reset whenever the source changes (component reused for a new
-  // message / re-render with a different src).
-  useEffect(() => {
-    releasePlayer();
-    preparedRef.current = null;
-    bridgeReadyRef.current = false;
-    injectedRef.current = false;
-    didFinishRef.current = false;
-    clearLoadingGuard();
-    setIsPlaying(false);
-    setIsLoading(false);
-    setPlaybackError(false);
-    setPosition(0);
-    setDuration(0);
-    setWebViewEnabled(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [src]);
+  const onWaveLayout = (event: LayoutChangeEvent) => {
+    const width = Math.floor(event.nativeEvent.layout.width);
+    if (width !== waveWidth) {setWaveWidth(width);}
+  };
+
+  const barCount = waveWidth
+    ? Math.max(8, Math.floor((waveWidth + BAR_GAP) / (BAR_WIDTH + BAR_GAP)))
+    : 0;
+  const bars = useMemo(
+    () =>
+      barCount
+        ? resamplePeaks(peaks ?? new Array(barCount).fill(MIN_BAR), barCount)
+        : [],
+    [peaks, barCount]
+  );
 
   const progress = duration > 0 ? Math.min(1, position / duration) : 0;
+  const playedBars = Math.round(progress * bars.length);
+  const started = isPlaying || position > 0;
+  const timeLabel = playbackError
+    ? t('media.audioUnavailable')
+    : started
+    ? formatClipTime(position)
+    : duration > 0
+    ? formatClipTime(duration)
+    : '';
 
   return (
-    <View style={styles.root}>
-      {/* Decoder WebView lives in a zero-size, absolutely-positioned host
-          OUTSIDE the row so mounting/unmounting it during the loading phase
-          can never shift the button or progress line (was the flicker). */}
-      {webViewEnabled ? (
-        <View style={styles.decoderHost} pointerEvents="none">
-          <WebView
-            ref={webViewRef}
-            source={{ html: WEB_DECODER_HTML }}
-            originWhitelist={['*']}
-            onMessage={handleWebMessage}
-            javaScriptEnabled
-            domStorageEnabled={false}
-            scrollEnabled={false}
-            pointerEvents="none"
-            showsHorizontalScrollIndicator={false}
-            showsVerticalScrollIndicator={false}
-            style={styles.hiddenWebView}
-          />
-        </View>
-      ) : null}
-      <View style={styles.container}>
-        <TouchableOpacity
-          testID="audio-play-button"
-          accessibilityLabel="audio-play-button"
-          style={[styles.playButton, { backgroundColor: primaryColor }]}
-          onPress={togglePlayback}
-          disabled={isLoading}
-          activeOpacity={0.85}
+    <View style={styles.container} testID="audio-message">
+      <Pressable
+        testID="audio-play-button"
+        accessibilityRole="button"
+        accessibilityLabel={t(isPlaying ? 'media.audioPause' : 'media.audioPlay')}
+        style={({ pressed }) => [
+          styles.playButton,
+          { backgroundColor: buttonFill, opacity: pressed ? 0.85 : 1 },
+        ]}
+        onPress={togglePlayback}
+        disabled={isLoading}
+        hitSlop={6}
+      >
+        {isLoading ? (
+          <ActivityIndicator size="small" color={buttonGlyph} />
+        ) : isPlaying ? (
+          <PauseGlyph color={buttonGlyph} />
+        ) : (
+          <PlayGlyph color={buttonGlyph} />
+        )}
+      </Pressable>
+      <View style={styles.track}>
+        <Pressable
+          testID="audio-waveform"
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          onPress={seekFromTap}
+          onLayout={onWaveLayout}
+          style={styles.wave}
         >
-          {isLoading ? (
-            <ActivityIndicator size="small" color={onPrimary} />
-          ) : (
-            <View style={styles.iconWrap}>
-              {isPlaying ? (
-                <PauseIcon width={18} height={18} color={onPrimary} />
-              ) : (
-                <PlayIcon width={18} height={18} color={onPrimary} />
-              )}
-            </View>
-          )}
-        </TouchableOpacity>
-        <View style={styles.progressContainer}>
-          <View style={[styles.progressTrack, trackStyle]}>
+          {bars.map((value, index) => (
             <View
+              key={index}
               style={[
-                styles.progressFill,
-                { width: `${progress * 100}%`, backgroundColor: primaryColor },
+                styles.bar,
+                {
+                  height: Math.max(BAR_WIDTH, Math.round(value * WAVE_HEIGHT)),
+                  backgroundColor: ink,
+                  opacity: index < playedBars ? 1 : 0.35,
+                },
               ]}
             />
-          </View>
-          <View style={styles.progressRow}>
-            <Text style={[styles.time, timeStyle]}>
-              {playbackError ? 'Audio unavailable' : formatTime(position)}
-            </Text>
-            {/* Always render the right slot (empty until known) so the row
-                never reflows when the duration appears after decoding. */}
-            <Text style={[styles.time, timeStyle]}>
-              {!playbackError && duration > 0 ? formatTime(duration) : ''}
-            </Text>
-          </View>
+          ))}
+        </Pressable>
+        <View style={styles.metaRow}>
+          <Text
+            style={[styles.time, { color: metaColor }]}
+            numberOfLines={1}
+          >
+            {timeLabel}
+          </Text>
+          {started && !playbackError ? (
+            <Pressable
+              testID="audio-speed"
+              accessibilityRole="button"
+              accessibilityLabel={t('media.audioSpeed')}
+              onPress={cycleSpeed}
+              hitSlop={8}
+              style={[styles.speed, { backgroundColor: ink }]}
+            >
+              <Text style={[styles.speedText, { color: buttonGlyph }]}>
+                {`${rate}×`}
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
       </View>
     </View>
@@ -802,65 +863,61 @@ const AudioMessage = ({
 export default AudioMessage;
 
 const styles = StyleSheet.create({
-  root: {
-    position: 'relative',
-  },
-  decoderHost: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: 0,
-    height: 0,
-    overflow: 'hidden',
-    opacity: 0,
-  },
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    width: 260,
+    gap: 10,
+    // Media bubbles carry no padding of their own (images run edge to
+    // edge), so the player brings the text bubble's inset with it.
+    paddingTop: 10,
+    paddingLeft: 10,
+    paddingRight: 12,
+    width: 250,
     maxWidth: '100%',
   },
   playButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconWrap: {
-    marginLeft: 1,
-  },
-  progressContainer: {
+  track: {
     flex: 1,
-    gap: 6,
+    gap: 4,
   },
-  progressRow: {
+  wave: {
+    height: WAVE_HEIGHT,
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  progressTrack: {
-    height: 6,
-    backgroundColor: '#D0D7E6',
-    borderRadius: 999,
+    alignItems: 'flex-end',
+    gap: BAR_GAP,
     overflow: 'hidden',
   },
-  hiddenWebView: {
-    position: 'absolute',
-    width: 1,
-    height: 1,
-    opacity: 0,
+  bar: {
+    width: BAR_WIDTH,
+    borderRadius: BAR_WIDTH / 2,
   },
-  progressFill: {
-    height: '100%',
-    borderRadius: 999,
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minHeight: 16,
   },
   time: {
     fontSize: 12,
-    color: '#667085',
-    fontWeight: '500',
+    lineHeight: 16,
+    fontVariant: ['tabular-nums'],
+    opacity: 0.85,
+  },
+  speed: {
+    borderRadius: 8,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    opacity: 0.85,
+  },
+  speedText: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: '700',
   },
 });

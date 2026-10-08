@@ -19,6 +19,8 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { layoutStack } from './messageMenuLayout';
 import { useToast } from '../../context/ToastContext';
 import { useInteractionsOverlay } from './InteractionsOverlay';
 import { useTheme } from '../../hooks/useTheme';
@@ -47,6 +49,11 @@ interface MessageInteractionsProps {
   handleReactionMessage: (id: string) => void;
   /** Opens the full emoji picker (the "+" in the reaction row). */
   onOpenEmojiPicker?: () => void;
+  /**
+   * A copy of the message bubble, drawn over the dim at the bubble's spot
+   * (WhatsApp style): the chat darkens, the message itself does not.
+   */
+  preview?: React.ReactNode;
 }
 
 const MessageInteractions: React.FC<MessageInteractionsProps> = ({
@@ -60,8 +67,10 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
   handleEditMessage,
   handleReactionMessage,
   onOpenEmojiPicker,
+  preview,
 }) => {
   const { showToast } = useToast();
+  const insets = useSafeAreaInsets();
   const t = useT();
   const { present, dismiss, originX, originY } = useInteractionsOverlay();
   const overlayId = useId();
@@ -88,7 +97,11 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
   // dims a touch behind it. Started once the menu has been measured and
   // placed — before that it sits invisible at a provisional spot.
   const reveal = useRef(new Animated.Value(0)).current;
-  const placed = !!position && !!menuSize.width && !!menuSize.height;
+  const placed =
+    !!position &&
+    !!menuSize.width &&
+    !!menuSize.height &&
+    (!showReactions || !!barSize.height);
   useEffect(() => {
     if (!placed) {
       return;
@@ -166,108 +179,114 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
     replyMessage();
   };
 
-  const memoPosition = useMemo(() => {
-    if (!position) {
-      return undefined;
-    }
+  // Everything below is in WINDOW coordinates until the last step, which
+  // turns them into the overlay host's own (it sits below the status bar).
+  const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+  const sideMargin = 8;
+  const barHeight = showReactions ? barSize.height : 0;
 
+  const stack = useMemo(() => {
+    if (!position) {return undefined;}
+    // The keyboard covers the bottom `keyboardHeight` px: the stack must
+    // fit above it (and above the home indicator).
+    const areaBottom =
+      screenHeight - Math.max(keyboardHeight, insets.bottom) - 12;
+    const areaTop = Math.max(originY, insets.top) + 8;
+    return layoutStack({
+      bubble: position,
+      barHeight,
+      menuHeight: menuSize.height,
+      areaTop,
+      areaBottom,
+    });
+  }, [position, barHeight, menuSize.height, screenHeight, keyboardHeight, insets.top, insets.bottom, originY]);
+
+  // Bar and menu line up with the bubble's side: the reader's own messages
+  // on the right, everybody else's on the left.
+  const alignTo = (width: number) => {
+    if (!position || !width) {return position?.left ?? 0;}
+    const left = isUser ? position.right - width : position.left;
+    return Math.max(sideMargin, Math.min(left, screenWidth - width - sideMargin));
+  };
+
+  const localPosition = useMemo(() => {
+    if (!stack || !position) {return undefined;}
     if (!menuSize.width || !menuSize.height) {
-      return { top: position.bottom, left: position.left, opacity: 0 };
+      return { top: position.bottom - originY, left: position.left - originX, opacity: 0 };
     }
-    const barReserve = showReactions && barSize.height ? barSize.height + 10 : 0;
-
-    const { width: screenWidth, height: screenHeight } =
-      Dimensions.get('window');
-    const bottomReserve = (config?.keyboardVerticalOffset ?? 0) + 24;
-    const topReserve = 16;
-    const sideMargin = 8;
-    // Breathing room between the bubble and the menu.
-    const gap = 10;
-
-    // The keyboard occludes the bottom `keyboardHeight` px, so the real
-    // visible bottom edge is above it. Measuring space below against this
-    // (not the full screen) is what makes the menu flip ABOVE the message
-    // when the keyboard is open and the message sits near the input.
-    const visibleBottom = screenHeight - keyboardHeight;
-
-    const spaceBelow = visibleBottom - position.bottom - gap - bottomReserve;
-    const spaceAbove = position.top - gap - topReserve - barReserve;
-
-    let top: number;
-    if (spaceBelow >= menuSize.height) {
-      top = position.bottom + gap;
-    } else if (spaceAbove >= menuSize.height) {
-      top = position.top - gap - menuSize.height;
-    } else {
-      top = Math.max(
-        topReserve,
-        visibleBottom - menuSize.height - bottomReserve
-      );
-    }
-
-    const leftMargin = position.left;
-    const rightMargin = screenWidth - position.right;
-    const rightAligned = rightMargin < leftMargin;
-
-    let left = rightAligned ? position.right - menuSize.width : position.left;
-    left = Math.max(
-      sideMargin,
-      Math.min(left, screenWidth - menuSize.width - sideMargin)
-    );
-
-    return { top, left };
-  }, [position, menuSize, barSize.height, showReactions, config?.keyboardVerticalOffset, keyboardHeight]);
-
-  const barPosition = useMemo(() => {
-    if (!position || !showReactions) {return undefined;}
-    if (!barSize.width || !barSize.height) {
-      return { top: position.top, left: position.left, opacity: 0 };
-    }
-    const { width: screenWidth } = Dimensions.get('window');
-    const sideMargin = 8;
-    const gap = 8;
-    const rightAligned = screenWidth - position.right < position.left;
-    let left = rightAligned ? position.right - barSize.width : position.left;
-    left = Math.max(sideMargin, Math.min(left, screenWidth - barSize.width - sideMargin));
-    const above = position.top - gap - barSize.height;
-    const menuTop = (memoPosition as { top?: number } | undefined)?.top;
-    const top =
-      above >= 16
-        ? above
-        : (menuTop ?? position.bottom) + (menuSize.height || 0) + gap;
-    return { top, left };
-  }, [position, showReactions, barSize, memoPosition, menuSize.height]);
+    return { top: stack.menuTop - originY, left: alignTo(menuSize.width) - originX };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stack, position, menuSize, originX, originY, isUser, screenWidth]);
 
   const localBarPosition = useMemo(() => {
-    if (!barPosition) {return undefined;}
-    return {
-      ...barPosition,
-      top: (barPosition as { top: number }).top - originY,
-      left: (barPosition as { left: number }).left - originX,
-    };
-  }, [barPosition, originX, originY]);
+    if (!stack || !position || !showReactions) {return undefined;}
+    if (!barSize.width || !barSize.height) {
+      return { top: position.top - originY, left: position.left - originX, opacity: 0 };
+    }
+    return { top: stack.barTop - originY, left: alignTo(barSize.width) - originX };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stack, position, showReactions, barSize, originX, originY, isUser, screenWidth]);
 
-
-  // Window coords (memoPosition) → host-local coords. The overlay host
-  // sits below the status bar / header, so subtract its measured origin.
-  const localPosition = useMemo(() => {
-    if (!memoPosition) {return undefined;}
+  // The copy of the message starts exactly over the original and glides
+  // to its place in the stack once the bar and the menu are measured.
+  const previewBox = useMemo(() => {
+    if (!stack || !position || !preview) {return undefined;}
     return {
-      ...memoPosition,
-      top: (memoPosition as { top: number }).top - originY,
-      left: (memoPosition as { left: number }).left - originX,
+      left: position.left - originX,
+      top: stack.previewTop - originY,
+      width: position.right - position.left,
+      height: stack.previewHeight,
+      shift: position.top - stack.previewTop,
     };
-  }, [memoPosition, originX, originY]);
+  }, [stack, position, preview, originX, originY]);
 
   const content =
     config?.disableInteractions || message.isDeleted ? null : (
       <View style={styles.overlayFill}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={closeMenu}>
+        <Pressable
+          testID="message-menu-backdrop"
+          style={StyleSheet.absoluteFill}
+          onPress={closeMenu}
+        >
+          {/* The chat darkens; the message (the copy below) does not. */}
           <Animated.View
             pointerEvents="none"
-            style={[styles.dim, { opacity: reveal }]}
+            style={[styles.dim, { backgroundColor: theme.overlay, opacity: reveal }]}
           />
         </Pressable>
+        {previewBox ? (
+          <Animated.View
+            testID="message-menu-preview"
+            pointerEvents="none"
+            style={[
+              styles.preview,
+              {
+                left: previewBox.left,
+                top: previewBox.top,
+                width: previewBox.width,
+                maxHeight: previewBox.height,
+                transform: [
+                  {
+                    translateY: reveal.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [previewBox.shift, 0],
+                      extrapolate: 'clamp',
+                    }),
+                  },
+                  {
+                    scale: reveal.interpolate({
+                      inputRange: [0, 0.5, 1],
+                      outputRange: [1, 1.03, 1],
+                      extrapolate: 'clamp',
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            {preview}
+          </Animated.View>
+        ) : null}
         {showReactions && (
           <Animated.View
             testID="reaction-bar"
@@ -416,7 +435,11 @@ const styles = StyleSheet.create({
   },
   dim: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(0,0,0,0.18)',
+  },
+  preview: {
+    position: 'absolute',
+    // A message taller than the screen is cut at the bottom.
+    overflow: 'hidden',
   },
   reactionBar: {
     position: 'absolute',

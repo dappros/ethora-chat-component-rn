@@ -120,6 +120,8 @@ function makeRecorder() {
     prepareToRecordAsync: jest.fn(async (_options?: any) => {}),
     record: jest.fn(),
     stop: jest.fn(async () => {}),
+    // Metering on: the levels become the message's waveForm.
+    getStatus: jest.fn(() => ({ metering: -20 })),
     uri: 'file:///caches/ExpoAudio/recording-abc123.m4a',
   };
 }
@@ -215,12 +217,18 @@ describe('AudioMessage playback on expo-audio', () => {
       player.emit({ isLoaded: true, currentTime: 3, duration: 75, playing: true, didJustFinish: false });
     });
 
-    const labels = textsOf(tree);
-    // 3s → "0:03" and 75s → "1:15". Passing seconds through unconverted
-    // would render "0:00" for both and leave the bar pinned at zero.
+    // While playing the bubble shows the elapsed time: 3s → "0:03".
+    // Passing seconds through unconverted would render "0:00".
+    let labels = textsOf(tree);
     expect(labels).toContain('0:03');
-    expect(labels).toContain('1:15');
     expect(labels).not.toContain('Audio unavailable');
+
+    // Back at the start and stopped, it shows the clip's length: 75s → "1:15".
+    await act(async () => {
+      player.emit({ isLoaded: true, currentTime: 75, duration: 75, playing: false, didJustFinish: true });
+    });
+    labels = textsOf(tree);
+    expect(labels).toContain('1:15');
 
     await act(async () => {
       tree.unmount();
@@ -276,7 +284,10 @@ describe('AudioMessage playback on expo-audio', () => {
     // expo-audio needs pause() + seekTo(0) in SECONDS.
     expect(player.pause).toHaveBeenCalled();
     expect(player.seekTo).toHaveBeenCalledWith(0);
-    expect(textsOf(tree)).toContain('0:00');
+    // Idle again: the label is the clip's length, not a frozen "0:10"
+    // elapsed — and the speed chip (shown only mid-clip) is gone.
+    expect(textsOf(tree)).toContain('0:10');
+    expect(textsOf(tree)).not.toContain('1×');
 
     await act(async () => {
       tree.unmount();
@@ -365,6 +376,9 @@ describe('SendInput voice recording on expo-audio', () => {
           uri: 'file:///caches/ExpoAudio/recording-abc123.m4a',
           type: 'audio/m4a',
           name: expect.stringMatching(/^voice-\d+\.m4a$/),
+          duration: 2,
+          // Constant -20 dB → every bar at full height after scaling.
+          waveForm: expect.stringMatching(/^100(,100){63}$/),
         },
         'audio/m4a'
       );

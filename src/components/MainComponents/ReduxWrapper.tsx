@@ -3,6 +3,7 @@ import {useColorScheme} from 'react-native';
 import {Provider, useDispatch, useSelector} from 'react-redux';
 import {KeyboardProvider} from 'react-native-keyboard-controller';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
+import {GestureHandlerRootView} from 'react-native-gesture-handler';
 import {ThemeProvider} from 'styled-components/native';
 import {applyThemePreference, resolveTheme} from '../../theme/theme';
 import {store} from '../../roomStore';
@@ -20,11 +21,14 @@ import {XmppProvider} from '../../context/xmppProvider';
 import {MessageNotificationProvider} from '../../context/MessageNotificationContext';
 import {ToastProvider} from '../../context/ToastContext';
 import LoginWrapper from './LoginWrapper';
+import {AudioDecoderHost} from '../styled/AudioDecoderHost';
 import '../../helpers/storeConsole';
 import {installPromiseRejectionTracker} from '../../utils/installPromiseRejectionTracker';
 import {useChatFonts} from '../../hooks/useChatFonts';
 import {installPushTokenHook} from '../../services/pushRegistration';
 import {setE2eeEnabled} from '../../e2ee';
+
+const gestureRootStyle = {flex: 1};
 
 // Mount-time, dev-only — wire a global unhandled-promise-rejection
 // tracker so any future leak surfaces with a real stack trace in Metro
@@ -133,6 +137,8 @@ export const ReduxWrapper: React.FC<ChatWrapperProps> = React.memo(
           <ToastProvider>
             <MessageNotificationProvider config={memoizedConfig}>
               <LoginWrapper config={memoizedConfig} {...props} />
+              {/* Shared voice-message decoder (waveforms, iOS Opus). */}
+              <AudioDecoderHost />
             </MessageNotificationProvider>
           </ToastProvider>
         </XmppProvider>
@@ -143,11 +149,16 @@ export const ReduxWrapper: React.FC<ChatWrapperProps> = React.memo(
       <Provider store={store}>
         <ConfigEnabler config={memoizedConfig} />
         <SafeAreaProvider>
-          {ownKeyboardHandling ? (
-            <KeyboardProvider>{tree}</KeyboardProvider>
-          ) : (
-            tree
-          )}
+          {/* The SDK's own gestures (room-row swipe, message long-press,
+              profile swipe-back) need a root view above them; a host that
+              already has one just nests it, which is harmless. */}
+          <GestureHandlerRootView style={gestureRootStyle}>
+            {ownKeyboardHandling ? (
+              <KeyboardProvider>{tree}</KeyboardProvider>
+            ) : (
+              tree
+            )}
+          </GestureHandlerRootView>
         </SafeAreaProvider>
       </Provider>
     );

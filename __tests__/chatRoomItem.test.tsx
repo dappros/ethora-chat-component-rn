@@ -129,3 +129,28 @@ describe('<ChatRoomItem /> — unread badge', () => {
     expect(titles.length).toBeGreaterThan(0);
   });
 });
+
+describe('<ChatRoomItem /> — muted chat', () => {
+  const mutedMarks = (root: renderer.ReactTestInstance) =>
+    findAll(root, (n) => n.type === View && n.props?.testID === 'room-muted');
+
+  it('shows the crossed bell after the name when the chat is muted', async () => {
+    const tree = await renderItem(makeRoom({ muted: true } as Partial<IRoom>));
+    expect(mutedMarks(tree.root).length).toBe(1);
+  });
+
+  it('shows no bell for a chat with notifications on', async () => {
+    const tree = await renderItem(makeRoom());
+    expect(mutedMarks(tree.root).length).toBe(0);
+  });
+
+  it('greys the unread badge of a muted chat', async () => {
+    const tree = await renderItem(
+      makeRoom({ unreadMessages: 4, muted: true } as Partial<IRoom>),
+      { colors: { primary: '#ff00aa', secondary: '#000' } }
+    );
+    const badge = findBadgeView(tree.root);
+    expect(badge).toBeDefined();
+    expect(badge?.props?.style?.backgroundColor).not.toBe('#ff00aa');
+  });
+});

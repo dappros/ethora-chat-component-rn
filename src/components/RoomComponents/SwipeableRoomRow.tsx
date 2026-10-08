@@ -3,7 +3,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import ReanimatedSwipeable, {
   type SwipeableMethods,
 } from 'react-native-gesture-handler/ReanimatedSwipeable';
-import { LeaveIcon, ReportIcon } from '../../assets/icons';
+import { BellIcon, BellOffIcon, LeaveIcon, ReportIcon } from '../../assets/icons';
 import { useTheme } from '../../hooks/useTheme';
 import { useT } from '../../i18n/useT';
 import type { ChatTheme } from '../../theme/theme';
@@ -25,25 +25,35 @@ export const closeOpenRoomRow = (): void => {
 interface SwipeableRoomRowProps {
   /** Identifies the row to the host's callbacks. */
   roomJid: string;
+  /** The chat's notifications are off: the action offers to turn them on. */
+  muted?: boolean;
+  /** Mute / unmute, as in the chat profile. No handler → no button. */
+  onToggleMute?: (roomJid: string) => void;
   onReport: (roomJid: string) => void;
   onLeave: (roomJid: string) => void;
   children: React.ReactNode;
 }
 
 /**
- * A room-list row that slides left to show Report and Leave behind it,
+ * A room-list row that slides left to show Mute, Report and Leave behind it,
  * the way chats do in the big messengers. A tap on an action folds the
  * row back first, so the list is tidy under whatever the action opens.
  */
 const SwipeableRoomRow: React.FC<SwipeableRoomRowProps> = ({
   roomJid,
+  muted = false,
+  onToggleMute,
   onReport,
   onLeave,
   children,
 }) => {
   const theme = useTheme();
   const t = useT();
-  const styles = useMemo(() => createStyles(theme), [theme]);
+  const actionCount = onToggleMute ? 3 : 2;
+  const styles = useMemo(
+    () => createStyles(theme, actionCount),
+    [theme, actionCount]
+  );
   const ref = useRef<SwipeableMethods>(null);
 
   const onWillOpen = useCallback(() => {
@@ -65,6 +75,29 @@ const SwipeableRoomRow: React.FC<SwipeableRoomRowProps> = ({
   const renderRightActions = useCallback(
     () => (
       <View style={styles.actions}>
+        {onToggleMute ? (
+          // The ACTION a tap performs, as in the web client: a muted chat
+          // (the crossed bell on its row) offers "Unmute" with a plain bell,
+          // any other offers "Mute" with the crossed one.
+          <TouchableOpacity
+            testID={`room-action-mute-${roomJid.split('@')[0]}`}
+            accessibilityRole="button"
+            accessibilityLabel={t(muted ? 'action.unmute' : 'action.mute')}
+            accessibilityState={{ checked: muted }}
+            activeOpacity={0.8}
+            style={[styles.action, { backgroundColor: theme.icon }]}
+            onPress={() => act(onToggleMute)}
+          >
+            {muted ? (
+              <BellIcon color={theme.textOnPrimary} width={22} height={22} />
+            ) : (
+              <BellOffIcon color={theme.textOnPrimary} width={22} height={22} />
+            )}
+            <Text style={styles.label}>
+              {t(muted ? 'action.unmute' : 'action.mute')}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
         <TouchableOpacity
           testID={`room-action-report-${roomJid.split('@')[0]}`}
           accessibilityRole="button"
@@ -89,7 +122,7 @@ const SwipeableRoomRow: React.FC<SwipeableRoomRowProps> = ({
         </TouchableOpacity>
       </View>
     ),
-    [act, onLeave, onReport, roomJid, styles, t, theme]
+    [act, muted, onLeave, onReport, onToggleMute, roomJid, styles, t, theme]
   );
 
   return (
@@ -113,11 +146,11 @@ const SwipeableRoomRow: React.FC<SwipeableRoomRowProps> = ({
 
 export default SwipeableRoomRow;
 
-const createStyles = (theme: ChatTheme) =>
+const createStyles = (theme: ChatTheme, actionCount: number) =>
   StyleSheet.create({
     actions: {
       flexDirection: 'row',
-      width: ROOM_ACTION_WIDTH * 2,
+      width: ROOM_ACTION_WIDTH * actionCount,
     },
     action: {
       width: ROOM_ACTION_WIDTH,

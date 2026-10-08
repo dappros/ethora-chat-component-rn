@@ -189,6 +189,20 @@ const MediaMessage: React.FC<MediaMessageProps> = ({
         originalName: (message as any)?.originalName,
       }
     );
+    // The sender's own voice note plays from its local file while it
+    // uploads, waveform and all — no placeholder card in between.
+    if (message?.pending && isAudioPayload && (messageText || location)) {
+      return (
+        <AudioMessage
+          src={messageText || location || ''}
+          mimeType={mimeType}
+          fileName={displayName}
+          duration={(message as any)?.duration}
+          waveForm={(message as any)?.waveForm}
+          isUser={isUser}
+        />
+      );
+    }
     if (message?.pending) {
       return (
         <PendingMediaMessage
@@ -237,6 +251,7 @@ const MediaMessage: React.FC<MediaMessageProps> = ({
             originalName={(message as any)?.originalName}
             duration={(message as any)?.duration}
             waveForm={(message as any)?.waveForm}
+            isUser={isUser}
           />
         );
       }
@@ -249,6 +264,7 @@ const MediaMessage: React.FC<MediaMessageProps> = ({
             originalName={(message as any)?.originalName}
             duration={(message as any)?.duration}
             waveForm={(message as any)?.waveForm}
+            isUser={isUser}
           />
         );
       }
@@ -270,6 +286,7 @@ const MediaMessage: React.FC<MediaMessageProps> = ({
               originalName={(message as any)?.originalName}
               duration={(message as any)?.duration}
               waveForm={(message as any)?.waveForm}
+              isUser={isUser}
             />
           );
         }

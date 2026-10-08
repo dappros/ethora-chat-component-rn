@@ -191,14 +191,15 @@ describe('Chat profile screen', () => {
     expect(texts().filter((label) => label === 'Search')).toHaveLength(1);
   });
 
-  it('mute button reflects room.muted and toggles it through the REST API', async () => {
+  it('mute button offers the action for room.muted and toggles it through the REST API', async () => {
     await seedRoom();
     const roomsApi = require('../src/networking/api-requests/rooms.api');
     const spy = jest
       .spyOn(roomsApi, 'setRoomMuted')
       .mockImplementation(async (_name: string, muted: boolean) => muted);
     const { tree, texts } = await renderProfile();
-    expect(texts()).toContain('Unmuted');
+    // Not muted → the button offers to mute (as on web).
+    expect(texts()).toContain('Mute');
     const button = tree.root.findAll(
       (n) => n.props?.testID === 'chat-profile-action-mute' && typeof n.props?.onPress === 'function'
     )[0];
@@ -206,7 +207,7 @@ describe('Chat profile screen', () => {
       button.props.onPress();
     });
     expect(spy).toHaveBeenCalledWith(expect.any(String), true);
-    expect(texts()).toContain('Muted');
+    expect(texts()).toContain('Unmute');
     spy.mockRestore();
   });
 

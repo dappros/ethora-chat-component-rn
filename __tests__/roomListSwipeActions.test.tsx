@@ -1,5 +1,6 @@
 /**
- * A room-list row swiped to the left shows Report and Leave behind it.
+ * A room-list row swiped to the left shows Mute, Report and Leave behind it.
+ * Mute toggles the chat's notifications (as in the chat profile).
  * Leave asks first, then sends the unavailable presence and drops the room;
  * Report opens the report form for that room. `disableRoomSwipeActions`
  * turns the whole thing off.
@@ -24,6 +25,12 @@ jest.mock('../src/context/xmppProvider', () => ({
   useXmppClient: () => ({ client: { leaveTheRoomStanza: mockLeaveTheRoomStanza } }),
 }));
 const leaveTheRoomStanza = mockLeaveTheRoomStanza;
+
+const mockSetRoomMuted = jest.fn(async (_name: string, muted: boolean) => muted);
+jest.mock('../src/networking/api-requests/rooms.api', () => ({
+  ...jest.requireActual('../src/networking/api-requests/rooms.api'),
+  setRoomMuted: (name: string, muted: boolean) => mockSetRoomMuted(name, muted),
+}));
 
 const JID = 'one@conference.x';
 const CHATS = [
@@ -55,6 +62,7 @@ const render = async (config: any = {}) => {
 beforeEach(() => {
   jest.restoreAllMocks();
   leaveTheRoomStanza.mockClear();
+  mockSetRoomMuted.mockClear();
 });
 
 describe('room-list swipe actions', () => {
@@ -97,6 +105,39 @@ describe('room-list swipe actions', () => {
     });
     // The form is up (its own Modal), for that room.
     expect(forms()[0]?.props.roomJid).toBe(JID);
+    await act(async () => tree.unmount());
+  });
+
+  it('mutes the chat, and unmutes it on the next press', async () => {
+    const { tree, find } = await render();
+    const label = () =>
+      find('room-action-mute-one')[0].props.accessibilityLabel;
+    // The action, as on web: not muted yet → "Mute".
+    expect(label()).toBe('Mute');
+    await act(async () => {
+      find('room-action-mute-one')[0].props.onPress();
+    });
+    expect(mockSetRoomMuted).toHaveBeenCalledWith('one', true);
+    expect(store.getState().rooms.rooms[JID]?.muted).toBe(true);
+
+    await act(async () => {
+      find('room-action-mute-one')[0].props.onPress();
+    });
+    expect(mockSetRoomMuted).toHaveBeenLastCalledWith('one', false);
+    expect(store.getState().rooms.rooms[JID]?.muted).toBe(false);
+    await act(async () => tree.unmount());
+  });
+
+  it('rolls the bell back and says so when muting fails', async () => {
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    mockSetRoomMuted.mockRejectedValueOnce(new Error('offline'));
+    const { tree, find } = await render();
+    const before = !!store.getState().rooms.rooms[JID]?.muted;
+    await act(async () => {
+      find('room-action-mute-one')[0].props.onPress();
+    });
+    expect(store.getState().rooms.rooms[JID]?.muted).toBe(before);
+    expect(alert).toHaveBeenCalledWith('Error', expect.any(String));
     await act(async () => tree.unmount());
   });
 

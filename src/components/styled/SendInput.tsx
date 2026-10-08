@@ -31,6 +31,18 @@ import {
   requestRecordingPermissionsAsync,
   RecordingPresets,
 } from 'expo-audio';
+import {
+  WAVEFORM_RESOLUTION,
+  encodeWaveForm,
+  meteringToLevel,
+  resamplePeaks,
+  scaleLevels,
+} from '../../helpers/audioWaveform';
+
+// The voice preset with metering on: the recorder's level, sampled while
+// recording, becomes the waveform the message carries (Telegram-style), so
+// receivers draw it without downloading and decoding the clip first.
+const VOICE_PRESET = { ...RecordingPresets.HIGH_QUALITY, isMeteringEnabled: true };
 
 // iOS photos default to HEIC; many web backends (incl. ours) 500 on
 // HEIC uploads because they can't decode it. Convert to JPEG before
@@ -121,12 +133,15 @@ const SendInput: React.FC<SendInputProps> = ({
   // Nothing claims the mic, writes a file, or switches the iOS session to
   // playAndRecord until `prepareToRecordAsync`, so consumers with
   // `enableAudio` off carry an idle object and nothing more.
-  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const audioRecorder = useAudioRecorder(VOICE_PRESET);
   // Tracks whether a recording is actually in flight, so cancel/stop and
   // the unmount teardown can tell "never started" from "needs stopping"
   // without reading native state.
   const isRecordingRef = useRef(false);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Level samples of the take in flight, and when it started.
+  const recordingLevelsRef = useRef<number[]>([]);
+  const recordingStartedAtRef = useRef(0);
 
   // Refs shadow `message` and `filePreviews` so handleSendClick can:
   //   (a) read the LATEST typed value even when React state hasn't
@@ -425,16 +440,26 @@ const SendInput: React.FC<SendInputProps> = ({
       // side allocate a FRESH output file for this take. Without it the
       // recorder reuses the previous URL, so a second voice message would
       // overwrite the first while its upload is still in flight.
-      await audioRecorder.prepareToRecordAsync(RecordingPresets.HIGH_QUALITY);
+      await audioRecorder.prepareToRecordAsync(VOICE_PRESET);
       audioRecorder.record();
       isRecordingRef.current = true;
       setIsRecording(true);
       setRecordingDuration(0);
       const startedAt = Date.now();
-      // 250ms tick is fine for a seconds counter — keeps re-renders cheap.
+      recordingStartedAtRef.current = startedAt;
+      recordingLevelsRef.current = [];
+      // 100ms: often enough for the waveform's level samples; the seconds
+      // counter only re-renders when its value actually changes.
       recordingTimerRef.current = setInterval(() => {
+        try {
+          recordingLevelsRef.current.push(
+            meteringToLevel(audioRecorder.getStatus().metering)
+          );
+        } catch {
+          /* no level this tick */
+        }
         setRecordingDuration(Math.floor((Date.now() - startedAt) / 1000));
-      }, 250);
+      }, 100);
     } catch (err) {
       console.warn('startRecording failed', err);
       isRecordingRef.current = false;
@@ -495,10 +520,23 @@ const SendInput: React.FC<SendInputProps> = ({
     // matches the receiver's audio branch in MediaMessage (and
     // isLikelyAudio for any backend that strips mimetype).
     const ts = Date.now();
+    const levels = recordingLevelsRef.current;
+    recordingLevelsRef.current = [];
     const file: MediaFile = {
       uri,
       type: 'audio/m4a',
       name: `voice-${ts}.m4a`,
+      duration: Math.max(
+        1,
+        Math.round((ts - recordingStartedAtRef.current) / 1000)
+      ),
+      // No levels (metering unsupported) → no waveForm; receivers then
+      // decode the clip for its bars.
+      waveForm: levels.some((level) => level > 0)
+        ? encodeWaveForm(
+            scaleLevels(resamplePeaks(levels, WAVEFORM_RESOLUTION))
+          )
+        : undefined,
     };
     try {
       await sendMedia(file, file.type);

@@ -69,6 +69,7 @@ import {
 import {
   getRooms,
   clearRoomsRestCache,
+  setRoomMuted,
 } from '../src/networking/api-requests/rooms.api';
 import { getUserByXmppUsername } from '../src/networking/api-requests/roomMembers.api';
 
@@ -439,6 +440,50 @@ describe('rooms.api.getRooms', () => {
     const rooms = store.getState().rooms.rooms;
     expect(rooms['r1@conference.my.host']?.usersCnt).toBe(3);
     expect(rooms['r2-explicit@conference.elsewhere']?.name).toBe('r2');
+  });
+
+  describe('after a mute toggle', () => {
+    const JID = 'r1@conference.my.host';
+    const setup = () => {
+      store.dispatch(setUser({ token: 'tok' } as any));
+      store.dispatch(setConfig({ xmppSettings: { host: 'my.host' } } as any));
+    };
+
+    it('does not re-apply the cached pre-toggle value', async () => {
+      setup();
+      mockHttp.get
+        .mockResolvedValueOnce({ data: { items: [{ name: 'r1', muted: true }] } })
+        .mockResolvedValueOnce({ data: { items: [{ name: 'r1', muted: false }] } });
+      await getRooms();
+      expect(store.getState().rooms.rooms[JID]?.muted).toBe(true);
+
+      mockHttp.delete.mockResolvedValueOnce({ data: { result: { muted: false } } });
+      await expect(setRoomMuted('r1', false)).resolves.toBe(false);
+
+      // Within the 60s window: must ask the server again, not replay the cache.
+      await getRooms();
+      expect(mockHttp.get).toHaveBeenCalledTimes(2);
+      expect(store.getState().rooms.rooms[JID]?.muted).toBe(false);
+    });
+
+    it('keeps the store value when a list requested before the toggle lands after it', async () => {
+      setup();
+      mockHttp.get.mockResolvedValueOnce({ data: { items: [{ name: 'r1', muted: false }] } });
+      await getRooms();
+
+      let land!: (v: unknown) => void;
+      mockHttp.get.mockReturnValueOnce(new Promise((r) => { land = r; }));
+      clearRoomsRestCache();
+      const stale = getRooms();
+      // Toggle while that list is in flight.
+      mockHttp.put.mockResolvedValueOnce({ data: { result: { muted: true } } });
+      store.dispatch({ type: 'roomMessages/updateRoom', payload: { jid: JID, updates: { muted: true } } });
+      await setRoomMuted('r1', true);
+
+      land({ data: { items: [{ name: 'r1', muted: false }] } });
+      await stale;
+      expect(store.getState().rooms.rooms[JID]?.muted).toBe(true);
+    });
   });
 
   it('returns {items: []} when the underlying GET rejects', async () => {

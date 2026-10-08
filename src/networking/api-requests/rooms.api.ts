@@ -141,7 +141,10 @@ const toE2eeMembers = (members: any[] | undefined, appId: string): RoomMember[] 
 const memberCount = (item: ApiRoom): number =>
   item.usersCnt ?? item.participants ?? item.members?.length ?? 0;
 
-function dispatchRoomsFromRestItems(items: ApiRoom[]): void {
+function dispatchRoomsFromRestItems(
+  items: ApiRoom[],
+  { keepMuted = false }: { keepMuted?: boolean } = {}
+): void {
   if (!items?.length) return;
   const config = store.getState().chatSettingStore?.config as any;
   const appId = ownAppId();
@@ -191,7 +194,9 @@ function dispatchRoomsFromRestItems(items: ApiRoom[]): void {
       icon: item.picture || item.icon,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
-      muted: item.muted === true,
+      // A list requested before a mute toggle carries the pre-toggle value:
+      // the store (optimistic, then the toggle's own answer) is newer.
+      muted: keepMuted && known ? known.muted === true : item.muted === true,
       description: (item as any).description,
       type: (item as any).type,
 
@@ -286,6 +291,16 @@ let getRoomsInFlightToken = '';
 let lastGetRoomsResponse: { items: ApiRoom[] } | null = null;
 let lastGetRoomsResponseAt = 0;
 let lastGetRoomsResponseToken = '';
+// Bumped by every mute toggle: a /chats/my response requested before it
+// carries the old `muted`, so it must neither be cached nor overwrite it.
+let roomsCacheGeneration = 0;
+
+const invalidateRoomsCache = () => {
+  roomsCacheGeneration += 1;
+  lastGetRoomsResponse = null;
+  lastGetRoomsResponseAt = 0;
+  lastGetRoomsResponseToken = '';
+};
 
 /**
  * REST equivalent of getRoomsStanza. Used by initBeforeLoad to prefetch
@@ -309,14 +324,20 @@ export async function getRooms(): Promise<{ items: ApiRoom[] }> {
   }
 
   getRoomsInFlightToken = token;
+  const requestGeneration = roomsCacheGeneration;
   getRoomsInFlight = (async () => {
     const response = await http.get('/v1/chats/my', {
       headers: { Authorization: token },
     });
-    lastGetRoomsResponse = response.data;
-    lastGetRoomsResponseAt = Date.now();
-    lastGetRoomsResponseToken = token;
-    dispatchRoomsFromRestItems(response.data?.items || []);
+    const current = roomsCacheGeneration === requestGeneration;
+    if (current) {
+      lastGetRoomsResponse = response.data;
+      lastGetRoomsResponseAt = Date.now();
+      lastGetRoomsResponseToken = token;
+    }
+    dispatchRoomsFromRestItems(response.data?.items || [], {
+      keepMuted: !current,
+    });
     return response.data;
   })();
 
@@ -387,8 +408,15 @@ export async function setRoomMuted(chatName: string, muted: boolean): Promise<bo
   const token = store.getState().chatSettingStore.user.token || '';
   const url = `/v1/chats/my/${encodeURIComponent(chatName)}/mute`;
   const config = { headers: { Authorization: token } };
-  const response = muted ? await http.put(url, {}, config) : await http.delete(url, config);
-  return response.data?.result?.muted ?? muted;
+  // Before: a list already in flight is stale. After: so is the cached one
+  // (otherwise the next getRooms within 60s re-applies the old value).
+  invalidateRoomsCache();
+  try {
+    const response = muted ? await http.put(url, {}, config) : await http.delete(url, config);
+    return response.data?.result?.muted ?? muted;
+  } finally {
+    invalidateRoomsCache();
+  }
 }
 
 export async function postReportRoom(data: PostReportRoom) {
@@ -520,9 +548,7 @@ export async function createChatCall(
 
 export function clearRoomsRestCache() {
   roomMembersLoads.clear();
-  lastGetRoomsResponse = null;
-  lastGetRoomsResponseAt = 0;
-  lastGetRoomsResponseToken = '';
+  invalidateRoomsCache();
 }
 
 export type { ApiRoom };

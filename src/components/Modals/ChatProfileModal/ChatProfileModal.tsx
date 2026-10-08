@@ -41,12 +41,13 @@ import { getElementFont } from '../../../helpers/getElementFont';
 import { getIconColor } from '../../../helpers/getIconColor';
 import { useTheme } from '../../../hooks/useTheme';
 import type { ChatTheme } from '../../../theme/theme';
-import { deleteRoomMember, setRoomMuted } from '../../../networking/api-requests/rooms.api';
+import { deleteRoomMember } from '../../../networking/api-requests/rooms.api';
 import { RoomMember } from '../../../types/models/room.model';
 import { setActiveModal, setSelectedUser } from '../../../roomStore/chatSettingsSlice';
 import { MODAL_TYPES } from '../../../helpers/constants/MODAL_TYPES';
 import SelectUsersModal from '../SelectUsersModal/SelectUsersModal';
 import { useToast } from '../../../context/ToastContext';
+import { useRoomMute } from '../../../hooks/useRoomMute';
 import { useT } from '../../../i18n/useT';
 import DeleteChatModal from './DeleteChatModal';
 import ReportChatModal from './ReportChatModal';
@@ -363,28 +364,16 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
     return () => sub.remove();
   }, [isSearchOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const muteInFlightRef = useRef(false);
+  const toggleRoomMuted = useRoomMute();
   const toggleMuted = async () => {
-    if (!activeRoom?.jid || !activeRoom?.name || muteInFlightRef.current) {return;}
-    const next = !activeRoom.muted;
-    muteInFlightRef.current = true;
-    dispatch(updateRoom({ jid: activeRoom.jid, updates: { muted: next } }));
-    try {
-      const confirmed = await setRoomMuted(activeRoom.name, next);
-      if (confirmed !== next) {
-        dispatch(updateRoom({ jid: activeRoom.jid, updates: { muted: confirmed } }));
-      }
-    } catch (error) {
-      dispatch(updateRoom({ jid: activeRoom.jid, updates: { muted: !next } }));
-      console.warn('[ethora-rn] mute toggle failed', error);
+    if (!activeRoom?.jid) {return;}
+    if (!(await toggleRoomMuted(activeRoom.jid))) {
       showToast({
         id: Date.now().toString(),
         title: t('toast.error'),
         message: t('toast.muteFailed'),
         type: 'error',
       });
-    } finally {
-      muteInFlightRef.current = false;
     }
   };
 
@@ -392,9 +381,11 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
     () => [
       {
         key: 'mute',
-        label: activeRoom?.muted ? t('action.muted') : t('action.unmuted'),
+        // The action a tap performs (as on web): a muted chat offers
+        // "Unmute" with a plain bell, any other "Mute" with a crossed one.
+        label: activeRoom?.muted ? t('action.unmute') : t('action.mute'),
         icon: (color: string) =>
-          activeRoom?.muted ? <BellOffIcon color={color} /> : <BellIcon color={color} />,
+          activeRoom?.muted ? <BellIcon color={color} /> : <BellOffIcon color={color} />,
         onPress: toggleMuted,
       },
       {

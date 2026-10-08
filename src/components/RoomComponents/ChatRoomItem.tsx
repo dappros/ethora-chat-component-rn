@@ -20,7 +20,7 @@ import LastMessageItem from './LastMessageItem';
 import { LastRoomMessageText } from './styled/StyledRoomComponents';
 import { useTheme } from '../../hooks/useTheme';
 import { resolveTheme } from '../../theme/theme';
-import { LockIcon } from '../../assets/icons';
+import { BellOffIcon, LockIcon } from '../../assets/icons';
 import { useT } from '../../i18n/useT';
 import { composeName } from '../../helpers/displayName';
 import { isUnresolvedSenderId } from '../../helpers/isUnresolvedSenderId';
@@ -188,6 +188,18 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
                   <LockIcon width={13} height={13} color={theme.textSecondary} />
                 </View>
               )}
+              {/* Notifications off (chat profile / swipe): the crossed bell
+                  after the name, as in the messengers. */}
+              {chat?.muted && (
+                <View
+                  accessible
+                  accessibilityRole="image"
+                  accessibilityLabel={t('action.muted')}
+                  testID="room-muted"
+                >
+                  <BellOffIcon width={14} height={14} color={theme.textSecondary} />
+                </View>
+              )}
             </View>
           </ChatInfo>
           {stamp ? (
@@ -265,7 +277,8 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
             <View
               style={{
                 borderRadius: 8,
-                backgroundColor: theme.primary,
+                // A muted chat still counts, but greyed: nothing to rush to.
+                backgroundColor: chat?.muted ? theme.textSecondary : theme.primary,
                 padding: 2,
                 minWidth: 24,
                 minHeight: 24,
@@ -278,7 +291,7 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
               <Text
                 style={{
                   // color: isChatActive ? "#141414" : "#fff",
-                  color: theme.text,
+                  color: chat?.muted ? theme.textOnPrimary : theme.text,
                   fontSize: 14,
                   fontWeight: '600',
                 }}

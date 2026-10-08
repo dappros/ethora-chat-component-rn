@@ -33,6 +33,7 @@ import { HeaderRoomListMenu } from '../Menu/HeaderRoomListMenu';
 import { getIconColor } from '../../helpers/getIconColor';
 import { useT } from '../../i18n/useT';
 import { useTheme } from '../../hooks/useTheme';
+import { useRoomMute } from '../../hooks/useRoomMute';
 
 const LONG_PRESS_THRESHOLD = 200;
 
@@ -155,6 +156,15 @@ const RoomList: React.FC<RoomListProps> = ({
     [client, dispatch, t]
   );
   const handleReportRoom = useCallback((jid: string) => setReportJid(jid), []);
+  const toggleRoomMuted = useRoomMute();
+  const handleToggleMute = useCallback(
+    async (jid: string) => {
+      if (!(await toggleRoomMuted(jid))) {
+        Alert.alert(t('toast.error'), t('toast.muteFailed'));
+      }
+    },
+    [toggleRoomMuted, t]
+  );
 
   const activityOf = useCallback((chat: IRoom): number => {
     const last = chat?.messages?.[chat?.messages.length - 1];
@@ -329,6 +339,8 @@ const RoomList: React.FC<RoomListProps> = ({
       return (
         <SwipeableRoomRow
           roomJid={item.jid}
+          muted={!!item.muted}
+          onToggleMute={handleToggleMute}
           onReport={handleReportRoom}
           onLeave={handleLeaveRoom}
         >
@@ -344,6 +356,7 @@ const RoomList: React.FC<RoomListProps> = ({
       swipeActions,
       handleReportRoom,
       handleLeaveRoom,
+      handleToggleMute,
     ]
   );
 

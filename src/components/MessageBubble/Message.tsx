@@ -1,7 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   Alert,
-  Animated,
   View,
   Pressable,
   StyleSheet,
@@ -402,17 +401,6 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
     [config?.disableInteractions]
   );
 
-  // The bubble lifts a touch while its menu is open, and settles back.
-  const lift = useRef(new Animated.Value(1)).current;
-  useEffect(() => {
-    Animated.spring(lift, {
-      toValue: isPressed ? 1.03 : 1,
-      useNativeDriver: true,
-      speed: 30,
-      bounciness: 6,
-    }).start();
-  }, [isPressed, lift]);
-
   // Body text size/weight is set on the parser's leaf <Text>s — the markdown
   // wraps content in <View>s which break Text-style inheritance, so the bubble
   // wrapper's fontSize alone never reached the actual text.
@@ -459,6 +447,168 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   const onRetryPress = () => {
     if (isFailed) {retryMessage(message.id);}
   };
+
+  // The bubble, as a function: the list draws it in place, and the context
+  // menu draws a second copy over the dimmed chat (WhatsApp style) while
+  // the original steps aside.
+  const renderBubble = (preview: boolean) => (
+    <CustomMessageBubble
+      {...((preview
+        ? // The copy in the context menu: same look, full measured
+          // width (its box is the original's), never the measuring
+          // target.
+          { style: styles.previewBubble }
+        : {
+            ref: bubbleRef,
+            collapsable: false,
+            // Hidden while the menu shows its copy over the dim, so
+            // the message is not on screen twice.
+            style:
+              isPressed && contextMenuPosition
+                ? styles.hiddenBubble
+                : undefined,
+          }) as any)}
+      isUser={isUser}
+      deleted={message.isDeleted}
+      isMedia={message?.isMediafile === 'true' && !message?.isDeleted}
+    >
+      {!isUser && hasRealSenderName && (
+        <CustomUserName
+          // Historically `config.colors.primary` with a plain-text
+          // fallback; theme.primary carries the same value in light
+          // mode and the dark accent in dark mode.
+          color={config?.colors?.primary ? theme.primary : undefined}
+          media={message?.isMediafile === 'true'}
+          fontSize={config?.typography?.senderName?.fontSize}
+          fontWeight={config?.typography?.senderName?.fontWeight as any}
+        >
+          {senderDisplayName}
+        </CustomUserName>
+      )}
+      {!isReply && !!replyRef?.text && (
+        <MessageReply
+          handleReplyMessage={handleReplyMessage}
+          isUser={isUser}
+          text={replyRef.text}
+          userName={replyRef.userName}
+          color={theme.primary}
+        />
+      )}
+
+      {message?.isMediafile === 'true' && !message?.isDeleted ? (
+        <MediaMessage
+          mimeType={message.mimetype}
+          messageText={message.locationPreview}
+          location={message?.location}
+          message={message}
+          isUser={isUser}
+        />
+      ) : (
+        <>
+          {message.isDeleted && message.id !== 'delimiter-new' ? (
+            <DeletedMessage />
+          ) : isUndecryptable ? (
+            <View style={styles.undecryptable}>
+              <LockIcon
+                width={15}
+                height={15}
+                color={theme.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.undecryptableText,
+                  themedStyles.muted,
+                  {
+                    fontSize:
+                      config?.typography?.messageText?.fontSize ?? 15,
+                  },
+                ]}
+              >
+                {t(placeholderKey(message.e2eeError))}
+              </Text>
+            </View>
+          ) : (
+            <CustomMessageText
+              isUser={isUser}
+              fontSize={config?.typography?.messageText?.fontSize}
+              fontWeight={config?.typography?.messageText?.fontWeight as any}
+            >
+              {/* Auto mode: the parsed body IS the translation; wrap it
+                  so the original shows as a dimmed accent-bar quote
+                  above it. Plain body otherwise. */}
+              {showInlineTranslation ? (
+                <TranslatedMessageBody
+                  isUser={isUser}
+                  originalText={translationDisplay.originalText}
+                  accentColor={theme.primary}
+                >
+                  <Text>{messageText}</Text>
+                </TranslatedMessageBody>
+              ) : (
+                <Text>{messageText}</Text>
+              )}
+            </CustomMessageText>
+          )}
+        </>
+      )}
+      {/* Manual mode: a "Translate" link the reader taps (auto mode
+          renders the translation inline in the body above). Never on
+          the reader's own messages. */}
+      {!isUser &&
+        !isUndecryptable &&
+        isTranslatesEnabled &&
+        effectiveTranslateMode === 'manual' && (
+          <MessageTranslate
+            message={message}
+            config={config}
+            isUser={isUser}
+            readerLocale={readerLocale}
+          />
+        )}
+      {/* <View style={styles.timestampRow}> */}
+      <CustomTimestampRow media={message?.isMediafile === 'true'}>
+        {!config?.disableSentLogic && isUser && isPending && (
+          <Text style={[styles.timestampText, themedStyles.muted]}>
+            {t('message.sending')}
+          </Text>
+        )}
+        {!config?.disableSentLogic && isUser && isFailed && (
+          <Text
+            onPress={onRetryPress}
+            style={[styles.failedText, themedStyles.failed]}
+            accessibilityRole="button"
+            accessibilityLabel="Retry sending message"
+          >
+            {t('message.failedRetry')}
+          </Text>
+        )}
+        {message?.isEdited && !message?.isDeleted && (
+          <Text style={[styles.editedText, themedStyles.muted]}>{t('message.edited')}</Text>
+        )}
+        {message?.unencrypted && !message?.isDeleted && (
+          <Pressable
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel={t('e2ee.notEncrypted')}
+            accessibilityHint={t('e2ee.notEncryptedHint')}
+            testID="message-not-encrypted"
+            onPress={() =>
+              Alert.alert(t('e2ee.notEncrypted'), t('e2ee.notEncryptedHint'))
+            }
+          >
+            <LockOffIcon width={13} height={13} color={theme.danger} />
+          </Pressable>
+        )}
+        <Text style={[styles.timestampText, themedStyles.muted]}>
+          {timeLabel}
+        </Text>
+        {!config?.disableSentLogic && isUser && !isPending && !isFailed && (
+          <DoubleTick />
+        )}
+      </CustomTimestampRow>
+
+    </CustomMessageBubble>
+  );
 
   return (
     <View>
@@ -540,149 +690,8 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
           // long-press never triggers this dismiss.
           onPress={() => Keyboard.dismiss()}
         >
-          <Animated.View style={{ transform: [{ scale: lift }] }}>
-          <CustomMessageBubble
-            {...({ ref: bubbleRef, collapsable: false } as any)}
-            isUser={isUser}
-            deleted={message.isDeleted}
-            isMedia={message?.isMediafile === 'true' && !message?.isDeleted}
-          >
-            {!isUser && hasRealSenderName && (
-              <CustomUserName
-                // Historically `config.colors.primary` with a plain-text
-                // fallback; theme.primary carries the same value in light
-                // mode and the dark accent in dark mode.
-                color={config?.colors?.primary ? theme.primary : undefined}
-                media={message?.isMediafile === 'true'}
-                fontSize={config?.typography?.senderName?.fontSize}
-                fontWeight={config?.typography?.senderName?.fontWeight as any}
-              >
-                {senderDisplayName}
-              </CustomUserName>
-            )}
-            {!isReply && !!replyRef?.text && (
-              <MessageReply
-                handleReplyMessage={handleReplyMessage}
-                isUser={isUser}
-                text={replyRef.text}
-                userName={replyRef.userName}
-                color={theme.primary}
-              />
-            )}
-
-            {message?.isMediafile === 'true' && !message?.isDeleted ? (
-              <MediaMessage
-                mimeType={message.mimetype}
-                messageText={message.locationPreview}
-                location={message?.location}
-                message={message}
-                isUser={isUser}
-              />
-            ) : (
-              <>
-                {message.isDeleted && message.id !== 'delimiter-new' ? (
-                  <DeletedMessage />
-                ) : isUndecryptable ? (
-                  <View style={styles.undecryptable}>
-                    <LockIcon
-                      width={15}
-                      height={15}
-                      color={theme.textSecondary}
-                    />
-                    <Text
-                      style={[
-                        styles.undecryptableText,
-                        themedStyles.muted,
-                        {
-                          fontSize:
-                            config?.typography?.messageText?.fontSize ?? 15,
-                        },
-                      ]}
-                    >
-                      {t(placeholderKey(message.e2eeError))}
-                    </Text>
-                  </View>
-                ) : (
-                  <CustomMessageText
-                    isUser={isUser}
-                    fontSize={config?.typography?.messageText?.fontSize}
-                    fontWeight={config?.typography?.messageText?.fontWeight as any}
-                  >
-                    {/* Auto mode: the parsed body IS the translation; wrap it
-                        so the original shows as a dimmed accent-bar quote
-                        above it. Plain body otherwise. */}
-                    {showInlineTranslation ? (
-                      <TranslatedMessageBody
-                        isUser={isUser}
-                        originalText={translationDisplay.originalText}
-                        accentColor={theme.primary}
-                      >
-                        <Text>{messageText}</Text>
-                      </TranslatedMessageBody>
-                    ) : (
-                      <Text>{messageText}</Text>
-                    )}
-                  </CustomMessageText>
-                )}
-              </>
-            )}
-            {/* Manual mode: a "Translate" link the reader taps (auto mode
-                renders the translation inline in the body above). Never on
-                the reader's own messages. */}
-            {!isUser &&
-              !isUndecryptable &&
-              isTranslatesEnabled &&
-              effectiveTranslateMode === 'manual' && (
-                <MessageTranslate
-                  message={message}
-                  config={config}
-                  isUser={isUser}
-                  readerLocale={readerLocale}
-                />
-              )}
-            {/* <View style={styles.timestampRow}> */}
-            <CustomTimestampRow media={message?.isMediafile === 'true'}>
-              {!config?.disableSentLogic && isUser && isPending && (
-                <Text style={[styles.timestampText, themedStyles.muted]}>
-                  {t('message.sending')}
-                </Text>
-              )}
-              {!config?.disableSentLogic && isUser && isFailed && (
-                <Text
-                  onPress={onRetryPress}
-                  style={[styles.failedText, themedStyles.failed]}
-                  accessibilityRole="button"
-                  accessibilityLabel="Retry sending message"
-                >
-                  {t('message.failedRetry')}
-                </Text>
-              )}
-              {message?.isEdited && !message?.isDeleted && (
-                <Text style={[styles.editedText, themedStyles.muted]}>{t('message.edited')}</Text>
-              )}
-              {message?.unencrypted && !message?.isDeleted && (
-                <Pressable
-                  hitSlop={10}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('e2ee.notEncrypted')}
-                  accessibilityHint={t('e2ee.notEncryptedHint')}
-                  testID="message-not-encrypted"
-                  onPress={() =>
-                    Alert.alert(t('e2ee.notEncrypted'), t('e2ee.notEncryptedHint'))
-                  }
-                >
-                  <LockOffIcon width={13} height={13} color={theme.danger} />
-                </Pressable>
-              )}
-              <Text style={[styles.timestampText, themedStyles.muted]}>
-                {timeLabel}
-              </Text>
-              {!config?.disableSentLogic && isUser && !isPending && !isFailed && (
-                <DoubleTick />
-              )}
-            </CustomTimestampRow>
-
-          </CustomMessageBubble>
+          <View>
+          {renderBubble(false)}
           {/* One row on the bubble's bottom edge: the thread pill (as on
               web) and the reaction chips side by side. */}
           {((!isReply && (message?.reply?.length || 0) > 0) ||
@@ -711,7 +720,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
               )}
             </View>
           )}
-          </Animated.View>
+          </View>
         </Pressable>
         </GestureDetector>
       </View>
@@ -727,6 +736,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
           handleEditMessage={handleEditMessage}
           handleReactionMessage={handleReactionMessage}
           onOpenEmojiPicker={() => setEmojiPickerOpen(true)}
+          preview={renderBubble(true)}
         />
       )}
       {emojiPickerOpen && (
@@ -744,6 +754,12 @@ const MemoMessage = React.memo(Message);
 export { MemoMessage as Message };
 
 const styles = StyleSheet.create({
+  previewBubble: {
+    maxWidth: '100%',
+  },
+  hiddenBubble: {
+    opacity: 0,
+  },
   customMessageContainer: {
     flexDirection: 'row',
     padding: 10,
