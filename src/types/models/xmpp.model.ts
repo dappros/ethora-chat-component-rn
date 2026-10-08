@@ -5,7 +5,11 @@
 // methods) rather than duplicating here.
 
 import { Client } from '@xmpp/client';
-import XmppClient from '../../networking/xmppClient';
+import XmppClient, {
+  HistoryPage,
+  HistoryPageCursor,
+  HistoryWindowPage,
+} from '../../networking/xmppClient';
 import { Iso639_1Codes } from './language.model';
 import { IMessage } from './message.model';
 
@@ -91,6 +95,16 @@ export interface XmppClientInterface {
     otherStanzaId?: string,
     options?: HistoryFetchOptions
   ): Promise<IMessage[]>;
+  getHistoryPage?(
+    chatJID: string,
+    max: number,
+    cursor?: HistoryPageCursor
+  ): Promise<HistoryPage>;
+  getHistoryWindow?(
+    chatJID: string,
+    max: number,
+    cursor: { before?: number; after?: number; start?: string; end?: string }
+  ): Promise<HistoryWindowPage>;
   getLastMessageArchiveStanza(roomJID: string): void;
   setRoomImageStanza(
     roomJid: string,

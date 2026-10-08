@@ -49,7 +49,6 @@ export const sendTextMessageWithTranslateTag = (
         senderJID: client.jid?.toString(),
         senderWalletAddress: stanzaMessage.walletAddress,
         roomJid: stanzaMessage.roomJID,
-        isSystemMessage: false,
         tokenAmount: 0,
         quickReplies: '',
         notDisplayedValue: '',

@@ -17,6 +17,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { IMessage, User } from '../../types/types';
 import type { RootState } from '../../roomStore';
+import Loader from '../styled/Loader';
+import { useT } from '../../i18n/useT';
+import { parseMessageReference } from '../../helpers/parseMessageReference';
 import SendInput from '../styled/SendInput';
 import { useXmppClient } from '../../context/xmppProvider';
 import MessageList from '../MainComponents/MessageList';
@@ -29,7 +32,6 @@ import { useSendMessage } from '../../hooks/useSendMessage';
 import { createMainMessageForThread } from '../../helpers/createMainMessageForThread';
 import { useChatSettingState } from '../../hooks/useChatSettingState';
 import { useTheme } from '../../hooks/useTheme';
-import { useT } from '../../i18n/useT';
 import CustomTypingIndicator from '../styled/StyledInputComponents/CustomTypingIndicator';
 import { KeyboardInputDock } from '../MainComponents/KeyboardInputDock';
 import {
@@ -43,6 +45,8 @@ import {
   POP,
   PUSH,
 } from '../MainComponents/RoomStack';
+
+export const THREAD_HISTORY_PAGE_SIZE = 15;
 
 interface ThreadWrapperProps {
   activeMessage: IMessage;
@@ -146,22 +150,84 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
     [close, windowWidth, x]
   );
 
-  // Thread history IS the room's history (replies live in the room).
+  // Thread history IS the room's history (replies live in the room). Reads
+  // the LATEST room state at call time (no stale closure), pages by the
+  // server cursor like the main list does, and stops at the thread's parent:
+  // every reply is newer than the message it answers.
+  const parentTs = Number(activeMessage.id);
+  // One page request at a time, and never the same page twice: a page that
+  // returns only reactions or receipts leaves the cursor where it was, and
+  // repeating it would loop forever.
+  const inFlightRef = useRef(false);
+  const lastRequestKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    lastRequestKeyRef.current = null;
+  }, [roomJid, activeMessage.id]);
+
   const loadMoreMessages = useCallback(
     async (chatJID: string, max: number, idOfMessageBefore?: number) => {
-      if (isLoadingMore) {return;}
-      if (reduxStore.getState().rooms.rooms?.[chatJID]?.historyComplete) {return;}
+      if (!client || inFlightRef.current) {return;}
+      const current = reduxStore.getState().rooms.rooms?.[chatJID];
+      if (!current || current.historyComplete) {return;}
+
+      const cursor = current.messageStats?.firstMessageTimestamp;
+      const hint =
+        typeof idOfMessageBefore === 'number' &&
+        Number.isFinite(idOfMessageBefore)
+          ? idOfMessageBefore
+          : undefined;
+      const candidates = [cursor, hint].filter(
+        (n): n is number => typeof n === 'number' && Number.isFinite(n)
+      );
+      const before = candidates.length ? Math.min(...candidates) : undefined;
+      if (before === undefined) {return;}
+      if (Number.isFinite(parentTs) && before <= parentTs) {return;}
+
+      const requestKey = `${chatJID}|${before}`;
+      if (requestKey === lastRequestKeyRef.current) {return;}
+
+      inFlightRef.current = true;
+      lastRequestKeyRef.current = requestKey;
       setIsLoadingMore(true);
       try {
-        await client?.getHistoryStanza(chatJID, max, idOfMessageBefore);
-      } catch (err) {
-        console.warn('getHistoryStanza failed', err);
+        await client.getHistoryStanza(chatJID, max, before).catch((err: unknown) => {
+          // Let the same page be retried later.
+          lastRequestKeyRef.current = null;
+          console.warn('getHistoryStanza failed', err);
+        });
       } finally {
+        inFlightRef.current = false;
         setIsLoadingMore(false);
       }
     },
-    [client, isLoadingMore, reduxStore]
+    [client, reduxStore, parentTs]
   );
+
+  // Replies of this parent already in the store.
+  const replyCount = useMemo(() => {
+    let n = 0;
+    for (const m of room?.messages ?? []) {
+      if (
+        m.isReply === 'true' &&
+        parseMessageReference(m.mainMessage)?.id === activeMessage.id
+      ) {
+        n += 1;
+      }
+    }
+    return n;
+  }, [room?.messages, activeMessage.id]);
+
+  // Opening a thread whose parent is older than the loaded window: the list
+  // has no replies to scroll, so nothing would ask for history. Keep paging
+  // until the cursor reaches the parent (or the archive ends).
+  const cursor = room?.messageStats?.firstMessageTimestamp;
+  const historyComplete = Boolean(room?.historyComplete);
+  useEffect(() => {
+    if (historyComplete || isLoadingMore) {return;}
+    if (!Number.isFinite(parentTs)) {return;}
+    if (typeof cursor !== 'number' || cursor <= parentTs) {return;}
+    loadMoreMessages(roomJid, THREAD_HISTORY_PAGE_SIZE, cursor);
+  }, [cursor, historyComplete, isLoadingMore, parentTs, roomJid, loadMoreMessages]);
 
   const sendMessage = useCallback(
     (message: string) => {
@@ -172,7 +238,7 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
 
   const sendMedia = useCallback(
     (data: any, type: string) => {
-      sendMessageMedia(
+      return sendMessageMedia(
         data,
         type,
         roomJid,
@@ -219,7 +285,19 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
           style={[styles.fill, { backgroundColor: theme.surface }]}
         >
           <View style={[styles.fill, { backgroundColor: theme.chatBackground }]}>
-            <ModalHeaderComponent headerTitle={t('thread.title')} handleCloseModal={close} />
+            <ModalHeaderComponent
+              headerTitle={t('thread.title')}
+              handleCloseModal={close}
+            />
+            {isLoadingMore && replyCount === 0 && (
+              <View
+                testID="thread-history-loader"
+                pointerEvents="none"
+                style={styles.historyLoader}
+              >
+                <Loader size={24} color={theme.primary} />
+              </View>
+            )}
             <MessageList
               loadMoreMessages={loadMoreMessages}
               CustomMessage={CustomMessageComponent}
@@ -332,6 +410,14 @@ const styles = StyleSheet.create({
   },
   fill: {
     flex: 1,
+  },
+  historyLoader: {
+    position: 'absolute',
+    top: 72,
+    left: 0,
+    right: 0,
+    zIndex: 2,
+    alignItems: 'center',
   },
   dock: {
     borderTopLeftRadius: 20,

@@ -50,6 +50,7 @@ import { useToast } from '../../../context/ToastContext';
 import { useRoomMute } from '../../../hooks/useRoomMute';
 import { useT } from '../../../i18n/useT';
 import DeleteChatModal from './DeleteChatModal';
+import { isMessageSearchEnabled } from '../../../helpers/isMessageSearchEnabled';
 import ReportChatModal from './ReportChatModal';
 import {
   ProfileHero,
@@ -58,6 +59,15 @@ import {
   useHeaderMetrics,
 } from '../ProfileHeader/ProfileHeader';
 import ProfileMenu, { ProfileMenuItem } from '../ProfileHeader/ProfileMenu';
+import { dedupeMembers } from '../../../helpers/dedupeMembers';
+import {
+  getRoomUserCount,
+  isRoomMembersTruncated,
+} from '../../../helpers/roomUserCount';
+import { useRoomDirectory } from '../../../hooks/useRoomDirectory';
+
+/** Member rows rendered per step; the rest sits behind a 'Show more' row. */
+export const MEMBER_PAGE_SIZE = 50;
 
 /**
  * Where the header should sit when search opens: tucked away at the
@@ -140,6 +150,33 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
       dispatch(setActiveModal(undefined));
     }
   }, [activeRoom, dispatch]);
+
+  // Big rooms: /chats/my only returns the first 30 members (usersCnt is the
+  // true total). Opening the profile loads the whole room directory (once per
+  // room, deduplicated, paged) and lists it after the known members.
+  const knownMembers = useMemo<RoomMember[]>(
+    () => activeRoom?.roomMembers ?? activeRoom?.members ?? [],
+    [activeRoom?.roomMembers, activeRoom?.members]
+  );
+  const countSource = useMemo(
+    () => ({ members: knownMembers, usersCnt: activeRoom?.usersCnt }),
+    [knownMembers, activeRoom?.usersCnt]
+  );
+  const membersTruncated = isRoomMembersTruncated(countSource);
+  const { members: directoryMembers, state: directoryState } =
+    useRoomDirectory(activeRoom?.jid, membersTruncated);
+  const directoryLoading = membersTruncated && directoryState === 'loading';
+  const members = useMemo<RoomMember[]>(
+    () =>
+      membersTruncated && directoryMembers.length > 0
+        ? dedupeMembers([...knownMembers, ...directoryMembers])
+        : dedupeMembers(knownMembers),
+    [knownMembers, membersTruncated, directoryMembers]
+  );
+  const [visibleCount, setVisibleCount] = useState(MEMBER_PAGE_SIZE);
+  useEffect(() => {
+    setVisibleCount(MEMBER_PAGE_SIZE);
+  }, [memberQuery]);
 
   const onUpload = async () => {
     let loadingSet = false;
@@ -464,7 +501,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
   }
 
   const title = activeRoom.title || activeRoom.name;
-  const memberCount = activeRoom.usersCnt ?? 0;
+  const memberCount = getRoomUserCount(countSource);
   const subtitle = t(
     memberCount === 1
       ? 'modal.chatProfile.memberCountSingular'
@@ -477,15 +514,17 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
   // made the header read as two different greens next to the members' own
   // avatars.)
   const heroColor = config?.colors?.avatar || getIconColor(config);
-  const members = activeRoom.roomMembers ?? [];
   const query = memberQuery.trim().toLowerCase();
-  const visibleMembers = query
+  // Local search runs over the whole directory, rendering stays incremental.
+  const matchingMembers = query
     ? members.filter((user) =>
         composeName(user.firstName, user.lastName)
           .toLowerCase()
           .includes(query)
       )
     : members;
+  const visibleMembers = matchingMembers.slice(0, visibleCount);
+  const hiddenMemberCount = matchingMembers.length - visibleMembers.length;
 
   return (
     <ModalContainerFullScreen style={styles.screen}>
@@ -551,6 +590,22 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
             </View>
           )}
 
+          {isMessageSearchEnabled(config) && (
+            <View style={styles.card}>
+              <TouchableOpacity
+                testID="chat-profile-search-messages"
+                activeOpacity={0.7}
+                style={styles.addMembersRow}
+                onPress={() => dispatch(setActiveModal(MODAL_TYPES.MESSAGE_SEARCH))}
+              >
+                <SearchIcon color={getIconColor(config)} />
+                <Text style={styles.addMembersLabel}>
+                  {t('search.messages.title')}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           {!config?.disableChatInfo?.hideMembers && (
             <View style={styles.card}>
               {canAddMembers && (
@@ -603,6 +658,12 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
                     <Text style={styles.searchClose}>×</Text>
                   </TouchableOpacity>
                 </View>
+              )}
+
+              {directoryLoading && (
+                <Text testID="chat-profile-members-loading" style={styles.emptyMembers}>
+                  {t('modal.chatProfile.membersLoadingAll')}
+                </Text>
               )}
 
               {loading ? (
@@ -693,6 +754,21 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
                     </View>
                   );
                 })
+              )}
+
+              {hiddenMemberCount > 0 && (
+                <TouchableOpacity
+                  testID="chat-profile-members-show-more"
+                  activeOpacity={0.7}
+                  style={styles.showMoreRow}
+                  onPress={() =>
+                    setVisibleCount((c) => c + MEMBER_PAGE_SIZE)
+                  }
+                >
+                  <Text style={styles.addMembersLabel}>
+                    {t('search.messages.loadMore')}
+                  </Text>
+                </TouchableOpacity>
               )}
             </View>
           )}
@@ -792,6 +868,10 @@ const createStyles = (theme: ChatTheme) => StyleSheet.create({
     fontSize: 22,
     lineHeight: 24,
     color: theme.textSecondary,
+  },
+  showMoreRow: {
+    alignItems: 'center',
+    paddingVertical: 12,
   },
   emptyMembers: {
     opacity: 0.6,

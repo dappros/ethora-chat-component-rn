@@ -27,6 +27,11 @@ export const useRoomState = (roomJID?: string) => {
     (state: RootState) => state.rooms.loadingText
   );
   const usersSet = useSelector((state: RootState) => state.rooms.usersSet);
+  const joiningRoomJID = useSelector((state: RootState) =>
+    typeof state.rooms?.joiningRoomJID === 'string'
+      ? state.rooms.joiningRoomJID
+      : null
+  );
 
   const roomMessages = useMemo(
     () =>
@@ -47,5 +52,6 @@ export const useRoomState = (roomJID?: string) => {
     loading,
     roomMessages,
     usersSet,
+    joiningRoomJID,
   };
 };

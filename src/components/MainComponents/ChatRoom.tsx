@@ -1,12 +1,16 @@
 /** @format */
 
+import { isJoiningRoom } from '../../helpers/joiningRoom';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ChatContainer, NonRoomChat } from '../styled/StyledComponents';
 import { useDispatch, useSelector, useStore } from 'react-redux';
 import type { RootState } from '../../roomStore';
 import MessageList from './MessageList';
+import ArchivedMessageCard from './ArchivedMessageCard';
+import { loadRoomHistory } from '../../helpers/loadRoomHistory';
 import SendInput from '../styled/SendInput';
 import {
+  clearJumpWindow,
   clearReadBoundary,
   clearVisibleRoom,
   deleteRoomMessage,
@@ -124,6 +128,9 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
     const globalLoading = useSelector(
       (state: RootState) => state.rooms.isLoading,
     );
+    const joiningRoomJID = useSelector(
+      (state: RootState) => state.rooms.joiningRoomJID,
+    );
     const loading = !!activeRoom?.isLoading;
     const e2eeRoom = !!activeRoom?.e2ee;
     const e2eeOn = storeConfig?.e2ee?.enabled === true;
@@ -183,9 +190,14 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
         if (!activeRoomJID) {
           return;
         }
+        // Writing into a room means being at its latest messages: leave a
+        // jump window (old history) first, so the sent message is in view.
+        if (store.getState().rooms.jumpWindow) {
+          dispatch(clearJumpWindow());
+        }
         sendMs(message, activeRoomJID);
       },
-      [activeRoomJID, sendMs]
+      [activeRoomJID, sendMs, dispatch]
     );
 
     const sendMedia = useCallback(
@@ -193,33 +205,35 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
         // Return the promise so callers can sequence the follow-up
         // text send AFTER the upload finishes (consumer expectation:
         // media first, text second — never interleaved).
+        if (store.getState().rooms.jumpWindow) {
+          dispatch(clearJumpWindow());
+        }
         return sendMessageMedia(data, type, activeRoomJID || '');
       },
-      [activeRoomJID],
+      [activeRoomJID, dispatch],
     );
 
+    // One history request per room at a time. Everything the request needs
+    // (the room, its cursor, the messages used for the fallback cursor) is read
+    // from the store at call time, so a stale render closure can never act on
+    // old values.
+    const inFlightRoomsRef = useRef<Set<string>>(new Set());
     const loadMoreMessages = useCallback(
-      async (chatJID: string, max: number, idOfMessageBefore?: number) => {
-        const room = reduxStore.getState().rooms.rooms?.[chatJID];
-        if (isLoadingMore || room?.historyComplete) {return;}
-        const lastMsgId =
-          typeof idOfMessageBefore !== 'string'
-            ? idOfMessageBefore
-            : Number(room?.messages?.[(room?.messages?.length || 0) - 2]?.id);
-        setIsLoadingMore(true);
-        try {
-          // Return the promise so MessageList's `await loadMoreMessages`
-          // actually waits for MAM to respond before its own onEndReached
-          // re-arms — otherwise the awaited call resolves with `undefined`
-          // immediately and rapid scrolls fire repeat requests that step
-          // on each other.
-          await client?.getHistoryStanza(chatJID, max, lastMsgId);
-        } finally {
-          setIsLoadingMore(false);
-        }
-      },
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      [client?.client?.jid, isLoadingMore, reduxStore],
+      (
+        chatJID: string,
+        max: number,
+        idOfMessageBefore?: number
+      ): Promise<void> =>
+        loadRoomHistory({
+          client,
+          room: store.getState().rooms.rooms?.[chatJID],
+          inFlight: inFlightRoomsRef.current,
+          chatJID,
+          max,
+          before: idOfMessageBefore,
+          onBusyChange: setIsLoadingMore,
+        }),
+      [client]
     );
 
     const onCloseEdit = () => {
@@ -348,6 +362,26 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
       activeRoomJID || '',
       (configWithEventHandlers || storeConfig || {}) as IConfig,
     );
+
+    // A join for the requested room is still in flight: the server registers
+    // the membership a moment after our presence, so say "joining" with a
+    // loader instead of the "choose a chat" placeholder (or the empty-list
+    // new-chat screen). Bounded: useRoomInitialization clears the flag when
+    // the join and the room-list refresh settle, even if the room never shows.
+    if (isJoiningRoom(
+        activeRoomJID,
+        activeRoom && activeRoomJID ? { [activeRoomJID]: true } : undefined,
+        joiningRoomJID
+      )) {
+      return (
+        <View
+          testID="chat-room-joining-loader"
+          style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
+        >
+          <Loader color={configWithEventHandlers?.colors?.primary} />
+        </View>
+      );
+    }
 
     if (!hasRooms && !loading && !globalLoading) {
       return (
@@ -582,6 +616,7 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
               />
             ) : (
               <MessageList
+                client={client}
                 loadMoreMessages={loadMoreMessages}
                 CustomMessage={CustomMessageComponent}
                 CustomDaySeparator={CustomDaySeparator}
@@ -594,6 +629,8 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
                 onReadBoundaryChange={handleReadBoundaryChange}
               />
             )}
+            {/* A search hit that is older than the chat's own history. */}
+            <ArchivedMessageCard roomJID={activeRoomJID} />
           </View>
           {editAction && editAction.isEdit && (
             <EditWrapper text={editAction.text || ''} onClose={onCloseEdit} />

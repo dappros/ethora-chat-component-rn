@@ -206,6 +206,42 @@ const sanitizeMessages = (messages: IMessage[]): IMessage[] => {
   return capped.map(compactMessageForPersist);
 };
 
+/**
+ * Room fields that describe ONE session and must never be written to disk:
+ * the server's unread snapshot (a moment-in-time number the next /chats/my
+ * re-seeds). Volatile slice state that is not on the room at all (jumpWindow,
+ * pendingJump, archivedMessage, usersSet) is never persisted because only
+ * `rooms.rooms` is picked from the slice.
+ */
+const SESSION_ROOM_FIELDS = ['apiUnreadCount', 'apiUnreadSeededAt'] as const;
+
+/**
+ * Rehydrate step: a persisted room must be refetched once per session, so
+ * a stale 'done' / 'loading' / 'error' preload state is demoted to
+ * 'partial' (the room has cached messages, a page that does not overlap the
+ * cache replaces it instead of leaving a hole) or 'idle'. The API unread
+ * snapshot is dropped: the next /chats/my response re-seeds it.
+ */
+export const resetSessionRoomState = (
+  roomsMap: Record<string, IRoom>
+): Record<string, IRoom> =>
+  Object.fromEntries(
+    Object.entries(roomsMap || {}).map(([jid, room]) => {
+      const state = room?.historyPreloadState;
+      const hasMessages = (room?.messages?.length ?? 0) > 0;
+      const next: IRoom = { ...room };
+      // 'error' is a per-session transient (a timeout, an IQ error): it must
+      // not stick across reloads, so it is demoted like 'loading'.
+      if (state === 'done' || state === 'loading' || state === 'error') {
+        next.historyPreloadState = hasMessages ? 'partial' : 'idle';
+      }
+      for (const field of SESSION_ROOM_FIELDS) {
+        if (next[field] !== undefined) {next[field] = undefined;}
+      }
+      return [jid, next];
+    })
+  );
+
 const sanitizeRooms = (
   rooms: Record<string, IRoom>
 ): Record<string, IRoom> => {
@@ -222,6 +258,9 @@ const sanitizeRooms = (
       compactRoom.usersCnt = room.members.length;
     }
     for (const field of REFETCHED_ROOM_FIELDS) {
+      delete compactRoom[field];
+    }
+    for (const field of SESSION_ROOM_FIELDS) {
       delete compactRoom[field];
     }
     // The same reasoning, one size down: the full roster a room gets once
@@ -408,6 +447,8 @@ const ROOM_ACTIONS: Record<string, RoomTouch> = {
   'roomMessages/setRoomMessages': (p) => asList(p?.roomJID),
   'roomMessages/deleteRoomMessage': (p) => asList(p?.roomJID),
   'roomMessages/editRoomMessage': (p) => asList(p?.roomJID),
+  'roomMessages/removeRoomMessage': (p) => asList(p?.roomJID),
+  'roomMessages/setMessageTranslation': (p) => asList(p?.roomJID),
   'roomMessages/addRoomMessage': (p) => asList(p?.roomJID),
   'roomMessages/addRoomMessages': (p) => asList(p?.roomJID),
   'roomMessages/setReactions': (p) => asList(p?.roomJID),
@@ -439,6 +480,19 @@ const TRANSIENT_ROOM_ACTIONS = new Set([
   'roomMessages/clearReadBoundary',
   'roomMessages/setLoadingText',
   'roomMessages/mergeUsersSet',
+  // Volatile slice-level fields (search jump request, joining flag): not rooms data.
+  'roomMessages/requestJumpToMessage',
+  'roomMessages/clearPendingJump',
+  'roomMessages/setJoiningRoom',
+  'roomMessages/clearJoiningRoom',
+  // The reader's jump window and an archived-message view are separate,
+  // never-persisted copies; they leave the room's cached messages untouched.
+  'roomMessages/setJumpWindow',
+  'roomMessages/prependJumpWindowMessages',
+  'roomMessages/appendJumpWindowMessages',
+  'roomMessages/clearJumpWindow',
+  'roomMessages/showArchivedMessage',
+  'roomMessages/clearArchivedMessage',
 ]);
 
 const roomsTouchedBy = (action: any): string[] | 'all' | null => {

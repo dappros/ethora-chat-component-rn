@@ -26,13 +26,15 @@ const addRoomToProcessed = (
   processedRooms: React.MutableRefObject<Set<string>>,
   rooms: { [jid: string]: IRoom }
 ) => {
+  // A room that left the list while queued has nothing to trim.
+  if (!rooms[queueRoom.jid]) {return;}
   if (
     queueRoom.messageCount >= 20 &&
     !processedRooms.current.has(queueRoom.jid)
   ) {
     processedRooms.current.add(queueRoom.jid);
     console.log(`Marking room: ${queueRoom.jid} as processed`);
-    if (rooms[queueRoom.jid].messages.length >= 30) {
+    if ((rooms[queueRoom.jid].messages?.length ?? 0) >= 30) {
       console.log(`Trimming messages for room: ${queueRoom.jid}`);
       rooms[queueRoom.jid].messages = rooms[queueRoom.jid].messages.slice(-30);
     }
@@ -61,7 +63,7 @@ export const useMessageQueue = (
     try {
       if (
         queueRoom.messageCount < 30 &&
-        !rooms[queueRoom.jid].historyComplete
+        !rooms[queueRoom.jid]?.historyComplete
       ) {
         console.log(`Loading messages for room: ${queueRoom.jid}`);
         dispatch(setIsLoading({ chatJID: queueRoom.jid, loading: true }));
@@ -75,7 +77,7 @@ export const useMessageQueue = (
 
         if (
           queueRoom.messageCount + queueRoom.messages.length < 30 &&
-          !rooms[queueRoom.jid].historyComplete
+          !rooms[queueRoom.jid]?.historyComplete
         ) {
           console.log(`Re-queuing room: ${queueRoom.jid} for more messages`);
           messageQueue.current.push({
@@ -111,14 +113,16 @@ export const useMessageQueue = (
       await Promise.all(
         roomsToProcess.map(async (room) => {
           try {
-            if (room.messageCount < 30 && !rooms[room.jid].historyComplete) {
+            // A room that left the list while queued is dropped, not retried.
+            if (!rooms[room.jid]) {return;}
+            if (room.messageCount < 30 && !rooms[room.jid]?.historyComplete) {
               console.log(`Loading messages for room: ${room.jid}`);
               dispatch(setIsLoading({ chatJID: room.jid, loading: true }));
               await loadMessages(room.jid, 20, Number(room.lastMessageId));
 
               if (
                 room.messageCount + 20 < 30 &&
-                !rooms[room.jid].historyComplete
+                !rooms[room.jid]?.historyComplete
               ) {
                 console.log(`Re-queuing room: ${room.jid} for more messages`);
                 queue.push({

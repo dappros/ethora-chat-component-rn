@@ -1,8 +1,7 @@
 import type { ViewStyle, ImageSourcePropType, TextStyle } from 'react-native';
-import type { LastMessage } from './models/message.model';
 import type { ChatThemeOverrides } from '../theme/theme';
 import type { Iso639_1Codes } from './models/language.model';
-import type { IMessage, IReply } from './models/message.model';
+import type { IMessage, IReply, LastMessage } from './models/message.model';
 import type { RoomMember } from './models/room.model';
 import { MODAL_TYPES } from '../helpers/constants/MODAL_TYPES';
 
@@ -16,7 +15,12 @@ export interface IUser extends Partial<User> {
 
 // IMessage and IReply are re-exported from the canonical model below (see end of file).
 
-export type HistoryPreloadState = 'idle' | 'loading' | 'done' | 'error';
+export type HistoryPreloadState =
+  | 'idle'
+  | 'loading'
+  | 'partial'
+  | 'done'
+  | 'error';
 
 export interface IRoom {
   id: string;
@@ -28,8 +32,11 @@ export interface IRoom {
   isLoading: boolean;
   roomBg: string | null;
 
-  /** Seed for the room-list preview/order while no history is loaded —
-   * mapped from the API's `lastMessage` doc (see createRoomFromApi). */
+  /**
+   * Seeded from the API's `lastMessage` (see createRoomFromApi) and kept
+   * current by reactionsMiddleware; a preview for a room that has no loaded
+   * messages yet.
+   */
   lastMessage?: LastMessage;
   lastRoomMessage?: RoomLastMessage;
   icon?: string | null;
@@ -37,6 +44,16 @@ export interface IRoom {
   composingList?: string[];
   lastViewedTimestamp?: number;
   unreadMessages?: number;
+  /**
+   * Unread count the server reported for this room in `GET /v1/chats/my`
+   * (`unreadCount`) and when it was read (epoch ms). Only present on backends
+   * that send it. The unread middleware uses it as a floor while the local
+   * message list is too short to count from (history not loaded yet), ignores
+   * it once the user has read past the API's last message, and it is cleared
+   * when the room is opened. Never persisted: the next /chats/my re-seeds it.
+   */
+  apiUnreadCount?: number;
+  apiUnreadSeededAt?: number;
   noMessages?: boolean;
   muted?: boolean;
   role?: string;
@@ -148,6 +165,20 @@ export interface HistoryQoSConfig {
   stagedPreloadFirstPassSize?: number;
   stagedPreloadSecondPassSize?: number;
   stagedPreloadConcurrency?: number;
+  /**
+   * Messages the MUC service replays on every room join, sent as
+   * `<history maxstanzas="N"/>`. Default 0: history comes from MAM only, so
+   * joining many rooms no longer pulls up to the server default (20) per
+   * room. Raise it only if a host relies on the join replay (a room without
+   * MAM archiving).
+   */
+  joinHistoryStanzas?: number;
+  /**
+   * Rooms joined in parallel by the background join sweep that runs after
+   * the room list is shown (active room first, then most recent activity).
+   * Default 5.
+   */
+  joinConcurrency?: number;
 }
 
 export interface xmppSettingsInterface {
@@ -550,6 +581,43 @@ export interface IConfig {
   xmppSettings?: xmppSettingsInterface;
   disableLastRead?: boolean;
   historyQoS?: HistoryQoSConfig;
+  /**
+   * Background history preload for the room list.
+   * - `'staged'` (default): the `topRooms` most recently active rooms are
+   *   preloaded (a one-message preview pass for rooms the API gave no
+   *   `lastMessage` for, then a full page), `concurrency` at a time; every
+   *   other room loads when the user opens it.
+   * - `'all'`: preload every room (for accounts with few rooms).
+   * - `'off'`: no background preload, rooms load when opened.
+   * A room the user opens jumps the queue. Falls back to the older
+   * `historyQoS.preloadTopKRooms` / `stagedPreloadConcurrency` when the
+   * matching field is not set; the new object wins when set.
+   */
+  historyPreload?: {
+    mode?: 'staged' | 'all' | 'off';
+    /** Rooms (by recent activity) the background sweep covers. Default 8. */
+    topRooms?: number;
+    /** Rooms loaded in parallel by the sweep. Default 3. */
+    concurrency?: number;
+  };
+  /**
+   * Route for looking up one unknown sender. `'auto'` (default) tries
+   * `GET /v1/apps/users/<xmppUsername>` and, when the backend does not accept
+   * the user token there (400/401, or a missing route), remembers that for 10
+   * minutes and uses `GET /v2/chats/users?xmppUsername=` instead, probing v1
+   * again after that. `'v1'` / `'v2'` pin one route with no fallback.
+   */
+  userLookupRoute?: 'auto' | 'v1' | 'v2';
+  /**
+   * Who may push `ethora-event` headlines (`urn:ethora:events:1`,
+   * user-profile-updated / chat-meta-updated). Default (unset or empty): any
+   * bare JID without a resource on the account's own XMPP domain, which is
+   * how the server sends them (from its admin account); room occupants,
+   * other users and other domains are never trusted. Set it to pin the exact
+   * sender(s), as full bare JIDs (`admin@xmpp.example.com`) or local parts
+   * (`admin`).
+   */
+  trustedEventSenders?: string[];
 
   // ----- room list -----
   disableRooms?: boolean;
@@ -652,6 +720,26 @@ export interface IConfig {
   };
   disableProfilesInteractions?: boolean;
   disableUserCount?: boolean;
+  /**
+   * Opt-in message search (OFF by default). Set to `true` to show the
+   * "Search messages" button in the chat header and the chat profile and the
+   * search screen behind it. Requires `appId`, since the archive it queries
+   * is scoped by app. Without this flag there is no search UI and no search
+   * request.
+   */
+  enableMessageSearch?: boolean;
+  /**
+   * @deprecated Search is off unless `enableMessageSearch` is set. Kept as a
+   * hard off: when `true` message search stays disabled even if
+   * `enableMessageSearch` is set.
+   */
+  disableMessageSearch?: boolean;
+  /**
+   * Hide the "Discover chats" entry of the room list menu (and its stand-alone
+   * button when the host overrides the menu): the directory of the app's
+   * public chats (GET /v1/chats/public).
+   */
+  disablePublicChatsDirectory?: boolean;
   /** No Report / Leave behind a room-list row swiped to the left. */
   disableRoomSwipeActions?: boolean;
   disableSentLogic?: boolean;

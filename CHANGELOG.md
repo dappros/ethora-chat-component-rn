@@ -7,6 +7,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this pr
 
 ### Added
 
+- **Port of web PR #100 (web 26.9.8): new config options.** `historyPreload` (`mode`: `'staged'` default, `'all'` or `'off'`, plus `topRooms` default 8 and `concurrency` default 3; the older `historyQoS.preloadTopKRooms` / `stagedPreloadConcurrency` names still apply when the new fields are not set), `historyQoS.joinHistoryStanzas` (default 0), `historyQoS.joinConcurrency` (default 5), `userLookupRoute` (`'auto'` default, `'v1'`, `'v2'`) and `trustedEventSenders`. Six locales received the new string keys.
+
+- **History reading follows the server paging cursor.** Each MAM answer now writes `fin` completeness plus `first`, `last` and `count` into `room.messageStats` and `historyComplete`, and a late answer for the latest page can no longer pull the cursor forward. New `client.getHistoryPage` and `client.getHistoryWindow`: a window query is isolated from the live list, the cursor and `historyComplete`, and accepts start and end time filters. Archive reactions replay onto their messages. Every history request now settles: a 15 s watchdog frees a stuck slot and asks once more, and requests for different pages of one room are no longer merged into one.
+
+- **Lazy sender resolver and true member counts.** An unknown sender is resolved on demand and cached (`GET /v1/apps/users/<id>`, falling back to `GET /v2/chats/users` for 10 minutes when the backend rejects the user token), so names no longer show as Deleted User in big rooms. A bubble shows a muted placeholder while the name loads, then the name, then Unknown user; Deleted User appears only on a confirmed 404, and the message data attributes are a last resort. Rooms carry the true user count (`usersCnt`), which a refresh never lowers; the header and the profile show it, and a live join or leave adjusts it by one (RN had no join or leave handling before). The chat profile loads the full member directory of a big room (deduplicated, 50 rows at a time, local search). The header user-count line stays on one line on narrow screens.
+
+- **Server `ethora-event` pushes.** `user-profile-updated` and `chat-meta-updated` headlines from the trusted server sender refresh profiles and room metadata. The sender is trusted when it is a bare server JID on the session's own XMPP domain (a room occupant, another user or another domain never is); `trustedEventSenders` narrows that to an explicit allow-list.
+
+- **Fast start for accounts with many rooms.** The room list renders as soon as `GET /v1/chats/my` returns instead of waiting for every MUC join. Joins run as a background sweep (open room first, then by recent activity, `historyQoS.joinConcurrency` at a time, default 5), tied to their connection, with up to 3 retries for rooms that did not join. Joins send `history maxstanzas=0` by default and no longer wait an extra 2 s. Send, history fetch and opening a room each join that room on demand, and the offline send queue drains after the first wave. Background preload is staged by default: previews for rooms without one, then a full page for the top 8 rooms, 3 at a time. A page that parses to nothing displayable follows the server cursor and ends partial, not as an error. The room list shows the server `unreadCount` before any history loads. `initBeforeLoad` reports ready right after `/chats/my`.
+
+- **Message matches in the chat list (only with `enableMessageSearch`).** Typing 2 or more characters also lists matching messages under the matching chats (count, Show more, Retry; a tap opens the chat and jumps to the message). The search field has a clear (x) button, the sender filter finds members of big rooms by loading the room directory, and unknown senders in results are looked up.
+
+- **Jump to an old message opens a short window of the archive around it** (search hit, push, link) instead of paging all history. A Jump to latest button returns to the live list, sending a message also leaves the window, and a hit the server no longer has is shown in an archived-message card. A jump to a thread reply opens its thread. The jump highlight is now a brief ring on the message bubble only and respects reduce motion.
+
+- **Thread history by the server cursor.** Thread history pages the room by the cursor and stops at the parent message, so opening an old thread loads its replies instead of an empty panel, with a spinner. The thread title and the Also send to label are translated. Note: `ThreadWrapper` is imported by `ChatWrapper` but not mounted on RN (also true before this work), so none of this is reachable until the thread panel is mounted.
+
+- **Message search is opt-in: new `enableMessageSearch` flag (default off).** The header and chat profile entries, the search screen and its request now appear only with `enableMessageSearch: true` plus `appId`, decided by one shared helper (`isMessageSearchEnabled`, `helpers/isMessageSearchEnabled.ts`). `disableMessageSearch` is deprecated and stays a hard off. Tests in `messageSearchModal.test.tsx`.
+
 - **Swipe a room left for Report and Leave.** A room-list row slides left, as in the messengers, to show two buttons behind it: Report opens the report form for that room, Leave asks first and then does what the chat profile's Leave does (unavailable presence to the MUC, room dropped from the store). One row at a time; scrolling folds it back. On `react-native-gesture-handler`'s `ReanimatedSwipeable`. `disableRoomSwipeActions` turns it off. `ReportChatModal` takes a `roomJid`. Tests in `roomListSwipeActions.test.tsx`.
 
 - **The headers say when the chat is not live.** The room list's title and the room header's subtitle (member count / typing) give way to "Connecting…" while the XMPP stream is down or being set up - first connect and every reconnect - and to "Updating…" while rooms are re-joined and the archive caught up afterwards; the usual title is back once that is done. `chatSettingStore.connection` (`'connecting' | 'syncing' | 'online' | 'offline'`, `setConnectionState`) is kept by the client itself from its own status, so a dropped socket shows the moment the client notices it; `useChatSettingState().connection`, `useConnectionLabel()`. `connection.connecting` / `connection.updating` in every locale. Tests in `connectionStateHeaders.test.tsx`.
@@ -45,6 +63,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this pr
 
 ### Fixed
 
+- **Removed reaction in a room with no loaded messages crashed the history parse, and archive-replayed reactions overwrote the room preview.** Both fixed.
+
+- **Prototype pollution guard and users cache cap.** Dynamic keys in the store are guarded against `__proto__` style keys, and the users cache is merged and capped at 5000 entries.
+
+- **A thread text reply no longer flashes in the main channel before the server confirms it.**
+
 - **A session that ended because the password was lost left a host-mounted chat blank.** When the XMPP password is rejected and the host's refresh cannot replace it, the SDK signs out (since 26.8.8); a host that routes to its sign-in in `logout.onAfterLogout` was fine, but one that keeps `<Chat>` mounted got an empty list and no explanation. The chat now shows "Session expired" over its own screen, with a Retry that re-runs the bootstrap - and Retry now actually re-runs it in `initBeforeLoad` mode (the bootstrap effect keys on a retry counter; before, a retry only reset the status and waited for a config change). The host is told as before through `logout.onAfterLogout`. Five strings in every locale. Tests in `sessionLost.test.tsx`.
 
 - **Messages sent while the app was in the background were missing from the chat on return (regression in 26.8.6).** The catch-up that runs after every (re)connect (`updateMessagesTillLast`) fetches each room's newest archive pages `selfApplied` since the history batching - the MAM router hands them back instead of storing them - but only ever stored them when the gap exceeded four pages. The usual case, one or a few new messages, was fetched and dropped: a push announced a message that the chat then did not show until the next full reload. Every fetched page is now merged into the room. Test in `updateMessagesTillLast.test.ts`.
@@ -68,6 +92,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this pr
 - **Android crashed on launch with `NoClassDefFoundError: expo.modules.kotlin.types.AnyTypeProvider` (expo-secure-store).** `expo-secure-store` was pinned to the SDK 54 line (`~15.0.7`, resolved 15.0.8) while the app runs Expo 57. Expo 57 consumes modules as prebuilt AARs, and that AAR was compiled against an `expo-modules-core` where `AnyTypeProvider` still existed, so the crash surfaced at native module registration, not at build time. Bumped to `~57.0.4` (`npx expo install --check` lists the rest of the drift).
 
 - **Push registration pointed at a dead endpoint with the wrong payload.** The SDK's only registration path posted `projectId` to `{pushNotifications.apiUrl}/subscriptions` — the standalone gateway, whose Joi schema requires `projectName` and rejects unknown keys, and which the hosted clusters no longer expose at all (`nginx 405`). Every attempt failed and was logged as a success. Registration now goes through the main API by default (see Added); the gateway contract is fixed and kept behind `apiUrl` for self-hosted setups.
+
+### Changed
+
+- **BREAKING: `client.presencesReady` now means the whole join sweep finished, no longer 'online'.** The new `client.priorityPresencesReady` marks the first wave (open room plus most recent rooms). Hosts that waited on `presencesReady` to send or fetch should wait on `priorityPresencesReady` or rely on the on-demand join that send and history fetch now perform.
+- **History loading reads the live cursor.** Pages come from the server cursor, so a page made only of receipts no longer stalls loading, a short list auto-fills, and several screens are prefetched ahead.
+- **Outgoing messages no longer carry `isSystemMessage=false`.**
 
 ### Removed
 

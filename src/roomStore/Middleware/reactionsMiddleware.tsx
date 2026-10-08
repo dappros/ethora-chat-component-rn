@@ -21,6 +21,10 @@ export const reactionsMiddleware: Middleware =
       return next(action);
     }
     const result = next(action);
+    // Reactions replayed from the archive update the target message only. The
+    // room preview showing an emoji is for LIVE reactions; a history replay
+    // would otherwise replace the latest real message with the emoji.
+    if (action.meta?.fromHistory) {return result;}
     try {
       const payload = action.payload || {};
       const { roomJID, reactions, latestReactionTimestamp, data } = payload;

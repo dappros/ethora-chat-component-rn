@@ -964,6 +964,8 @@ const ChatPane: React.FC<{ creds: Creds | null; isVisible: boolean }> = ({ creds
         conference: creds.conference,
       },
       headerMenu: false as const,
+      // Message search is opt-in (off by default); needs appId.
+      enableMessageSearch: true,
       // Header cards (room list + chat) extend under the status bar and
       // paint it with the header colour — see SAFE_EDGES above.
       headerLayout: { safeAreaTop: true },

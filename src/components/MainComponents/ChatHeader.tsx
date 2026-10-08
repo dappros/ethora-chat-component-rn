@@ -16,6 +16,7 @@ import Button from '../styled/Button';
 import { BackIcon, BurgerMenuIcon, LockIcon } from '../../assets/icons';
 import { CallButtons } from '../VideoCalls/CallButtons';
 import { LanguageSelectorButton } from './LanguageSelectorButton';
+import { MessageSearchButton } from './MessageSearchButton';
 import { useDispatch, useSelector, useStore } from 'react-redux';
 import type { RootState } from '../../roomStore';
 import Composing from '../styled/StyledInputComponents/Composing';
@@ -37,6 +38,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { resolveHeaderHeight } from '../../helpers/headerLayout';
 import { getElementFont } from '../../helpers/getElementFont';
 import { useT } from '../../i18n/useT';
+import { getRoomUserCount } from '../../helpers/roomUserCount';
 import { useConnectionLabel } from '../../hooks/useConnectionLabel';
 
 interface ChatHeaderProps {
@@ -67,6 +69,10 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   const theme = useTheme();
   const t = useT();
   const connectionLabel = useConnectionLabel();
+
+  // usersCnt is the room's true total, members[] can be a truncated page of
+  // a big room: show the larger of the two.
+  const userCount = getRoomUserCount(roomState || currentRoom);
 
   const handleChangeChat = (chat: IRoom) => {
     dispatch(setCurrentRoom({ roomJID: chat.jid }));
@@ -201,7 +207,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                   </View>
                 )}
               </View>
-              <View>
+              <View style={styles.subtitleBox}>
                 {connectionLabel ? (
                   // The session's state takes the subtitle's place: no
                   // typing or member count is current while it is off.
@@ -219,6 +225,10 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                   <Composing usersTyping={currentRoom?.composingList} />
                 ) : config?.disableUserCount ? undefined : (
                   <ChatContainerHeaderLabel
+                    // One line, ellipsized: a long count in a narrow header
+                    // must not wrap and push the header buttons around.
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
                     style={[
                       styles.subLabel,
                       { color: theme.textSecondary },
@@ -227,10 +237,10 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                   >
                     <Text>
                       {t(
-                        Number(currentRoom?.usersCnt) === 1
+                        userCount === 1
                           ? 'header.userCountSingular'
                           : 'header.userCountPlural',
-                        { count: Number(currentRoom?.usersCnt) || 0 }
+                        { count: userCount }
                       )}
                     </Text>
                   </ChatContainerHeaderLabel>
@@ -243,6 +253,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
         <View style={styles.rightContainer}>
           {/* Renders nothing unless config.videoCalls is on and this is a
               1:1 room, so it costs non-call hosts nothing. */}
+          <MessageSearchButton />
           <LanguageSelectorButton />
           <CallButtons />
           {!config?.disableChatInfo?.disableRoomMenu && (
@@ -260,6 +271,11 @@ const styles = StyleSheet.create({
   subLabel: {
     color: '#8C8C8C',
     fontSize: 14,
+    flexShrink: 1,
+  },
+  subtitleBox: {
+    flexShrink: 1,
+    minWidth: 0,
   },
   titleRow: {
     flexDirection: 'row',

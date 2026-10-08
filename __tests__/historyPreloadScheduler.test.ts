@@ -52,7 +52,11 @@ function makeRoom(jid: string, overrides: Partial<IRoom> = {}): IRoom {
 function makeClient(overrides: any = {}) {
   return {
     isActiveRoomGateOpen: jest.fn(() => true),
-    getHistoryStanza: jest.fn(async () => []),
+    // One real message: an EMPTY page is "inconclusive" (retried, ends
+    // 'partial'), which the cases below that count calls must not trip.
+    getHistoryStanza: jest.fn(async (jid: string) => [
+      { id: `${jid}-1`, body: 'hi', date: '2026-05-15T00:00:00Z' },
+    ]),
     ...overrides,
   } as any;
 }

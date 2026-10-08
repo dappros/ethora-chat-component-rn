@@ -1,67 +1,66 @@
 import { Client, xml } from '@xmpp/client';
-import { createTimeoutPromise } from './createTimeoutPromise.xmpp';
 import { Element } from '@xmpp/xml';
+
+// A bare `local@domain.tld`. The conference prefix is NOT required here (a
+// host may run its MUC service on a custom domain, xmppSettings.conference);
+// callers that fan out over the room list filter with isLikelyMucJid first.
+const isValidRoomJid = (jid: unknown): jid is string => {
+  if (typeof jid !== 'string') {return false;}
+  const at = jid.indexOf('@');
+  if (at <= 0) {return false;}
+  const domain = jid.slice(at + 1).split('/')[0];
+  return !!domain;
+};
 
 let presenceIdCounter = 0;
 const nextPresenceId = () =>
   `presenceInRoom-${Date.now().toString(36)}-${(++presenceIdCounter).toString(36)}`;
 
-const joinedByClient = new WeakMap<Client, Map<string, Promise<Element>>>();
-
-const joinedRooms = (client: Client): Map<string, Promise<Element>> => {
-  let map = joinedByClient.get(client);
-  if (!map) {
-    map = new Map();
-    joinedByClient.set(client, map);
-    const forget = () => joinedByClient.get(client)?.clear();
-    client.on('disconnect', forget);
-    client.on('offline', forget);
+/**
+ * Sends the MUC join presence for `roomJID` and resolves with the room's
+ * answer. Rejects with `presence_error:<code>:<jid>` on an error presence,
+ * `presence_timeout:<jid>` when nothing answers within `timeoutMs`, and
+ * `presence_send_failed:<jid>:...` when the stanza could not be written.
+ *
+ * `delay` is an optional extra wait after the answer. It used to be a fixed
+ * 2 s: the join answer arrives BEFORE the server's replay of the room history
+ * (default up to 20 stanzas), and callers waited for that replay to settle.
+ * The join now asks for `historyStanzas` (default 0) so nothing is replayed
+ * (history comes from MAM), and the default settle delay is 0.
+ */
+export const presenceInRoom = async (
+  client: Client,
+  roomJID: string,
+  delay = 0,
+  timeoutMs = 2000,
+  // How many of the room's recent messages the MUC service replays on join
+  // (XEP-0045 <history maxstanzas/>). Default 0: history comes from MAM only.
+  // Without the element the server replays its default (ejabberd: up to 20
+  // stanzas) for EVERY room joined: N rooms * 20 messages of wire traffic
+  // that MAM then fetches again.
+  historyStanzas = 0
+): Promise<Element> => {
+  if (!isValidRoomJid(roomJID)) {
+    return Promise.reject(
+      new Error(`presence_invalid_jid:${String(roomJID)}`)
+    );
   }
-  return map;
-};
-
-export const __forgetJoinedRooms = (client: Client) =>
-  joinedByClient.get(client)?.clear();
-
-export const presenceInRoom = (
-  client: Client,
-  roomJID: string,
-  delay = 0
-): Promise<Element> => {
-  const joined = joinedRooms(client);
-  const existing = joined.get(roomJID);
-  if (existing) {return existing;}
-  const join = joinRoom(client, roomJID, delay);
-  joined.set(roomJID, join);
-  // A failed join is not a join: let the next caller try again.
-  join.catch(() => {
-    if (joined.get(roomJID) === join) {joined.delete(roomJID);}
-  });
-  return join;
-};
-
-const joinRoom = async (
-  client: Client,
-  roomJID: string,
-  delay: number
-): Promise<Element> => {
   let stanzaHandler: (stanza: Element) => void;
-  const unsubscribe = () => client.off('stanza', stanzaHandler);
+
+  const unsubscribe = () => client?.off?.('stanza', stanzaHandler);
   const stanzaId = nextPresenceId();
 
-  // Avoid `new Promise(async (resolve, reject) => …)` — the async
-  // executor's own thrown errors / unhandled rejections inside it can
-  // escape the constructed promise depending on the order of catch
-  // attachment vs rejection. Use a regular Promise + a separate async
-  // wrapper that funnels every failure path through reject().
   return new Promise<Element>((resolve, reject) => {
     let settled = false;
+    // Cleared as soon as the promise settles by any other path, so the
+    // timeout timer doesn't linger after we already know the outcome.
+    let cancelTimeout: (() => void) | null = null;
 
     const finish = (cb: (value?: any) => void, value?: any) => {
       if (settled) {return;}
       settled = true;
-
-      if (delay <= 0) {
+      cancelTimeout?.();
+      if (!(delay > 0)) {
         unsubscribe();
         cb(value);
         return;
@@ -78,6 +77,26 @@ const joinRoom = async (
         stanza.attrs.id === stanzaId &&
         stanza.attrs.from?.startsWith(roomJID)
       ) {
+        if (stanza.attrs.type === 'error') {
+          const errEl = stanza.getChild('error');
+          const code =
+            (errEl &&
+              (errEl.getChild('forbidden')
+                ? 'forbidden'
+                : errEl.getChild('remote-server-not-found')
+                  ? 'remote-server-not-found'
+                  : errEl.getChild('not-allowed')
+                    ? 'not-allowed'
+                    : errEl.getChild('item-not-found')
+                      ? 'item-not-found'
+                      : errEl.attrs?.type || 'unknown')) ||
+            'unknown';
+          settled = true;
+          cancelTimeout?.();
+          unsubscribe();
+          reject(new Error(`presence_error:${code}:${roomJID}`));
+          return;
+        }
         finish(resolve, stanza);
       }
     };
@@ -94,32 +113,36 @@ const joinRoom = async (
       xml(
         'x',
         { xmlns: 'http://jabber.org/protocol/muc' },
-        xml('history', { maxstanzas: '0' })
+        xml('history', {
+          maxstanzas: String(
+            Number.isFinite(historyStanzas) && historyStanzas > 0
+              ? Math.floor(historyStanzas)
+              : 0
+          ),
+        })
       )
     );
 
-    // Side-effects sequence: send the presence (handles its own
-    // failure → reject), then wait the timeout (also handles its own
-    // failure → reject). Each chain attaches its rejection handler
-    // synchronously, so no race with the outer Promise's catch.
-    (async () => {
-      try {
-        await client.send(presence);
-      } catch (err) {
+    Promise.resolve(client.send(presence))
+      .then(() => {
+        // The answer may already have arrived while send() was settling.
+        if (settled) {return;}
+        const timer = setTimeout(() => {
+          if (settled) {return;}
+          settled = true;
+          unsubscribe();
+          reject(new Error(`presence_timeout:${roomJID}`));
+        }, timeoutMs);
+        cancelTimeout = () => clearTimeout(timer);
+      })
+      .catch((err) => {
         unsubscribe();
-        reject(err);
-        return;
-      }
-      try {
-        await createTimeoutPromise(2000, unsubscribe);
-      } catch (err) {
-        // The room's reply schedules resolve() `delay` ms later (2000 by
-        // default) — the same length as this timeout, so the timeout used
-        // to win the race and reject a join that had actually succeeded
-        // (allRoomPresences "failed" with undefined on every bootstrap).
-        // Only a join that never got an answer is a failure.
-        if (!settled) {reject(err);}
-      }
-    })();
+        settled = true;
+        reject(
+          new Error(
+            `presence_send_failed:${roomJID}:${err instanceof Error ? err.message : String(err)}`
+          )
+        );
+      });
   });
 };

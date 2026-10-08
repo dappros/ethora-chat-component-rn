@@ -9,6 +9,10 @@ import { AppDispatch, RootState } from '../roomStore';
 import { useXmppClient } from '../context/xmppProvider';
 import { chatAutoEnterer } from '../helpers/chatAutoEnterer';
 import { initRoomsPresence } from '../helpers/initRoomsPresence';
+import {
+  loadRoomsThenJoinInBackground,
+  startBackgroundJoinSweep,
+} from '../helpers/backgroundJoinSweep';
 import { updateMessagesTillLast } from '../helpers/updateMessagesTillLast';
 import { refreshAuthTokensQuietly } from '../networking/authRefresh';
 import { setLangSource, setConfig } from '../roomStore/chatSettingsSlice';
@@ -20,6 +24,10 @@ import { isChatIdPresentInArray } from '../helpers/isChatIdPresentInArray';
 import useGetNewArchRoom from './useGetNewArchRoom';
 import { getRoomsWithRetry } from '../helpers/getRoomsWithRetry';
 import { shallowEqual } from '../helpers/shallowEqual';
+
+// The room list ends its loading state right after /chats/my; joining every
+// room is a background sweep nobody waits for (see helpers/backgroundJoinSweep).
+export { loadRoomsThenJoinInBackground, startBackgroundJoinSweep };
 
 interface useChatWrapperInitProps {
   roomJID: string | null | undefined;
@@ -104,9 +112,14 @@ const useChatWrapperInit = ({
       dispatch(
         setIsLoading({ loading: true, loadingText: 'Loading rooms...' })
       );
-    const rooms = await syncRooms(client, config);
-    dispatch(setIsLoading({ loading: false, loadingText: undefined }));
-    return rooms;
+    // The list is usable as soon as the rooms fetch returns (rooms come
+    // seeded with lastMessage / unread). Joining them all runs in the
+    // background, open room first.
+    return loadRoomsThenJoinInBackground(
+      client,
+      () => syncRooms(client, config),
+      () => dispatch(setIsLoading({ loading: false, loadingText: undefined }))
+    );
   };
 
   useEffect(() => {
@@ -150,7 +163,9 @@ const useChatWrapperInit = ({
                   Object.keys(roomsList).length
                 );
                 setInited(true);
-                await initRoomsPresence(newClient, roomsList);
+                // Persisted rooms: join (background sweep) + push subscribe
+                // without holding the private-store / unread step behind it.
+                initRoomsPresence(newClient, roomsList).catch(() => undefined);
               } else {
                 if (config?.newArch) {
                   console.log(' Loading rooms with newArch');
@@ -231,6 +246,9 @@ const useChatWrapperInit = ({
               }
             }
             setInited(true);
+            // Rooms that appeared since the bootstrap sweep (a /chats/my that
+            // returned late) get joined too; a no-op when nothing is left.
+            startBackgroundJoinSweep(client);
             console.log(' Getting chats private store for existing client');
             try {
               // See the "new client" branch above: getChatsPrivateStoreRequestStanza

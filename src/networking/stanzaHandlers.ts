@@ -4,6 +4,7 @@ import {
   claimMamResult,
   collectMamMessage,
   collectMamReaction,
+  replayArchivedReaction,
 } from './xmpp/mamRouter';
 import { extractReaction } from '../helpers/mamReactions';
 import {
@@ -15,14 +16,18 @@ import {
   setCurrentRoom,
   setRoomRole,
   setReactions,
+  updateRoom,
 } from '../roomStore/roomsSlice';
-import { IMessage, IRoom } from '../types/types';
+import { IMessage, IRoom, RoomMember } from '../types/types';
+import { adjustUsersCnt, isRoomMembersTruncated } from '../helpers/roomUserCount';
+import { requestSendersOf } from '../helpers/userResolver';
 import { createMessageFromXml } from '../helpers/createMessageFromXml';
 import { getDataFromXml } from '../helpers/getDataFromXml';
 import { setDeleteModal } from '../roomStore/chatSettingsSlice';
 import { messageNotificationManager } from '../utils/messageNotificationManager';
 import { transformCallLogMessage } from '../helpers/callLogMessage';
 import { translateKey } from '../i18n/strings';
+import { isWindowQueryId } from './xmpp/mamQueryIds';
 import { loadRoomMembers } from './api-requests/rooms.api';
 import { subscribeRoomForPush } from '../services/pushSubscriptionService';
 
@@ -114,6 +119,13 @@ const onRealtimeMessage = async (stanza: Element) => {
         message,
       })
     );
+    // A sender missing from usersSet (a big room only carries 30 members)
+    // is resolved lazily; known and recently failed ids are dropped inside.
+    try {
+      requestSendersOf([message]);
+    } catch {
+      // name resolution must never break message delivery
+    }
 
     // Trigger in-app notification (manager dedupes + drops own messages
     // for empty bodies). Self-messages are filtered by sender check.
@@ -198,7 +210,7 @@ const onEditMessage = async (stanza: Element) => {
 
 const isMamResult = (stanza: any): boolean =>
   !!stanza?.is?.('message') &&
-  stanza.children?.[0]?.attrs?.xmlns === 'urn:xmpp:mam:2';
+  stanza.getChild?.('result')?.attrs?.xmlns === 'urn:xmpp:mam:2';
 
 const parseMamResult = async (stanza: any): Promise<IMessage | undefined> => {
   {
@@ -213,16 +225,9 @@ const parseMamResult = async (stanza: any): Promise<IMessage | undefined> => {
         stanza.getChild('result')?.attrs?.id
       );
       if (reaction && !collectMamReaction(stanza, reaction)) {
-        store.dispatch(
-          setReactions({
-            roomJID: reaction.roomJID,
-            messageId: reaction.messageId,
-            from: reaction.from,
-            reactions: reaction.emoji,
-            data: reaction.data,
-            latestReactionTimestamp: reaction.ts,
-          })
-        );
+        // No page is waiting for it: replay it by hand. Flagged fromHistory
+        // so the room preview is not turned into an emoji.
+        replayArchivedReaction(reaction);
       }
       return undefined;
     }
@@ -331,6 +336,10 @@ const parseMamResult = async (stanza: any): Promise<IMessage | undefined> => {
 
 const onMessageHistory = async (stanza: any) => {
   if (!isMamResult(stanza)) {return;}
+  // A windowed query (a jump target's neighbourhood, a time lookup) belongs
+  // to the caller that asked: its rows are collected and returned there and
+  // must never be claimed by the router or merged into the live list.
+  if (isWindowQueryId(stanza.getChild('result')?.attrs?.queryid)) {return;}
   const claimed = claimMamResult(stanza);
   let message: IMessage | undefined;
   try {
@@ -398,7 +407,70 @@ const handleComposing = async (stanza: Element, currentUser: string) => {
   }
 };
 
+// Server-driven membership change: when someone is added to or removed from
+// a MUC the room broadcasts <message><x xmlns="muc#user"><item jid=...
+// affiliation="member|none|outcast"/></x></message> to the occupants. It is
+// the ONLY thing that counts as a join or leave: usersCnt is adjusted by
+// +1/-1 from its CURRENT value, because a big room carries a truncated
+// members[] (the real total is usersCnt) and recomputing from its length
+// would collapse the count to the page size.
+const MUC_USER_NS = 'http://jabber.org/protocol/muc#user';
+
+const onRoomMembershipChange = (stanza: Element | any): void => {
+  if (typeof stanza?.is !== 'function' || !stanza.is('message')) {return;}
+  const roomJid = String(stanza.attrs?.from || '').split('/')[0];
+  const room = roomJid ? store.getState().rooms.rooms[roomJid] : undefined;
+  if (!room) {return;}
+
+  const x = (stanza.getChildren?.('x') || []).find(
+    (e: Element) => e?.attrs?.xmlns === MUC_USER_NS
+  );
+  if (!x || x.getChild('invite')) {return;}
+  const item = x.getChild('item');
+  const memberJid = String(item?.attrs?.jid || '');
+  if (!memberJid) {return;}
+
+  const xmppUsername = memberJid.split('@')[0];
+  const affiliation = String(item?.attrs?.affiliation || '');
+  const leaving = affiliation === 'none' || affiliation === 'outcast';
+  const members = Array.isArray(room.members) ? room.members : [];
+  const idx = members.findIndex((m) => m.xmppUsername === xmppUsername);
+
+  let next: RoomMember[];
+  if (leaving) {
+    if (idx < 0) {
+      // The leaver may exist only in the directory of a truncated room.
+      if (!isRoomMembersTruncated(room)) {return;}
+      store.dispatch(
+        updateRoom({
+          jid: roomJid,
+          updates: { usersCnt: adjustUsersCnt(room, -1, members.length) },
+        })
+      );
+      return;
+    }
+    next = members.filter((_, i) => i !== idx);
+  } else {
+    if (idx >= 0) {return;}
+    next = [
+      ...members,
+      { _id: '', firstName: '', lastName: '', xmppUsername, jid: memberJid },
+    ];
+  }
+
+  store.dispatch(
+    updateRoom({
+      jid: roomJid,
+      updates: {
+        members: next,
+        usersCnt: adjustUsersCnt(room, leaving ? -1 : 1, next.length),
+      },
+    })
+  );
+};
+
 const onPresenceInRoom = (stanza: Element | any) => {
+  onRoomMembershipChange(stanza);
   if (
     typeof stanza.attrs.id === 'string' &&
     stanza.attrs.id.startsWith('presenceInRoom') &&
@@ -546,8 +618,55 @@ const onReactionMessage = (stanza: Element) => {
 };
 // Archived reactions are handled by parseMamResult + the MAM router.
 const onReactionHistory = (_stanza: Element) => {};
-const onRoomKicked = (_stanza: Element) => {};
+// Presence that removes a member: unavailable + affiliation none/outcast.
+// A presence is never a join (an unlisted occupant of a truncated big room
+// is indistinguishable from a new member), so it only ever adjusts -1; the
+// affiliation message (onRoomMembershipChange) is what counts joins.
+const onRoomKicked = (stanza: Element | any) => {
+  try {
+    if (stanza?.attrs?.type !== 'unavailable') {return;}
+    const from = String(stanza.attrs?.from || '');
+    const slash = from.indexOf('/');
+    const roomJID = slash >= 0 ? from.slice(0, slash) : from;
+    const nickname = slash >= 0 ? from.slice(slash + 1) : '';
+    const state = store.getState();
+    const room = roomJID ? state.rooms.rooms[roomJID] : undefined;
+    if (!room || !nickname) {return;}
+    if (nickname === (state.chatSettingStore.user?.xmppUsername || '')) {return;}
 
+    const x = (stanza.getChildren?.('x') || []).find(
+      (e: Element) => e?.attrs?.xmlns === MUC_USER_NS
+    );
+    const item = x?.getChild?.('item');
+    const affiliation = String(item?.attrs?.affiliation || '');
+    if (!item || (affiliation !== 'none' && affiliation !== 'outcast')) {return;}
+
+    const members = Array.isArray(room.members) ? room.members : [];
+    const idx = members.findIndex((m) => m.xmppUsername === nickname);
+    if (idx < 0) {
+      if (!isRoomMembersTruncated(room)) {return;}
+      store.dispatch(
+        updateRoom({
+          jid: roomJID,
+          updates: { usersCnt: adjustUsersCnt(room, -1, members.length) },
+        })
+      );
+      return;
+    }
+    const next = members.filter((_, i) => i !== idx);
+    store.dispatch(
+      updateRoom({
+        jid: roomJID,
+        updates: {
+          members: next,
+          usersCnt: adjustUsersCnt(room, -1, next.length),
+        },
+      })
+    );
+  } catch (error) {
+    console.warn('onRoomKicked failed', error);
+  }
+};
 export {
   onRealtimeMessage,
   onMessageHistory,

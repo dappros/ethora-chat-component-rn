@@ -215,6 +215,16 @@ const reducers = {
       state.user.fileToken = action.payload.fileToken;
     }
   },
+  /**
+   * Just the XMPP credential, for POST /v1/users/xmpp-token. refreshTokens
+   * above needs a whole token pair, and minting only an XMPP password must
+   * not touch the REST session. Like refreshTokens, persistence belongs to
+   * the caller, which can await it.
+   */
+  setXmppPassword: (state: WritableDraft<ChatState>, action: PayloadAction<string>) => {
+    if (!action.payload) {return;}
+    state.user.xmppPassword = action.payload;
+  },
   logout: (state: WritableDraft<ChatState>) => {
     state.user = unpackAndTransform();
     state.config = undefined;
@@ -259,6 +269,7 @@ export const {
   setUser,
   setConfig,
   refreshTokens,
+  setXmppPassword,
   logout,
   setActiveModal,
   setDeleteModal,

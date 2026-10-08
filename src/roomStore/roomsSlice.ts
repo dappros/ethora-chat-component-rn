@@ -4,6 +4,10 @@ import { EditAction, HistoryPreloadState, IMessage, IRoom } from '../types/types
 import { insertMessageWithDelimiter } from '../helpers/insertMessageWithDelimiter';
 import { msgSortableMs } from '../helpers/msgSortableMs';
 import type XmppClient from '../networking/xmppClient';
+import type { TranslationObject } from '../helpers/transformTranslatations';
+import { isSafeKey } from './safeKey';
+import { mergeUsersSet as mergeIntoUsersSet } from './usersSetCap';
+import { getRoomUserCount } from '../helpers/roomUserCount';
 import { subscribeRoomForPush } from '../services/pushSubscriptionService';
 
 // Per-room runtime message cap. Mirrors the persistence layer's
@@ -175,6 +179,64 @@ const insertRoomMessage = (
   return { grew, atHead };
 };
 
+/**
+ * Keeps the jump window's separate copy of a message in step with the live
+ * list: an echo of a message the reader sees flips it from "sending" to
+ * delivered there too, call-log entries collapse per callId, and (only for a
+ * live single-message add, `allowAppend`) a reader parked at the LIVE END of
+ * a window (hasNewer false) sees what arrives next. While hasNewer is true
+ * the window is not adjacent to the tail and the message waits in
+ * room.messages until the reader returns to live.
+ */
+const syncJumpWindowWithMessage = (
+  state: WritableDraft<RoomMessagesState>,
+  roomJID: string,
+  message: IMessage,
+  start: boolean | undefined,
+  allowAppend: boolean
+): void => {
+  const win = state.jumpWindow;
+  if (!win || win.roomJID !== roomJID || isCallSignalMessage(message)) {return;}
+  const incomingCallLog = message.callLog;
+  if (incomingCallLog?.callId) {
+    const wi = win.messages.findIndex(
+      (msg) => msg.callLog?.callId === incomingCallLog.callId
+    );
+    if (wi !== -1) {
+      const wExisting = win.messages[wi];
+      const wMerged = mergeCallLogEntries(wExisting, message);
+      if (wMerged !== wExisting) {win.messages[wi] = wMerged;}
+      return;
+    }
+  }
+  if (win.messages.length === 0) {return;}
+  const isKnownMessage = (msg: IMessage) =>
+    msg.id === message.id ||
+    (!!message.xmppId && msg.id === message.xmppId) ||
+    (!!msg.xmppId && msg.xmppId === message.id);
+  const wi = win.messages.findIndex(isKnownMessage);
+  if (wi !== -1) {
+    const prev = win.messages[wi];
+    const next: Record<string, unknown> = { ...prev };
+    for (const [key, value] of Object.entries(message)) {
+      if (value !== undefined && isSafeKey(key)) {next[key] = value;}
+    }
+    // The sender identity captured on first insert wins, as in the live
+    // list (the echo parses a different id form).
+    next.user = prev.user;
+    next.pending = false;
+    win.messages[wi] = next as unknown as IMessage;
+  } else if (allowAppend && !win.hasNewer && !start) {
+    win.messages.push({ ...message });
+    if (win.messages.length > JUMP_WINDOW_MAX_MESSAGES) {
+      win.messages = win.messages.slice(-JUMP_WINDOW_MAX_MESSAGES);
+      const oldest = Number(win.messages[0].id);
+      win.olderCursor = Number.isFinite(oldest) ? oldest : win.olderCursor;
+      win.hasOlder = true;
+    }
+  }
+};
+
 const capAfterGrowth = (
   messages: IMessage[],
   lengthBefore: number,
@@ -208,6 +270,7 @@ const upsertRoom = (
   state: WritableDraft<RoomMessagesState>,
   roomData: IRoom
 ): void => {
+      if (!isSafeKey(roomData?.jid)) {return;}
       const existing = state.rooms[roomData.jid];
       let lastViewed: number;
       const serverMarker = state.privateStoreMarkers?.[roomData.jid] || 0;
@@ -237,13 +300,23 @@ const upsertRoom = (
         : [];
       state.rooms[roomData.jid] = {
         ...roomData,
+        usersCnt: resolveIncomingUsersCnt(roomData, existing),
+        // A seed for the room-list preview: take the freshest API value but
+        // never let a payload without one erase what is already there.
+        lastMessage: roomData.lastMessage ?? existing?.lastMessage,
+        ...resolveApiUnread(state, roomData.jid, roomData, existing),
         icon: roomData.icon !== undefined ? roomData.icon : existing?.icon,
         roomBg: roomData.roomBg !== undefined ? roomData.roomBg : existing?.roomBg,
         messages:
           existingMessages.length > 0 ? existingMessages : incomingMessages,
         lastViewedTimestamp: lastViewed,
+        // A server-seeded count must not badge a room that is open right now.
         unreadMessages:
-          roomData.unreadMessages ?? existing?.unreadMessages ?? 0,
+          roomData.apiUnreadCount !== undefined &&
+          (state.activeRoomJID === roomData.jid ||
+            state.visibleRoomJID === roomData.jid)
+            ? existing?.unreadMessages ?? 0
+            : roomData.unreadMessages ?? existing?.unreadMessages ?? 0,
         unreadBaselineTimestamp:
           existing?.unreadBaselineTimestamp ??
           existing?.lastViewedTimestamp ??
@@ -427,12 +500,91 @@ function mergeHistoryIntoCache(
   return [...capTail(merged), ...pending];
 }
 
+/** A message found in the archive that the chat cannot show in place. */
+export interface ArchivedMessage {
+  roomJID: string;
+  sender: string;
+  body: string;
+  /** ISO timestamp from the archive. */
+  createdAt: string;
+}
+
+/** A request to scroll a room's transcript to one message. */
+export interface PendingJump {
+  roomJID: string;
+  /** Any id the message may be known by: message id, stanza id, xmpp id. */
+  ids: string[];
+  /**
+   * For a message that has no usable id (search archive rows often carry
+   * none): its timestamp and text, matched against the loaded transcript.
+   */
+  createdAt?: string;
+  body?: string;
+  /**
+   * What to show if the message cannot be reached in the transcript: the hit
+   * itself, so a tap on a search result always ends with the message on
+   * screen rather than an error.
+   */
+  preview?: ArchivedMessage;
+  /** Epoch ms the request was made, to drop one nobody ever fulfilled. */
+  at: number;
+}
+
+/**
+ * A short slice of a room's archive around one message, shown INSTEAD of the
+ * live list while the reader is away from the tail (a search jump to a message
+ * far back). Separate from room.messages on purpose: it is not contiguous with
+ * the live history, so it must not touch messageStats or historyComplete.
+ * Never persisted.
+ */
+export interface JumpWindow {
+  roomJID: string;
+  /** Ascending by time, like room.messages. */
+  messages: IMessage[];
+  /** Id of the message the jump named, as it appears in `messages`. */
+  targetId: string;
+  /** RSM cursor (microseconds) to continue older paging from. */
+  olderCursor: number | null;
+  hasOlder: boolean;
+  /** RSM cursor (microseconds) to continue newer paging from. */
+  newerCursor: number | null;
+  hasNewer: boolean;
+}
+
+/** The window is trimmed on the far side past this many messages. */
+export const JUMP_WINDOW_MAX_MESSAGES = 300;
+
+const mergeWindowMessages = (a: IMessage[], b: IMessage[]): IMessage[] => {
+  const seen = new Set<string>();
+  const merged: IMessage[] = [];
+  for (const message of [...a, ...b]) {
+    const key = String(message.id);
+    if (seen.has(key)) {continue;}
+    seen.add(key);
+    merged.push(message);
+  }
+  const num = (message: IMessage) => {
+    const id = Number(message.id);
+    return Number.isFinite(id) && id > 0
+      ? id
+      : new Date(message.date).getTime();
+  };
+  // Archive ids are microsecond stanza ids and ascending in time; fall back to
+  // the date when an id is not numeric.
+  return merged.sort((x, y) => num(x) - num(y));
+};
+
 export interface RoomPreloadPatch {
   jid: string;
   messages?: IMessage[];
   historyPreloadState?: HistoryPreloadState;
   unreadCapped?: boolean;
   historyComplete?: boolean;
+  /**
+   * RSM bounds of the loaded history (epoch ms or archive microseconds, the
+   * same units the room already stores): merged into room.messageStats.
+   */
+  messageStats?: { firstMessageTimestamp?: number; lastMessageTimestamp?: number };
 }
 
 export interface RoomMessagesState {
@@ -444,6 +596,10 @@ export interface RoomMessagesState {
   loadingText?: string;
   isUnreadSyncing?: boolean;
   usersSet?: Record<string, any>;
+  /** See JumpWindow. Never persisted. */
+  jumpWindow: JumpWindow | null;
+  /** See ArchivedMessage. Never persisted. */
+  archivedMessage: ArchivedMessage | null;
   pendingNotificationJid?: string | null;
   // Server-side read markers fetched from the XMPP private store
   // (`{ roomJID: lastViewedMs }`). Kept here so a room that loads AFTER
@@ -451,6 +607,19 @@ export interface RoomMessagesState {
   // — see `applyPrivateStoreMarkers`. Re-fetched every init/reconnect,
   // so it is intentionally NOT persisted.
   privateStoreMarkers: Record<string, number>;
+  // A pending "scroll this room's transcript to that message" request (a
+  // message search hit, later a notification). Fulfilled by MessageList's
+  // useJumpToMessage: scroll if mounted, else page older history until the
+  // message shows up. `at` bounds how long a request may stay alive. Never
+  // persisted (persistence.ts only picks `rooms`).
+  pendingJump: PendingJump | null;
+  // The room this session is joining right now (opened from the public chats
+  // directory, a link or a QR code) which is not in the room list yet. The
+  // server registers the membership a moment after our presence join, so
+  // "not in the list" is not yet "unavailable": ChatRoom shows a loader while
+  // this names the active room. Set and cleared by useRoomInitialization.
+  // Never persisted.
+  joiningRoomJID: string | null;
   /** `{ roomJID: { messageId: reactions[] } }` — reactions that arrived
    * before their message (a newer history page), applied on insert. */
   pendingReactions?: Record<string, Record<string, PendingReaction[]>>;
@@ -497,14 +666,95 @@ const initialState: RoomMessagesState = {
   },
   pendingNotificationJid: null,
   privateStoreMarkers: {},
+  pendingJump: null,
+  joiningRoomJID: null,
   readBoundaries: {},
+  usersSet: {},
+  jumpWindow: null,
+  archivedMessage: null,
   pendingReactions: {},
 };
 
 const isValidRoomJid = (jid: unknown): jid is string => {
-  if (typeof jid !== 'string' || !jid) return false;
-  if (!jid.includes('@')) return false;
+  if (!isSafeKey(jid)) {return false;}
+  if (!jid.includes('@')) {return false;}
   return true;
+};
+
+/**
+ * Visits every stored copy of one message: the live copy in
+ * state.rooms[jid].messages and, when a jump window is open on that room, the
+ * window's separate copy. The window is a second list of the same messages, so
+ * every reducer that mutates ONE message must go through this or the reader
+ * sees stale edits/reactions/delivery state while away from the live tail.
+ * `matches` is an id, or a predicate when a reducer also matches on xmppId.
+ */
+const forEachMessageCopy = (
+  state: RoomMessagesState,
+  jid: string,
+  matches: string | ((message: IMessage) => boolean),
+  fn: (message: IMessage) => void
+) => {
+  const pred =
+    typeof matches === 'function'
+      ? matches
+      : (message: IMessage) => message.id === matches;
+  const live = state.rooms[jid]?.messages;
+  if (Array.isArray(live)) {
+    for (const message of live) {if (pred(message)) {fn(message);}}
+  }
+  const win = state.jumpWindow;
+  if (win && win.roomJID === jid && Array.isArray(win.messages)) {
+    for (const message of win.messages) {if (pred(message)) {fn(message);}}
+  }
+};
+
+/**
+ * usersCnt after a /chats/my refresh. The API reports the true total in
+ * `usersCnt` but at most 30 `members` for a big room, so the members array
+ * length is only a floor; and a count already known (a larger one from an
+ * earlier response or a live join) is never lowered by a refresh.
+ */
+const resolveIncomingUsersCnt = (
+  incoming: Pick<IRoom, 'members' | 'usersCnt'> & { participants?: number },
+  existing: IRoom | undefined
+): number => {
+  const apiTotal =
+    typeof incoming.usersCnt === 'number' && incoming.usersCnt > 0
+      ? incoming.usersCnt
+      : 0;
+  const membersLen = Array.isArray(incoming.members)
+    ? incoming.members.length
+    : 0;
+  const next = Math.max(apiTotal, membersLen);
+  return Math.max(next, existing ? getRoomUserCount(existing) : 0);
+};
+
+/**
+ * The server-reported unread snapshot of a room after an incoming /chats/my
+ * item: the freshest API value wins while the user is not looking at the
+ * room; one being read right now keeps none. Absent from the response =
+ * keep what an earlier, richer response set.
+ */
+const resolveApiUnread = (
+  state: RoomMessagesState,
+  jid: string,
+  incoming: Partial<IRoom>,
+  existing: IRoom | undefined
+): Pick<IRoom, 'apiUnreadCount' | 'apiUnreadSeededAt'> => {
+  if (state.activeRoomJID === jid || state.visibleRoomJID === jid) {
+    return { apiUnreadCount: undefined, apiUnreadSeededAt: undefined };
+  }
+  if (incoming.apiUnreadCount !== undefined) {
+    return {
+      apiUnreadCount: incoming.apiUnreadCount,
+      apiUnreadSeededAt: incoming.apiUnreadSeededAt ?? Date.now(),
+    };
+  }
+  return {
+    apiUnreadCount: existing?.apiUnreadCount,
+    apiUnreadSeededAt: existing?.apiUnreadSeededAt,
+  };
 };
 
 export const addRoomViaApi = createAsyncThunk(
@@ -549,6 +799,7 @@ const reducers = {
     },
     deleteRoom(state: WritableDraft<RoomMessagesState>, action: PayloadAction<{ jid: string }>) {
       const { jid } = action.payload;
+      if (!isSafeKey(jid)) {return;}
       if (state.rooms[jid]) {
         delete state.rooms[jid];
         if (state.visibleRoomJID === jid) {
@@ -561,20 +812,41 @@ const reducers = {
       action: PayloadAction<{ jid: string; updates: Partial<IRoom> }>
     ) {
       const { jid, updates } = action.payload;
+      if (!isSafeKey(jid)) {return;}
       const existingRoom = state.rooms[jid];
+      if (!existingRoom) {return;}
 
-      if (existingRoom) {
-        state.rooms[jid] = {
-          ...existingRoom,
-          ...updates,
-        };
+      const merged: IRoom = { ...existingRoom, ...updates };
+
+      if (typeof updates.usersCnt === 'number') {
+        // An explicit count (a live join or leave) is taken as given, with the
+        // known members as a floor.
+        const newMembers = Array.isArray(updates.members)
+          ? updates.members
+          : existingRoom.members;
+        const floor = Array.isArray(newMembers) ? newMembers.length : 0;
+        merged.usersCnt = Math.max(updates.usersCnt, floor);
+      } else if (Array.isArray(updates.members)) {
+        // A members-only refresh of a truncated big room (usersCnt > the
+        // first page) must not collapse the true total to the page length.
+        const prevMembers = Array.isArray(existingRoom.members)
+          ? existingRoom.members.length
+          : 0;
+        const prevCnt =
+          typeof existingRoom.usersCnt === 'number' ? existingRoom.usersCnt : 0;
+        merged.usersCnt =
+          prevCnt > prevMembers
+            ? Math.max(prevCnt, updates.members.length)
+            : updates.members.length;
       }
+      state.rooms[jid] = merged;
     },
     setRoomMessages(
       state: WritableDraft<RoomMessagesState>,
       action: PayloadAction<{ roomJID: string; messages: IMessage[] }>
     ) {
       const { roomJID, messages } = action.payload;
+      if (!isSafeKey(roomJID)) {return;}
       if (state.rooms[roomJID]) {
         // Cap to the runtime limit on replace too — guards against a
         // single MAM page returning more than the limit (would balloon
@@ -591,6 +863,7 @@ const reducers = {
       action: PayloadAction<{ roomJID: string; messageId: string }>
     ) {
       const { roomJID, messageId } = action.payload;
+      if (!isSafeKey(roomJID)) {return;}
       const room = state.rooms[roomJID];
       if (!room?.messages) {return;}
       // The "New messages" divider is a transient UI marker, not a real
@@ -603,11 +876,9 @@ const reducers = {
         if (idx !== -1) {room.messages.splice(idx, 1);}
         return;
       }
-      room.messages.map((message) => {
-        if (message.id === messageId) {
-          message.isDeleted = true;
-          message.reaction = undefined;
-        }
+      forEachMessageCopy(state, roomJID, messageId, (message) => {
+        message.isDeleted = true;
+        message.reaction = undefined;
       });
     },
     setEditAction: (state: WritableDraft<RoomMessagesState>, action: PayloadAction<EditAction | undefined>) => {
@@ -631,17 +902,58 @@ const reducers = {
       }>
     ) {
       const { roomJID, messageId, text } = action.payload;
-      if (state.rooms[roomJID]) {
-        state.rooms[roomJID].messages.map((message) => {
-          if (message.id === messageId) {
-            message.body = text;
-            // Flag the correction so the bubble can render an "edited" marker.
-            // Covers both the author's own edit and edits from other users —
-            // every <replace> echo flows through here.
-            message.isEdited = true;
-          }
-        });
+      if (!isSafeKey(roomJID)) {return;}
+      // Edited in place on every copy (live list and jump window).
+      forEachMessageCopy(state, roomJID, messageId, (message) => {
+        message.body = text;
+        // Flag the correction so the bubble can render an "edited" marker.
+        // Covers both the author's own edit and edits from other users -
+        // every <replace> echo flows through here.
+        message.isEdited = true;
+      });
+    },
+    /**
+     * Hard removal, unlike `deleteRoomMessage`'s tombstone. For optimistic
+     * messages that never made it onto the wire.
+     */
+    removeRoomMessage(
+      state: WritableDraft<RoomMessagesState>,
+      action: PayloadAction<{ roomJID: string; messageId: string }>
+    ) {
+      const { roomJID, messageId } = action.payload;
+      if (!isSafeKey(roomJID)) {return;}
+      if (state.rooms[roomJID]?.messages) {
+        state.rooms[roomJID].messages = state.rooms[roomJID].messages.filter(
+          (message) => message.id !== messageId
+        );
       }
+      const win = state.jumpWindow;
+      if (win && win.roomJID === roomJID) {
+        win.messages = win.messages.filter(
+          (message) => message.id !== messageId
+        );
+      }
+    },
+    /**
+     * Caches one translation onto the message it belongs to, keyed by the
+     * locale tag the translate service echoed back. Applied to the live
+     * copy and the jump window's copy.
+     */
+    setMessageTranslation(
+      state: WritableDraft<RoomMessagesState>,
+      action: PayloadAction<{
+        roomJID: string;
+        messageId: string;
+        locale: string;
+        entry: TranslationObject[string];
+      }>
+    ) {
+      const { roomJID, messageId, locale, entry } = action.payload;
+      if (!isSafeKey(roomJID) || !isSafeKey(locale)) {return;}
+      forEachMessageCopy(state, roomJID, messageId, (message) => {
+        if (!message.translations) {message.translations = {};}
+        message.translations[locale] = entry;
+      });
     },
     addRoomMessage(
       state: WritableDraft<RoomMessagesState>,
@@ -652,12 +964,15 @@ const reducers = {
       }>
     ) {
       const { roomJID, message, start } = action.payload;
+      if (!isSafeKey(roomJID)) {return;}
       const lengthBefore = state.rooms[roomJID]?.messages?.length || 0;
       const outcome = insertRoomMessage(state, roomJID, message, start);
       if (outcome.grew) {
         capAfterGrowth(state.rooms[roomJID].messages!, lengthBefore, outcome.atHead);
       }
       bumpLastMessageTimestamp(state, roomJID, message);
+      // Keep the jump window's copy in step with the live list.
+      syncJumpWindowWithMessage(state, roomJID, message, start, true);
     },
     /**
      * A whole page of messages (a MAM history page) in ONE action: the same
@@ -674,7 +989,7 @@ const reducers = {
       }>
     ) {
       const { roomJID, messages, start } = action.payload;
-      if (!state.rooms[roomJID] || !Array.isArray(messages)) {
+      if (!isSafeKey(roomJID) || !state.rooms[roomJID] || !Array.isArray(messages)) {
         return;
       }
       const lengthBefore = state.rooms[roomJID].messages?.length || 0;
@@ -690,6 +1005,9 @@ const reducers = {
         if (!newest || Number(message?.id) > Number(newest.id)) {
           newest = message;
         }
+        // History pages never append to a reader's jump window (they are not
+        // "the newest message"); they only refresh copies it already holds.
+        syncJumpWindowWithMessage(state, roomJID, message, start, false);
       }
       if (grew) {
         // A page that only prepended older history is never trimmed.
@@ -701,6 +1019,7 @@ const reducers = {
     },
     deleteAllRooms(state: WritableDraft<RoomMessagesState>) {
       state.rooms = {};
+      state.jumpWindow = null;
       state.visibleRoomJID = null;
       state.privateStoreMarkers = {};
       state.readBoundaries = {};
@@ -715,6 +1034,7 @@ const reducers = {
       }>
     ) {
       const { chatJID, composing, composingList } = action.payload;
+      if (!isSafeKey(chatJID) || !state.rooms[chatJID]) {return;}
       state.rooms[chatJID].composing = composing;
       state.rooms[chatJID].composingList = composingList;
     },
@@ -723,7 +1043,7 @@ const reducers = {
       action: PayloadAction<{ chatJID?: string; loading: boolean; loadingText?: string }>
     ) => {
       const { chatJID, loading, loadingText } = action.payload;
-      if (chatJID && state.rooms?.[chatJID]) {
+      if (isSafeKey(chatJID) && state.rooms?.[chatJID]) {
         state.rooms[chatJID].isLoading = loading;
       }
       state.isLoading = loading;
@@ -740,7 +1060,7 @@ const reducers = {
       action: PayloadAction<{ chatJID: string; timestamp: number }>
     ) => {
       const { chatJID, timestamp } = action.payload;
-      if (state.rooms[chatJID]) {
+      if (isSafeKey(chatJID) && state.rooms[chatJID]) {
         state.rooms[chatJID].lastViewedTimestamp = timestamp;
         // A non-positive timestamp means "no persisted marker yet" and
         // must not inflate unread from history that predates the first
@@ -793,7 +1113,7 @@ const reducers = {
       if (!state.privateStoreMarkers) {state.privateStoreMarkers = {};}
       for (const jid of Object.keys(markers)) {
         const ts = Number(markers[jid]);
-        if (!jid || !Number.isFinite(ts) || ts <= 0) {continue;}
+        if (!isSafeKey(jid) || !Number.isFinite(ts) || ts <= 0) {continue;}
 
         const room = state.rooms[jid];
         const newestKnownMs = room ? newestAckedMessageMs(room.messages) : 0;
@@ -839,7 +1159,7 @@ const reducers = {
       action: PayloadAction<{ jid: string; ts: number | null }>
     ) => {
       const { jid, ts } = action.payload;
-      if (!jid) {return;}
+      if (!isSafeKey(jid)) {return;}
       if (!state.readBoundaries) {state.readBoundaries = {};}
       if (typeof ts === 'number' && Number.isFinite(ts) && ts > 0) {
         state.readBoundaries[jid] = ts;
@@ -858,14 +1178,14 @@ const reducers = {
       action: PayloadAction<{ jid: string }>
     ) => {
       const { jid } = action.payload;
-      if (jid && state.readBoundaries) {delete state.readBoundaries[jid];}
+      if (isSafeKey(jid) && state.readBoundaries) {delete state.readBoundaries[jid];}
     },
     setRoomRole: (
       state: WritableDraft<RoomMessagesState>,
       action: PayloadAction<{ chatJID: string; role: string }>
     ) => {
       const { chatJID, role } = action.payload;
-      if (state.rooms[chatJID]) {
+      if (isSafeKey(chatJID) && state.rooms[chatJID]) {
         state.rooms[chatJID].role = role;
       }
     },
@@ -874,7 +1194,7 @@ const reducers = {
       action: PayloadAction<{ value: boolean; chatJID?: string }>
     ) => {
       const { value, chatJID } = action.payload;
-      if (chatJID) {
+      if (isSafeKey(chatJID) && state.rooms[chatJID]) {
         state.rooms[chatJID].noMessages = value;
       }
     },
@@ -884,16 +1204,30 @@ const reducers = {
     ) => {
       // Accept null/empty so callers can clear the active room (e.g.
       // back button from chat → return to RoomList). Mirrors web.
-      state.activeRoomJID = action.payload.roomJID || '';
+      const { roomJID } = action.payload;
+      if (roomJID && !isSafeKey(roomJID)) {return;}
+      state.activeRoomJID = roomJID || '';
+      // Opening a room reads it: the server's earlier unread count no longer
+      // applies (the unread middleware would otherwise bring it back the
+      // moment the user leaves the room again).
+      if (roomJID && state.rooms[roomJID]?.apiUnreadCount !== undefined) {
+        state.rooms[roomJID].apiUnreadCount = undefined;
+        state.rooms[roomJID].apiUnreadSeededAt = undefined;
+        state.rooms[roomJID].unreadMessages = 0;
+      }
     },
     setVisibleRoom: (
       state: WritableDraft<RoomMessagesState>,
       action: PayloadAction<{ roomJID: string | null }>
     ) => {
-      state.visibleRoomJID = action.payload.roomJID || null;
+      const requested = action.payload.roomJID;
+      if (requested && !isSafeKey(requested)) {return;}
+      state.visibleRoomJID = requested || null;
       const jid = state.visibleRoomJID;
       if (jid && state.rooms[jid]) {
         state.rooms[jid].unreadMessages = 0;
+        state.rooms[jid].apiUnreadCount = undefined;
+        state.rooms[jid].apiUnreadSeededAt = undefined;
       }
     },
     clearVisibleRoom: (state: WritableDraft<RoomMessagesState>) => {
@@ -920,6 +1254,116 @@ const reducers = {
     clearPendingNotificationJid: (state: WritableDraft<RoomMessagesState>) => {
       state.pendingNotificationJid = null;
     },
+    requestJumpToMessage: (
+      state: WritableDraft<RoomMessagesState>,
+      action: PayloadAction<{
+        roomJID: string;
+        ids: string[];
+        createdAt?: string;
+        body?: string;
+        preview?: ArchivedMessage;
+      }>
+    ) => {
+      const ids = action.payload.ids.filter(Boolean);
+      const canMatchByContent = Boolean(
+        action.payload.createdAt && action.payload.body
+      );
+      if (!action.payload.roomJID || (ids.length === 0 && !canMatchByContent)) {
+        return;
+      }
+      state.pendingJump = {
+        roomJID: action.payload.roomJID,
+        ids,
+        createdAt: action.payload.createdAt,
+        body: action.payload.body,
+        preview: action.payload.preview,
+        at: Date.now(),
+      };
+    },
+    clearPendingJump: (state: WritableDraft<RoomMessagesState>) => {
+      state.pendingJump = null;
+    },
+    showArchivedMessage: (
+      state: WritableDraft<RoomMessagesState>,
+      action: PayloadAction<ArchivedMessage>
+    ) => {
+      state.archivedMessage = action.payload;
+    },
+    clearArchivedMessage: (state: WritableDraft<RoomMessagesState>) => {
+      state.archivedMessage = null;
+    },
+    setJumpWindow: (
+      state: WritableDraft<RoomMessagesState>,
+      action: PayloadAction<JumpWindow>
+    ) => {
+      state.jumpWindow = {
+        ...action.payload,
+        messages: mergeWindowMessages(action.payload.messages, []),
+      };
+    },
+    prependJumpWindowMessages: (
+      state: WritableDraft<RoomMessagesState>,
+      action: PayloadAction<{
+        roomJID: string;
+        messages: IMessage[];
+        olderCursor: number | null;
+        hasOlder: boolean;
+      }>
+    ) => {
+      const win = state.jumpWindow;
+      if (!win || win.roomJID !== action.payload.roomJID) {return;}
+      win.messages = mergeWindowMessages(action.payload.messages, win.messages);
+      win.olderCursor = action.payload.olderCursor;
+      win.hasOlder = action.payload.hasOlder;
+      if (win.messages.length > JUMP_WINDOW_MAX_MESSAGES) {
+        // Reader is going up: drop the far (newest) side and page it again if
+        // they come back down.
+        win.messages = win.messages.slice(0, JUMP_WINDOW_MAX_MESSAGES);
+        const newest = Number(win.messages[win.messages.length - 1].id);
+        win.newerCursor = Number.isFinite(newest) ? newest : win.newerCursor;
+        win.hasNewer = true;
+      }
+    },
+    appendJumpWindowMessages: (
+      state: WritableDraft<RoomMessagesState>,
+      action: PayloadAction<{
+        roomJID: string;
+        messages: IMessage[];
+        newerCursor: number | null;
+        hasNewer: boolean;
+      }>
+    ) => {
+      const win = state.jumpWindow;
+      if (!win || win.roomJID !== action.payload.roomJID) {return;}
+      win.messages = mergeWindowMessages(win.messages, action.payload.messages);
+      win.newerCursor = action.payload.newerCursor;
+      win.hasNewer = action.payload.hasNewer;
+      if (win.messages.length > JUMP_WINDOW_MAX_MESSAGES) {
+        win.messages = win.messages.slice(-JUMP_WINDOW_MAX_MESSAGES);
+        const oldest = Number(win.messages[0].id);
+        win.olderCursor = Number.isFinite(oldest) ? oldest : win.olderCursor;
+        win.hasOlder = true;
+      }
+    },
+    clearJumpWindow: (state: WritableDraft<RoomMessagesState>) => {
+      state.jumpWindow = null;
+    },
+    setJoiningRoom: (
+      state: WritableDraft<RoomMessagesState>,
+      action: PayloadAction<string>
+    ) => {
+      state.joiningRoomJID = action.payload || null;
+    },
+    // Only clears when it still names that room, so a slow join for a room
+    // the user already left cannot wipe the join of the current one.
+    clearJoiningRoom: (
+      state: WritableDraft<RoomMessagesState>,
+      action: PayloadAction<string>
+    ) => {
+      if (state.joiningRoomJID === action.payload) {
+        state.joiningRoomJID = null;
+      }
+    },
     /**
      * Stamp a message in `state.rooms[roomJID].messages` with an updated
      * reactions list. The reactionsMiddleware listens for this action to
@@ -938,15 +1382,28 @@ const reducers = {
     ) => {
       const { roomJID, messageId, reactions, from, data, latestReactionTimestamp } =
         action.payload;
-      if (!from) {return;}
-      const room = state.rooms[roomJID];
-      const target = room?.messages?.find(
-        (msg) => msg?.id === messageId || msg?.xmppId === messageId
+      if (!isSafeKey(roomJID) || !from) {return;}
+      // `fromId` becomes a property name on the message's reaction map.
+      const fromId = String(from).split('/')[0].split('@')[0];
+      if (!isSafeKey(fromId)) {return;}
+      let found = false;
+      // Applied on every stored copy (live list and jump window).
+      forEachMessageCopy(
+        state,
+        roomJID,
+        (msg) => msg?.id === messageId || msg?.xmppId === messageId,
+        (message) => {
+          found = true;
+          applyReactionToMessage(
+            message as IMessage,
+            from,
+            reactions,
+            data,
+            latestReactionTimestamp
+          );
+        }
       );
-      if (target) {
-        applyReactionToMessage(target as IMessage, from, reactions, data, latestReactionTimestamp);
-        return;
-      }
+      if (found) {return;}
       // The message is not loaded (yet): keep the reaction for it.
       if (!state.pendingReactions) {state.pendingReactions = {};}
       const byMessage = (state.pendingReactions[roomJID] ||= {});
@@ -964,30 +1421,39 @@ const reducers = {
       state.isUnreadSyncing = false;
       state.privateStoreMarkers = {};
       state.readBoundaries = {};
+      state.usersSet = {};
+      state.jumpWindow = null;
+      state.archivedMessage = null;
+      state.pendingJump = null;
     },
     setActiveMessage: (
       state: WritableDraft<RoomMessagesState>,
       action: PayloadAction<{ id: string; chatJID: string }>
     ) => {
       const { id, chatJID } = action.payload;
-
-      state.rooms[chatJID].messages.map((message) => {
-        if (message.id === id) {
-          message.activeMessage = true;
-        } else {
-          message.activeMessage = false;
-        }
-      });
+      if (!isSafeKey(chatJID) || !state.rooms[chatJID]) {return;}
+      const flag = (message: IMessage) => {
+        message.activeMessage = message.id === id;
+      };
+      state.rooms[chatJID].messages.forEach(flag);
+      if (state.jumpWindow?.roomJID === chatJID) {
+        state.jumpWindow.messages.forEach(flag);
+      }
     },
     setCloseActiveMessage: (
       state: WritableDraft<RoomMessagesState>,
       action: PayloadAction<{ chatJID: string }>
     ) => {
       const { chatJID } = action.payload;
-
-      state.rooms[chatJID].messages.map((message) => {
+      if (!isSafeKey(chatJID) || !state.rooms[chatJID]) {return;}
+      state.rooms[chatJID].messages.forEach((message) => {
         message.activeMessage = false;
       });
+      if (state.jumpWindow?.roomJID === chatJID) {
+        state.jumpWindow.messages.forEach((message) => {
+          message.activeMessage = false;
+        });
+      }
     },
     /**
      * Batched update used by the history preload scheduler. Each patch is
@@ -1008,22 +1474,15 @@ const reducers = {
         ...existing,
         ...room,
         title: room.title || existing?.title || room.title,
-        usersCnt: (() => {
-          const incoming =
-            typeof room.usersCnt === 'number' && room.usersCnt > 0
-              ? room.usersCnt
-              : 0;
-          const previous =
-            typeof existing?.usersCnt === 'number' && existing.usersCnt > 0
-              ? existing.usersCnt
-              : 0;
-          if (incoming === 0 && previous === 0) return room.usersCnt;
-          return Math.max(incoming, previous);
-        })(),
+        usersCnt: resolveIncomingUsersCnt(room, existing),
         icon: room.icon ?? existing?.icon,
         messages:
           existingMessages.length > 0 ? existingMessages : incomingMessages,
+        // A seed for the room-list preview (the API's `lastMessage`): take the
+        // freshest value, never let a refresh without one erase it.
+        lastMessage: room.lastMessage ?? existing?.lastMessage,
         unreadMessages: existing?.unreadMessages ?? room.unreadMessages ?? 0,
+        ...resolveApiUnread(state, room.jid, room, existing),
         lastViewedTimestamp:
           existing?.lastViewedTimestamp ?? room.lastViewedTimestamp ?? 0,
         unreadBaselineTimestamp:
@@ -1047,8 +1506,9 @@ const reducers = {
     ) => {
       const { rooms } = action.payload;
       for (const patch of rooms) {
+        if (!isSafeKey(patch?.jid)) {continue;}
         const room = state.rooms[patch.jid];
-        if (!room) {continue;}
+        if (!room || typeof room !== 'object' || Array.isArray(room)) {continue;}
         if (typeof patch.historyPreloadState !== 'undefined') {
           room.historyPreloadState = patch.historyPreloadState;
         }
@@ -1057,6 +1517,9 @@ const reducers = {
         }
         if (typeof patch.historyComplete !== 'undefined') {
           room.historyComplete = patch.historyComplete;
+        }
+        if (patch.messageStats) {
+          room.messageStats = { ...room.messageStats, ...patch.messageStats };
         }
         if (Array.isArray(patch.messages)) {
           for (const m of patch.messages) {takePendingReactions(state, patch.jid, m);}
@@ -1076,7 +1539,13 @@ const reducers = {
       state: WritableDraft<RoomMessagesState>,
       action: PayloadAction<{ members: Record<string, any> }>
     ) {
-      state.usersSet = { ...(state.usersSet || {}), ...action.payload.members };
+      // A real merge with a cap: fresh entries win (and move to the newest
+      // position), entries fetched lazily earlier stay, the oldest-inserted
+      // are evicted past USERS_SET_CAP. Unsafe keys are skipped.
+      if (!state.usersSet || typeof state.usersSet !== 'object') {
+        state.usersSet = {};
+      }
+      mergeIntoUsersSet(state.usersSet, action.payload?.members || {});
     },
 };
 
@@ -1197,8 +1666,21 @@ export const {
   setUnreadCounts,
   setPendingNotificationJid,
   clearPendingNotificationJid,
+  requestJumpToMessage,
+  clearPendingJump,
+  setJoiningRoom,
+  clearJoiningRoom,
   setReactions,
   mergeUsersSet,
+  removeRoomMessage,
+  addRoomFromApi,
+  setMessageTranslation,
+  showArchivedMessage,
+  clearArchivedMessage,
+  setJumpWindow,
+  prependJumpWindowMessages,
+  appendJumpWindowMessages,
+  clearJumpWindow,
 } = roomsStore.actions;
 
 export default roomsStore.reducer;

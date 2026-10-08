@@ -5,8 +5,11 @@ import {
   View,
   TouchableOpacity,
   TextInputProps,
+  Text,
+  StyleSheet,
 } from 'react-native';
 import { useTheme } from '../../hooks/useTheme';
+import { useT } from '../../i18n/useT';
 
 const shouldForwardProp = (prop: string) =>
   prop !== 'animated' && prop !== 'expanded' && prop !== 'direction';
@@ -71,6 +74,17 @@ interface SearchInputProps extends TextInputProps {
   value: string;
 }
 
+const clearStyles = StyleSheet.create({
+  button: {
+    width: 28,
+    height: 28,
+    marginLeft: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  glyph: { fontSize: 22, lineHeight: 24 },
+});
+
 const SearchInput: React.FC<SearchInputProps> = ({
   icon,
   animated = false,
@@ -79,6 +93,7 @@ const SearchInput: React.FC<SearchInputProps> = ({
   ...props
 }) => {
   const theme = useTheme();
+  const t = useT();
   const [isExpanded, setIsExpanded] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const inputRef = useRef<TextInput | null>(null);
@@ -134,6 +149,24 @@ const SearchInput: React.FC<SearchInputProps> = ({
         keyboardAppearance={theme.dark ? 'dark' : 'light'}
         {...props}
       />
+      {props.value ? (
+        <TouchableOpacity
+          testID="search-clear"
+          accessibilityRole="button"
+          accessibilityLabel={t('search.clear')}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          onPress={() => {
+            props.onChangeText?.('');
+            setIsTyping(false);
+            inputRef.current?.focus();
+          }}
+          style={clearStyles.button}
+        >
+          <Text style={[clearStyles.glyph, { color: theme.textMuted }]}>
+            {'\u00D7'}
+          </Text>
+        </TouchableOpacity>
+      ) : null}
     </SearchInputWrapper>
   );
 };

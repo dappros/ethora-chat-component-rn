@@ -1,6 +1,7 @@
 import { Middleware } from '@reduxjs/toolkit';
 import { setUnreadCounts, msgSortableMs } from '../roomsSlice';
 import { IMessage } from '../../types/types';
+import { getTimestampFromUnknown } from '../../helpers/timestamp';
 
 // Per-room cache so we only recompute when something that affects the
 // count actually changed. The fingerprint is `<messages.length>|<lastViewed>`
@@ -73,6 +74,9 @@ const TRIGGER_ACTIONS = new Set([
   'roomMessages/setVisibleRoom',
   'roomMessages/clearVisibleRoom',
   'roomMessages/addRoom',
+  // A /chats/my refresh can bring a fresh server-reported unread count
+  // (apiUnreadCount) that has to reach the badge without any local history.
+  'roomMessages/addRoomFromApi',
   'roomMessages/updateRoom',
   // The history preload scheduler merges fetched pages via this action on
   // re-entry; recompute so unread reflects messages that arrived while the
@@ -161,10 +165,17 @@ export const unreadMiddleware: Middleware =
         if (room.unreadMessages !== 0) {counts[jid] = 0;}
         continue;
       }
+      // Server-reported unread (GET /v1/chats/my `unreadCount`): lets a room
+      // with no baseline and no loaded history still show a badge.
+      const apiUnread: number | undefined =
+        typeof room.apiUnreadCount === 'number' && room.apiUnreadCount > 0
+          ? room.apiUnreadCount
+          : undefined;
       // No reference point (undefined / null / 0): after logout→login,
       // hydrated rooms come back without lastViewedTimestamp, and treating
-      // that as 0 made every history message count as unread.
-      if (!(room.lastViewedTimestamp > 0)) {continue;}
+      // that as 0 made every history message count as unread. Only the API
+      // count can speak for such a room.
+      if (!(room.lastViewedTimestamp > 0) && apiUnread === undefined) {continue;}
 
       const msgs = room.messages;
       const currentMessagesLength = msgs?.length || 0;
@@ -172,7 +183,11 @@ export const unreadMiddleware: Middleware =
       const lastId = currentMessagesLength
         ? String(msgs![currentMessagesLength - 1]?.id ?? '')
         : '';
-      const fingerprint = `${currentMessagesLength}|${room.lastViewedTimestamp || 0}|${firstId}|${lastId}`;
+      const fingerprint = `${currentMessagesLength}|${room.lastViewedTimestamp || 0}|${firstId}|${lastId}|${room.apiUnreadCount ?? ''}|${room.apiUnreadSeededAt ?? ''}|${room.lastMessage?.date ?? ''}${
+        // Another reducer can reset the displayed count under an unchanged
+        // fingerprint; with a server count in play, recompute then too.
+        apiUnread !== undefined ? `|${room.unreadMessages ?? ''}` : ''
+      }`;
       if (triggerCache[jid] === fingerprint) {continue;}
       triggerCache[jid] = fingerprint;
 
@@ -182,15 +197,48 @@ export const unreadMiddleware: Middleware =
       // own messages so MAM-replayed sends on re-login don't bump
       // the user's own badge.
       const since = room.lastViewedTimestamp || 0;
+      const isCountable = (msg: IMessage) =>
+        msg.id !== 'delimiter-new' &&
+        !msg.pending &&
+        String((msg as any)?.isSystemMessage || '') !== 'true' &&
+        !isOwnMessage(msg, selfXmpp, selfWallet);
+      // Without a baseline (only reachable here via the API count) nothing
+      // can be counted locally: the whole history would read as unread.
       let unreadMessagesCount = 0;
-      for (const msg of msgs || []) {
-        if (
-          msg.id !== 'delimiter-new' &&
-          !msg.pending &&
-          msgSortableMs(msg) > since &&
-          !isOwnMessage(msg, selfXmpp, selfWallet)
-        ) {
-          unreadMessagesCount += 1;
+      if (since > 0) {
+        for (const msg of msgs || []) {
+          if (isCountable(msg) && msgSortableMs(msg) > since) {
+            unreadMessagesCount += 1;
+          }
+        }
+      }
+
+      // Server-reported unread as a floor while history is not (fully)
+      // loaded. No double counting: messages newer than the seed time are
+      // counted on top of the API number (they arrived after the server
+      // computed it); older loaded ones are NOT added (the API number
+      // already covers them) and the result is max(local, api + newer).
+      // Once the user has read past the API's last message the API number
+      // is stale and ignored.
+      if (apiUnread !== undefined) {
+        const seededAt = getTimestampFromUnknown(room.apiUnreadSeededAt);
+        const apiLastTs = getTimestampFromUnknown(room.lastMessage?.date);
+        const readPastApi = since > 0 && apiLastTs > 0 && since >= apiLastTs;
+        if (!readPastApi) {
+          let newerThanSeed = 0;
+          for (const msg of msgs || []) {
+            if (
+              isCountable(msg) &&
+              msgSortableMs(msg) > seededAt &&
+              msgSortableMs(msg) > since
+            ) {
+              newerThanSeed += 1;
+            }
+          }
+          unreadMessagesCount = Math.max(
+            unreadMessagesCount,
+            apiUnread + newerThanSeed
+          );
         }
       }
 

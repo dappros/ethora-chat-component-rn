@@ -61,6 +61,20 @@ Legend: ✅ ported · 🟡 partial · ❌ missing or stub.
 | 47 | `setPendingNotificationJid` + `clearPendingNotificationJid` + `state.rooms.pendingNotificationJid` (push deep-link queue) | web | `roomsSlice.ts` | ✅ | Used by `usePushNotifications` (on tap) and `usePendingNotification` (on rooms-loaded). |
 | 48 | XMPP method stubs to satisfy `XmppClientInterface` | n/a | `xmppClient.ts` — `setVCardStanza`, `createPrivateRoomStanza`, `sendMessageReactionStanza`, `sendTextMessageWithTranslateTagStanza` | 🟡 | Stubs warn or delegate; replace with real `*.xmpp.ts` helpers when ported. |
 
+| 49 | Lazy sender resolver (`GET /v1/apps/users/<id>`, v2 fallback) and true member counts (`usersCnt`, live join/leave +/-1, full member directory in the chat profile) | `userResolver`, `roomsSlice` | `helpers/userResolver.ts`, `roomsSlice.ts` | 🟡 | Ported from web PR 100; unit tests and types only, not run on a device. |
+| 50 | Jump window (`client.getHistoryWindow`, Jump to latest, archived-message card) and bubble-only highlight | `xmppClient.ts`, chat room | `xmppClient.ts`, `ChatRoom` | 🟡 | `maintainVisibleContentPosition`, `scrollToIndex` outside the render window and Animated highlight with reduce motion are device-only checks. |
+| 51 | Server-cursor paging and auto-fill (`fin`, `first`, `last`, `count`, 15 s watchdog) | `xmppClient.ts` | `xmppClient.ts` | 🟡 | `maxstanzas=0`, window isolation (queryid echo) and start/end form against real mod_mam are not verified. |
+| 52 | `ethora-event` headlines (`user-profile-updated`, `chat-meta-updated`) with trusted-sender rule | `ethoraEvents` | `networking/ethoraEvents.ts` | 🟡 | Config `trustedEventSenders`. Not seen against a real server. |
+| 53 | Fast start: list after `/chats/my`, background join sweep, staged preload, `maxstanzas=0`, `presencesReady` = whole sweep, `priorityPresencesReady` | `xmppClient.ts`, provider | `xmppClient.ts`, `xmppProvider.tsx` | 🟡 | Breaking: `presencesReady` no longer means online. Scale with hundreds of rooms not measured. |
+| 54 | Chat list message matches (2+ chars, only with `enableMessageSearch`) and search clear button | chat list | chat list search | 🟡 | Search strip animation with the new footer and clear-button focus are device-only checks. |
+| 55 | Thread history by the server cursor, translated thread UI, no flash of a thread reply in the main channel | thread panel | `Thread/ThreadWrapper.tsx` | ❌ | `ThreadWrapper` is imported in `ChatWrapper` but not mounted, so the thread panel is not rendered on RN. |
+
+### Known gaps after the port of web PR 100
+
+- **Threads are not reachable.** `ThreadWrapper` is imported by `ChatWrapper` but never mounted, so the thread panel is not rendered on RN (this was already so on RN main before this work). Thread history paging, thread jumps and the thread reply fix only take effect once threads are mounted. Do not read the thread rows as working end to end.
+- **@mentions do not exist on RN.**
+- **Nothing in this port was verified on a device or simulator.** Only unit tests and type checks ran. Device-only checks: `maintainVisibleContentPosition` anchoring in window mode on iOS and Android, `scrollToIndex` to rows outside the render window, the Animated highlight and reduce motion, keyboard behaviour, the search strip animation with the new footer, clear button focus, thread gestures, real ejabberd behaviour (queryid echo for window isolation, the start/end form against mod_mam, `maxstanzas=0`), real `/v2/chats/users` and `/chats/my` payloads on production, and scale with hundreds of rooms.
+
 ### Integration follow-up after the port overwrite
 
 The port commit (`f57de0e`) overwrote a few existing RN files. The
@@ -169,6 +183,9 @@ callers (e.g. `ChatRoom.tsx`) keep working without drift.
 | `whitelistSystemMessage` | ✅ | ✅ |  |
 | `customSystemMessage` | ✅ | ✅ |  |
 | `translates` | ✅ | ✅ |  |
+| `historyPreload` (`mode`, `topRooms`, `concurrency`) | ✅ | ✅ | Falls back to the older `historyQoS` names. |
+| `userLookupRoute` | ✅ | ✅ | `'auto'` / `'v1'` / `'v2'`. |
+| `trustedEventSenders` | ✅ | ✅ |  |
 | `enableTranslates` | ❌ | ✅ | RN-only convenience (web uses `translates.enabled`). |
 | `inAppNotifications` | ✅ | ✅ | See §1 row 32. |
 | `pushNotifications` | ✅ (FCM + serviceWorker) | ✅ (FCM + `onNotificationPress` + `onClick`) | RN shape adapted for `@react-native-firebase/messaging`. |
@@ -205,6 +222,8 @@ canonical definition.
 | `historyQoS.stagedPreloadFirstPassSize` | ✅ | ✅ | Honored as `pageSize`. |
 | `historyQoS.stagedPreloadSecondPassSize` | ✅ | ✅ | Typed only. |
 | `historyQoS.stagedPreloadConcurrency` | ✅ | ✅ | Honored. |
+| `historyQoS.joinHistoryStanzas` | ✅ | ✅ | Default 0. |
+| `historyQoS.joinConcurrency` | ✅ | ✅ | Default 5. |
 
 ### `XmppClientInterface` methods
 

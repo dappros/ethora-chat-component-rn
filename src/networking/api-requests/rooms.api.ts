@@ -3,6 +3,11 @@ import { store } from '../../roomStore';
 import { addRoom, mergeUsersSet, updateRoom } from '../../roomStore/roomsSlice';
 import { IRoom } from '../../types/types';
 import http from '../apiClient';
+import {
+  mapApiLastMessage,
+  readApiUnreadCount,
+  readApiUsersCnt,
+} from '../../helpers/createRoomFromApi';
 
 /**
  * Populate `state.rooms.usersSet` (the identity cache Message.tsx resolves
@@ -178,6 +183,7 @@ function dispatchRoomsFromRestItems(
       jid = `${item.name}@${conference}`;
     }
     if (!jid.includes('@')) continue;
+    const apiUnreadCount = readApiUnreadCount(item);
     const known = store.getState().rooms.rooms?.[jid];
     const preview = (item.members?.length ?? 0) < memberCount(item);
     const keep = <T,>(fresh: T[], existing: T[] | undefined): T[] =>
@@ -187,7 +193,9 @@ function dispatchRoomsFromRestItems(
       jid,
       name: item.name,
       title: item.title || item.name,
-      usersCnt: memberCount(item),
+      // /chats/my lists at most 30 members of a big room but reports the
+      // true total in usersCnt (older backends: participants).
+      usersCnt: readApiUsersCnt(item),
       messages: [],
       isLoading: false,
       roomBg: '',
@@ -197,6 +205,12 @@ function dispatchRoomsFromRestItems(
       // A list requested before a mute toggle carries the pre-toggle value:
       // the store (optimistic, then the toggle's own answer) is newer.
       muted: keepMuted && known ? known.muted === true : item.muted === true,
+      // Server-reported unread (backends that send it) and the API's last
+      // message, both seeds for the room list before any history is loaded.
+      ...(apiUnreadCount !== undefined ? { unreadMessages: apiUnreadCount } : {}),
+      apiUnreadCount,
+      apiUnreadSeededAt: apiUnreadCount === undefined ? undefined : Date.now(),
+      lastMessage: mapApiLastMessage(item.lastMessage, jid),
       description: (item as any).description,
       type: (item as any).type,
 

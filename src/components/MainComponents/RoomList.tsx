@@ -10,6 +10,7 @@ import React, {
 import {
   Alert,
   View,
+  Text,
   StyleSheet,
   FlatList,
   Pressable,
@@ -34,6 +35,14 @@ import { getIconColor } from '../../helpers/getIconColor';
 import { useT } from '../../i18n/useT';
 import { useTheme } from '../../hooks/useTheme';
 import { useRoomMute } from '../../hooks/useRoomMute';
+import { isMessageSearchEnabled } from '../../helpers/isMessageSearchEnabled';
+import { useMessageSearch } from '../Modals/MessageSearchModal/useMessageSearch';
+import type { MessageSearchHit } from '../../networking/api-requests/messageSearch.api';
+import {
+  MessageHitList,
+  SecondaryPillButton,
+  useMessageHitActions,
+} from '../Modals/MessageSearchModal/MessageHitResults';
 
 const LONG_PRESS_THRESHOLD = 200;
 
@@ -176,6 +185,28 @@ const RoomList: React.FC<RoomListProps> = ({
     if (Number.isFinite(fromSeed) && fromSeed > 0) {return fromSeed;}
     return 0;
   }, []);
+
+  // The same box that filters chats by title also looks inside the messages.
+  // Off wherever message search is off (no request, no block).
+  const messageSearchEnabled = isMessageSearchEnabled(config);
+  const messageSearch = useMessageSearch(
+    messageSearchEnabled ? searchTerm : '',
+    'all'
+  );
+  const { open: openHit, activeRoomJID } = useMessageHitActions();
+  const openMessageHit = useCallback(
+    (hit: MessageSearchHit) => {
+      const target = (chats || []).find(
+        (chat) =>
+          chat?.jid === hit.room || chat?.jid?.split('@')[0] === hit.chatId
+      );
+      // The path a tap on a chat row takes, so a host that routes on room
+      // clicks sees this one too; then land on the message.
+      if (target && target.jid !== activeRoomJID) performClick(target);
+      openHit(hit);
+    },
+    [chats, activeRoomJID, performClick, openHit]
+  );
 
   const filteredChats = useMemo(() => {
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
@@ -397,6 +428,75 @@ const RoomList: React.FC<RoomListProps> = ({
     });
   };
 
+  const messageMatches =
+    messageSearchEnabled && messageSearch.searchable ? (
+      <View testID="room-list-message-matches" style={styles.matches}>
+        {messageSearch.items.length > 0 && (
+          <>
+            <View style={styles.matchesTitle}>
+              <Text style={[styles.matchesTitleText, { color: theme.text }]}>
+                {t('search.messages.title')}
+              </Text>
+              <Text style={[styles.matchesCount, { color: theme.textMuted }]}>
+                {t('search.messages.count', { count: messageSearch.total })}
+              </Text>
+            </View>
+            <MessageHitList
+              hits={messageSearch.items}
+              query={searchTerm.trim()}
+              showRoom
+              onOpen={openMessageHit}
+            />
+            {messageSearch.hasMore && (
+              <SecondaryPillButton
+                testID="room-list-message-more"
+                onPress={messageSearch.loadMore}
+                disabled={messageSearch.status === 'loadingMore'}
+                label={
+                  messageSearch.status === 'loadingMore'
+                    ? t('search.messages.searching')
+                    : t('search.messages.loadMore')
+                }
+              />
+            )}
+          </>
+        )}
+        {messageSearch.status === 'loading' && (
+          <Text
+            testID="room-list-message-searching"
+            style={[styles.matchesNote, { color: theme.textMuted }]}
+          >
+            {t('search.messages.searching')}
+          </Text>
+        )}
+        {messageSearch.status === 'done' &&
+          messageSearch.items.length === 0 &&
+          filteredChats.length === 0 && (
+            <Text
+              testID="room-list-message-empty"
+              style={[styles.matchesNote, { color: theme.textMuted }]}
+            >
+              {t('search.messages.empty')}
+            </Text>
+          )}
+        {messageSearch.status === 'error' && (
+          <View style={styles.matchesNote}>
+            <Text
+              testID="room-list-message-error"
+              style={[styles.matchesError, { color: theme.danger }]}
+            >
+              {t('search.messages.error')}
+            </Text>
+            <SecondaryPillButton
+              testID="room-list-message-retry"
+              onPress={messageSearch.retry}
+              label={t('search.messages.retry')}
+            />
+          </View>
+        )}
+      </View>
+    ) : null;
+
   const searchHeader = (
     <View
       testID="room-list-search"
@@ -459,6 +559,7 @@ const RoomList: React.FC<RoomListProps> = ({
                   data={filteredChats}
                   keyExtractor={(item) => item.jid}
                   ListHeaderComponent={searchHeader}
+                  ListFooterComponent={messageMatches}
                   onLayout={(e) => {
                     listHeight.current = e.nativeEvent.layout.height;
                     hideSearchInitially();
@@ -542,6 +643,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flex: 1,
   },
+  matches: { paddingBottom: 12 },
+  matchesTitle: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    paddingVertical: 8,
+  },
+  matchesTitleText: { fontSize: 14, fontWeight: '600' },
+  matchesCount: { fontSize: 12 },
+  matchesError: { textAlign: 'center' },
+  matchesNote: { paddingVertical: 8, alignItems: 'center' },
   chatList: {
     flex: 1,
     paddingHorizontal: 16,

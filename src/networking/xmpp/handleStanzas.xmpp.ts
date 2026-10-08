@@ -20,6 +20,7 @@ import {
 } from '../stanzaHandlers';
 import XmppClient from '../xmppClient';
 import { onCallTokenMessage } from '../callTokenStanza';
+import { onEthoraEvent } from '../ethoraEvents';
 import { accountDomain, isE2eeEnabled } from '../../e2ee';
 import {
   decryptStanzaInPlace,
@@ -95,6 +96,13 @@ export const __resetStanzaQueueForTests = (): void => {
 };
 
 function dispatchStanza(stanza: Element, xmppWs: XmppClient) {
+  // `<ethora-event>` server pushes ride on headline messages (also inside a
+  // mucsub wrapper). Handled (or silently ignored when untrusted) before the
+  // headline early return; never throws.
+  if (stanza?.name === 'message') {
+    onEthoraEvent(stanza, xmppWs as any);
+  }
+
   if (stanza?.attrs?.type === 'headline') {return;}
 
   // Call signaling is swallowed before any chat handler sees it. A

@@ -26,4 +26,7 @@ export const MODAL_TYPES = {
   FILE_PREVIEW: 'file_preview',
 
   NEW_CHAT: 'new_chat',
+
+  MESSAGE_SEARCH: 'message_search',
+  PUBLIC_CHATS: 'public_chats',
 };

@@ -14,6 +14,7 @@ import { VideoCallOverlay } from '../components/VideoCalls/VideoCallOverlay';
 import XmppClient, {
   XmppCredentialsProvider,
 } from '../networking/xmppClient';
+import { recoverXmppCredentials } from '../networking/xmppCredentials';
 import { refreshAuthTokensQuietly } from '../networking/authRefresh';
 import {
   IConfig,
@@ -31,12 +32,11 @@ import {
 } from '../utils/clientRegistry';
 import {
   applyResolvedUserToStore,
-  refreshUserCredentialsForXmpp,
   resolveInitBeforeLoadUser,
 } from '../helpers/resolveInitBeforeLoadUser';
 import { ensureScopedChatCache } from '../helpers/ensureScopedChatCache';
 import { getRooms as prefetchRoomsViaRest } from '../networking/api-requests/rooms.api';
-import { allRoomPresences } from '../networking/xmpp/allRoomPresences.xmpp';
+import { startBackgroundJoinSweep } from '../helpers/backgroundJoinSweep';
 import { pushSubscriptionService } from '../services/pushSubscriptionService';
 import { store } from '../roomStore';
 import {
@@ -58,7 +58,7 @@ import {
   getFlushBoundaryTs,
   getReadMarkerTimestamp,
 } from '../helpers/getServerReadTimestamp';
-import { runHistoryPreloadScheduler } from '../helpers/historyPreloadScheduler';
+import { runConfiguredHistoryPreload } from '../helpers/runConfiguredHistoryPreload';
 import { updateMessagesTillLast } from '../helpers/updateMessagesTillLast';
 import { secureUserStorage } from '../helpers/secureUserStorage';
 import { clearPersistedState } from '../roomStore/persistence';
@@ -132,62 +132,7 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
   // Returns last-known cached creds if nothing usable is available so
   // the XmppClient at least doesn't crash on `undefined.password`.
   const credentialsProvider = useMemo<XmppCredentialsProvider>(() => {
-    return async () => {
-      // 1. Make sure the REST tokens are fresh before re-minting XMPP
-      //    creds. This used to call `config.refreshTokens.refreshFunction`
-      //    directly and then fall into step 2, which refreshes again —
-      //    two rotations back to back, which the new backend scheme
-      //    reads as a race at best and token reuse at worst. One call to
-      //    the shared rotation point covers both the consumer-supplied
-      //    function and the built-in endpoint.
-      if (config?.refreshTokens?.enabled) {
-        const rotated = await refreshAuthTokensQuietly({ force: true });
-
-        if (rotated?.xmppPassword) {
-          const rotatedUser = store.getState().chatSettingStore.user;
-          return {
-            username:
-              rotatedUser?.xmppUsername ||
-              rotatedUser?.defaultWallet?.walletAddress ||
-              '',
-            password: rotated.xmppPassword,
-          };
-        }
-      }
-
-      // 2. Re-mint XMPP creds via the right priority chain for the
-      //    current auth mode. This call ALWAYS hydrates (unlike
-      //    `resolveInitBeforeLoadUser` which short-circuits when a
-      //    cached user already has xmppCredentials).
-      const fresh = await refreshUserCredentialsForXmpp(config).catch(
-        (err) => {
-          devPushLog('warn', 'XMPP creds refresh: full chain failed', err);
-          return null;
-        }
-      );
-      if (fresh) {
-        applyResolvedUserToStore(fresh);
-        return {
-          username:
-            fresh.xmppUsername ||
-            fresh.defaultWallet?.walletAddress ||
-            '',
-          password: fresh.xmppPassword || '',
-        };
-      }
-
-      // 3. Last-resort: return the cached creds so reconnect() can
-      //    still attempt a connection. If the original failure was
-      //    a stale JWT this will fail again and the user has to
-      //    re-mount the chat — but at least we don't break the
-      //    transient-network-blip case where the cached creds are
-      //    still valid.
-      const u = store.getState().chatSettingStore.user;
-      return {
-        username: u?.xmppUsername || u?.defaultWallet?.walletAddress || '',
-        password: u?.xmppPassword || '',
-      };
-    };
+    return () => recoverXmppCredentials(config);
   }, [
     config?.jwtLogin?.enabled,
     config?.jwtLogin?.token,
@@ -268,23 +213,30 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
 
       // Re-join MUC rooms on every 'online'. After a reconnect the new
       // XMPP stream isn't a member of any room, so a sent message gets a
-      // local double-tick but never reaches the room (bug #21). Re-sending
-      // presence on reconnect fixes delivery. On the very first connect
-      // the room list isn't loaded yet so this joins nothing — the
-      // bootstrap's own allRoomPresences handles that pass.
+      // local double-tick but never reaches the room (bug #21). The join is
+      // a background sweep (open room first, then recent activity, a few at
+      // a time) shared with the client's own online handler, so it neither
+      // blocks anything nor doubles up. A send / history fetch / room open
+      // also joins its own room on demand. On the very first connect the
+      // room list isn't loaded yet so this joins little - the bootstrap
+      // starts its own sweep once /chats/my has landed.
       created.setOnOnline(() => {
         const underlying = (created as any).client;
         if (!underlying) {return;}
-        // The headers say "Updating…" until the rooms are joined again and
+        // The headers say "Updating..." until the rooms are joined again and
         // the archive caught up - a stream that is up is not yet a chat
         // that is. Same tick as the client's own 'online', so the title
         // never shows the plain state in between.
         store.dispatch(setConnectionState('syncing'));
-        const rejoin = allRoomPresences(underlying)
+        // The join sweep is shared with the client's own online handler
+        // (it dedupes); here it is only awaited so the state can settle.
+        const rejoin = Promise.resolve()
+          .then(() => created.sendAllPresencesAndMarkReady?.())
           .catch((e) =>
-            devPushLog('warn', 'reconnect: allRoomPresences re-join failed', e)
-          )
-          .finally(() => subscribeAllRoomsForPush(underlying, 'reconnect'));
+            devPushLog('warn', 'reconnect: background join sweep failed', e)
+          );
+        // Push (mucsub) does not depend on the join: subscribe right away.
+        subscribeAllRoomsForPush(underlying, 'reconnect');
         // Also refresh the private store so unread / lastViewed markers
         // are accurate after a long reconnect — the MUC re-join above only
         // restores delivery, not unread state. Idempotent on first connect.
@@ -458,7 +410,7 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
           }
         }
 
-        // Kick off REST /chats/my; allRoomPresences below needs the
+        // Kick off REST /chats/my; the background join sweep below needs the
         // room list to be in redux, otherwise it joins 0 MUCs and the
         // user receives zero realtime messages until they manually tap
         // into each room. Track the promise so we can await it before
@@ -495,14 +447,15 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
         try {
           await restRoomsPromise;
         } catch {}
-        try {
-          const roomCount = Object.keys(store.getState().rooms.rooms || {}).length;
-          devPushLog('xmpp', `initBeforeLoad: joining ${roomCount} rooms via presence…`);
-          await allRoomPresences((c as any).client);
-          devPushLog('xmpp', 'initBeforeLoad: allRoomPresences ok');
-        } catch (e) {
-          devPushLog('warn', 'initBeforeLoad: allRoomPresences failed', e);
-        }
+        // The room list is complete (REST /chats/my seeded it): join the
+        // rooms in the BACKGROUND. READY below does not wait for it: a
+        // sweep over hundreds of rooms would otherwise hold the whole room
+        // list behind it. Open room first, then recent activity; sends,
+        // history fetches and opening a room join their own room on demand.
+        const roomCount = Object.keys(store.getState().rooms.rooms || {}).length;
+        devPushLog('xmpp', `initBeforeLoad: joining ${roomCount} rooms in the background`);
+        startBackgroundJoinSweep(c);
+        // Push (mucsub) needs the room list, not the joins.
         subscribeAllRoomsForPush((c as any).client, 'initBeforeLoad');
 
         store.dispatch(setStoreClient(c));
@@ -513,21 +466,14 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
         setProviderBootstrapStatus('ready');
         devPushLog('rn', 'initBeforeLoad: READY');
 
-        // Background-prefetch history for every room (fire-and-forget).
-        const qos = config?.historyQoS;
-        const activeRoomJID = store.getState().rooms.activeRoomJID || null;
-        const defaultRoomJids =
-          (config?.defaultRooms as any[])?.map((r) =>
-            typeof r === 'string' ? r : r?.jid
-          ).filter(Boolean) || [];
-        runHistoryPreloadScheduler({
+        // Background history preload (fire-and-forget; does not wait for
+        // the join sweep: MAM needs no join, and each fetch joins its own
+        // room best-effort). Staged by default: the top rooms by activity
+        // first, everything else loads when opened. See `historyPreload`.
+        runConfiguredHistoryPreload({
           client: c,
           signal: abortController.signal,
-          selectedRoomJid: activeRoomJID,
-          defaultRoomJids,
-          concurrency: qos?.stagedPreloadConcurrency,
-          pageSize: qos?.stagedPreloadFirstPassSize,
-          roomLimit: qos?.preloadTopKRooms,
+          config,
         }).catch((err) => console.warn('History preload scheduler failed', err));
       } catch (error: any) {
         if (cancelled || abortController.signal.aborted) {return;}

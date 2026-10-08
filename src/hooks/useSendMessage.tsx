@@ -190,6 +190,16 @@ export const useSendMessage = (_configOverride?: IConfig) => {
           id: selfId,
           name: `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || selfId,
         } as any,
+        // Thread replies: without these the optimistic copy has no
+        // mainMessage, so it shows in the channel instead of the thread
+        // until the echo lands.
+        ...(isReply
+          ? {
+              isReply: 'true' as any,
+              showInChannel: (isChecked ? 'true' : 'false') as any,
+              mainMessage: mainMessage || '',
+            }
+          : {}),
       } as IMessage;
       // On retry (`existingId`) the original optimistic bubble is still in
       // the room (pending:true) — clearMessageFailure just flipped it back out
@@ -443,7 +453,6 @@ export const useSendMessage = (_configOverride?: IConfig) => {
               isDeleted: false,
               xmppId: id,
               xmppFrom: `${activeRoomJID}/${selfId}`,
-              isSystemMessage: 'false',
               isMediafile: 'true',
               fileName: data?.name,
               location: normalizedFileUri,

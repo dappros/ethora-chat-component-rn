@@ -1,4 +1,10 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import {
   Alert,
   View,
@@ -12,6 +18,7 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '../../roomStore';
 import { Avatar } from './Avatar';
+import { BubbleHighlight } from './BubbleHighlight';
 import MessageInteractions from './MessageInteractions';
 import { BottomReplyContainer } from './BottomReplyContainer';
 import { MessageReply } from './MessageReply';
@@ -38,7 +45,6 @@ import { chatTextStyle } from '../../helpers/typography';
 import { useMessageHeapState } from '../../hooks/useMessageHeapState';
 import { DoubleTick, LockIcon, LockOffIcon } from '../../assets/icons';
 import { useT } from '../../i18n/useT';
-import { composeName } from '../../helpers/displayName';
 import { useFileToken } from '../../hooks/useFileToken';
 import {
   appendFileToken,
@@ -54,6 +60,15 @@ import { reactionsEnabled } from '../../helpers/reactionsConfig';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { hapticTap } from '../../helpers/haptics';
 import { useTheme } from '../../hooks/useTheme';
+import { isOpaqueXmppUserId } from '../../helpers/xmppIdShape';
+import {
+  getUserLookupStatus,
+  requestUsers,
+  subscribeUserResolver,
+} from '../../helpers/userResolver';
+
+// Stable-width stand-in for the sender name while its lookup is pending.
+const SENDER_NAME_PLACEHOLDER = '\u2026';
 
 const CustomMessageContainer = styled.View<{ isUser: boolean; reply?: number }>`
   flex-direction: row;
@@ -221,25 +236,73 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   // avatars: a cache-restored message carries no profileImage at all (see
   // PERSISTED_MESSAGE_USER_FIELDS), so reading only the message-level copy
   // leaves a blank initials circle for senders whose name resolved fine.
-  const usersSet = useSelector(
-    (state: RootState) => state.rooms.usersSet
-  ) as Record<string, any> | undefined;
   const senderRawId = String(message.user?.id || '');
   const senderLocal = senderRawId.split('@')[0];
-  const senderEntry = usersSet?.[senderLocal] || usersSet?.[senderRawId];
-  // usersSet FIRST (mirrors the web SDK's Message.tsx): a message stored
-  // before usersSet hydrated carries the raw JID localpart as its
-  // `user.name`, so preferring `message.user.name` (as resolveSenderDisplayName
-  // does) would pin that JID on screen forever even after the real name is
-  // known. Reading usersSet first lets the name self-heal the moment the
-  // REST roster populates the cache. Falls back to the message's own name
-  // (which may carry senderFirstName/senderLastName from the wire) only when
-  // usersSet has never seen this sender.
-  const senderDisplayName = senderEntry
-    ? composeName(senderEntry.firstName, senderEntry.lastName) ||
-      senderEntry.name ||
-      senderLocal
-    : message.user?.name || senderLocal || 'Unknown';
+  // Granular: re-render only when THIS sender's entry changes, not on every
+  // usersSet update.
+  const senderEntry = useSelector(
+    (state: RootState) => {
+      const set = state.rooms.usersSet as Record<string, any> | undefined;
+      return set?.[senderLocal] || set?.[senderRawId];
+    }
+  ) as Record<string, any> | undefined;
+  // A usersSet hit with blank names is worth no more than a miss.
+  const usersSetDisplayName = senderEntry
+    ? `${senderEntry.firstName ?? ''} ${senderEntry.lastName ?? ''}`.trim() ||
+      String(senderEntry.name || '').trim()
+    : '';
+  // 'Deleted User' baked into message.user.name only means "not resolved at
+  // insert time" (the real answer is the lookup's 404 below), and a raw
+  // xmpp id is never a name.
+  const safeMessageName =
+    message.user?.name &&
+    message.user.name !== 'Deleted User' &&
+    !isOpaqueXmppUserId(message.user.name)
+      ? message.user.name
+      : '';
+  const safeSenderLocal = isOpaqueXmppUserId(senderLocal) ? '' : senderLocal;
+  // Ask the backend for a sender nobody has told us about (a big room ships
+  // only 30 members). The resolver debounces and de-duplicates.
+  useEffect(() => {
+    if (!senderEntry && senderLocal) requestUsers([senderLocal]);
+  }, [senderEntry, senderLocal]);
+  const lookupStatus = useSyncExternalStore(
+    subscribeUserResolver,
+    () => getUserLookupStatus(senderLocal),
+    () => 'pending' as const
+  );
+  // The sender's name stamped on the stanza's <data> by clients of this SDK.
+  // LAST resort only (older clients and backends): used once the lookup has
+  // finished without a name, and never written into usersSet. Insert-time
+  // enrichment may have baked it into message.user.name, so a message name
+  // equal to it counts as <data>, not as a member name.
+  const dataFull = String((message as any)?.fullName || '').trim();
+  const dataComposed =
+    dataFull ||
+    `${String((message as any)?.senderFirstName || '').trim()} ${String(
+      (message as any)?.senderLastName || ''
+    ).trim()}`.trim();
+  const trustedMessageName =
+    safeMessageName && safeMessageName !== dataComposed ? safeMessageName : '';
+  // Chain: usersSet (member or lookup result) > a name from a member/seed >
+  // muted placeholder while the lookup is pending > <data> name > readable
+  // id > Unknown user ('Deleted User' only when the backend said 404).
+  const senderNamePending =
+    !usersSetDisplayName && !trustedMessageName && lookupStatus === 'pending';
+  const unresolvedPlaceholder =
+    lookupStatus === 'notfound' && !dataComposed
+      ? 'Deleted User'
+      : t('user.unknown');
+  const senderDisplayName = senderNamePending
+    ? SENDER_NAME_PLACEHOLDER
+    : usersSetDisplayName ||
+      trustedMessageName ||
+      dataComposed ||
+      safeSenderLocal ||
+      unresolvedPlaceholder;
+  // The placeholder is a loading state, not a name: it must not seed the
+  // generic avatar's initials or a stale caption.
+  //
   // A broadcast posted by the app itself arrives with the ROOM's own id as
   // its occupant resource, so no roster ever resolves it and the name chain
   // ends at 50 characters of hex. Captioning a bubble with that tells the
@@ -481,6 +544,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
           media={message?.isMediafile === 'true'}
           fontSize={config?.typography?.senderName?.fontSize}
           fontWeight={config?.typography?.senderName?.fontWeight as any}
+          style={senderNamePending ? styles.pendingName : undefined}
         >
           {senderDisplayName}
         </CustomUserName>
@@ -607,6 +671,9 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
         )}
       </CustomTimestampRow>
 
+      {/* The jump-to-message ring: on the bubble in the list, not on the
+          context menu's copy of it. */}
+      {!preview && <BubbleHighlight messageId={String(message.id)} />}
     </CustomMessageBubble>
   );
 
@@ -647,7 +714,11 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
                             description: senderEntry.description,
                           }
                         : {}),
-                      name: hasRealSenderName ? senderDisplayName : '',
+                      // The pending placeholder is not a name.
+                      name:
+                        hasRealSenderName && !senderNamePending
+                          ? senderDisplayName
+                          : '',
                     } as IUser)
             }
             disabled={!!config?.disableProfilesInteractions}
@@ -663,7 +734,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
                 }}
               />
             ) : (
-              <Avatar username={senderDisplayName} />
+              <Avatar username={senderNamePending ? '' : senderDisplayName} />
             )}
           </CustomMessagePhotoContainer>
         )}
@@ -760,6 +831,7 @@ const styles = StyleSheet.create({
   hiddenBubble: {
     opacity: 0,
   },
+  pendingName: { opacity: 0.5, minWidth: 14 },
   customMessageContainer: {
     flexDirection: 'row',
     padding: 10,

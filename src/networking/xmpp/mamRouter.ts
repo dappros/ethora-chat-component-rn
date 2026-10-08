@@ -14,6 +14,29 @@ interface PendingQuery {
   reject: (error: Error) => void;
 }
 
+/**
+ * Replay an archived reaction into the store. Flagged `fromHistory` so
+ * reactionsMiddleware leaves the room preview alone: a replay must not turn
+ * the last real message into an emoji. (setReactions has no prepare(), so
+ * the flag is added by hand.)
+ */
+export const replayArchivedReaction = (
+  reaction: ExtractedReaction,
+  fallbackRoomJID = ''
+) => {
+  store.dispatch({
+    ...setReactions({
+      roomJID: reaction.roomJID || fallbackRoomJID,
+      messageId: reaction.messageId,
+      from: reaction.from,
+      reactions: reaction.emoji,
+      data: reaction.data,
+      latestReactionTimestamp: reaction.ts,
+    }),
+    meta: { fromHistory: true },
+  });
+};
+
 const pending = new Map<string, PendingQuery>();
 
 const flush = (query: PendingQuery) => {
@@ -39,16 +62,7 @@ const flush = (query: PendingQuery) => {
   }
   for (const reaction of deferred) {
     try {
-      store.dispatch(
-        setReactions({
-          roomJID: reaction.roomJID || query.roomJID,
-          messageId: reaction.messageId,
-          from: reaction.from,
-          reactions: reaction.emoji,
-          data: reaction.data,
-          latestReactionTimestamp: reaction.ts,
-        })
-      );
+      replayArchivedReaction(reaction, query.roomJID);
     } catch (e) {
       console.warn('[mam] applying a reaction failed', e);
     }

@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import {
   AddNewIcon,
+  DiscoverIcon,
   LogoutIcon,
   ProfileIcon,
   SettingIcon,
@@ -25,12 +26,12 @@ import { MODAL_TYPES } from '../../helpers/constants/MODAL_TYPES';
 import { useChatSettingState } from '../../hooks/useChatSettingState';
 import { useLogout } from '../../hooks/useLogout';
 import { useTheme } from '../../hooks/useTheme';
+import { useT } from '../../i18n/useT';
 import {
   shouldClaimVerticalDrag,
   shouldDismissOnDrag,
 } from '../../helpers/sheetGestures';
 import type { IConfig } from '../../types/types';
-import { useT } from '../../i18n/useT';
 
 type LogoutConfig = NonNullable<IConfig['logout']>;
 
@@ -294,6 +295,19 @@ export const HeaderRoomListMenu: FC<HeaderRoomListMenuProps> = ({
           dispatch(setActiveModal(MODAL_TYPES.SETTINGS));
         },
       },
+      // The directory of the app's public chats. Reachable here whenever the
+      // sheet is, which is also why a host that overrides the burger keeps it.
+      ...(!config?.disablePublicChatsDirectory
+        ? [
+            {
+              label: t('publicChats.title'),
+              icon: <DiscoverIcon color={iconColor} />,
+              onClick: () => {
+                dispatch(setActiveModal(MODAL_TYPES.PUBLIC_CHATS));
+              },
+            },
+          ]
+        : []),
     ];
     if (logoutConfig) {
       options.push({
@@ -306,7 +320,17 @@ export const HeaderRoomListMenu: FC<HeaderRoomListMenuProps> = ({
       });
     }
     return options;
-  }, [dispatch, logoutConfig, logoutStrings, performLogout, primaryColor, iconColor, labelColor, t]);
+  }, [
+    dispatch,
+    logoutConfig,
+    logoutStrings,
+    performLogout,
+    primaryColor,
+    iconColor,
+    labelColor,
+    config?.disablePublicChatsDirectory,
+    t,
+  ]);
 
   return (
     // Presented through a real <Modal>: as an in-tree overlay the sheet was

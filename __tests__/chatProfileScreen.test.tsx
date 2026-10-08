@@ -151,6 +151,45 @@ describe('Chat profile screen', () => {
     expect(texts().some((label) => /favourite/i.test(label))).toBe(false);
   });
 
+  it('offers "Search messages" only when enabled with an appId and not when the host disabled it', async () => {
+    await seedRoom();
+    await act(async () => {
+      store.dispatch(setConfig({ appId: 'app1', enableMessageSearch: true } as any));
+    });
+    let r = await renderProfile();
+    expect(r.has('chat-profile-search-messages')).toBe(true);
+    await act(async () => {
+      r.byId('chat-profile-search-messages')[0].props.onPress();
+    });
+    expect(store.getState().chatSettingStore.activeModal).toBe('message_search');
+
+    await act(async () => {
+      store.dispatch(
+        setConfig({ appId: 'app1', enableMessageSearch: true, disableMessageSearch: true } as any)
+      );
+    });
+    r = await renderProfile();
+    expect(r.has('chat-profile-search-messages')).toBe(false);
+
+    await act(async () => {
+      store.dispatch(setConfig({ appId: 'app1' } as any));
+    });
+    r = await renderProfile();
+    expect(r.has('chat-profile-search-messages')).toBe(false);
+
+    await act(async () => {
+      store.dispatch(setConfig({ enableMessageSearch: true } as any));
+    });
+    r = await renderProfile();
+    expect(r.has('chat-profile-search-messages')).toBe(false);
+
+    await act(async () => {
+      store.dispatch(setConfig({} as any));
+    });
+    r = await renderProfile();
+    expect(r.has('chat-profile-search-messages')).toBe(false);
+  });
+
   it('shows the chat picture as the hero when the room has one', async () => {
     await seedRoom({ icon: 'https://cdn.example.com/room.png' });
     const { has, tree } = await renderProfile();

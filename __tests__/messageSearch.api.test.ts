@@ -1,0 +1,130 @@
+
+const mockGet = jest.fn();
+jest.mock('../src/networking/apiClient', () => ({
+  __esModule: true,
+  default: { get: (...a: unknown[]) => mockGet(...a) },
+}));
+
+const mockState: any = {
+  chatSettingStore: { config: { appId: 'app1' }, user: { token: 'jwt' } },
+};
+jest.mock('../src/roomStore', () => ({ store: { getState: () => mockState } }));
+
+import { hitKey, searchMessages } from '../src/networking/api-requests/messageSearch.api';
+
+const hit = (over: Record<string, unknown>) => ({
+  chatId: 'room1',
+  chatType: 'groupchat',
+  room: 'room1@conference.x',
+  from: 'u1',
+  fromUserId: 'id1',
+  body: 'hello',
+  messageId: 'm1',
+  stanzaId: '100',
+  createdAt: '2026-01-01T00:00:00.000Z',
+  ...over,
+});
+
+describe('searchMessages', () => {
+  beforeEach(() => {
+    mockGet.mockReset();
+    mockState.chatSettingStore.config = { appId: 'app1' };
+  });
+
+  it('queries the app archive with the session token and filters', async () => {
+    mockGet.mockResolvedValue({
+      data: { items: [hit({})], total: 1, limit: 20, offset: 0 },
+    });
+    await searchMessages({ q: 'hel', chatId: 'room1', offset: 40 });
+
+    expect(mockGet).toHaveBeenCalledWith(
+      '/v2/apps/app1/messages/search',
+      expect.objectContaining({
+        params: { q: 'hel', limit: 20, offset: 40, chatId: 'room1' },
+        headers: { Authorization: 'jwt' },
+      })
+    );
+  });
+
+  it('omits chatId for an all-chats search', async () => {
+    mockGet.mockResolvedValue({ data: { items: [], total: 0 } });
+    await searchMessages({ q: 'hel' });
+    expect(mockGet.mock.calls[0][1].params).not.toHaveProperty('chatId');
+  });
+
+  it('drops deleted messages but still pages by server rows', async () => {
+    mockGet.mockResolvedValue({
+      data: {
+        items: [
+          hit({ stanzaId: '1' }),
+          hit({ stanzaId: '2', deletedAt: '2026-02-01' }),
+          hit({ stanzaId: '3' }),
+        ],
+        total: 50,
+        limit: 20,
+        offset: 0,
+      },
+    });
+    const page = await searchMessages({ q: 'hel' });
+
+    expect(page.items.map((h) => h.stanzaId)).toEqual(['1', '3']);
+    // 3 rows came back, one was hidden: the next page starts at 3, not 2.
+    expect(page.nextOffset).toBe(3);
+    expect(page.total).toBe(50);
+  });
+
+  it('refuses to run without an appId instead of calling a bogus URL', async () => {
+    mockState.chatSettingStore.config = {};
+    await expect(searchMessages({ q: 'hel' })).rejects.toThrow(
+      'message_search_no_app_id'
+    );
+    expect(mockGet).not.toHaveBeenCalled();
+  });
+});
+
+describe('hitKey', () => {
+  beforeEach(() => {
+    mockGet.mockReset();
+    mockState.chatSettingStore.config = { appId: 'app1' };
+  });
+
+  it('stays unique for hits whose stanzaId and messageId are both empty', async () => {
+    // Seen on QA: whole pages of older hits come back with both empty.
+    mockGet.mockResolvedValue({
+      data: {
+        items: [
+          hit({ _id: 'r1', stanzaId: '', messageId: '', body: 'one' }),
+          hit({ _id: 'r2', stanzaId: '', messageId: '', body: 'two' }),
+        ],
+        total: 2,
+      },
+    });
+    const page = await searchMessages({ q: 'o' });
+    const keys = page.items.map(hitKey);
+    expect(new Set(keys).size).toBe(2);
+  });
+
+  it('still tells rows apart when the archive id is missing too', () => {
+    const base = {
+      chatId: 'c',
+      chatType: 'g',
+      room: 'r',
+      from: 'f',
+      fromUserId: 'u',
+      stanzaId: '',
+      messageId: '',
+      id: '',
+    };
+    const a = hitKey({
+      ...base,
+      body: 'first',
+      createdAt: '2026-01-01T00:00:00Z',
+    });
+    const b = hitKey({
+      ...base,
+      body: 'second',
+      createdAt: '2026-01-01T00:00:00Z',
+    });
+    expect(a).not.toBe(b);
+  });
+});
