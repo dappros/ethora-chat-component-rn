@@ -658,7 +658,14 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
       // only USED here for the one-shot stamp+flush, matching customer
       // #42: leaving (or backgrounding) a room while scrolled up must not
       // mark messages the user never reached as read.
-      visibleBeforeBackground = visibleRoomJID;
+      // iOS leaves in two steps, 'inactive' then 'background', and the
+      // first one already cleared visibility below. Overwriting here on the
+      // second would forget the open chat, so it was never re-marked
+      // visible on return: the chat on screen then counted unread and
+      // raised in-app toasts for its own messages. Remember, never forget.
+      if (visibleRoomJID) {
+        visibleBeforeBackground = visibleRoomJID;
+      }
       let boundaryTs: number | null = null;
       if (visibleRoomJID) {
         boundaryTs = state.rooms?.readBoundaries?.[visibleRoomJID] ?? null;

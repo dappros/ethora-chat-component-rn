@@ -25,6 +25,7 @@ import { createMessageFromXml } from '../helpers/createMessageFromXml';
 import { getDataFromXml } from '../helpers/getDataFromXml';
 import { setDeleteModal } from '../roomStore/chatSettingsSlice';
 import { messageNotificationManager } from '../utils/messageNotificationManager';
+import { isOwnIncomingMessage } from '../helpers/notificationPolicy';
 import { transformCallLogMessage } from '../helpers/callLogMessage';
 import { translateKey } from '../i18n/strings';
 import { isWindowQueryId } from './xmpp/mamQueryIds';
@@ -127,14 +128,20 @@ const onRealtimeMessage = async (stanza: Element) => {
       // name resolution must never break message delivery
     }
 
-    // Trigger in-app notification (manager dedupes + drops own messages
-    // for empty bodies). Self-messages are filtered by sender check.
+    // Trigger in-app notification (the manager dedupes and drops empty
+    // bodies; the provider drops the open chat, muted chats and a
+    // backgrounded app). The reader's own messages never toast.
     try {
       const state = store.getState();
-      const currentUserWallet = (state.chatSettingStore.user?.walletAddress || '').toLowerCase();
-      const senderJIDLower = String(senderJID || '').toLowerCase();
-      if (currentUserWallet && senderJIDLower.includes(currentUserWallet)) {
-        return message; // own message, skip toast
+      if (
+        isOwnIncomingMessage({
+          message,
+          stanzaFrom: stanza.attrs.from,
+          senderJID,
+          user: state.chatSettingStore.user,
+        })
+      ) {
+        return message;
       }
       const room = state.rooms.rooms[roomJID];
       const roomName = room?.title || room?.name || '';

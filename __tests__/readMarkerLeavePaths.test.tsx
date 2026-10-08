@@ -329,6 +329,58 @@ describe('xmppProvider - AppState background handler honours the read boundary',
   });
 });
 
+describe('xmppProvider - the open chat is visible again after iOS inactive → background → active', () => {
+  beforeEach(reset);
+
+  let handlers: Record<string, (state: string) => void>;
+
+  beforeEach(() => {
+    handlers = {};
+    jest.spyOn(AppState, 'addEventListener').mockImplementation(((type: string, cb: any) => {
+      handlers[type] = cb;
+      return { remove: () => { delete handlers[type]; } } as any;
+    }) as any);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('remembers the room across both leave steps and restores it on return', async () => {
+    store.dispatch(addRoom({ roomData: mkRoom(R, undefined, [msg(N_MS)]) }));
+    store.dispatch(setCurrentRoom({ roomJID: R }));
+    let tree: any;
+    await act(async () => {
+      tree = renderer.create(
+        <ReduxProvider store={store}>
+          <XmppProvider config={{} as any}>
+            <ClientInjector client={makeFakeClient()} />
+          </XmppProvider>
+        </ReduxProvider>
+      );
+    });
+    store.dispatch(setVisibleRoom({ roomJID: R }));
+
+    // iOS sends both: the first already clears visibility.
+    await act(async () => {
+      handlers['change']?.('inactive');
+    });
+    expect(store.getState().rooms.visibleRoomJID).toBeNull();
+    await act(async () => {
+      handlers['change']?.('background');
+    });
+    await act(async () => {
+      handlers['change']?.('active');
+    });
+    // Without this the chat on screen counted unread and raised toasts.
+    expect(store.getState().rooms.visibleRoomJID).toBe(R);
+
+    await act(async () => {
+      tree.unmount();
+    });
+  });
+});
+
 describe('xmppProvider - advance() does not move the marker past the boundary while scrolled up', () => {
   beforeEach(reset);
 

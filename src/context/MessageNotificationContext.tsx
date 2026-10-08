@@ -24,7 +24,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useDispatch, useSelector } from 'react-redux';
+import { useDispatch, useSelector, useStore } from 'react-redux';
 import { messageNotificationManager } from '../utils/messageNotificationManager';
 import { setCurrentRoom } from '../roomStore/roomsSlice';
 import { IConfig, IMessage } from '../types/types';
@@ -33,6 +33,7 @@ import { useTheme } from '../hooks/useTheme';
 import { ProfileImagePlaceholder } from '../components/MainComponents/ProfileImagePlaceholder';
 import { useFileToken } from '../hooks/useFileToken';
 import { appendFileToken } from '../helpers/secureFileUrl';
+import { bareJid, shouldToastForRoom } from '../helpers/notificationPolicy';
 
 interface ToastItem {
   id: string;
@@ -102,6 +103,7 @@ export const MessageNotificationProvider: React.FC<ProviderProps> = ({
   // below is only its safety net.
   const pruneAfter = bannerMode ? duration + 2000 : duration;
 
+  const store = useStore<RootState>();
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const appActiveRef = useRef(AppState.currentState === 'active');
 
@@ -134,7 +136,8 @@ export const MessageNotificationProvider: React.FC<ProviderProps> = ({
   // Clear toasts when their room becomes active.
   useEffect(() => {
     if (!visibleRoomJID) {return;}
-    setToasts((prev) => prev.filter((t) => t.roomJID !== visibleRoomJID));
+    const open = bareJid(visibleRoomJID);
+    setToasts((prev) => prev.filter((t) => bareJid(t.roomJID) !== open));
   }, [visibleRoomJID]);
 
   const dismiss = useCallback((id: string) => {
@@ -170,8 +173,19 @@ export const MessageNotificationProvider: React.FC<ProviderProps> = ({
       roomJID: string
     ) => {
       if (!isEnabled) {return;}
-      // Don't toast for the currently active room.
-      if (visibleRoomJID && visibleRoomJID === roomJID) {return;}
+      // Decided on the store as it is NOW, not on this render's closure:
+      // the open chat, a muted chat and a backgrounded app never toast.
+      const rooms = store.getState().rooms;
+      if (
+        !shouldToastForRoom({
+          roomJID,
+          visibleRoomJID: rooms.visibleRoomJID,
+          appActive: appActiveRef.current,
+          muted: rooms.rooms[roomJID]?.muted,
+        })
+      ) {
+        return;
+      }
       const id = `msg-notification-${message.id}-${Date.now()}`;
       const item: ToastItem = {
         id,
@@ -188,7 +202,7 @@ export const MessageNotificationProvider: React.FC<ProviderProps> = ({
           : next;
       });
     },
-    [isEnabled, visibleRoomJID, maxNotifications]
+    [isEnabled, store, maxNotifications]
   );
 
   // Register with the global manager.
