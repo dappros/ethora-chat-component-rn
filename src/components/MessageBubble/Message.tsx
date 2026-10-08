@@ -560,7 +560,11 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
                             description: senderEntry.description,
                           }
                         : {}),
-                      name: hasRealSenderName ? senderDisplayName : '',
+                      // The pending placeholder is not a name.
+                      name:
+                        hasRealSenderName && !senderNamePending
+                          ? senderDisplayName
+                          : '',
                     } as IUser)
             }
             disabled={!!config?.disableProfilesInteractions}
