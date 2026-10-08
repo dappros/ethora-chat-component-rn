@@ -9,6 +9,8 @@ module.exports = {
     // (`../../../../utils/toastEmitter`). The new flow-layer tests
     // (which actually exercise the integration) are independent.
     '/__tests__/App.test.tsx$',
+    // Shared test data and helpers, not suites.
+    '/__tests__/fixtures/',
   ],
   modulePathIgnorePatterns: [
     '/.claude/',
@@ -27,6 +29,8 @@ module.exports = {
       '@reduxjs/toolkit|' +
       'react-redux|' +
       'styled-components|' +
+      // ESM-only, like the web SDK uses them (e2ee/crypto.ts).
+      '@noble|' +
       'ltx' +
     ')/)',
   ],

@@ -33,7 +33,9 @@ const LastAudioMessage: FC<LastMessageEmojiProps> = ({ user, body }) => {
   const theme = useTheme();
   return (
     <LastRoomMessageContainer>
-      <LastRoomMessageName numberOfLines={1}>{user?.name ?? ''}</LastRoomMessageName>
+      {!!user?.name && (
+        <LastRoomMessageName numberOfLines={1}>{user.name}</LastRoomMessageName>
+      )}
       <AudioRow>
         <PlayButton>
           <PlayIcon width={10} height={10} color={theme.dark ? theme.text : '#1F2937'} />

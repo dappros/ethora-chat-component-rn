@@ -16,6 +16,11 @@ jest.mock('../src/networking/api-requests/user.api', () => ({
   getUserFiles: jest.fn(async () => []),
 }));
 
+jest.mock('../src/networking/api-requests/rooms.api', () => ({
+  ...jest.requireActual('../src/networking/api-requests/rooms.api'),
+  postPrivateRoom: jest.fn(async () => ({ name: 'pair', title: 'Bob', type: 'private', e2ee: true })),
+}));
+
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 47, bottom: 34, left: 0, right: 0 }),
   SafeAreaProvider: ({ children }: any) => children,
@@ -36,6 +41,8 @@ jest.mock('../src/context/ToastContext', () => ({
 }));
 
 const getUserFilesMock = getUserFiles as jest.Mock;
+const postPrivateRoomMock = jest.requireMock('../src/networking/api-requests/rooms.api')
+  .postPrivateRoom as jest.Mock;
 
 const FILES = [
   { id: 'i1', name: 'photo.jpg', url: 'https://cdn/photo.jpg', mimetype: 'image/jpeg' },
@@ -152,8 +159,9 @@ describe('User profile screen', () => {
       'logout',
     ]);
     expect(has('user-profile-action-message')).toBe(false);
-    // Leave sits at the right end of the name row.
-    expect(has('user-profile-logout')).toBe(true);
+    // Signing out is the action row's "Log Out" alone - no second "Leave"
+    // button on the name row doing the same thing.
+    expect(has('user-profile-logout')).toBe(false);
     // Everything moved out of the overflow menu, so there is no "…" left.
     expect(has('user-profile-menu')).toBe(false);
   });
@@ -182,6 +190,43 @@ describe('User profile screen', () => {
     expect(has('user-profile-tab-language')).toBe(false);
     // …and it never asks for files that belong to the signed-in user.
     expect(getUserFilesMock).not.toHaveBeenCalled();
+    // No encrypted chat is offered by an app that would not encrypt in it.
+    expect(has('user-profile-action-encrypted-message')).toBe(false);
+    expect(has('user-profile-e2ee')).toBe(false);
+  });
+
+  it('offers an encrypted chat only when this app encrypts, and asks the backend for that room', async () => {
+    await seed({ id: 'u2', name: 'Bob Banned', userJID: 'u2' });
+    await act(async () => {
+      store.dispatch(setConfig({ e2ee: { enabled: true } } as any));
+    });
+    // The room is created by the backend: without `newArch` there is no way
+    // to ask for the encrypted one.
+    expect((await render()).has('user-profile-action-encrypted-message')).toBe(false);
+
+    await act(async () => {
+      store.dispatch(setConfig({ e2ee: { enabled: true }, newArch: true } as any));
+    });
+    const { tree, has } = await render();
+    expect(has('user-profile-action-message')).toBe(true);
+    expect(has('user-profile-action-encrypted-message')).toBe(true);
+
+    postPrivateRoomMock.mockClear();
+    await act(async () => {
+      tree.root
+        .find((n) => n.props?.testID === 'user-profile-action-encrypted-message')
+        .props.onPress();
+    });
+    expect(postPrivateRoomMock).toHaveBeenCalledWith('u2', true);
+
+    // Their devices and fingerprints, to verify - on their profile only.
+    expect(has('user-profile-e2ee')).toBe(true);
+
+    // The ordinary action still opens the ordinary room.
+    await act(async () => {
+      tree.root.find((n) => n.props?.testID === 'user-profile-action-message').props.onPress();
+    });
+    expect(postPrivateRoomMock).toHaveBeenLastCalledWith('u2', false);
   });
 
   it('shows About with the description, falling back when there is none', async () => {

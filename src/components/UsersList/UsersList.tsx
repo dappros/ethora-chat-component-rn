@@ -5,6 +5,7 @@ import React, {
   useMemo,
   useEffect,
 } from 'react';
+import { composeName } from '../../helpers/displayName';
 import { ModalTitle, LabelData } from '../Modals/styledModalComponents';
 import {
   ScrollableContainer,
@@ -101,7 +102,7 @@ const UsersList: React.FC<UsersListProps> = ({
               disabled={selectedUsers.length === 20}
             />
             <View>
-              <Label>{`${user.firstName} ${user.lastName}`}</Label>
+              <Label>{composeName(user.firstName, user.lastName)}</Label>
               {/* <LabelData>{user.xmppUsername}</LabelData> */}
             </View>
           </UserItem>

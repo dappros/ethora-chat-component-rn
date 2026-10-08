@@ -28,6 +28,8 @@ import { messageNotificationManager } from '../utils/messageNotificationManager'
 import { transformCallLogMessage } from '../helpers/callLogMessage';
 import { translateKey } from '../i18n/strings';
 import { isWindowQueryId } from './xmpp/mamQueryIds';
+import { loadRoomMembers } from './api-requests/rooms.api';
+import { subscribeRoomForPush } from '../services/pushSubscriptionService';
 
 // TO DO: we are thinking to refactor this code in the following way:
 // each stanza will be parsed for 'type'
@@ -144,6 +146,7 @@ const onRealtimeMessage = async (stanza: Element) => {
       // (stanza handler, not a component), so resolve the locale from the
       // store directly and call `translateKey` instead of `useT()`.
       const locale =
+        state.chatSettingStore.uiLocale ||
         state.chatSettingStore.config?.i18n?.locale ||
         state.chatSettingStore.langSource;
       const overrides = state.chatSettingStore.config?.i18n?.strings;
@@ -572,6 +575,14 @@ const onGetChatRooms = (stanza: Element, xmpp: any) => {
       store.dispatch(addRooms({ rooms: fresh }));
       if (!store.getState().rooms.activeRoomJID) {
         store.dispatch(setCurrentRoom({ roomJID: fresh[0].jid }));
+      }
+      // The stanza says nothing about encryption or the roster: ask REST
+      // for each new room, so an encrypted room gets its padlock (and
+      // its recipients) without waiting for the next full load.
+      for (const room of fresh) {
+        loadRoomMembers(room.jid, { force: true }).catch(() => {});
+        // ...and pushes for it: the bootstrap's MucSub pass is over.
+        subscribeRoomForPush(xmpp, room.jid);
       }
     }
     for (const jid of jids) {

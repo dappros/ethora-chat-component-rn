@@ -47,7 +47,7 @@ const LastMessagePhoto: FC<LastMessagePhotoProps> = ({
     : 'file';
   return (
     <LastRoomMessageContainer>
-      <LastRoomMessageName>{user?.name || ''}:</LastRoomMessageName>
+      {!!user?.name && <LastRoomMessageName>{user.name}:</LastRoomMessageName>}
       <View
         style={{
           display: 'flex',

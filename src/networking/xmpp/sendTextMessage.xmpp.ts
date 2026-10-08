@@ -1,4 +1,5 @@
 import { Client, xml } from '@xmpp/client';
+import { sendEncrypted, shouldEncrypt } from '../../e2ee/send';
 
 // Local monotonic counter — see comment in id construction below.
 let _sendTextSeq = 0;
@@ -52,14 +53,7 @@ export const sendTextMessage = (
 
   try {
     const dataXmlns = toServiceXmlns(devServer, client);
-    const message = xml(
-      'message',
-      {
-        to: roomJID,
-        type: 'groupchat',
-        id: id,
-      },
-      xml('data', {
+    const data = xml('data', {
         xmlns: dataXmlns,
         senderFirstName: firstName,
         senderLastName: lastName,
@@ -75,9 +69,22 @@ export const sendTextMessage = (
         isReply: isReply || false,
         mainMessage: mainMessage || '',
         push: 'true',
-      }),
-      xml('body', {}, userMessage)
+      });
+    const body = xml('body', {}, userMessage);
+    const message = xml(
+      'message',
+      {
+        to: roomJID,
+        type: 'groupchat',
+        id: id,
+      },
+      data,
+      body
     );
+    if (shouldEncrypt(roomJID)) {
+      sendEncrypted(client, roomJID, id, data, body, message);
+      return;
+    }
     const sendResult = client.send(message);
     if (sendResult && typeof (sendResult as any).then === 'function') {
       (sendResult as Promise<unknown>)

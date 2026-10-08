@@ -30,10 +30,12 @@ import { editMessage } from './xmpp/editMessage.xmpp';
 import { inviteRoomRequest } from './xmpp/inviteRoomRequest.xmpp';
 import { getRooms } from './xmpp/getRooms.xmpp';
 import { handleStanza } from './xmpp/handleStanzas.xmpp';
+import { onOnline as e2eeOnOnline } from '../e2ee';
 import { pushLog as devPushLog, isDevLogActive } from '../utils/devLogger';
 import { normalizeRoomJid } from '../helpers/normalizeRoomJid';
 import { store } from '../roomStore';
 import { applyPrivateStoreMarkers } from '../roomStore/roomsSlice';
+import { setConnectionState } from '../roomStore/chatSettingsSlice';
 import {
   clearOutboundSends,
   enqueueOutboundSend,
@@ -168,7 +170,38 @@ export class XmppClient {
   service: string = '';
   conference: string = '';
   username: string;
-  status: 'offline' | 'connecting' | 'online' | 'error' = 'offline';
+  private _status: 'offline' | 'connecting' | 'online' | 'error' = 'offline';
+
+  /**
+   * The stream's state. Every change is mirrored into the store
+   * (`chatSettingStore.connection`) so the headers can say "Connecting…":
+   * a class field is nothing React can follow. `offline` and `error` are
+   * reported as `connecting` while a retry is scheduled - that is what the
+   * user is waiting for - and as `offline` only once nothing will try
+   * (logout, unmount).
+   */
+  get status(): 'offline' | 'connecting' | 'online' | 'error' {
+    return this._status;
+  }
+
+  set status(next: 'offline' | 'connecting' | 'online' | 'error') {
+    const changed = next !== this._status;
+    this._status = next;
+    if (!changed) {return;}
+    try {
+      const reported =
+        next === 'online'
+          ? 'online'
+          : next === 'connecting' || !this.suppressReconnect
+            ? 'connecting'
+            : 'offline';
+      if (store.getState().chatSettingStore.connection !== reported) {
+        store.dispatch(setConnectionState(reported));
+      }
+    } catch {
+      /* no store in some test harnesses */
+    }
+  }
 
   password = '';
   reconnectAttempts = 0;
@@ -750,6 +783,11 @@ export class XmppClient {
         this.onOnlineCallback?.();
       } catch (err) {
         console.warn('onOnline callback failed', err);
+      }
+      try {
+        e2eeOnOnline(this.client);
+      } catch (err) {
+        console.warn('e2ee onOnline failed', err);
       }
       // Drain any sends that were buffered while the stream was down. The
       // presence stanzas from onOnlineCallback above were written to the

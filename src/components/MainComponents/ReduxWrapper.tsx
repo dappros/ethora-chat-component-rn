@@ -11,6 +11,8 @@ import {
   setConfig,
   setPushEnabled,
   setThemePreference,
+  setUiLocale,
+  setLangSource,
 } from '../../roomStore/chatSettingsSlice';
 import {loadPreferences} from '../../helpers/preferencesStorage';
 import {ConfigUser, IConfig, MessageProps} from '../../types/types';
@@ -22,6 +24,7 @@ import '../../helpers/storeConsole';
 import {installPromiseRejectionTracker} from '../../utils/installPromiseRejectionTracker';
 import {useChatFonts} from '../../hooks/useChatFonts';
 import {installPushTokenHook} from '../../services/pushRegistration';
+import {setE2eeEnabled} from '../../e2ee';
 
 // Mount-time, dev-only — wire a global unhandled-promise-rejection
 // tracker so any future leak surfaces with a real stack trace in Metro
@@ -57,6 +60,10 @@ const ConfigEnabler: React.FC<{config?: IConfig}> = ({config}) => {
     if (!config) {return;}
     dispatch(setConfig(config));
   }, [config, dispatch]);
+  const e2eeEnabled = config?.e2ee?.enabled === true;
+  React.useEffect(() => {
+    setE2eeEnabled(e2eeEnabled);
+  }, [e2eeEnabled]);
   return null;
 };
 
@@ -85,6 +92,10 @@ const ChatThemeProvider: React.FC<{config?: IConfig; children: React.ReactNode}>
       if (typeof prefs.pushEnabled === 'boolean') {
         dispatch(setPushEnabled(prefs.pushEnabled));
       }
+      // The user's languages, as last picked here; the profile's values
+      // take over once the session is up (see languageSettings).
+      if (prefs.uiLocale) {dispatch(setUiLocale(prefs.uiLocale));}
+      if (prefs.chatLanguage) {dispatch(setLangSource(prefs.chatLanguage as any));}
     });
   }, [dispatch]);
 

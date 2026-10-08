@@ -35,11 +35,23 @@ import type { IConfig } from '../../types/types';
 
 type LogoutConfig = NonNullable<IConfig['logout']>;
 
-const DEFAULT_LOGOUT_LABEL = 'Sign out';
+/** The sign-out copy in the UI language; a host's `logout.label` etc. win. */
+export interface LogoutStrings {
+  label: string;
+  message: string;
+  cancel: string;
+}
+
+const DEFAULT_LOGOUT_STRINGS: LogoutStrings = {
+  label: 'Sign out',
+  message: 'Are you sure you want to sign out?',
+  cancel: 'Cancel',
+};
 
 const confirmLogout = (
   confirm: LogoutConfig['confirm'],
-  label: string
+  label: string,
+  strings: LogoutStrings
 ): Promise<boolean> => {
   if (confirm === false) {
     return Promise.resolve(true);
@@ -48,10 +60,10 @@ const confirmLogout = (
   return new Promise<boolean>((resolve) => {
     Alert.alert(
       copy.title ?? label,
-      copy.message ?? 'Are you sure you want to sign out?',
+      copy.message ?? strings.message,
       [
         {
-          text: copy.cancelText ?? 'Cancel',
+          text: copy.cancelText ?? strings.cancel,
           style: 'cancel',
           onPress: () => resolve(false),
         },
@@ -68,10 +80,15 @@ const confirmLogout = (
 
 export const runLogoutFlow = async (
   logoutConfig: LogoutConfig,
-  performLogout: () => Promise<void>
+  performLogout: () => Promise<void>,
+  strings: LogoutStrings = DEFAULT_LOGOUT_STRINGS
 ): Promise<void> => {
-  const label = logoutConfig.label ?? DEFAULT_LOGOUT_LABEL;
-  const confirmed = await confirmLogout(logoutConfig.confirm ?? true, label);
+  const label = logoutConfig.label ?? strings.label;
+  const confirmed = await confirmLogout(
+    logoutConfig.confirm ?? true,
+    label,
+    strings
+  );
   if (!confirmed) {
     return;
   }
@@ -116,6 +133,14 @@ export const HeaderRoomListMenu: FC<HeaderRoomListMenuProps> = ({
   const performLogout = useLogout();
   const t = useT();
   const logoutConfig = config?.logout?.enabled ? config.logout : undefined;
+  const logoutStrings = useMemo<LogoutStrings>(
+    () => ({
+      label: t('menu.logout'),
+      message: t('menu.logoutConfirm'),
+      cancel: t('action.cancel'),
+    }),
+    [t]
+  );
   const theme = useTheme();
   const primaryColor = theme.primary;
   const iconColor = theme.icon;
@@ -249,7 +274,7 @@ export const HeaderRoomListMenu: FC<HeaderRoomListMenuProps> = ({
       styles?: { color: string };
     }[] = [
       {
-        label: 'New Chat',
+        label: t('menu.newChat'),
         icon: <AddNewIcon color={iconColor} />,
         onClick: () => {
           dispatch(setActiveModal(MODAL_TYPES.NEW_CHAT));
@@ -257,14 +282,14 @@ export const HeaderRoomListMenu: FC<HeaderRoomListMenuProps> = ({
         styles: { color: labelColor },
       },
       {
-        label: 'Profile',
+        label: t('menu.profile'),
         icon: <ProfileIcon color={iconColor} />,
         onClick: () => {
           dispatch(setActiveModal(MODAL_TYPES.PROFILE));
         },
       },
       {
-        label: 'Settings',
+        label: t('menu.settings'),
         icon: <SettingIcon color={iconColor} />,
         onClick: () => {
           dispatch(setActiveModal(MODAL_TYPES.SETTINGS));
@@ -286,11 +311,11 @@ export const HeaderRoomListMenu: FC<HeaderRoomListMenuProps> = ({
     ];
     if (logoutConfig) {
       options.push({
-        label: logoutConfig.label ?? DEFAULT_LOGOUT_LABEL,
+        label: logoutConfig.label ?? logoutStrings.label,
         icon: <LogoutIcon color={iconColor} />,
         styles: { color: primaryColor },
         onClick: () => {
-          runLogoutFlow(logoutConfig, performLogout).catch(() => {});
+          runLogoutFlow(logoutConfig, performLogout, logoutStrings).catch(() => {});
         },
       });
     }
@@ -298,6 +323,7 @@ export const HeaderRoomListMenu: FC<HeaderRoomListMenuProps> = ({
   }, [
     dispatch,
     logoutConfig,
+    logoutStrings,
     performLogout,
     primaryColor,
     iconColor,

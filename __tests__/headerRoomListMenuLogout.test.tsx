@@ -3,7 +3,7 @@ import renderer, { act } from 'react-test-renderer';
 import { Alert, Animated, Modal, TouchableOpacity } from 'react-native';
 import { Provider } from 'react-redux';
 import { store } from '../src/roomStore';
-import { setActiveModal, setConfig } from '../src/roomStore/chatSettingsSlice';
+import { setActiveModal, setConfig, setUiLocale } from '../src/roomStore/chatSettingsSlice';
 import {
   HeaderRoomListMenu,
   runLogoutFlow,
@@ -218,6 +218,22 @@ describe('HeaderRoomListMenu - Discover chats entry', () => {
     expect(store.getState().chatSettingStore.activeModal).toBe(
       MODAL_TYPES.PUBLIC_CHATS
     );
+  });
+
+  it('follows the app language, a host label still winning', async () => {
+    await act(async () => {
+      store.dispatch(setUiLocale('es-US'));
+    });
+    try {
+      const { labels } = await renderMenu({ logout: { enabled: true }, disablePublicChatsDirectory: true });
+      expect(labels()).toEqual(['Nuevo chat', 'Perfil', 'Configuración', 'Cerrar sesión']);
+      const custom = await renderMenu({ logout: { enabled: true, label: 'Salir' }, disablePublicChatsDirectory: true });
+      expect(custom.labels()[3]).toBe('Salir');
+    } finally {
+      await act(async () => {
+        store.dispatch(setUiLocale(undefined));
+      });
+    }
   });
 });
 

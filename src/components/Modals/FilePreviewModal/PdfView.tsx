@@ -25,6 +25,10 @@ const PdfViewer: React.FC<PdfViewerProps> = ({ pdfUrl }) => {
     let cancelled = false;
     const run = async () => {
       try {
+        if (/^file:\/\//i.test(pdfUrl)) {
+          setLocalUri(pdfUrl);
+          return;
+        }
         const target = FileSystem.cacheDirectory + `pdf-${Date.now()}.pdf`;
         const result = await FileSystem.downloadAsync(withFileToken(pdfUrl), target);
         if (cancelled) {return;}

@@ -38,11 +38,14 @@ const CATEGORIES = [
 interface ReportChatModalProps {
   visible: boolean;
   onClose: () => void;
+  /** The room to report; the open one when absent. */
+  roomJid?: string;
 }
 
 const ReportChatModal: React.FC<ReportChatModalProps> = ({
   visible,
   onClose,
+  roomJid,
 }) => {
   const t = useT();
   const { showToast } = useToast();
@@ -66,13 +69,13 @@ const ReportChatModal: React.FC<ReportChatModalProps> = ({
     setSending(true);
     try {
       await postReportRoom({
-        chatName: activeRoom?.jid?.split('@')[0] || '',
+        chatName: (roomJid || activeRoom?.jid || '').split('@')[0],
         category,
         text: details.trim() || undefined,
       });
       showToast({
         id: Date.now().toString(),
-        title: 'Success',
+        title: t('toast.successTitle'),
         message: t('modal.report.chatTitle'),
         type: 'success',
       });
@@ -81,7 +84,7 @@ const ReportChatModal: React.FC<ReportChatModalProps> = ({
       console.error('Failed to report chat:', error);
       showToast({
         id: Date.now().toString(),
-        title: 'Error',
+        title: t('toast.error'),
         message: t('modal.report.chatTitle'),
         type: 'error',
       });

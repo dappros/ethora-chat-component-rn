@@ -16,6 +16,7 @@ import {
 import { updateMessagesTillLast } from '../helpers/updateMessagesTillLast';
 import { refreshAuthTokensQuietly } from '../networking/authRefresh';
 import { setLangSource, setConfig } from '../roomStore/chatSettingsSlice';
+import { applyProfileLanguages } from '../services/languageSettings';
 import { setIsLoading } from '../roomStore/roomsSlice';
 import { useRoomState } from './useRoomState';
 import { useChatSettingState } from './useChatSettingState';
@@ -133,6 +134,9 @@ const useChatWrapperInit = ({
       }
 
       dispatch(setConfig(config));
+      // The profile's languages are the account's truth, over what the
+      // device remembered.
+      applyProfileLanguages(user as any, config);
       try {
         if (!user.xmppUsername) {
           setShowModal(true);

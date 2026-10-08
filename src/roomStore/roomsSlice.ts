@@ -8,6 +8,7 @@ import type { TranslationObject } from '../helpers/transformTranslatations';
 import { isSafeKey } from './safeKey';
 import { mergeUsersSet as mergeIntoUsersSet } from './usersSetCap';
 import { getRoomUserCount } from '../helpers/roomUserCount';
+import { subscribeRoomForPush } from '../services/pushSubscriptionService';
 
 // Per-room runtime message cap. Mirrors the persistence layer's
 // MESSAGE_LIMIT so what's in memory matches what's on disk; otherwise
@@ -759,11 +760,13 @@ const resolveApiUnread = (
 export const addRoomViaApi = createAsyncThunk(
   'roomMessages/addRoomViaApi',
   async (
-    { room, xmpp: _xmpp }: { room: IRoom; xmpp: XmppClient },
+    { room, xmpp }: { room: IRoom; xmpp: XmppClient },
     { dispatch }
   ) => {
     if (!room || !room.jid) return;
     dispatch(roomsStore.actions.addRoomFromApi({ room }));
+    // A room made now was not in the bootstrap's MucSub pass.
+    subscribeRoomForPush(xmpp, room.jid);
   }
 );
 

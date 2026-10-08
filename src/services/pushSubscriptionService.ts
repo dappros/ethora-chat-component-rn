@@ -114,3 +114,20 @@ export class PushSubscriptionService {
 
 export const pushSubscriptionService = new PushSubscriptionService();
 
+/**
+ * Push for a room that turned up after the bootstrap (created here, an
+ * invite, the room list after a reconnect): the bootstrap subscribed only
+ * the rooms it had, so without this a new room is silent until the next
+ * app start. Best effort, never throws; `wrapper` is the SDK's XmppClient
+ * (its `client` the underlying stream).
+ */
+export const subscribeRoomForPush = (wrapper: any, roomJid: string): void => {
+  const client = wrapper?.client;
+  const jid = String(roomJid || '').split('/')[0];
+  if (!client || !jid.includes('@')) {return;}
+  const nick = client.jid?.getLocal?.();
+  pushSubscriptionService
+    .subscribeToRoom(client, jid, nick)
+    .catch((error) => console.warn('[PushService] late subscribe failed', jid, error));
+};
+

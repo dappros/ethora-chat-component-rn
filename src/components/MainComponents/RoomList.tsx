@@ -8,6 +8,7 @@ import React, {
   useRef,
 } from 'react';
 import {
+  Alert,
   View,
   Text,
   StyleSheet,
@@ -17,6 +18,11 @@ import {
   NativeScrollEvent,
   NativeSyntheticEvent,
 } from 'react-native';
+import { useDispatch } from 'react-redux';
+import { deleteRoom } from '../../roomStore/roomsSlice';
+import { useXmppClient } from '../../context/xmppProvider';
+import SwipeableRoomRow, { closeOpenRoomRow } from '../RoomComponents/SwipeableRoomRow';
+import ReportChatModal from '../Modals/ChatProfileModal/ReportChatModal';
 import { IRoom } from '../../types/types';
 import { SearchInput } from '../InputComponents/Search';
 import { BurgerMenuIcon, SearchIcon } from '../../assets/icons';
@@ -88,8 +94,12 @@ const RoomList: React.FC<RoomListProps> = ({
   const { config } = useChatSettingState();
   const t = useT();
   const theme = useTheme();
+  const dispatch = useDispatch();
+  const { client } = useXmppClient();
 
   const [open, setOpen] = useState(false);
+  // The room a swiped row's Report opened the form for.
+  const [reportJid, setReportJid] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLongPress, setIsLongPress] = useState(false);
   const [isDrawerOpen, setDrawerOpen] = useState(false);
@@ -129,6 +139,31 @@ const RoomList: React.FC<RoomListProps> = ({
   const handleSearchChange = useCallback((text: string) => {
     setSearchTerm(text);
   }, []);
+
+  // Behind a row swiped left. Leaving is the chat profile's flow: an
+  // unavailable presence to the MUC, then the room dropped from the store.
+  const swipeActions = !config?.disableRoomSwipeActions;
+  const handleLeaveRoom = useCallback(
+    (jid: string) => {
+      Alert.alert(t('modal.leaveChat.title'), t('modal.leaveChat.description'), [
+        { text: t('action.cancel'), style: 'cancel' },
+        {
+          text: t('action.leave'),
+          style: 'destructive',
+          onPress: () => {
+            try {
+              client?.leaveTheRoomStanza?.(jid);
+            } catch (error) {
+              console.error('Failed to leave the room:', error);
+            }
+            dispatch(deleteRoom({ jid }));
+          },
+        },
+      ]);
+    },
+    [client, dispatch, t]
+  );
+  const handleReportRoom = useCallback((jid: string) => setReportJid(jid), []);
 
   const activityOf = useCallback((chat: IRoom): number => {
     const last = chat?.messages?.[chat?.messages.length - 1];
@@ -268,6 +303,8 @@ const RoomList: React.FC<RoomListProps> = ({
   const handleScrollBeginDrag = useCallback(() => {
     hasDragged.current = true;
     clearSettleTimer();
+    // Scrolling folds a row's actions back, as in the messengers.
+    closeOpenRoomRow();
   }, []);
 
   const handleScrollEndDrag = useCallback(
@@ -307,18 +344,38 @@ const RoomList: React.FC<RoomListProps> = ({
   }, [isSearchFocused]);
 
   const renderRoom = useCallback(
-    ({ item }: { item: IRoom }) => (
-      <Pressable
-        testID={`room-${(item.jid || '').split('@')[0]}`}
-        accessibilityLabel={`room-${item.title || item.name}`}
-        onPress={() => performClick(item)}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
-      >
-        <ChatRoomItem chat={item} config={config} />
-      </Pressable>
-    ),
-    [performClick, handlePressIn, handlePressOut, config]
+    ({ item }: { item: IRoom }) => {
+      const row = (
+        <Pressable
+          testID={`room-${(item.jid || '').split('@')[0]}`}
+          accessibilityLabel={`room-${item.title || item.name}`}
+          onPress={() => performClick(item)}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+        >
+          <ChatRoomItem chat={item} config={config} />
+        </Pressable>
+      );
+      if (!swipeActions || !item.jid) {return row;}
+      return (
+        <SwipeableRoomRow
+          roomJid={item.jid}
+          onReport={handleReportRoom}
+          onLeave={handleLeaveRoom}
+        >
+          {row}
+        </SwipeableRoomRow>
+      );
+    },
+    [
+      performClick,
+      handlePressIn,
+      handlePressOut,
+      config,
+      swipeActions,
+      handleReportRoom,
+      handleLeaveRoom,
+    ]
   );
 
   const toggleDrawer = () => {
@@ -519,6 +576,15 @@ const RoomList: React.FC<RoomListProps> = ({
                 overlayAnimation={overlayAnimation}
                 isDrawerOpen={isDrawerOpen}
               />
+              {/* Mounted only while a report is being written: the form
+                  is a Modal of its own and wants the toast context. */}
+              {reportJid !== null && (
+                <ReportChatModal
+                  visible
+                  roomJid={reportJid}
+                  onClose={() => setReportJid(null)}
+                />
+              )}
             </View>
           </>
         )}

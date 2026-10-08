@@ -27,12 +27,28 @@ if (typeof global.crypto.getRandomValues !== 'function') {
 // semantics without touching the OS keychain.
 jest.mock('expo-secure-store', () => {
   const store = new Map();
+  // The real module rejects any other key, on every call. Without this the
+  // mock accepted names like '@ethora/persist:mmkvKey', which on a device
+  // throw - so the key was never stored and the encrypted cache it guards
+  // was unreadable after every restart, with every test green.
+  const ensureValidKey = (key) => {
+    if (typeof key !== 'string' || !/^[\w.-]+$/.test(key)) {
+      throw new Error(
+        'Invalid key provided to SecureStore. Keys must not be empty and contain only alphanumeric characters, ".", "-", and "_".'
+      );
+    }
+  };
   return {
-    getItemAsync: jest.fn(async (key) => (store.has(key) ? store.get(key) : null)),
+    getItemAsync: jest.fn(async (key) => {
+      ensureValidKey(key);
+      return store.has(key) ? store.get(key) : null;
+    }),
     setItemAsync: jest.fn(async (key, value) => {
+      ensureValidKey(key);
       store.set(key, value);
     }),
     deleteItemAsync: jest.fn(async (key) => {
+      ensureValidKey(key);
       store.delete(key);
     }),
     __store: store,
@@ -72,6 +88,23 @@ jest.mock('react-native-reanimated', () => {
   } catch {
     return {};
   }
+});
+// The room list's swipeable rows: render the row and its actions side by
+// side, so tests reach the buttons without a gesture; `close` is a no-op.
+jest.mock('react-native-gesture-handler/ReanimatedSwipeable', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  const methods = { close: () => {}, openLeft: () => {}, openRight: () => {}, reset: () => {} };
+  const Swipeable = React.forwardRef((props, ref) => {
+    React.useImperativeHandle(ref, () => methods);
+    return React.createElement(
+      View,
+      { testID: props.testID },
+      props.children,
+      props.renderRightActions ? props.renderRightActions(null, null, methods) : null
+    );
+  });
+  return { __esModule: true, default: Swipeable };
 });
 jest.mock('@react-native-clipboard/clipboard', () => ({}), { virtual: true });
 jest.mock('react-native-fs', () => ({}), { virtual: true });

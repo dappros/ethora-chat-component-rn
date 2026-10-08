@@ -1,4 +1,5 @@
 import { FC, useMemo } from 'react';
+import { composeName } from '../../helpers/displayName';
 import { IReply, IUser } from '../../types/types';
 import { Avatar } from './Avatar';
 import { styled } from 'styled-components/native';
@@ -68,7 +69,7 @@ export const BottomReplyContainer: FC<BottomReplyContainerProps> = ({
     const raw = String(u?.id || '');
     const entry = usersSet?.[raw.split('@')[0]] || usersSet?.[raw];
     const full = entry
-      ? `${entry.firstName || ''} ${entry.lastName || ''}`.trim() || entry.name
+      ? composeName(entry.firstName, entry.lastName) || entry.name
       : '';
     return full || u?.name || '';
   };

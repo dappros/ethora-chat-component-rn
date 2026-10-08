@@ -39,7 +39,12 @@ import { getRooms as prefetchRoomsViaRest } from '../networking/api-requests/roo
 import { startBackgroundJoinSweep } from '../helpers/backgroundJoinSweep';
 import { pushSubscriptionService } from '../services/pushSubscriptionService';
 import { store } from '../roomStore';
-import { logout, setStoreClient, setConfig } from '../roomStore/chatSettingsSlice';
+import {
+  logout,
+  setStoreClient,
+  setConfig,
+  setConnectionState,
+} from '../roomStore/chatSettingsSlice';
 import { logoutService } from '../hooks/useLogout';
 import {
   setLogoutState,
@@ -98,10 +103,16 @@ const subscribeAllRoomsForPush = (client: any, reason: string) => {
     .catch((e) => devPushLog('warn', `${reason}: mucsub subscribe failed`, e));
 };
 
+/** Emitted once the session ended because the XMPP password is gone for good. */
+export const SESSION_LOST_EVENT = 'ethora:sessionLost';
+
 export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, isVisible }) => {
   const [client, setClient] = useState<XmppClient | null>(null);
   const [providerBootstrapStatus, setProviderBootstrapStatus] =
     useState<ProviderBootstrapStatus>('idle');
+  // Bumped by "Retry": the bootstrap effect keys on it, so a retry re-runs
+  // the bootstrap with the same config instead of waiting for a change.
+  const [bootstrapNonce, setBootstrapNonce] = useState(0);
 
   // Track which "init mode" this provider runs in. When config.initBeforeLoad
   // is true, the provider owns bootstrap and ChatWrapper just waits.
@@ -188,6 +199,10 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
           .performLogout()
           .catch(() => {})
           .finally(() => {
+            // The chat says so on its own screen (ChatWrapper's overlay)
+            // for a host that keeps it mounted; the host is told too, so
+            // it can route to its sign-in.
+            DeviceEventEmitter.emit(SESSION_LOST_EVENT);
             try {
               Promise.resolve(config?.logout?.onAfterLogout?.()).catch(() => {});
             } catch {
@@ -208,13 +223,24 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
       created.setOnOnline(() => {
         const underlying = (created as any).client;
         if (!underlying) {return;}
-        startBackgroundJoinSweep(created);
+        // The headers say "Updating..." until the rooms are joined again and
+        // the archive caught up - a stream that is up is not yet a chat
+        // that is. Same tick as the client's own 'online', so the title
+        // never shows the plain state in between.
+        store.dispatch(setConnectionState('syncing'));
+        // The join sweep is shared with the client's own online handler
+        // (it dedupes); here it is only awaited so the state can settle.
+        const rejoin = Promise.resolve()
+          .then(() => created.sendAllPresencesAndMarkReady?.())
+          .catch((e) =>
+            devPushLog('warn', 'reconnect: background join sweep failed', e)
+          );
         // Push (mucsub) does not depend on the join: subscribe right away.
         subscribeAllRoomsForPush(underlying, 'reconnect');
         // Also refresh the private store so unread / lastViewed markers
         // are accurate after a long reconnect — the MUC re-join above only
         // restores delivery, not unread state. Idempotent on first connect.
-        created
+        const markers = created
           .getChatsPrivateStoreRequestStanza()
           .catch((e: unknown) =>
             devPushLog('warn', 'reconnect: privateStore refresh failed', e)
@@ -229,9 +255,16 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
         // point, so this is a no-op until the bootstrap's own history load
         // populates it. Customer-reported #32.
         const rooms = store.getState().rooms?.rooms || {};
-        updateMessagesTillLast(rooms, created).catch((e: unknown) =>
+        const catchUp = updateMessagesTillLast(rooms, created).catch((e: unknown) =>
           devPushLog('warn', 'reconnect: offline catch-up sync failed', e)
         );
+        Promise.allSettled([rejoin, markers, catchUp]).then(() => {
+          // Only if this stream is still the live one: a drop meanwhile
+          // has already put the headers back to "Connecting…".
+          if (created.status === 'online') {
+            store.dispatch(setConnectionState('online'));
+          }
+        });
       });
 
       setClient(created);
@@ -507,6 +540,7 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
     config?.jwtLogin?.enabled,
     config?.jwtLogin?.token,
     config?.xmppSettings?.devServer,
+    bootstrapNonce,
   ]);
 
   // -----------------------------------------------------------
@@ -856,6 +890,7 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
       completedBootstrapKeyRef.current = '';
       inflightBootstrapKeyRef.current = '';
       setProviderBootstrapStatus('idle');
+      setBootstrapNonce((n) => n + 1);
     });
     return () => sub.remove();
   }, []);

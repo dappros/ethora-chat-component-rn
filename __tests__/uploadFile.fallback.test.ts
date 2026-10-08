@@ -239,6 +239,27 @@ describe('uploadFileV2 — message attachments', () => {
     await uploadFileV2(makeFormData(), ROOM_JID);
     expect(FakeXhr.instances[0].url).toBe(SECURE_URL);
   });
+  it('marks a sealed upload on both routes, and only a sealed one', async () => {
+    const { uploadFileV2 } = loadModule();
+
+    await uploadFileV2(makeRnFormData() as any, ROOM_JID);
+    expect(fieldValue(FakeXhr.instances[0]!.sentBody, 'clientEncrypted')).toBeNull();
+
+    // The secure route...
+    await uploadFileV2(makeRnFormData() as any, ROOM_JID, { clientEncrypted: true });
+    expect(FakeXhr.instances[1]!.url).toBe(SECURE_URL);
+    expect(fieldValue(FakeXhr.instances[1]!.sentBody, 'clientEncrypted')).toBe('true');
+
+    // ...and the legacy one it falls back to: without the flag there the
+    // backend would probe the ciphertext and try to thumbnail it.
+    FakeXhr.respond = (xhr) => {
+      if (xhr.url === SECURE_URL) {xhr.status = 404;}
+    };
+    await uploadFileV2(makeRnFormData() as any, ROOM_JID, { clientEncrypted: true });
+    const legacy = FakeXhr.instances[FakeXhr.instances.length - 1]!;
+    expect(legacy.url).toBe(LEGACY_URL);
+    expect(fieldValue(legacy.sentBody, 'clientEncrypted')).toBe('true');
+  });
 });
 
 describe('uploadFile — avatars and room icons', () => {

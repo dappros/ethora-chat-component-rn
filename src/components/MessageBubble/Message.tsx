@@ -6,6 +6,7 @@ import React, {
   useSyncExternalStore,
 } from 'react';
 import {
+  Alert,
   Animated,
   View,
   Pressable,
@@ -43,7 +44,15 @@ import { useChatSettingState } from '../../hooks/useChatSettingState';
 import { parseMessageBody } from '../../helpers/parseMessageBody';
 import { chatTextStyle } from '../../helpers/typography';
 import { useMessageHeapState } from '../../hooks/useMessageHeapState';
-import { DoubleTick } from '../../assets/icons';
+import { DoubleTick, LockIcon, LockOffIcon } from '../../assets/icons';
+import { useT } from '../../i18n/useT';
+import { useFileToken } from '../../hooks/useFileToken';
+import {
+  appendFileToken,
+  isSecureFileUrl,
+  requestFileTokenRecovery,
+} from '../../helpers/secureFileUrl';
+import { placeholderKey } from '../../e2ee/stanza';
 import { useXmppClient } from '../../context/xmppProvider';
 import { useSendMessage } from '../../hooks/useSendMessage';
 import { MessageReaction } from './MessageReaction';
@@ -52,7 +61,6 @@ import { reactionsEnabled } from '../../helpers/reactionsConfig';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { hapticTap } from '../../helpers/haptics';
 import { useTheme } from '../../hooks/useTheme';
-import { useT } from '../../i18n/useT';
 import { isOpaqueXmppUserId } from '../../helpers/xmppIdShape';
 import {
   getUserLookupStatus,
@@ -295,9 +303,24 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
       unresolvedPlaceholder;
   // The placeholder is a loading state, not a name: it must not seed the
   // generic avatar's initials or a stale caption.
+  //
+  // A broadcast posted by the app itself arrives with the ROOM's own id as
+  // its occupant resource, so no roster ever resolves it and the name chain
+  // ends at 50 characters of hex. Captioning a bubble with that tells the
+  // reader strictly less than showing nothing.
   const hasRealSenderName = !isUnresolvedSenderId(senderDisplayName);
+  const fileToken = useFileToken();
+  const [avatarFailed, setAvatarFailed] = useState<string | null>(null);
+  const rawProfileImage = String(
+    senderEntry?.profileImage ||
+      message.user?.profileImage ||
+      (message.user as any)?.photoURL ||
+      ''
+  ).trim();
   const senderProfileImage =
-    senderEntry?.profileImage || message.user?.profileImage || '';
+    rawProfileImage && rawProfileImage !== 'none' && rawProfileImage !== avatarFailed
+      ? appendFileToken(rawProfileImage, fileToken)
+      : '';
   const { idSet, failedIdSet } = useMessageHeapState();
   const { retryMessage } = useSendMessage();
 
@@ -468,8 +491,13 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   );
   // In auto mode, render the translation as the primary body — but NEVER for
   // the reader's own messages (they wrote it; no point translating it back).
+  const isUndecryptable =
+    message.undecryptable === 'true' && !message.isDeleted;
   const showInlineTranslation =
-    isAutoTranslate && translationDisplay.hasTranslation && !isUser;
+    isAutoTranslate &&
+    translationDisplay.hasTranslation &&
+    !isUser &&
+    !isUndecryptable;
   const bodyToRender = showInlineTranslation
     ? translationDisplay.displayText
     : message.body;
@@ -521,13 +549,32 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
             onPress={
               config?.disableProfilesInteractions
                 ? undefined
-                : () => handleUserAvatarClick(message.user)
+                : () =>
+                    handleUserAvatarClick({
+                      ...message.user,
+                      ...(senderEntry
+                        ? {
+                            firstName: senderEntry.firstName,
+                            lastName: senderEntry.lastName,
+                            profileImage: senderEntry.profileImage,
+                            description: senderEntry.description,
+                          }
+                        : {}),
+                      name: hasRealSenderName ? senderDisplayName : '',
+                    } as IUser)
             }
             disabled={!!config?.disableProfilesInteractions}
             accessible={!config?.disableProfilesInteractions}
           >
             {senderProfileImage ? (
-              <CustomMessagePhoto source={{ uri: senderProfileImage }} />
+              <CustomMessagePhoto
+                testID="message-sender-avatar"
+                source={{ uri: senderProfileImage }}
+                onError={() => {
+                  if (isSecureFileUrl(rawProfileImage)) {requestFileTokenRecovery();}
+                  setAvatarFailed(rawProfileImage);
+                }}
+              />
             ) : (
               <Avatar username={senderNamePending ? '' : senderDisplayName} />
             )}
@@ -599,6 +646,26 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
               <>
                 {message.isDeleted && message.id !== 'delimiter-new' ? (
                   <DeletedMessage />
+                ) : isUndecryptable ? (
+                  <View style={styles.undecryptable}>
+                    <LockIcon
+                      width={15}
+                      height={15}
+                      color={theme.textSecondary}
+                    />
+                    <Text
+                      style={[
+                        styles.undecryptableText,
+                        themedStyles.muted,
+                        {
+                          fontSize:
+                            config?.typography?.messageText?.fontSize ?? 15,
+                        },
+                      ]}
+                    >
+                      {t(placeholderKey(message.e2eeError))}
+                    </Text>
+                  </View>
                 ) : (
                   <CustomMessageText
                     isUser={isUser}
@@ -627,6 +694,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
                 renders the translation inline in the body above). Never on
                 the reader's own messages. */}
             {!isUser &&
+              !isUndecryptable &&
               isTranslatesEnabled &&
               effectiveTranslateMode === 'manual' && (
                 <MessageTranslate
@@ -640,7 +708,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
             <CustomTimestampRow media={message?.isMediafile === 'true'}>
               {!config?.disableSentLogic && isUser && isPending && (
                 <Text style={[styles.timestampText, themedStyles.muted]}>
-                  sending...
+                  {t('message.sending')}
                 </Text>
               )}
               {!config?.disableSentLogic && isUser && isFailed && (
@@ -650,11 +718,25 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
                   accessibilityRole="button"
                   accessibilityLabel="Retry sending message"
                 >
-                  ! Failed — tap to retry
+                  {t('message.failedRetry')}
                 </Text>
               )}
               {message?.isEdited && !message?.isDeleted && (
-                <Text style={[styles.editedText, themedStyles.muted]}>edited</Text>
+                <Text style={[styles.editedText, themedStyles.muted]}>{t('message.edited')}</Text>
+              )}
+              {message?.unencrypted && !message?.isDeleted && (
+                <Pressable
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('e2ee.notEncrypted')}
+                  accessibilityHint={t('e2ee.notEncryptedHint')}
+                  testID="message-not-encrypted"
+                  onPress={() =>
+                    Alert.alert(t('e2ee.notEncrypted'), t('e2ee.notEncryptedHint'))
+                  }
+                >
+                  <LockOffIcon width={13} height={13} color={theme.danger} />
+                </Pressable>
               )}
               <Text style={[styles.timestampText, themedStyles.muted]}>
                 {timeLabel}
@@ -781,6 +863,16 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
     marginTop: 4,
     gap: 4,
+  },
+  undecryptable: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    maxWidth: 260,
+  },
+  undecryptableText: {
+    flexShrink: 1,
+    fontStyle: 'italic',
   },
   timestampText: {
     fontSize: 12,

@@ -6,6 +6,7 @@ import LastMessagePhoto from './styled/LastMessagePhoto';
 import LastMessageEmoji from './styled/LastMessageEmoji';
 import LastMessageFile from './styled/LastMessageFile';
 import LastAudioMessage from './styled/LastAudioMessage';
+import LastMessageSealed from './styled/LastMessageSealed';
 
 interface LastMessageItemProps {
   lastMessage: LastMessage;
@@ -13,6 +14,10 @@ interface LastMessageItemProps {
 
 const LastMessageItem: FC<LastMessageItemProps> = ({ lastMessage }) => {
   const { body, emoji, mimetype } = lastMessage;
+
+  if (lastMessage?.clientEncrypted === 'true') {
+    return <LastMessageSealed {...lastMessage} />;
+  }
 
   if (mimetype) {
     if (mimetype.startsWith('image/')) {

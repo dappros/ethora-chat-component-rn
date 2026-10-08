@@ -64,6 +64,7 @@ export interface IRoom {
   // in ChatProfileModal under Description / Chat type fields.
   description?: string;
   type?: string;
+  e2ee?: boolean;
 
   roomMembers?: RoomMember[];
   members?: RoomMember[];
@@ -389,6 +390,9 @@ export interface TypographyConfig {
 export interface IConfig {
   // ----- identity / network -----
   appId?: string;
+  e2ee?: {
+    enabled: boolean;
+  };
   baseUrl?: string;
   customAppToken?: string;
   projectName?: string;
@@ -736,6 +740,8 @@ export interface IConfig {
    * public chats (GET /v1/chats/public).
    */
   disablePublicChatsDirectory?: boolean;
+  /** No Report / Leave behind a room-list row swiped to the left. */
+  disableRoomSwipeActions?: boolean;
   disableSentLogic?: boolean;
   disableTypingIndicator?: boolean;
   // Hide the full-screen "Connection error" overlay (the dark modal with
@@ -876,12 +882,14 @@ export interface IConfig {
     apiUrl?: string;
     iconPath?: string;
     badgePath?: string;
+    /** @deprecated Never called. Hand the tapped notification's data to `handlePushPayload`; the SDK opens the room itself. */
     onClick?: (params: {
       roomJID?: string;
       messageId?: string;
       data?: Record<string, any>;
       notification?: { title?: string; body?: string };
     }) => void | Promise<void>;
+    /** @deprecated Never called; see `onClick`. */
     onNotificationPress?: (data: any) => void;
     getPushTokens?: () => Promise<
       PushTokenRegistration[] | PushTokenRegistration | null | undefined
@@ -895,6 +903,27 @@ export interface IConfig {
     hideAppearance?: boolean;
     /** Hide the push-notifications toggle. */
     hidePushToggle?: boolean;
+    /**
+     * A "Language" card with two pickers, off by default: the interface
+     * language (the backend's `user.appLanguage`) and the language messages
+     * are translated into (`user.chatLanguage`). A choice is applied at
+     * once, kept on the device, and written to the profile with
+     * `PUT /v1/users`, one field per request; the profile's values are
+     * applied when a session starts. Translation itself is the server's,
+     * per the reader's chat language - so `translates.enabled` is what
+     * shows the result. Options default to the built-in list (en-CA, es-US,
+     * fr-CA); pass BCP-47 tags to offer others.
+     */
+    languages?: {
+      enabled: boolean;
+      appLanguages?: string[];
+      chatLanguages?: string[];
+    };
+    /**
+     * A "Change password" screen, off by default: the current password and
+     * the new one, sent to `PUT /v2/users/me/password`.
+     */
+    changePassword?: boolean;
   };
 
   // ----- event hooks -----

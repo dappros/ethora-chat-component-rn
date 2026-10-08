@@ -106,4 +106,33 @@ describe('Settings screen', () => {
       tree.root.findAll((n) => n.props?.testID === `settings-row-${MODAL_TYPES.VISIBILITY}`, { deep: false })
     ).toHaveLength(1);
   });
+
+  it('shows the language card and the password row only when the host turned them on', async () => {
+    const off = await render({ e2ee: { enabled: true } });
+    expect(off.tree.root.findAll((n) => n.props?.testID === 'settings-languages')).toHaveLength(0);
+    expect(off.tree.root.findAll((n) => n.props?.testID === `settings-row-${MODAL_TYPES.CHANGE_PASSWORD}`)).toHaveLength(0);
+    // Encryption has no card here: devices are on profiles.
+    expect(off.tree.root.findAll((n) => n.props?.testID === 'settings-e2ee')).toHaveLength(0);
+    await act(async () => off.tree.unmount());
+
+    const on = await render({
+      settings: { languages: { enabled: true }, changePassword: true },
+    });
+    expect(
+      on.tree.root.findAll((n) => n.props?.testID === 'settings-languages', { deep: false })
+    ).toHaveLength(1);
+    expect(on.texts()).toContain('App language');
+    expect(on.texts()).toContain('Chat language');
+    expect(
+      on.tree.root.findAll(
+        (n) => n.props?.testID === `settings-row-${MODAL_TYPES.CHANGE_PASSWORD}`,
+        { deep: false }
+      )
+    ).toHaveLength(1);
+    await act(async () => {
+      on.node(`settings-row-${MODAL_TYPES.CHANGE_PASSWORD}`).props.onPress();
+    });
+    expect(store.getState().chatSettingStore.activeModal).toBe(MODAL_TYPES.CHANGE_PASSWORD);
+    await act(async () => on.tree.unmount());
+  });
 });

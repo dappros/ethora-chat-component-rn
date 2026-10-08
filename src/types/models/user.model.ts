@@ -54,6 +54,10 @@ export interface User {
   isAssetsOpen?: boolean;
   isAgreeWithTerms?: boolean;
   isSuperAdmin?: boolean;
+  /** Interface language on the profile (BCP-47). */
+  appLanguage?: string | null;
+  /** Language messages are translated into (BCP-47); unset = follow appLanguage. */
+  chatLanguage?: string | null;
 }
 
 export interface ConfigUser {

@@ -14,6 +14,7 @@ import { RoomMember } from '../../../types/types';
 import ModalContent from './ModalContent';
 import { ModalBackground } from '../styledModalComponents';
 import { addRoom, setCurrentRoom } from '../../../roomStore/roomsSlice';
+import { subscribeRoomForPush } from '../../../services/pushSubscriptionService';
 
 const NewChatModal: React.FC = () => {
   const config = useSelector(
@@ -101,6 +102,7 @@ const NewChatModal: React.FC = () => {
       dispatch(addRoom({ roomData: normalizedChat }));
       dispatch(setCurrentRoom({ roomJID: normalizedChat.jid }));
       client?.presenceInRoomStanza(normalizedChat.jid);
+      subscribeRoomForPush(client, normalizedChat.jid);
     }
   };
 

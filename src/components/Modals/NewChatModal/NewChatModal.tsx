@@ -187,16 +187,16 @@ const NewChatModal: React.FC<NewChatModalProps> = ({
 
       showToast({
         id: Date.now().toString(),
-        title: 'Success',
-        message: 'Room created successfully',
+        title: t('toast.successTitle'),
+        message: t('toast.roomCreatedSuccess'),
         type: 'success',
       });
     } catch (error) {
       console.error('Error handling room creation:', error);
       showToast({
         id: Date.now().toString(),
-        title: 'Error',
-        message: 'Failed to create room',
+        title: t('toast.error'),
+        message: t('toast.failedToCreateRoom'),
         type: 'error',
       });
     }
@@ -258,8 +258,8 @@ const NewChatModal: React.FC<NewChatModalProps> = ({
 
           showToast({
             id: Date.now().toString(),
-            title: 'Success',
-            message: 'Room created successfully',
+            title: t('toast.successTitle'),
+            message: t('toast.roomCreatedSuccess'),
             type: 'success',
           });
           handleCloseModal();
@@ -267,8 +267,8 @@ const NewChatModal: React.FC<NewChatModalProps> = ({
           console.error('Failed to create room:', error);
           showToast({
             id: Date.now().toString(),
-            title: 'Error',
-            message: 'Failed to create room',
+            title: t('toast.error'),
+            message: t('toast.failedToCreateRoom'),
             type: 'error',
           });
         }

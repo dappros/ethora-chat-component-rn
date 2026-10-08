@@ -16,7 +16,7 @@ import {
   ChatIcon,
   EditIcon,
   IconDoc,
-  LeaveIcon,
+  LockIcon,
   LogoutIcon,
   ProfileIcon,
   ShareIcon,
@@ -38,12 +38,26 @@ import { MODAL_TYPES } from '../../../helpers/constants/MODAL_TYPES';
 import {
   setActiveFile,
   setActiveModal,
-  setLangSource,
 } from '../../../roomStore/chatSettingsSlice';
 import { addRoomViaApi, setCurrentRoom } from '../../../roomStore/roomsSlice';
 import { runLogoutFlow } from '../../Menu/HeaderRoomListMenu';
 import { useLogout } from '../../../hooks/useLogout';
-import { ApiRoom, postPrivateRoom } from '../../../networking/api-requests/rooms.api';
+import {
+  ApiRoom,
+  ownAppId,
+  postPrivateRoom,
+} from '../../../networking/api-requests/rooms.api';
+import EncryptionCard from '../../MainComponents/EncryptionCard';
+import { accountNameOf } from '../../../helpers/accountName';
+import { setChatLanguage } from '../../../services/languageSettings';
+import { composeName } from '../../../helpers/displayName';
+import { isUnresolvedSenderId } from '../../../helpers/isUnresolvedSenderId';
+
+/** A name, unless it is only the account's id standing in for one. */
+const nameOrNothing = (name?: string | null): string => {
+  const trimmed = String(name ?? '').trim();
+  return isUnresolvedSenderId(trimmed) ? '' : trimmed;
+};
 import {
   getUserFiles,
   isMediaFile,
@@ -51,7 +65,7 @@ import {
 } from '../../../networking/api-requests/user.api';
 import { createRoomFromApi } from '../../../helpers/createRoomFromApi';
 import { walletToUsername } from '../../../helpers/walletUsername';
-import { Iso639_1Codes } from '../../../types/types';
+import {  } from '../../../types/types';
 import {
   ProfileHero,
   ProfileTopBar,
@@ -191,13 +205,17 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
   // AsyncStorage), including the host's confirm copy and callbacks.
   const performLogout = useLogout();
   const handleLogout = useCallback(() => {
-    runLogoutFlow(config?.logout ?? { enabled: true }, performLogout).catch(() => {});
-  }, [config?.logout, performLogout]);
+    runLogoutFlow(config?.logout ?? { enabled: true }, performLogout, {
+      label: t('menu.logout'),
+      message: t('menu.logoutConfirm'),
+      cancel: t('action.cancel'),
+    }).catch(() => {});
+  }, [config?.logout, performLogout, t]);
 
   const handleShare = useCallback(async () => {
     const name =
-      profileUser?.name ||
-      `${profileUser?.firstName ?? ''} ${profileUser?.lastName ?? ''}`.trim();
+      nameOrNothing(profileUser?.name) ||
+      composeName(profileUser?.firstName, profileUser?.lastName);
     const id =
       profileUser?.userJID ||
       profileUser?.defaultWallet?.walletAddress ||
@@ -228,8 +246,8 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
       showToast({
         id: Date.now().toString(),
-        title: 'Success!',
-        message: 'Room created succusfully!',
+        title: t('toast.success'),
+        message: t('toast.roomCreatedSuccess'),
         type: 'success',
         duration: 3000,
       });
@@ -238,17 +256,18 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     }
   };
 
-  const handlePrivateMessage = useCallback(async () => {
+  const openPrivateRoom = useCallback(async (e2ee: boolean) => {
     showToast({
       id: Date.now().toString(),
-      title: 'Room creation',
-      message: 'Room is being created...',
+      title: t('toast.roomCreationTitle'),
+      message: t('toast.roomCreating'),
       type: 'info',
       duration: 3000,
     });
     if (config?.newArch) {
       const newRoom = await postPrivateRoom(
-        selectedUser?.userJID ?? (selectedUser?.id || '')
+        selectedUser?.userJID ?? (selectedUser?.id || ''),
+        e2ee
       );
       handleRoomCreation(newRoom, 2);
     } else {
@@ -281,7 +300,18 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     }
 
     dispatch(setActiveModal(undefined));
-  }, [selectedUser]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedUser, t]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handlePrivateMessage = useCallback(
+    () => openPrivateRoom(false),
+    [openPrivateRoom]
+  );
+  const handleEncryptedPrivateMessage = useCallback(
+    () => openPrivateRoom(true),
+    [openPrivateRoom]
+  );
+  const canStartEncrypted =
+    config?.e2ee?.enabled === true && !!config?.newArch;
 
   const openFile = (file: UserFile) => {
     dispatch(
@@ -333,6 +363,16 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     icon: (color: string) => <ChatIcon color={color} />,
                     onPress: handlePrivateMessage,
                   },
+                  ...(canStartEncrypted
+                    ? [
+                        {
+                          key: 'encrypted-message',
+                          label: t('action.encryptedMessage'),
+                          icon: (color: string) => <LockIcon color={color} />,
+                          onPress: handleEncryptedPrivateMessage,
+                        },
+                      ]
+                    : []),
                 ]),
             {
               key: 'share',
@@ -341,7 +381,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
               onPress: handleShare,
             },
           ],
-    [isOwnProfile, t, handleShare, handlePrivateMessage, handleLogout] // eslint-disable-line react-hooks/exhaustive-deps
+    [isOwnProfile, t, handleShare, handlePrivateMessage, handleEncryptedPrivateMessage, canStartEncrypted, handleLogout] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   // Collapsed, the hero's round buttons are gone — the "…" menu carries
@@ -373,8 +413,8 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
   }
 
   const displayName =
-    profileUser?.name ||
-    `${profileUser?.firstName ?? ''} ${profileUser?.lastName ?? ''}`.trim() ||
+    nameOrNothing(profileUser?.name) ||
+    composeName(profileUser?.firstName, profileUser?.lastName) ||
     t('modal.profile.title');
   const heroImage =
     appendFileToken(profileUser?.profileImage, fileToken) || null;
@@ -393,9 +433,12 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 testID={`${PREFIX}-language-${option.id}`}
                 activeOpacity={0.7}
                 style={styles.languageRow}
-                onPress={() =>
-                  dispatch(setLangSource(option.id as Iso639_1Codes))
-                }
+                // The same choice Settings offers as "chat language": kept
+                // on the device, and written to the profile when the host
+                // turned that on.
+                onPress={() => {
+                  setChatLanguage(option.id).catch(() => {});
+                }}
               >
                 <Text style={styles.languageLabel}>{option.name}</Text>
                 {selected && (
@@ -497,19 +540,6 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
           scrollY={scrollY}
           actions={heroActions}
           titleStyle={chatTextStyle(config?.typography?.profile?.title)}
-          titleAccessory={
-            isOwnProfile ? (
-              <TouchableOpacity
-                testID={`${PREFIX}-logout`}
-                activeOpacity={0.7}
-                style={styles.leaveButton}
-                onPress={handleLogout}
-              >
-                <LeaveIcon color="#FFFFFF" width={18} height={18} />
-                <Text style={styles.leaveLabel}>{t('action.leave')}</Text>
-              </TouchableOpacity>
-            ) : undefined
-          }
         />
 
         <View style={styles.body}>
@@ -528,6 +558,14 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 : t('modal.profile.noDescription')}
             </Text>
           </View>
+
+          {!isOwnProfile && config?.e2ee?.enabled === true && (
+            <EncryptionCard
+              account={accountNameOf(profileUser, ownAppId())}
+              style={styles.card}
+              testID="user-profile-e2ee"
+            />
+          )}
 
           {tabs.length > 0 && (
             <View style={styles.card}>
@@ -632,20 +670,6 @@ const createStyles = (theme: ChatTheme) => StyleSheet.create({
     color: theme.text,
     fontSize: 16,
     marginTop: 4,
-  },
-  leaveButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 18,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-  },
-  leaveLabel: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '500',
   },
   tabsRow: {
     flexDirection: 'row',

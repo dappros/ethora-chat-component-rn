@@ -12,6 +12,7 @@ export interface RoomMember {
   role?: string;
   last_active?: number;
   profileImage?: string;
+  description?: string;
 }
 
 export interface RoomLastMessage {
@@ -30,6 +31,7 @@ export interface IRoom {
 
   members?: RoomMember[];
   type?: 'public' | 'group' | 'private';
+  e2ee?: boolean;
   creteadAt?: string; // Typo? Should it be createdAt?
 
   appId?: string;
@@ -96,6 +98,7 @@ export interface ApiRoom {
   unreadCount?: number;
   lastMessage?: ApiRoomLastMessage;
 
+  e2ee?: boolean;
   title?: string;
   description?: string;
   picture?: string;

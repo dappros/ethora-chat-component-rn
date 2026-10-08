@@ -34,13 +34,15 @@ import { interpolate, resolveStringTable } from './strings';
  * own locale - the right default.
  */
 export const useUiLocale = (): string | undefined => {
-  const { config, langSource } = useChatSettingState();
-  return config?.i18n?.locale || langSource || undefined;
+  const { config, langSource, uiLocale } = useChatSettingState();
+  return uiLocale || config?.i18n?.locale || langSource || undefined;
 };
 
 export const useT = () => {
-  const { config, langSource } = useChatSettingState();
-  const locale = config?.i18n?.locale || langSource;
+  // The user's own pick from Settings first (`uiLocale`), then the host's
+  // default, then the reader's chat language.
+  const { config, langSource, uiLocale } = useChatSettingState();
+  const locale = uiLocale || config?.i18n?.locale || langSource;
   const overrides = config?.i18n?.strings;
 
   const table = useMemo(

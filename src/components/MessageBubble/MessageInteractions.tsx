@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { canEditMessage } from '../../e2ee';
 import { Delimeter, MenuItem } from '../ContextMenu/ContextMenuComponents';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../roomStore';
@@ -21,6 +22,7 @@ import * as Clipboard from 'expo-clipboard';
 import { useToast } from '../../context/ToastContext';
 import { useInteractionsOverlay } from './InteractionsOverlay';
 import { useTheme } from '../../hooks/useTheme';
+import { useT } from '../../i18n/useT';
 import { getEmojiNativeById } from '../../helpers/emoji';
 import {
   quickReactionIds,
@@ -60,6 +62,7 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
   onOpenEmojiPicker,
 }) => {
   const { showToast } = useToast();
+  const t = useT();
   const { present, dismiss, originX, originY } = useInteractionsOverlay();
   const overlayId = useId();
   const theme = useTheme();
@@ -143,15 +146,15 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
       await Clipboard.setStringAsync(text);
       showToast({
         id: Date.now().toString(),
-        title: 'Success',
-        message: 'Copied to clipboard!',
+        title: t('toast.successTitle'),
+        message: t('toast.copied'),
         type: 'success',
       });
     } catch (err) {
       console.log(err);
       showToast({
         id: Date.now().toString(),
-        title: 'Copy failed',
+        title: t('toast.copyFailed'),
         message: (err as Error)?.message || 'Unknown error',
         type: 'error',
       });
@@ -362,9 +365,7 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
           </MenuItem>
           {isUser && (
             <>
-              {/* Edit only for non-media messages (upstream guard) +
-                  consistent label styling (menuText). */}
-              {message?.isMediafile !== 'true' && (
+              {message?.isMediafile !== 'true' && canEditMessage(message) && (
                 <>
                   <Delimeter />
                   <MenuItem onPress={handleEditMessage}>

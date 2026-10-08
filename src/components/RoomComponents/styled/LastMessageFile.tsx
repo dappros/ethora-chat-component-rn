@@ -43,7 +43,7 @@ const LastMessageFile: FC<LastMessageFileProps> = ({
 
   return (
     <LastRoomMessageContainer>
-      <LastRoomMessageName>{user?.name || ''}:</LastRoomMessageName>
+      {!!user?.name && <LastRoomMessageName>{user.name}:</LastRoomMessageName>}
       <View
         style={{
           display: 'flex',
@@ -67,7 +67,7 @@ const LastMessageFile: FC<LastMessageFileProps> = ({
             }}
           />
         ) : (
-          <FileIcon style={{ width: '20px', height: '20px' }} />
+          <FileIcon width={20} height={20} />
         )}
         <LastRoomMessageText>{displayName}</LastRoomMessageText>
       </View>

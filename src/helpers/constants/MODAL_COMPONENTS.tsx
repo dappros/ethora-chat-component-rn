@@ -16,6 +16,7 @@ import ManageDataModal from '../../components/Modals/SettingsModals/ManageDataMo
 import ProfileSharesModal from '../../components/Modals/SettingsModals/ProfileShares/ProfileShares';
 import ReferralsModal from '../../components/Modals/SettingsModals/Referrals/Referrals';
 import VisibilityModal from '../../components/Modals/SettingsModals/Visibility/VisibilityModal';
+import ChangePasswordModal from '../../components/Modals/SettingsModals/ChangePassword/ChangePasswordModal';
 import UserProfileModal from '../../components/Modals/UserProfileModal/UserProfileModal';
 import UserSettingsModal from '../../components/Modals/UserSettingsModal/UserSettingsModal';
 
@@ -29,6 +30,7 @@ export const MODAL_COMPONENTS: Record<
   [MODAL_TYPES.CHAT_PROFILE]: ChatProfileModal,
   [MODAL_TYPES.MANAGE_DATA]: ManageDataModal,
   [MODAL_TYPES.VISIBILITY]: VisibilityModal,
+  [MODAL_TYPES.CHANGE_PASSWORD]: ChangePasswordModal,
   [MODAL_TYPES.REFERRALS]: ReferralsModal,
   [MODAL_TYPES.DOCUMENT_SHARES]: DocumentSharesModal,
   [MODAL_TYPES.PROFILE_SHARES]: ProfileSharesModal,

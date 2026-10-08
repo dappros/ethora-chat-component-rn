@@ -74,6 +74,21 @@ export async function secureRemove(key: string): Promise<void> {
   await AsyncStorage.removeItem(FALLBACK_PREFIX + key).catch(() => undefined);
 }
 
+export async function secureGetOrCreate(
+  key: string,
+  create: () => string
+): Promise<{ value: string; created: boolean } | null> {
+  const existing = await secureGet(key);
+  if (existing) {return { value: existing, created: false };}
+  const value = create();
+  await secureSet(key, value);
+  if ((await secureGet(key)) !== value) {
+    pushLog('warn', `secureStore: ${key} was not kept`);
+    return null;
+  }
+  return { value, created: true };
+}
+
 /** Test seam only. */
 export const __resetSecureKeyValueWarningForTests = (): void => {
   warnedFallback = false;

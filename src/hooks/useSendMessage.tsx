@@ -15,6 +15,9 @@ import { RootState, store } from '../roomStore';
 import { getGlobalXmppClient } from '../utils/clientRegistry';
 import { useEventHandlers } from './useEventHandlers';
 import type { IConfig, IMessage } from '../types/types';
+import { canEditMessage, canSendMediaToRoom, canSendToRoom } from '../e2ee';
+import { shouldEncrypt } from '../e2ee/send';
+import type { SealedUpload } from '../e2ee/sealedFiles';
 
 // Watchdog: if a message stays "pending" (no server echo) for this
 // long after the optimistic dispatch, mark it failed so the bubble
@@ -103,6 +106,16 @@ export const useSendMessage = (_configOverride?: IConfig) => {
       existingId?: string
     ) => {
       if (editAction?.isEdit) {
+        const edited = reduxStore
+          .getState()
+          .rooms?.rooms?.[editAction.roomJid!]?.messages?.find(
+            (m: IMessage) => m.id === editAction.messageId
+          );
+        if (edited && !canEditMessage(edited)) {
+          console.warn('edit not sent: the message was encrypted');
+          dispatch(setEditAction({ isEdit: false }));
+          return;
+        }
         try {
           client?.editMessageStanza(
             editAction.roomJid!,
@@ -124,6 +137,11 @@ export const useSendMessage = (_configOverride?: IConfig) => {
           });
         }
         dispatch(setEditAction({ isEdit: false }));
+        return;
+      }
+
+      if (!canSendToRoom(activeRoomJID)) {
+        console.warn('message not sent: room is end-to-end encrypted');
         return;
       }
 
@@ -365,6 +383,11 @@ export const useSendMessage = (_configOverride?: IConfig) => {
       mainMessage: string = '',
       existingId?: string
     ) => {
+      if (!canSendMediaToRoom(activeRoomJID)) {
+        console.warn('media not sent: room is end-to-end encrypted');
+        return;
+      }
+
       client?.onCriticalSend?.(activeRoomJID);
 
       // Defensive 50 MB guard on every send path (SendInput blocks it at
@@ -518,20 +541,36 @@ export const useSendMessage = (_configOverride?: IConfig) => {
         name: data?.name || data?.fileName || `media_${Date.now()}`,
       };
 
+      let sealed: SealedUpload | undefined;
+
       const tryUpload = async () => {
+        if (shouldEncrypt(activeRoomJID) && !sealed) {
+          const { sealPickedFile } =
+            require('../e2ee/sealedFiles') as typeof import('../e2ee/sealedFiles');
+          sealed = await sealPickedFile({
+            uri: fileBlob.uri,
+            name: fileBlob.name,
+            type: fileBlob.type,
+            size: typeof data?.size === 'number' ? data.size : undefined,
+          });
+        }
+        const part = sealed
+          ? { uri: sealed.uri, type: 'application/octet-stream', name: sealed.name }
+          : fileBlob;
+        const options = { clientEncrypted: !!sealed };
         const fd = new FormData();
-        fd.append('files', fileBlob as any);
+        fd.append('files', part as any);
         try {
-          return await uploadFileV2(fd, activeRoomJID);
+          return await uploadFileV2(fd, activeRoomJID, options);
         } catch (err: any) {
           if (err?.response?.status === 500) {
             console.warn(
               'upload "files" field returned 500 — retrying with "file" (singular)',
-              { name: fileBlob.name, type: fileBlob.type }
+              { name: part.name, type: part.type }
             );
             const fd2 = new FormData();
-            fd2.append('file', fileBlob as any);
-            return await uploadFileV2(fd2, activeRoomJID);
+            fd2.append('file', part as any);
+            return await uploadFileV2(fd2, activeRoomJID, options);
           }
           throw err;
         }
@@ -571,7 +610,23 @@ export const useSendMessage = (_configOverride?: IConfig) => {
             mainMessage,
             isPrivate: item?.isPrivate,
             __v: item.__v,
+            e2eeKeys: sealed ? [sealed.keyMaterial] : undefined,
           };
+          if (sealed) {
+            try {
+              const { rememberOpened } =
+                require('../e2ee/sealedFiles') as typeof import('../e2ee/sealedFiles');
+              await rememberOpened(item.location, {
+                uri: fileBlob.uri,
+                name: fileBlob.name,
+                type: fileBlob.type,
+                size: typeof data?.size === 'number' ? data.size : undefined,
+              });
+            } catch (err) {
+              console.warn('could not keep the sent attachment', err);
+            }
+            sealed.dispose();
+          }
           // Stanza id == placeholder id so the MUC echo's outer
           // <message id="..."> matches xmppId on the placeholder and
           // insertMessageWithDelimiter merges in place + flips pending.
@@ -636,6 +691,7 @@ export const useSendMessage = (_configOverride?: IConfig) => {
         // Upload (or stanza send) threw an explicit error. Clear the
         // watchdog so it doesn't double-fire `markMessageFailed`.
         clearTimeout(mediaWatchdog);
+        sealed?.dispose();
         // Surface the real server payload so we can see why the upload
         // was rejected (axios collapses the message to "Request failed
         // with status code N"; the actual reason lives in
@@ -745,6 +801,16 @@ export const useSendMessage = (_configOverride?: IConfig) => {
   const sendEditMessage = useCallback(
     async (message: string, _activeRoomJID?: string) => {
       if (!editAction?.isEdit || !editAction.roomJid || !editAction.messageId) {
+        return;
+      }
+      const edited = reduxStore
+        .getState()
+        .rooms?.rooms?.[editAction.roomJid]?.messages?.find(
+          (m: IMessage) => m.id === editAction.messageId
+        );
+      if (edited && !canEditMessage(edited)) {
+        console.warn('edit not sent: the message was encrypted');
+        dispatch(setEditAction({ isEdit: false }));
         return;
       }
       try {

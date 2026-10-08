@@ -16,6 +16,17 @@ interface ModalProps {
   setOpenModal: (value?: ModalType) => any;
 }
 
+/** Screens reached from Settings: closing them goes back there. */
+const SETTINGS_SCREENS = new Set<string>([
+  MODAL_TYPES.MANAGE_DATA,
+  MODAL_TYPES.VISIBILITY,
+  MODAL_TYPES.REFERRALS,
+  MODAL_TYPES.DOCUMENT_SHARES,
+  MODAL_TYPES.PROFILE_SHARES,
+  MODAL_TYPES.BLOCKED_USERS,
+  MODAL_TYPES.CHANGE_PASSWORD,
+]);
+
 const Modal: React.FC<ModalProps> = ({ children, modal, setOpenModal }) => {
   const dispatch = useDispatch();
   const handleCloseModal = () => setOpenModal();
@@ -29,15 +40,9 @@ const Modal: React.FC<ModalProps> = ({ children, modal, setOpenModal }) => {
 
     if (!ModalComponent) {return null;}
 
-    const handleClose =
-      modal === MODAL_TYPES.MANAGE_DATA ||
-      modal === MODAL_TYPES.VISIBILITY ||
-      modal === MODAL_TYPES.REFERRALS ||
-      modal === MODAL_TYPES.DOCUMENT_SHARES ||
-      modal === MODAL_TYPES.PROFILE_SHARES ||
-      modal === MODAL_TYPES.BLOCKED_USERS
-        ? handleBackButtonClick
-        : handleCloseModal;
+    const handleClose = SETTINGS_SCREENS.has(modal)
+      ? handleBackButtonClick
+      : handleCloseModal;
 
     return <ModalComponent handleCloseModal={handleClose} />;
   };
@@ -75,15 +80,38 @@ const Modal: React.FC<ModalProps> = ({ children, modal, setOpenModal }) => {
     }
   }
 
+  // Screens under Settings are pages too: they slide in over Settings and
+  // a swipe from the left edge takes them back to it, same as the header's
+  // back button. Settings stays mounted underneath the whole time, so the
+  // slide reveals it - not the chat list - and nothing is rebuilt once the
+  // page has gone. The elements below keep the same shape as the plain
+  // branch, so Settings is the same instance before, during and after.
+  const subScreen = modal && SETTINGS_SCREENS.has(modal) ? modal : undefined;
+  const SubScreenComponent = subScreen ? MODAL_COMPONENTS[subScreen] : undefined;
+  const SettingsComponent = MODAL_COMPONENTS[MODAL_TYPES.SETTINGS];
+  const underneath =
+    SubScreenComponent && SettingsComponent ? (
+      <SettingsComponent handleCloseModal={handleCloseModal} />
+    ) : (
+      renderModalContent()
+    );
+
   return (
     modal && (
-      <ModalBackground
-        id="modal-background"
-        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-      >
-        {renderModalContent()}
-        {children}
-      </ModalBackground>
+      <>
+        <ModalBackground
+          id="modal-background"
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+        >
+          {underneath}
+          {children}
+        </ModalBackground>
+        {SubScreenComponent && (
+          <SwipeBackLayer onClose={handleBackButtonClick}>
+            {(close) => <SubScreenComponent handleCloseModal={close} />}
+          </SwipeBackLayer>
+        )}
+      </>
     )
   );
 };

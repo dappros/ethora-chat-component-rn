@@ -290,8 +290,8 @@ Don't want to build your own button? Enable the item in the room-list header men
   config={{
     logout: {
       enabled: true,
-      label: 'Sign out',                        // default
-      confirm: { message: 'Sign out of chat?' }, // `true` (default) uses stock copy, `false` skips the dialog
+      label: 'Sign out',                        // optional; omit for the SDK's own, in the UI language
+      confirm: { message: 'Sign out of chat?' }, // `true` (default) uses stock copy (localized), `false` skips the dialog
       onBeforeLogout: async () => {
         // return false to cancel (e.g. unsaved draft guard)
       },
@@ -304,6 +304,28 @@ Don't want to build your own button? Enable the item in the room-list header men
 Tap flow: close drawer → confirmation (native `Alert`) → `await onBeforeLogout?.()` (`false` cancels) → `await logoutService.performLogout()` → `await onAfterLogout?.()`. The host-side session/navigation logout belongs in `onAfterLogout` — by the time it runs, XMPP is disconnected and every persisted key is gone. Errors thrown by either callback are caught and logged via `console.warn`; a throwing `onBeforeLogout` cancels the logout. With `enabled: false` (or the option omitted) the menu is unchanged.
 
 Why awaitable: the persistence layer debounces writes by 200 ms, and the chat slice removes its persisted user fire-and-forget. If the host navigated / re-mounted `<Chat>` immediately after a non-awaited call, the next bootstrap could occasionally rehydrate stale state ("old chats reappear"). Awaiting the returned promise eliminates that race. The function never rejects — any internal failure is logged via `console.warn`, so a non-awaited call still won't crash the host. For non-React contexts you can call `logoutService.performLogout()` directly (same Promise).
+
+## Settings screen
+
+The Settings screen (the gear in the room-list menu) shows Appearance and the push toggle by default, plus Manage data and Visibility. Two more sections are off until the host turns them on:
+
+```ts
+config = {
+  settings: {
+    // "Language": the interface language (user.appLanguage) and the language
+    // messages are translated into (user.chatLanguage). Kept on the device and
+    // written to the profile (`PUT /v1/users`, one field per request); the
+    // profile's values are applied when a session starts.
+    languages: { enabled: true, appLanguages: ['en-CA', 'fr-CA'], chatLanguages: ['en-CA', 'fr-CA', 'es-US'] },
+    // "Change password": current password, new one twice, `PUT /v2/users/me/password`.
+    changePassword: true,
+  },
+  // Translation is the server's, per the reader's chat language; this shows it.
+  translates: { enabled: true, mode: 'auto' },
+};
+```
+
+The user's interface language wins over `config.i18n.locale`, which stays the default for a user who never chose. `hideAppearance` and `hidePushToggle` hide the built-in cards.
 
 ## Customization flags worth knowing
 
@@ -319,7 +341,8 @@ Why awaitable: the persistence layer debounces writes by 200 ms, and the chat sl
 | `disableChatInfo.disableMemberTap` | Disables the tap on a member row in the chat-info list — the user-profile popup never opens. Set when no per-member interaction is appropriate (e.g. patient-facing apps). |
 | `hideMemberSendMessageAction` | Hides only the "Message" button, keeps everything else. |
 | `hideMemberCopyIdAction` | Hides only the "Copy User Id" button, keeps everything else. |
-| `disableConnectionErrorOverlay` | Replaces the full-screen "Connection error" overlay with a small, non-blocking `ConnectionBanner`. Set this when a transient reconnect shouldn't take over the whole screen. |
+| `disableRoomSwipeActions` | Turns off the Report / Leave buttons a room-list row shows when swiped to the left (on by default; needs `react-native-gesture-handler` + `react-native-reanimated`, as the rest of the navigation does). |
+| `disableConnectionErrorOverlay` | Replaces the full-screen "Connection error" overlay with a small, non-blocking `ConnectionBanner`. Set this when a transient reconnect shouldn't take over the whole screen. Independently of it, the room list's title and the room header's subtitle read "Connecting…" while the stream is down or being set up and "Updating…" while rooms are re-joined and the archive caught up afterwards (`useChatSettingState().connection`: `'connecting' \| 'syncing' \| 'online' \| 'offline'`). |
 | `eventHandlers.onMessageRetry` | `(event) => void` fired when the user taps the "Failed — tap to retry" indicator on a stuck send. Use for telemetry / surfacing a retry banner. |
 | `enableMessageSearch` | Opt-in message search, **off by default**. Set `true` to show the "Search messages" button in the chat header and the chat profile, and the search screen behind it. The screen searches the platform's message archive (`GET /v2/apps/{appId}/messages/search`) for the current chat or all chats, with an optional sender and date filter, and a tapped hit opens its chat and scrolls to the message (paging older history when needed, or saying so when the message is too far back to load). It needs `appId`; without one search stays off. Without this flag there is no search UI and no search request. |
 | `disableMessageSearch` | Deprecated. Search is already off by default; when `true` it stays off even if `enableMessageSearch` is set. |
@@ -385,6 +408,44 @@ Same model as the web SDK, so threads are shared across platforms.
 | --- | --- | --- |
 | `disableReplies` | `false` | Hides "Reply" in the long-press menu. Existing pills and quotes still open threads. |
 | `disableInteractions` | `false` | Hides the whole long-press menu, Reply included. |
+
+## End-to-end encrypted rooms
+
+OMEMO 2 in rooms the backend marks `e2ee` (`room.e2ee` from `GET /v1/chats/my`), wire-compatible with the web SDK. Status, measurements and limits are tracked in [`docs/e2ee-port.md`](docs/e2ee-port.md).
+
+Off by default. The host turns it on or off through the config it passes to the chat:
+
+```ts
+// On: this device publishes its keys; text and attachments in `e2ee` rooms are encrypted.
+config = { e2ee: { enabled: true } };
+
+// Off (the default): leave the block out, or set `enabled: false`. Nothing is
+// generated or published, and encrypted rooms are shown as such but cannot be
+// written to from this app.
+config = { e2ee: { enabled: false } };
+```
+
+The switch can be flipped at any time; it takes effect on the next mount of the chat. Keys made while it was on stay on the device and are reused when it is on again.
+
+**With it on**, after connecting the SDK creates this device's keys (once per account per install; they survive logout), publishes them, and in encrypted rooms:
+
+- encrypts the text of outgoing messages for every device of every member, and decrypts incoming ones — live, from mucsub and from history alike;
+- sends in clear when no member has a device to encrypt for (nobody else has opened the room with encryption on yet), exactly as the web SDK does — and marks that message, like any other that arrived in clear, with a struck-through padlock;
+- seals attachments and voice messages before upload, so the server stores opaque bytes under a random name and never sees the file, its name or its type; the receiver's "Encrypted file" card downloads and opens one on a tap, and then shows it as what it is. The cipher is pure JS: about 1.4 s per megabyte, capped at 20 MB per file. An attachment is never sent in clear - if it cannot be encrypted, it is not sent.
+
+An encrypted chat is started from a user's profile: **Encrypted message**, next to **Message** (needs `newArch`). It opens the encrypted room of the pair, a room of its own beside their ordinary chat.
+
+What is protected is the message text and the attachments. The sender, the room, the time and the quoted text of a reply stay readable to the server — it builds push notifications from them — and deletions and reactions travel in clear. An edit would too, so a message that went out encrypted cannot be edited from this SDK. Details and the open points are in `docs/e2ee-port.md`.
+
+**Devices and trust.** A person's profile lists their devices with their fingerprints, each marked *Not verified*, *Verified* or *Not trusted*, changed with a tap. A device is trusted on first sight until one of that person's devices has been verified; after that an unverified one is no longer encrypted for.
+
+**With it off** nothing is generated, published or loaded, and an encrypted room is presented honestly rather than misread: the composer is replaced by a notice (`sendMessage` / `sendMedia` refuse the room), and what other clients encrypted shows as a padlock line instead of the sender's fallback body.
+
+**Either way**, a room marked `e2ee` carries a padlock next to its name in the list and the header; a message that could not be opened says why ("Encrypted for another device", "Could not decrypt this message", or that this app does not read encrypted messages); a sealed attachment shows as an "Encrypted file" card rather than a voice message; none of these is offered for translation.
+
+Message flags a custom message component can read: `unencrypted`, `undecryptable` (`'true'` when the body is a placeholder) with `e2eeError` (`'unsupported' | 'other-device' | 'failed'`), `clientEncrypted` (`'true'` for a sealed attachment) and `e2eeKeys`. The captions are the `e2ee.*` and `media.sealed*` keys of `config.i18n.strings`. `omemo()` returns the live device (`devices(jid)`, `setTrust`, `fingerprint`) for a host that wants to show them.
+
+Requires an XMPP server that lets members read each other's OMEMO PEP nodes (`access_model: open`).
 
 ## Session loss
 
@@ -621,6 +682,8 @@ npm test                          # jest, ~2s for the full suite
 npm test -- --watch               # watch mode
 npm test -- some.test.ts          # single file
 ```
+
+`npm run e2ee:interop` checks the end-to-end encryption against the web SDK's (sessions, mixed rooms, attachments). It needs `ethora-chat-component` checked out next to this repository, or `WEB_SDK=/path`; without it, it skips.
 
 ### E2E (Maestro)
 
