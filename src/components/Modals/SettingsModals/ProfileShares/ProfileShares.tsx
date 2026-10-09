@@ -22,6 +22,7 @@ import {
   SharedSettingsLabelData,
   SharedSettingsSectionContainer,
   SharedSettingsStyledLabel,
+  SharedSettingsScrollBody,
 } from '../SharedStyledComponents';
 
 interface ProfileSharesModalProps {
@@ -39,25 +40,27 @@ const ProfileSharesModal: React.FC<ProfileSharesModalProps> = ({
         handleCloseModal={handleCloseModal}
         headerTitle={'Profile Shares'}
       />
-      <CenterContainer>
-        <SharedSettingsSectionContainer>
-          <SharedSettingsStyledLabel>
-            Current Profile Shares
-          </SharedSettingsStyledLabel>
-          <SharedSettingsLabelData>
-            Listed below are your currently active profile sharing links. You
-            can share or delete them.
-          </SharedSettingsLabelData>
-          <BorderedContainer>
-            <SharedSettingsInfoPanel bgColor={config?.colors?.secondary}>
-              <SharedSettingsInfoText>
-                There are no shares yet, or you can add them by clicking the
-                “Add New Share” button
-              </SharedSettingsInfoText>
-            </SharedSettingsInfoPanel>
-          </BorderedContainer>
-        </SharedSettingsSectionContainer>
-      </CenterContainer>
+      <SharedSettingsScrollBody>
+        <CenterContainer>
+          <SharedSettingsSectionContainer>
+            <SharedSettingsStyledLabel>
+              Current Profile Shares
+            </SharedSettingsStyledLabel>
+            <SharedSettingsLabelData>
+              Listed below are your currently active profile sharing links. You
+              can share or delete them.
+            </SharedSettingsLabelData>
+            <BorderedContainer>
+              <SharedSettingsInfoPanel bgColor={config?.colors?.secondary}>
+                <SharedSettingsInfoText>
+                  There are no shares yet, or you can add them by clicking the
+                  “Add New Share” button
+                </SharedSettingsInfoText>
+              </SharedSettingsInfoPanel>
+            </BorderedContainer>
+          </SharedSettingsSectionContainer>
+        </CenterContainer>
+      </SharedSettingsScrollBody>
     </ModalContainerFullScreen>
   );
 };

@@ -231,6 +231,12 @@ const reducers = {
     state.client = undefined;
     state.langSource = undefined;
     state.translateMode = undefined;
+    // Drop any open modal / preview so the next login lands on the chat
+    // list instead of the screen the previous session was on.
+    state.activeModal = undefined;
+    state.deleteModal = undefined;
+    state.selectedUser = undefined;
+    state.activeFile = undefined;
     secureUserStorage().remove();
   },
   setLangSource: (

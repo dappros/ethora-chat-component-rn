@@ -13,6 +13,7 @@ import {
   SharedSettingsColumnContainer,
   SharedSettingsLabelData,
   SharedSettingsStyledLabel,
+  SharedSettingsScrollBody,
 } from '../SharedStyledComponents';
 import { RadioInput } from './RadioInput';
 import { useTheme } from '../../../../hooks/useTheme';
@@ -71,67 +72,69 @@ const VisibilityModal: React.FC<VisibilityModalProps> = ({
         handleCloseModal={handleCloseModal}
         headerTitle={t('settings.visibility.title')}
       />
-      <SharedSettingsCenterContainer>
-        <SharedSettingsColumnContainer>
-          <SharedSettingsStyledLabel>
-            {t('settings.visibility.profileLabel')}
-          </SharedSettingsStyledLabel>
-          <RadioGroup>
-            <RadioLabel>
-              <RadioInput
-                option={{ label: t('settings.visibility.open'), value: isProfileOpen }}
-                radioColor={theme.primary}
-                checked={isProfileOpen === true}
-                onChange={() => setIsProfileOpen(true)}
-              />
-            </RadioLabel>
+      <SharedSettingsScrollBody>
+        <SharedSettingsCenterContainer>
+          <SharedSettingsColumnContainer>
+            <SharedSettingsStyledLabel>
+              {t('settings.visibility.profileLabel')}
+            </SharedSettingsStyledLabel>
+            <RadioGroup>
+              <RadioLabel>
+                <RadioInput
+                  option={{ label: t('settings.visibility.open'), value: isProfileOpen }}
+                  radioColor={theme.primary}
+                  checked={isProfileOpen === true}
+                  onChange={() => setIsProfileOpen(true)}
+                />
+              </RadioLabel>
 
-            <SharedSettingsLabelData>
-              {t('settings.visibility.openDescription')}
-            </SharedSettingsLabelData>
-            <RadioLabel>
-              <RadioInput
-                option={{ label: t('settings.visibility.restricted'), value: isProfileOpen }}
-                radioColor={theme.primary}
-                checked={isProfileOpen === false}
-                onChange={() => setIsProfileOpen(false)}
-              />
-            </RadioLabel>
-            <SharedSettingsLabelData>
-              {t('settings.visibility.restrictedDescription')}
-            </SharedSettingsLabelData>
-          </RadioGroup>
-        </SharedSettingsColumnContainer>
-        <SharedSettingsColumnContainer>
-          <SharedSettingsStyledLabel>
-            {t('settings.visibility.documentsLabel')}
-          </SharedSettingsStyledLabel>
-          <RadioGroup>
-            <RadioLabel>
-              <RadioInput
-                option={{ label: t('settings.visibility.full'), value: isAssetsOpen }}
-                radioColor={theme.primary}
-                checked={isAssetsOpen === true}
-                onChange={() => setIsAssetsOpen(true)}
-              />
-            </RadioLabel>
-            <SharedSettingsLabelData>
-              {t('settings.visibility.fullDescription')}
-            </SharedSettingsLabelData>
-            <RadioLabel>
-              <RadioInput
-                option={{ label: t('settings.visibility.individual'), value: isAssetsOpen }}
-                radioColor={theme.primary}
-                checked={isAssetsOpen === false}
-                onChange={() => setIsAssetsOpen(false)}
-              />
-            </RadioLabel>
-            <SharedSettingsLabelData>
-              {t('settings.visibility.individualDescription')}
-            </SharedSettingsLabelData>
-          </RadioGroup>
-        </SharedSettingsColumnContainer>
-      </SharedSettingsCenterContainer>
+              <SharedSettingsLabelData>
+                {t('settings.visibility.openDescription')}
+              </SharedSettingsLabelData>
+              <RadioLabel>
+                <RadioInput
+                  option={{ label: t('settings.visibility.restricted'), value: isProfileOpen }}
+                  radioColor={theme.primary}
+                  checked={isProfileOpen === false}
+                  onChange={() => setIsProfileOpen(false)}
+                />
+              </RadioLabel>
+              <SharedSettingsLabelData>
+                {t('settings.visibility.restrictedDescription')}
+              </SharedSettingsLabelData>
+            </RadioGroup>
+          </SharedSettingsColumnContainer>
+          <SharedSettingsColumnContainer>
+            <SharedSettingsStyledLabel>
+              {t('settings.visibility.documentsLabel')}
+            </SharedSettingsStyledLabel>
+            <RadioGroup>
+              <RadioLabel>
+                <RadioInput
+                  option={{ label: t('settings.visibility.full'), value: isAssetsOpen }}
+                  radioColor={theme.primary}
+                  checked={isAssetsOpen === true}
+                  onChange={() => setIsAssetsOpen(true)}
+                />
+              </RadioLabel>
+              <SharedSettingsLabelData>
+                {t('settings.visibility.fullDescription')}
+              </SharedSettingsLabelData>
+              <RadioLabel>
+                <RadioInput
+                  option={{ label: t('settings.visibility.individual'), value: isAssetsOpen }}
+                  radioColor={theme.primary}
+                  checked={isAssetsOpen === false}
+                  onChange={() => setIsAssetsOpen(false)}
+                />
+              </RadioLabel>
+              <SharedSettingsLabelData>
+                {t('settings.visibility.individualDescription')}
+              </SharedSettingsLabelData>
+            </RadioGroup>
+          </SharedSettingsColumnContainer>
+        </SharedSettingsCenterContainer>
+      </SharedSettingsScrollBody>
 
       {notification && (
         <Notification type={notification.type}>

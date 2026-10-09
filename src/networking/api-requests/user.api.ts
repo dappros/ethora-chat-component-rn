@@ -1,3 +1,4 @@
+import * as FileSystem from 'expo-file-system/legacy';
 import http from '../apiClient';
 import { normalizeApiPath } from '../apiClient';
 import { store } from '../../roomStore';
@@ -37,9 +38,29 @@ export function getExportMyData() {
   return http.get('/v1/users/exportData', {
     headers: {
       Authorization: token,
-      responseType: 'arraybuffer',
     },
+    responseType: 'arraybuffer',
   });
+}
+
+/**
+ * Download the current user's data export (`GET /v1/users/exportData`)
+ * straight to `destPath` on disk. The export can be large, so it is
+ * streamed by expo-file-system instead of being buffered through axios.
+ * Rejects on a non-2xx answer so the caller can show an error.
+ */
+export async function downloadMyDataExport(destPath: string) {
+  const token = store.getState().chatSettingStore.user.token || '';
+  const result = await FileSystem.downloadAsync(
+    `${http.defaults.baseURL || ''}/v1/users/exportData`,
+    destPath,
+    { headers: { Authorization: token } }
+  );
+  if (result.status < 200 || result.status >= 300) {
+    await FileSystem.deleteAsync(result.uri, { idempotent: true });
+    throw new Error(`exportData failed with status ${result.status}`);
+  }
+  return result;
 }
 
 export function deleteDocument(fileId: string) {
@@ -52,7 +73,12 @@ export function deleteDocument(fileId: string) {
 }
 
 export function deleteMe() {
-  return http.delete('/v1/users');
+  const token = store.getState().chatSettingStore.user.token || '';
+  return http.delete('/v1/users', {
+    headers: {
+      Authorization: token,
+    },
+  });
 }
 
 export function updateMe(data: any) {

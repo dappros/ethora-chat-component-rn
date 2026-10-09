@@ -15,6 +15,7 @@ import {
   RowWrapper,
   SharedSettingsColumnContainer,
   SharedSettingsStyledLabel,
+  SharedSettingsScrollBody,
 } from '../SharedStyledComponents';
 import InputWithLabel from '../../../styled/StyledInput';
 import { StyledInput } from '../../../styled/StyledInputComponents/StyledInputComponents';
@@ -40,51 +41,53 @@ const ReferralsModal: React.FC<ReferralsModalProps> = ({
         handleCloseModal={handleCloseModal}
         headerTitle={'Referrals'}
       />
-      <CenterContainer>
-        <ReferalsIcon />
-        <Animated.View>
-          <SharedSettingsStyledLabel>Gift friends 25</SharedSettingsStyledLabel>
-          <SendCoinIcon style={{ width: 24, height: 24 }} />
-          <SharedSettingsStyledLabel>and receive 25</SharedSettingsStyledLabel>
-          <SendCoinIcon style={{ width: 24, height: 24 }} />
-          <Text style={{ color: theme.text }}>.</Text>
-          <SharedSettingsStyledLabel>
-            Send friends invite with your personal invitation code.
-          </SharedSettingsStyledLabel>
-        </Animated.View>
-        <SharedSettingsColumnContainer style={{ width: '100%' }}>
-          <SharedSettingsStyledLabel>
-            Your invitation code
-          </SharedSettingsStyledLabel>
-          <StyledInput
-            {...{ color: config?.colors?.primary || theme.primary } as any}
-            placeholder="Your invitation code"
-            // label={'About'}
-            // value={message}
-            // onChange={handleInputChange}
-            // onKeyDown={handleKeyDown}
-            // onFocus={handleFocus}
-            // onBlur={handleBlur}
-            // disabled={isLoading}
-          />
-        </SharedSettingsColumnContainer>
-        <SharedSettingsColumnContainer style={{ width: '100%' }}>
-          <SharedSettingsStyledLabel>
-            Or enter your referral code to earn coins
-          </SharedSettingsStyledLabel>
-          <StyledInput
-            {...{ color: config?.colors?.primary || theme.primary } as any}
-            placeholder="Your referral code"
-            // label={'About'}
-            // value={message}
-            // onChange={handleInputChange}
-            // onKeyDown={handleKeyDown}
-            // onFocus={handleFocus}
-            // onBlur={handleBlur}
-            // disabled={isLoading}
-          />
-        </SharedSettingsColumnContainer>
-      </CenterContainer>
+      <SharedSettingsScrollBody>
+        <CenterContainer>
+          <ReferalsIcon />
+          <Animated.View>
+            <SharedSettingsStyledLabel>Gift friends 25</SharedSettingsStyledLabel>
+            <SendCoinIcon style={{ width: 24, height: 24 }} />
+            <SharedSettingsStyledLabel>and receive 25</SharedSettingsStyledLabel>
+            <SendCoinIcon style={{ width: 24, height: 24 }} />
+            <Text style={{ color: theme.text }}>.</Text>
+            <SharedSettingsStyledLabel>
+              Send friends invite with your personal invitation code.
+            </SharedSettingsStyledLabel>
+          </Animated.View>
+          <SharedSettingsColumnContainer style={{ width: '100%' }}>
+            <SharedSettingsStyledLabel>
+              Your invitation code
+            </SharedSettingsStyledLabel>
+            <StyledInput
+              {...{ color: config?.colors?.primary || theme.primary } as any}
+              placeholder="Your invitation code"
+              // label={'About'}
+              // value={message}
+              // onChange={handleInputChange}
+              // onKeyDown={handleKeyDown}
+              // onFocus={handleFocus}
+              // onBlur={handleBlur}
+              // disabled={isLoading}
+            />
+          </SharedSettingsColumnContainer>
+          <SharedSettingsColumnContainer style={{ width: '100%' }}>
+            <SharedSettingsStyledLabel>
+              Or enter your referral code to earn coins
+            </SharedSettingsStyledLabel>
+            <StyledInput
+              {...{ color: config?.colors?.primary || theme.primary } as any}
+              placeholder="Your referral code"
+              // label={'About'}
+              // value={message}
+              // onChange={handleInputChange}
+              // onKeyDown={handleKeyDown}
+              // onFocus={handleFocus}
+              // onBlur={handleBlur}
+              // disabled={isLoading}
+            />
+          </SharedSettingsColumnContainer>
+        </CenterContainer>
+      </SharedSettingsScrollBody>
     </ModalContainerFullScreen>
   );
 };

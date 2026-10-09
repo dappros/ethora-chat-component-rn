@@ -22,6 +22,7 @@ import {
   SharedSettingsLabelData,
   SharedSettingsInfoPanel,
   SharedSettingsInfoText,
+  SharedSettingsScrollBody,
 } from '../SharedStyledComponents';
 
 interface BlockedUsersModalProps {
@@ -39,23 +40,25 @@ const BlockedUsersModal: React.FC<BlockedUsersModalProps> = ({
         handleCloseModal={handleCloseModal}
         headerTitle={'Blocke Users'}
       />
-      <SharedSettingsSectionContainer>
-        <SharedSettingsStyledLabel>
-          Current Document Shares
-        </SharedSettingsStyledLabel>
-        <SharedSettingsLabelData>
-          Listed below are your currently active document sharing links. You can
-          share or delete them.
-        </SharedSettingsLabelData>
-        <BorderedContainer>
-          <SharedSettingsInfoPanel bgColor={config?.colors?.secondary}>
-            <SharedSettingsInfoText>
-              There are no shares yet, or you can add them by clicking the “Add
-              New Share” button
-            </SharedSettingsInfoText>
-          </SharedSettingsInfoPanel>
-        </BorderedContainer>
-      </SharedSettingsSectionContainer>
+      <SharedSettingsScrollBody>
+        <SharedSettingsSectionContainer>
+          <SharedSettingsStyledLabel>
+            Current Document Shares
+          </SharedSettingsStyledLabel>
+          <SharedSettingsLabelData>
+            Listed below are your currently active document sharing links. You can
+            share or delete them.
+          </SharedSettingsLabelData>
+          <BorderedContainer>
+            <SharedSettingsInfoPanel bgColor={config?.colors?.secondary}>
+              <SharedSettingsInfoText>
+                There are no shares yet, or you can add them by clicking the “Add
+                New Share” button
+              </SharedSettingsInfoText>
+            </SharedSettingsInfoPanel>
+          </BorderedContainer>
+        </SharedSettingsSectionContainer>
+      </SharedSettingsScrollBody>
     </ModalContainerFullScreen>
   );
 };

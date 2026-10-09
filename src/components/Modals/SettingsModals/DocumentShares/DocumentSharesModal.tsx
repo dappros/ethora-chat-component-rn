@@ -30,6 +30,7 @@ import {
   SharedSettingsInfoPanel,
   SharedSettingsInfoText,
   SharedSettingsColumnContainer,
+  SharedSettingsScrollBody,
 } from '../SharedStyledComponents';
 import { SearchInput } from '../../../InputComponents/Search';
 import Button from '../../../styled/Button';
@@ -51,63 +52,65 @@ const DocumentSharesModal: React.FC<DocumentSharesModalProps> = ({
         handleCloseModal={handleCloseModal}
         headerTitle={'Document Shares'}
       />
-      <CenterContainer>
-        <SharedSettingsColumnContainer>
-          <SharedSettingsSectionContainer>
-            <SharedSettingsStyledLabel>
-              Current Document Shares
-            </SharedSettingsStyledLabel>
-            <SharedSettingsLabelData>
-              Listed below are your currently active document sharing links. You
-              can share or delete them.
-            </SharedSettingsLabelData>
-            <BorderedContainer>
-              <View
-                style={{
-                  display: 'flex',
-                  padding: 8,
-                  width: '100%',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                }}
-              >
-                <View>List of shares</View>
-                <View style={{ display: 'flex', flexDirection: 'row' }}>
-                  <View>
-                    {/* <SearchInput
-                      animated
-                      icon={<SearchIcon />}
-                      direction="right"
-                    /> */}
+      <SharedSettingsScrollBody>
+        <CenterContainer>
+          <SharedSettingsColumnContainer>
+            <SharedSettingsSectionContainer>
+              <SharedSettingsStyledLabel>
+                Current Document Shares
+              </SharedSettingsStyledLabel>
+              <SharedSettingsLabelData>
+                Listed below are your currently active document sharing links. You
+                can share or delete them.
+              </SharedSettingsLabelData>
+              <BorderedContainer>
+                <View
+                  style={{
+                    display: 'flex',
+                    padding: 8,
+                    width: '100%',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}
+                >
+                  <View>List of shares</View>
+                  <View style={{ display: 'flex', flexDirection: 'row' }}>
+                    <View>
+                      {/* <SearchInput
+                        animated
+                        icon={<SearchIcon />}
+                        direction="right"
+                      /> */}
+                    </View>
+                    <View>
+                      <DropdownMenu
+                        sortFunction={function (value: string): void {
+                          throw new Error('Function not implemented.');
+                        }}
+                        icon={''}
+                        values={['Name', 'Surname']}
+                      />
+                    </View>
+                    <Button
+                      variant="filled"
+                      StartIcon={<PlusIcon />}
+                      style={{ width: '100%' }}
+                    >
+                      Add New Share
+                    </Button>
                   </View>
-                  <View>
-                    <DropdownMenu
-                      sortFunction={function (value: string): void {
-                        throw new Error('Function not implemented.');
-                      }}
-                      icon={''}
-                      values={['Name', 'Surname']}
-                    />
-                  </View>
-                  <Button
-                    variant="filled"
-                    StartIcon={<PlusIcon />}
-                    style={{ width: '100%' }}
-                  >
-                    Add New Share
-                  </Button>
                 </View>
-              </View>
-              <SharedSettingsInfoPanel bgColor={config?.colors?.secondary}>
-                <SharedSettingsInfoText>
-                  There are no shares yet, or you can add them by clicking the
-                  “Add New Share” button
-                </SharedSettingsInfoText>
-              </SharedSettingsInfoPanel>
-            </BorderedContainer>
-          </SharedSettingsSectionContainer>
-        </SharedSettingsColumnContainer>
-      </CenterContainer>
+                <SharedSettingsInfoPanel bgColor={config?.colors?.secondary}>
+                  <SharedSettingsInfoText>
+                    There are no shares yet, or you can add them by clicking the
+                    “Add New Share” button
+                  </SharedSettingsInfoText>
+                </SharedSettingsInfoPanel>
+              </BorderedContainer>
+            </SharedSettingsSectionContainer>
+          </SharedSettingsColumnContainer>
+        </CenterContainer>
+      </SharedSettingsScrollBody>
     </ModalContainerFullScreen>
   );
 };

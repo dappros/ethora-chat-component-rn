@@ -3,6 +3,7 @@
 import React, { useCallback, useMemo } from 'react';
 import LanguageCard from './LanguageCard';
 import {
+  ScrollView,
   StyleSheet,
   Switch,
   Text,
@@ -119,7 +120,11 @@ const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
       {/* One card per entry, rather than a single bordered block with
         * hairline dividers — the rows are separate destinations, and the
         * design gives each its own surface. */}
-      <View style={styles.body}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.body}
+        showsVerticalScrollIndicator={false}
+      >
         {!config?.settings?.hideAppearance ? (
           <View style={[styles.card, styles.stackCard]} testID="settings-appearance">
             <Text style={styles.label}>{t('settings.appearance.title')}</Text>
@@ -188,7 +193,7 @@ const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
             />
           </TouchableOpacity>
         ))}
-      </View>
+      </ScrollView>
     </ModalContainerFullScreen>
   );
 };
@@ -197,8 +202,11 @@ const createStyles = (theme: ChatTheme) => StyleSheet.create({
   screen: {
     backgroundColor: theme.listBackground,
   },
-  body: {
+  scroll: {
+    flex: 1,
     width: '100%',
+  },
+  body: {
     padding: 12,
     gap: 12,
   },

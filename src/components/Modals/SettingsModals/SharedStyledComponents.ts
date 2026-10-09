@@ -72,3 +72,14 @@ export const SharedSettingsInfoText = styled.Text`
   display: flex;
   text-align: start;
 `;
+
+// Scrollable body under a settings screen's header: the content is taller
+// than the screen on small phones and in large text sizes, and a plain View
+// just clips it.
+export const SharedSettingsScrollBody = styled.ScrollView.attrs({
+  contentContainerStyle: { flexGrow: 1, alignItems: 'center' },
+  keyboardShouldPersistTaps: 'handled',
+})`
+  flex: 1;
+  width: 100%;
+`;
