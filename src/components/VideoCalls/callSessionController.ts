@@ -1,0 +1,421 @@
+import { useSyncExternalStore } from 'react';
+import { Platform } from 'react-native';
+import { store } from '../../roomStore';
+import { setCallError, setCallPhase } from '../../roomStore/callSlice';
+import { ensureLiveKitGlobals, loadLiveKit } from './livekitRuntime';
+import { terminateActiveCall, translateCallString } from './callActions';
+
+/**
+ * The LiveKit connection of the current call, owned outside React.
+ *
+ * It used to live in VideoCallSession's effect, so the connection was as
+ * long-lived as that component instance. Minimizing swapped the Modal for a
+ * floating View, React remounted the session, the effect cleanup
+ * disconnected, and the peer saw us leave (and hung up). The web SDK avoids
+ * that by keeping one LiveKitRoom element mounted across both layouts; the
+ * RN equivalent is to not tie the room to a component at all.
+ *
+ * Lifetime is driven by the call slice: a session exists while the call is
+ * 'connecting' or 'in-call' with a token, and is torn down by a store
+ * subscription the moment that stops being true (hangup, remote end,
+ * logout's resetCall), whether or not any call UI is mounted. Components
+ * only read the snapshot and call the controls.
+ */
+
+export interface CallSessionSnapshot {
+  /** A LiveKit room exists for the current call. */
+  active: boolean;
+  connected: boolean;
+  /** Translated, dismissible camera/mic problem. Never fails the call. */
+  deviceError: string | null;
+  micOn: boolean;
+  cameraOn: boolean;
+  speakerOn: boolean;
+  /** `{ participant, publication, source }` for `<VideoTrack />`, live and unmuted only. */
+  remoteVideo: any;
+  localVideo: any;
+  remoteName: string | null;
+  remoteJoined: boolean;
+  /** Peer joined but has no live microphone. */
+  remoteMicMuted: boolean;
+  /**
+   * When the call truly connected: the later of the two LiveKit `joinedAt`
+   * stamps. The server sets them, so both sides count from the same moment
+   * (web's useSharedCallElapsed). Null until the peer is in.
+   */
+  anchorAt: number | null;
+}
+
+const IDLE: CallSessionSnapshot = {
+  active: false,
+  connected: false,
+  deviceError: null,
+  micOn: true,
+  cameraOn: false,
+  speakerOn: false,
+  remoteVideo: null,
+  localVideo: null,
+  remoteName: null,
+  remoteJoined: false,
+  remoteMicMuted: false,
+  anchorAt: null,
+};
+
+interface Session {
+  key: string;
+  room: any;
+  kind: 'audio' | 'video';
+  disposed: boolean;
+  everJoined: boolean;
+}
+
+let session: Session | null = null;
+let snapshot: CallSessionSnapshot = IDLE;
+const listeners = new Set<() => void>();
+let storeUnsubscribe: (() => void) | null = null;
+
+const emit = (patch: Partial<CallSessionSnapshot>) => {
+  snapshot = { ...snapshot, ...patch };
+  listeners.forEach((listener) => listener());
+};
+
+const subscribe = (listener: () => void) => {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+};
+
+const getSnapshot = () => snapshot;
+
+export const useCallSession = (): CallSessionSnapshot =>
+  useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+
+const sessionKey = (livekitUrl: string, token: string) => `${livekitUrl}|${token}`;
+
+// A device (camera/mic) permission/availability problem during enable,
+// distinct from a connect failure. Mirrors the web SDK's humanizeDeviceError.
+const humanizeDeviceError = (error: unknown): string => {
+  const name = (error as { name?: string })?.name || '';
+  const text = String((error as Error)?.message || '').toLowerCase();
+  if (name === 'NotAllowedError' || text.includes('permission') || text.includes('denied')) {
+    return translateCallString('call.error.deviceBlocked');
+  }
+  if (name === 'NotFoundError' || text.includes('not found')) {
+    return translateCallString('call.error.deviceNotFound');
+  }
+  if (name === 'NotReadableError' || text.includes('in use')) {
+    return translateCallString('call.error.deviceInUse');
+  }
+  return translateCallString('call.error.deviceGeneric');
+};
+
+// Only a live, unmuted track gets a video surface, so the stage never
+// flips between an avatar and a black frame (web's hasLiveVideo).
+const liveVideoRef = (participant: any, Track: any) => {
+  if (!participant) {return null;}
+  const publication = participant.getTrackPublication?.(Track.Source.Camera);
+  if (!publication?.track || publication.isMuted) {return null;}
+  return { participant, publication, source: Track.Source.Camera };
+};
+
+const joinedAtMs = (participant: any): number => {
+  const value = participant?.joinedAt;
+  const ms = value ? new Date(value).getTime() : 0;
+  return Number.isFinite(ms) ? ms : 0;
+};
+
+const resync = () => {
+  const current = session;
+  const runtime = loadLiveKit();
+  if (!current || current.disposed || !runtime) {return;}
+  const { Track } = runtime;
+  const room = current.room;
+
+  const remote = Array.from(room.remoteParticipants?.values?.() || [])[0] as any;
+  if (remote) {current.everJoined = true;}
+
+  const remoteMic = remote?.getTrackPublication?.(Track.Source.Microphone);
+  const localJoined = joinedAtMs(room.localParticipant);
+  const remoteJoinedAt = joinedAtMs(remote);
+
+  emit({
+    remoteJoined: !!remote,
+    remoteName: remote?.name || remote?.identity || null,
+    remoteVideo: liveVideoRef(remote, Track),
+    localVideo: liveVideoRef(room.localParticipant, Track),
+    remoteMicMuted: !!remote && (!remoteMic || remoteMic.isMuted !== false),
+    anchorAt:
+      remote && localJoined && remoteJoinedAt
+        ? Math.max(localJoined, remoteJoinedAt)
+        : remote
+          ? snapshot.anchorAt ?? Date.now()
+          : null,
+  });
+};
+
+export const stopCallSession = (): void => {
+  const current = session;
+  if (!current) {return;}
+  current.disposed = true;
+  session = null;
+  try {
+    current.room.removeAllListeners?.();
+    void current.room.disconnect();
+  } catch {
+    // Already gone.
+  }
+  try {
+    void loadLiveKit()?.AudioSession?.stopAudioSession();
+  } catch {
+    // Never let teardown throw.
+  }
+  snapshot = IDLE;
+  listeners.forEach((listener) => listener());
+};
+
+// Tear the session down as soon as the call slice says there is no call to
+// carry it any more, independent of what UI happens to be mounted.
+const ensureStoreWatcher = () => {
+  if (storeUnsubscribe) {return;}
+  storeUnsubscribe = store.subscribe(() => {
+    if (!session) {return;}
+    const call = store.getState().call;
+    const live =
+      !!call.token && (call.phase === 'connecting' || call.phase === 'in-call');
+    if (!live || !session.key.endsWith(`|${call.token}`)) {
+      stopCallSession();
+    }
+  });
+};
+
+export interface StartCallSessionOptions {
+  token: string;
+  livekitUrl: string;
+  kind: 'audio' | 'video';
+  startWithMicOn?: boolean;
+  startWithCameraOn?: boolean;
+}
+
+/**
+ * Join the LiveKit room for the current call. Idempotent per (url, token):
+ * calling it again from a remounted overlay re-attaches to the same room.
+ */
+export const startCallSession = ({
+  token,
+  livekitUrl,
+  kind,
+  startWithMicOn = true,
+  startWithCameraOn = true,
+}: StartCallSessionOptions): void => {
+  const key = sessionKey(livekitUrl, token);
+  if (session?.key === key) {return;}
+  stopCallSession();
+  ensureStoreWatcher();
+
+  const runtime = loadLiveKit();
+  if (!runtime) {
+    store.dispatch(setCallError(translateCallString('call.error.sdkMissing')));
+    return;
+  }
+  if (!token || !livekitUrl) {
+    store.dispatch(setCallError(translateCallString('call.error.missingConfig')));
+    return;
+  }
+
+  ensureLiveKitGlobals(runtime);
+  const { Room, RoomEvent, AudioSession } = runtime;
+
+  // adaptiveStream + dynacast keep mobile data and battery sane: the SDK
+  // drops resolution for a small tile and stops publishing layers nobody
+  // subscribes to. Both are safe defaults for 1:1.
+  const room = new Room({ adaptiveStream: true, dynacast: true });
+  const current: Session = { key, room, kind, disposed: false, everJoined: false };
+  session = current;
+  snapshot = {
+    ...IDLE,
+    active: true,
+    micOn: startWithMicOn,
+    cameraOn: kind === 'video' && startWithCameraOn,
+    // Video calls belong on the loudspeaker, audio calls on the earpiece.
+    speakerOn: kind === 'video',
+  };
+  listeners.forEach((listener) => listener());
+
+  const onChange = () => {
+    if (!current.disposed) {resync();}
+  };
+
+  room
+    .on(RoomEvent.TrackSubscribed, onChange)
+    .on(RoomEvent.TrackUnsubscribed, onChange)
+    .on(RoomEvent.TrackPublished, onChange)
+    .on(RoomEvent.TrackUnpublished, onChange)
+    .on(RoomEvent.LocalTrackPublished, onChange)
+    .on(RoomEvent.LocalTrackUnpublished, onChange)
+    .on(RoomEvent.TrackMuted, onChange)
+    .on(RoomEvent.TrackUnmuted, onChange)
+    .on(RoomEvent.ParticipantConnected, onChange)
+    .on(RoomEvent.MediaDevicesError, (error: unknown) => {
+      if (current.disposed) {return;}
+      emit({ deviceError: humanizeDeviceError(error) });
+    })
+    .on(RoomEvent.ParticipantDisconnected, () => {
+      if (current.disposed) {return;}
+      resync();
+      // 1:1 semantics, as web's PeerLeaveWatcher: once the peer had been
+      // in the room, their leaving IS the end of the call. Before they
+      // join (outgoing "Ringing...") an empty room is expected.
+      if (current.everJoined && (room.remoteParticipants?.size ?? 0) === 0) {
+        terminateActiveCall('ended');
+      }
+    })
+    .on(RoomEvent.Disconnected, () => {
+      if (current.disposed) {return;}
+      emit({ connected: false });
+      terminateActiveCall('ended');
+    });
+
+  (async () => {
+    // Joining the LiveKit room is the only step whose failure should fail
+    // the call (bad token, network, server down). Device setup below is
+    // best-effort.
+    try {
+      // Claims audio focus and sets the right native audio mode. Must
+      // start BEFORE connecting or the first seconds route to the earpiece
+      // on Android even for a video call.
+      await AudioSession.startAudioSession();
+      await room.connect(livekitUrl, token);
+    } catch (error: any) {
+      if (current.disposed) {return;}
+      stopCallSession();
+      store.dispatch(
+        setCallError(
+          String(error?.message || '') ||
+            translateCallString('call.error.connectFailed')
+        )
+      );
+      return;
+    }
+    if (current.disposed) {return;}
+
+    // Devices are best-effort: a blocked permission or the iOS Simulator
+    // (no camera at all) must not kill a call that connected fine.
+    try {
+      await room.localParticipant.setMicrophoneEnabled(startWithMicOn);
+    } catch (error) {
+      if (!current.disposed) {emit({ deviceError: humanizeDeviceError(error) });}
+    }
+    if (kind === 'video') {
+      try {
+        await room.localParticipant.setCameraEnabled(startWithCameraOn);
+      } catch (error) {
+        if (!current.disposed) {
+          emit({ cameraOn: false, deviceError: humanizeDeviceError(error) });
+        }
+      }
+    }
+    if (current.disposed) {return;}
+
+    try {
+      await AudioSession.setAppleAudioConfiguration?.({
+        audioCategory: 'playAndRecord',
+        audioCategoryOptions: kind === 'video' ? ['defaultToSpeaker'] : [],
+        audioMode: kind === 'video' ? 'videoChat' : 'voiceChat',
+      });
+    } catch {
+      // iOS-only helper.
+    }
+
+    emit({ connected: true });
+    resync();
+    store.dispatch(setCallPhase('in-call'));
+  })();
+};
+
+// ---- controls -----------------------------------------------------------
+
+export const toggleCallMic = async (): Promise<void> => {
+  const current = session;
+  if (!current) {return;}
+  const next = !snapshot.micOn;
+  emit({ micOn: next });
+  try {
+    await current.room.localParticipant.setMicrophoneEnabled(next);
+  } catch (error) {
+    if (!current.disposed) {
+      emit({ micOn: !next, deviceError: humanizeDeviceError(error) });
+    }
+  }
+};
+
+export const toggleCallCamera = async (): Promise<void> => {
+  const current = session;
+  if (!current) {return;}
+  const next = !snapshot.cameraOn;
+  emit({ cameraOn: next });
+  try {
+    await current.room.localParticipant.setCameraEnabled(next);
+    resync();
+  } catch (error) {
+    if (!current.disposed) {
+      emit({ cameraOn: !next, deviceError: humanizeDeviceError(error) });
+    }
+  }
+};
+
+export const switchCallCamera = async (): Promise<void> => {
+  const current = session;
+  const runtime = loadLiveKit();
+  if (!current || !runtime) {return;}
+  try {
+    const publication = current.room.localParticipant.getTrackPublication?.(
+      runtime.Track.Source.Camera
+    );
+    const track = publication?.track;
+    // `restartTrack` with the flipped facingMode is the portable way to
+    // switch cameras; the RN SDK's `_switchCamera` helper is internal.
+    await track?.restartTrack?.({
+      facingMode:
+        track?.mediaStreamTrack?.getSettings?.().facingMode === 'environment'
+          ? 'user'
+          : 'environment',
+    });
+    resync();
+  } catch {
+    // Single camera, or the track is mid-restart.
+  }
+};
+
+export const toggleCallSpeaker = async (): Promise<void> => {
+  const runtime = loadLiveKit();
+  if (!session || !runtime) {return;}
+  const next = !snapshot.speakerOn;
+  emit({ speakerOn: next });
+  try {
+    if (Platform.OS === 'android') {
+      // On Android `selectAudioOutput` device ids are the literal strings
+      // 'speaker' / 'earpiece'.
+      await runtime.AudioSession.selectAudioOutput(next ? 'speaker' : 'earpiece');
+    } else {
+      await runtime.AudioSession.setAppleAudioConfiguration?.({
+        audioCategory: 'playAndRecord',
+        audioCategoryOptions: next ? ['defaultToSpeaker'] : [],
+        audioMode: next ? 'videoChat' : 'voiceChat',
+      });
+    }
+  } catch {
+    emit({ speakerOn: !next });
+  }
+};
+
+export const dismissCallDeviceError = (): void => {
+  emit({ deviceError: null });
+};
+
+/** Reset module state. Test seam only. */
+export const __resetCallSessionForTests = (): void => {
+  stopCallSession();
+  storeUnsubscribe?.();
+  storeUnsubscribe = null;
+};

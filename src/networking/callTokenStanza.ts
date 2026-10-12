@@ -57,6 +57,15 @@ const consumeKindHint = (
 
 const MAX_CALL_TOKEN_AGE_MS = 5000;
 
+// Dev-only trace of call signalling: which `<data type="call-*">` frames
+// arrive and why a call-token was dropped. A dropped token is silent
+// otherwise: the caller sits on "Calling..." and the callee never rings.
+const callTrace = (message: string, extra?: Record<string, unknown>) => {
+  if (typeof __DEV__ !== 'undefined' && __DEV__) {
+    console.log(`[calls] ${message}`, extra ? JSON.stringify(extra) : '');
+  }
+};
+
 // Hermes has no global `atob` and RN ships no Buffer polyfill by default,
 // so the JWT payload is decoded here by hand. Only used on the ~500-byte
 // middle segment of a call token, so a table-driven loop is plenty fast
@@ -215,7 +224,7 @@ const isFreshCallToken = (stanza: Element): boolean => {
 const resolveRoomByStanzaRoom = (roomAttr: string) => {
   const rooms = (store.getState().rooms.rooms || {}) as Record<
     string,
-    { jid?: string; name?: string; type?: string; usersCnt?: number }
+    { jid?: string; name?: string; title?: string; type?: string; usersCnt?: number }
   >;
   const roomEntries = Object.values(rooms);
 
@@ -338,6 +347,18 @@ export const onCallTokenMessage = (stanza: Element): boolean => {
   const data = findCallData(inner);
   if (data) {
     const dataType = String(data.attrs?.type || '').toLowerCase();
+    const traceStanzaId = inner.getChild?.('stanza-id')?.attrs?.id;
+    const traceTs = extractNumericTimestamp(traceStanzaId);
+    callTrace(`received ${dataType}`, {
+      from: stanza.attrs?.from,
+      type: stanza.attrs?.type,
+      wrapped: inner !== stanza,
+      room: data.attrs?.room,
+      callId: data.attrs?.callId || data.attrs?.callid,
+      hasToken: !!data.attrs?.token,
+      stanzaId: traceStanzaId,
+      ageMs: traceTs ? Date.now() - traceTs : null,
+    });
 
     if (dataType === 'call-state') {
       // Surface the raw call-state attrs so we can confirm what the server
@@ -404,9 +425,11 @@ export const onCallTokenMessage = (stanza: Element): boolean => {
       const videoCallsConfig =
         store.getState().chatSettingStore.config?.videoCalls;
       if (videoCallsConfig?.enabled !== true) {
+        callTrace('drop call-token: calls disabled');
         return true;
       }
       if (!isFreshCallToken(inner)) {
+        callTrace('drop call-token: not fresh');
         return true;
       }
 
@@ -423,6 +446,7 @@ export const onCallTokenMessage = (stanza: Element): boolean => {
       const kind: 'audio' | 'video' =
         hintedKind || (stanzaKind === 'audio' ? 'audio' : 'video');
       if (!token || !stanzaRoom) {
+        callTrace('drop call-token: no token or room');
         return true;
       }
 
@@ -436,9 +460,11 @@ export const onCallTokenMessage = (stanza: Element): boolean => {
         resolvedRoom.type !== 'private' &&
         !isOneToOneLikeRoom
       ) {
+        callTrace('drop call-token: room type', { type: resolvedRoom.type, usersCnt });
         return true;
       }
       if (resolvedRoom?.type === 'private' && !isPrivateAllowed) {
+        callTrace('drop call-token: private not allowed');
         return true;
       }
       if (
@@ -446,6 +472,7 @@ export const onCallTokenMessage = (stanza: Element): boolean => {
         !stanzaRoom.includes('@') &&
         !isOneToOneLikeRoom
       ) {
+        callTrace('drop call-token: room unknown', { stanzaRoom });
         return true;
       }
 
@@ -457,17 +484,25 @@ export const onCallTokenMessage = (stanza: Element): boolean => {
       // title (which for stale / deleted-peer chats reads "deleted").
       const jwtPayload = decodeJwtPayload(token);
       const callerName = extractCallerDisplayName(jwtPayload);
-      const resolvedTitle = String(resolvedRoom?.name || '').trim();
+      // `title` is the display name; on new-arch private rooms `name` is the
+      // bare room id ("${appId}_<a>-${appId}_<b>"), never something to show.
+      const resolvedTitle = String(
+        resolvedRoom?.title || resolvedRoom?.name || ''
+      ).trim();
       const titleLooksBad =
         !resolvedTitle ||
+        resolvedTitle === stanzaRoom ||
         ['deleted', 'deleted user', 'unknown', 'null'].includes(
           resolvedTitle.toLowerCase()
         );
+      // Never fall back to the room id: an empty name renders as
+      // "Unknown caller" on the ring screen.
       const incomingRoomName =
-        (callerName && titleLooksBad ? callerName : resolvedTitle) ||
-        callerName ||
-        stanzaRoom;
-      if (!roomJid) {return true;}
+        (titleLooksBad ? callerName : resolvedTitle) || callerName || '';
+      if (!roomJid) {
+        callTrace('drop call-token: no room jid', { stanzaRoom });
+        return true;
+      }
 
       const callId = extractCallId(data, jwtPayload);
       const selfXmpp =
@@ -481,6 +516,11 @@ export const onCallTokenMessage = (stanza: Element): boolean => {
           callState.roomName === incomingRoomName ||
           callState.roomBareName === stanzaRoom);
 
+      callTrace('accept call-token', {
+        outgoing: isOutgoingRoomMatch,
+        roomJid,
+        callId,
+      });
       if (isOutgoingRoomMatch) {
         store.dispatch(
           setOutgoingCallToken({ roomJid, token, callId: callId || null })

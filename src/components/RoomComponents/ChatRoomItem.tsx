@@ -22,6 +22,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { resolveTheme } from '../../theme/theme';
 import { BellOffIcon, LockIcon } from '../../assets/icons';
 import { useT } from '../../i18n/useT';
+import { formatCallLogLabel } from '../../helpers/callLogMessage';
 import { composeName } from '../../helpers/displayName';
 import { isUnresolvedSenderId } from '../../helpers/isUnresolvedSenderId';
 
@@ -75,13 +76,19 @@ const ChatRoomItem: React.FC<ChatRoomItemProps> = ({
 
       return {
         ...message,
+        // A call-log entry's body is English frozen at receive time; rebuild
+        // it from the callLog meta so the preview follows the current
+        // language like the transcript does (mirrors web's ChatRoomItem).
+        body: message.callLog
+          ? formatCallLogLabel(message.callLog, t, message.body)
+          : message.body,
         user: {
           ...message.user,
           name: safeName,
         },
       };
     },
-    [usersSet]
+    [usersSet, t]
   );
 
   const lastMessage = useMemo(() => {

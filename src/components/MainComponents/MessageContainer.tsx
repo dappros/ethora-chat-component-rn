@@ -8,6 +8,8 @@ import {
   Message,
 } from '../styled/StyledComponents';
 import { View } from 'react-native';
+import { useT } from '../../i18n/useT';
+import { formatCallLogLabel } from '../../helpers/callLogMessage';
 
 interface MessageContainerProps {
   CustomMessage?: React.ComponentType<{
@@ -48,6 +50,7 @@ const MessageContainerImpl: FC<MessageContainerProps> = ({
   // empty/undefined ids as a match, briefly rendering catch-up messages
   // from other users as our own. isOwnMessage() never does that.
   const isUser = isOwnMessage(message, walletAddress);
+  const t = useT();
 
   const messageDate = new Date(message.date);
 
@@ -68,7 +71,17 @@ const MessageContainerImpl: FC<MessageContainerProps> = ({
         {SystemMessageComponent ? (
           <SystemMessageComponent message={message} isUser={false} isReply={false} />
         ) : (
-          <SystemMessage messageText={message.body} colors={config?.colors} />
+          // A call-log entry is labelled from its callLog meta at render
+          // time so it follows the current language instead of being
+          // frozen in whatever was active when the stanza landed.
+          <SystemMessage
+            messageText={
+              message.callLog
+                ? formatCallLogLabel(message.callLog, t, message.body)
+                : message.body
+            }
+            colors={config?.colors}
+          />
         )}
       </Fragment>
     );

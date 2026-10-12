@@ -2,7 +2,7 @@ import { IRoom } from '../types/types';
 
 type CountSource =
   | Pick<IRoom, 'members' | 'usersCnt'>
-  | { members?: unknown; usersCnt?: unknown }
+  | { members?: unknown; usersCnt?: unknown; type?: unknown }
   | null
   | undefined;
 
@@ -17,11 +17,15 @@ export const getRoomUserCount = (room: CountSource): number => {
     typeof room?.usersCnt === 'number' && Number.isFinite(room.usersCnt)
       ? room.usersCnt
       : 0;
-  return Math.max(cnt, members);
+  const total = Math.max(cnt, members);
+  // A private chat is two people by definition; the server's usersCnt has
+  // been seen to drift above that (3 for a 1:1 room).
+  return (room as { type?: unknown })?.type === 'private' ? Math.min(total, 2) : total;
 };
 
 /** True when the room is known to have more users than members loaded. */
 export const isRoomMembersTruncated = (room: CountSource): boolean => {
+  if ((room as { type?: unknown })?.type === 'private') {return false;}
   const members = Array.isArray(room?.members) ? room.members.length : 0;
   const cnt =
     typeof room?.usersCnt === 'number' && Number.isFinite(room.usersCnt)

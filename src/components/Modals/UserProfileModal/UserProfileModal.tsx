@@ -44,14 +44,24 @@ import { runLogoutFlow } from '../../Menu/HeaderRoomListMenu';
 import { useLogout } from '../../../hooks/useLogout';
 import {
   ApiRoom,
+  createChatCall,
   ownAppId,
   postPrivateRoom,
 } from '../../../networking/api-requests/rooms.api';
 import EncryptionCard from '../../MainComponents/EncryptionCard';
+import { useSelector } from 'react-redux';
+import { store, type RootState } from '../../../roomStore';
+import { setCallError, startOutgoingCall } from '../../../roomStore/callSlice';
+import { sendCallInviteSignal } from '../../../networking/callTokenStanza';
+import { AudioCallIcon, VideoCallIcon } from '../../VideoCalls/CallIcons';
 import { accountNameOf } from '../../../helpers/accountName';
 import { setChatLanguage } from '../../../services/languageSettings';
 import { composeName } from '../../../helpers/displayName';
 import { isUnresolvedSenderId } from '../../../helpers/isUnresolvedSenderId';
+
+/** The user id part of `${appId}_${userId}[@host]` (or a bare id). */
+const userIdOf = (value?: string | null): string =>
+  String(value || '').split('@')[0].split('_').pop() || '';
 
 /** A name, unless it is only the account's id standing in for one. */
 const nameOrNothing = (name?: string | null): string => {
@@ -239,7 +249,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
         usersArrayLength
       );
 
-      if (!normalizedChat || !client) {return;}
+      if (!normalizedChat || !client) {return null;}
 
       dispatch(addRoomViaApi({ room: normalizedChat, xmpp: client }));
       dispatch(setCurrentRoom({ roomJID: normalizedChat?.jid || '' }));
@@ -251,10 +261,92 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
         type: 'success',
         duration: 3000,
       });
+      return normalizedChat;
     } catch (error) {
       console.error('Error handling room creation:', error);
+      return null;
     }
   };
+
+  // Open (or create) the 1:1 room with the profile's user. Shared by
+  // "Message" and the call buttons, which need the room's JID to dial.
+  const ensurePrivateRoom = useCallback(async (
+    e2ee = false
+  ): Promise<{
+    jid: string;
+    bareName: string;
+    peerXmppUsername: string | null;
+    peerDisplay: string;
+  } | null> => {
+    const peerDisplay = nameOrNothing(selectedUser?.name);
+    if (config?.newArch) {
+      const target = selectedUser?.userJID ?? (selectedUser?.id || '');
+      // Reuse the 1:1 room we already have with this user instead of
+      // POSTing /chats/private again: repeating it for an existing room
+      // has been seen to inflate the server's usersCnt and member list.
+      const peerLocal = String(target).split('@')[0];
+      const existing = Object.values(store.getState().rooms.rooms || {}).find(
+        (room: any) =>
+          room?.type === 'private' &&
+          !!peerLocal &&
+          [...(room.roomMembers || []), ...(room.members || [])].some(
+            // REST rows carry the bare user id, stanza rows `${appId}_${id}`:
+            // compare on the user id part.
+            (m: any) => userIdOf(m?.xmppUsername || m?._id) === userIdOf(peerLocal)
+          )
+      ) as any;
+      if (existing?.jid && !e2ee) {
+        dispatch(setCurrentRoom({ roomJID: existing.jid }));
+        return {
+          jid: existing.jid,
+          bareName: existing.jid.split('@')[0],
+          peerXmppUsername: peerLocal || null,
+          peerDisplay: peerDisplay || nameOrNothing(existing.title),
+        };
+      }
+      const newRoom = await postPrivateRoom(target, e2ee);
+      const created = await handleRoomCreation(newRoom, 2);
+      if (!created?.jid) {return null;}
+      return {
+        jid: created.jid,
+        bareName: created.jid.split('@')[0],
+        peerXmppUsername: String(target).split('@')[0] || null,
+        peerDisplay: peerDisplay || nameOrNothing((created as any).title),
+      };
+    }
+
+    const selectedUserUsername = walletToUsername(selectedUser?.id || '');
+    const myUsername = walletToUsername(user.defaultWallet.walletAddress);
+
+    const roomJid = [myUsername, selectedUserUsername]
+      .sort()
+      .join('.')
+      .toLowerCase();
+
+    const combinedUsersName = [
+      user.firstName,
+      selectedUser?.name?.split(' ')?.[0] || '',
+    ]
+      .sort()
+      .join(' and ');
+
+    const newRoomJid =
+      (await client?.createPrivateRoomStanza(
+        combinedUsersName,
+        `Private chat ${combinedUsersName}`,
+        roomJid
+      )) || '';
+
+    if (!newRoomJid) {return null;}
+    await client?.inviteRoomRequestStanza(selectedUserUsername, newRoomJid);
+    await client?.getRoomsStanza();
+    return {
+      jid: newRoomJid,
+      bareName: newRoomJid.split('@')[0],
+      peerXmppUsername: selectedUserUsername || null,
+      peerDisplay,
+    };
+  }, [selectedUser, config?.newArch, client, user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openPrivateRoom = useCallback(async (e2ee: boolean) => {
     showToast({
@@ -264,43 +356,62 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
       type: 'info',
       duration: 3000,
     });
-    if (config?.newArch) {
-      const newRoom = await postPrivateRoom(
-        selectedUser?.userJID ?? (selectedUser?.id || ''),
-        e2ee
-      );
-      handleRoomCreation(newRoom, 2);
-    } else {
-      const selectedUserUsername = walletToUsername(selectedUser?.id || '');
-      const myUsername = walletToUsername(user.defaultWallet.walletAddress);
+    await ensurePrivateRoom(e2ee);
+    dispatch(setActiveModal(undefined));
+  }, [ensurePrivateRoom, t]); // eslint-disable-line react-hooks/exhaustive-deps
 
-      const roomJid = [myUsername, selectedUserUsername]
-        .sort()
-        .join('.')
-        .toLowerCase();
+  // Calls from the profile, as on web: open the 1:1 room, then dial it the
+  // same way the chat header does.
+  const videoCallsConfig = config?.videoCalls;
+  const canCall =
+    videoCallsConfig?.enabled === true &&
+    Boolean(videoCallsConfig?.livekitUrl?.trim()) &&
+    (videoCallsConfig?.allowedRoomTypes || ['private']).includes('private');
+  const isAudioCallsEnabled = canCall && videoCallsConfig?.enableAudioCalls === true;
+  const isCallBusy = useSelector((state: RootState) => state.call.phase !== 'idle');
 
-      const combinedUsersName = [
-        user.firstName,
-        selectedUser?.name?.split(' ')?.[0] || '',
-      ]
-        .sort()
-        .join(' and ');
+  const handleCall = useCallback(async (kind: 'audio' | 'video') => {
+    if (isCallBusy) {return;}
+    let room: Awaited<ReturnType<typeof ensurePrivateRoom>> = null;
+    try {
+      room = await ensurePrivateRoom();
+    } catch (error) {
+      console.warn('Could not open the private chat for a call:', error);
+    }
+    if (!room) {return;}
 
-      const newRoomJid =
-        (await client?.createPrivateRoomStanza(
-          combinedUsersName,
-          `Private chat ${combinedUsersName}`,
-          roomJid
-        )) || '';
+    dispatch(
+      startOutgoingCall({
+        roomJid: room.jid,
+        roomName: room.peerDisplay || room.bareName,
+        roomBareName: room.bareName,
+        kind,
+        peerXmppUsername: room.peerXmppUsername,
+      })
+    );
 
-      if (newRoomJid) {
-        await client?.inviteRoomRequestStanza(selectedUserUsername, newRoomJid);
-        await client?.getRoomsStanza();
-      }
+    // The server drops `kind` on the relayed call-token, so signal the peer
+    // directly first, as CallButtons does.
+    if (room.peerXmppUsername) {
+      sendCallInviteSignal(kind, {
+        peerXmppUsername: room.peerXmppUsername,
+        roomBareName: room.bareName,
+      });
     }
 
+    // Close the profile so the call screen isn't behind it.
     dispatch(setActiveModal(undefined));
-  }, [selectedUser, t]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    try {
+      await createChatCall(room.bareName, { kind });
+    } catch (error) {
+      dispatch(
+        setCallError(
+          error instanceof Error ? error.message : t('call.error.connectFailed')
+        )
+      );
+    }
+  }, [ensurePrivateRoom, isCallBusy, t]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handlePrivateMessage = useCallback(
     () => openPrivateRoom(false),
@@ -374,6 +485,26 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                       ]
                     : []),
                 ]),
+            ...(canCall && !isCallBusy
+              ? [
+                  {
+                    key: 'video-call',
+                    label: isAudioCallsEnabled ? t('action.videoCall') : t('action.call'),
+                    icon: (color: string) => <VideoCallIcon color={color} />,
+                    onPress: () => void handleCall('video'),
+                  },
+                  ...(isAudioCallsEnabled
+                    ? [
+                        {
+                          key: 'audio-call',
+                          label: t('action.audioCall'),
+                          icon: (color: string) => <AudioCallIcon color={color} />,
+                          onPress: () => void handleCall('audio'),
+                        },
+                      ]
+                    : []),
+                ]
+              : []),
             {
               key: 'share',
               label: t('action.share'),
@@ -381,7 +512,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
               onPress: handleShare,
             },
           ],
-    [isOwnProfile, t, handleShare, handlePrivateMessage, handleEncryptedPrivateMessage, canStartEncrypted, handleLogout] // eslint-disable-line react-hooks/exhaustive-deps
+    [isOwnProfile, t, handleShare, handlePrivateMessage, handleEncryptedPrivateMessage, canStartEncrypted, handleLogout, canCall, isCallBusy, isAudioCallsEnabled, handleCall] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   // Collapsed, the hero's round buttons are gone — the "…" menu carries

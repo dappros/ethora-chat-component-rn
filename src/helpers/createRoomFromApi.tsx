@@ -1,3 +1,4 @@
+import { uniqueMembers } from './uniqueMembers';
 import { ApiRoom, IRoom } from '../types/types';
 import type { LastMessage } from '../types/models/message.model';
 
@@ -81,6 +82,7 @@ export const createRoomFromApi = (
     const lastMessage = mapApiLastMessage(room?.lastMessage, jid);
     const roomData: IRoom = {
       ...room,
+      ...(Array.isArray(room?.members) ? { members: uniqueMembers(room.members) } : {}),
       id: (room as any)?._id || '',
       jid,
       name: room?.title || '',

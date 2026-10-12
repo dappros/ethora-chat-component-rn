@@ -1,4 +1,4 @@
-import xmpp, { Client } from '@xmpp/client';
+import xmpp, { Client, xml } from '@xmpp/client';
 import { walletToUsername } from '../helpers/walletUsername';
 import { IMessage, xmppSettingsInterface } from '../types/types';
 
@@ -765,6 +765,15 @@ export class XmppClient {
       this.authRecoveryFailures = 0;
       this.authRejectionsSinceOnline = 0;
       this.reconnectAttempts = 0;
+      // Initial presence, as the web client sends on 'online'. Without it
+      // the session is never "available" to ejabberd, which then holds
+      // back every `type="chat"` message addressed to the bare JID: the
+      // call-invite and the call-token never arrived, so the phone neither
+      // rang nor joined its own outgoing call. Room traffic was unaffected
+      // (MUC joins and mucsub don't need it), which hid the problem.
+      Promise.resolve()
+        .then(() => this.client.send(xml('presence')))
+        .catch((err: unknown) => console.warn('initial presence failed', err));
       this.sendAllPresencesAndMarkReady();
       try {
         devPushLog(

@@ -71,7 +71,11 @@ export const CallButtons: FC = () => {
       // Don't show "deleted" / "Deleted User" / "Unknown" as the dial
       // screen title when the chat title is one of the server sentinels.
       // Prefer the peer's first+last name, falling back to the bare chat name.
-      const rawTitle = String(currentRoom.name || '').trim();
+      // `title` is what the header shows ("John Pauliller"); on new-arch
+      // private rooms `name` is the bare room id.
+      const rawTitle = String(
+        (currentRoom as any).title || currentRoom.name || ''
+      ).trim();
       const isBadTitle =
         !rawTitle ||
         ['deleted', 'deleted user', 'unknown', 'null'].includes(

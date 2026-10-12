@@ -1,5 +1,7 @@
 import React, {
+  Component,
   FC,
+  ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -19,23 +21,20 @@ import {
   View,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import { RootState, store } from '../../roomStore';
+import { RootState } from '../../roomStore';
 import {
   acceptIncomingCall,
-  declineIncomingCall,
-  endCall,
   resetCall,
   setCallError,
-  setCallPhase,
 } from '../../roomStore/callSlice';
-import { addRoomMessage } from '../../roomStore/roomsSlice';
-import { buildLocalCallLogMessage } from '../../helpers/callLogMessage';
 import { useChatSettingState } from '../../hooks/useChatSettingState';
-import {
-  CallSignalState,
-  sendCallStateSignal,
-} from '../../networking/callTokenStanza';
+import { sendCallStateSignal } from '../../networking/callTokenStanza';
+import { useTheme } from '../../hooks/useTheme';
+import type { ChatTheme } from '../../theme/theme';
 import { VideoCallSession } from './VideoCallSession';
+import { startCallSession } from './callSessionController';
+import { declineActiveCall, terminateActiveCall } from './callActions';
+import { useDraggable } from './useDraggable';
 import { ProfileImagePlaceholder } from '../MainComponents/ProfileImagePlaceholder';
 import {
   AudioCallIcon,
@@ -47,8 +46,6 @@ import { useT } from '../../i18n/useT';
 import { useCallKeep } from './useCallKeep';
 
 const DEFAULT_PRIMARY = '#0052CD';
-const TEXT_PRIMARY = '#141414';
-const TEXT_MUTED = '#8c8c8c';
 const DANGER = '#E53935';
 const ACCEPT = '#10B981';
 
@@ -146,6 +143,7 @@ interface RingingCardProps {
   onDecline?: () => void;
   onHangup?: () => void;
   onDismiss?: () => void;
+  theme: ChatTheme;
 }
 
 const RingingCard: FC<RingingCardProps> = ({
@@ -161,12 +159,13 @@ const RingingCard: FC<RingingCardProps> = ({
   onDecline,
   onHangup,
   onDismiss,
+  theme,
 }) => {
   const t = useT();
 
   return (
-    <View style={styles.ringingCard}>
-      <Text style={styles.ringingTitle}>{title}</Text>
+    <View style={[styles.ringingCard, { backgroundColor: theme.surface }]}>
+      <Text style={[styles.ringingTitle, { color: theme.textSecondary }]}>{title}</Text>
 
       <View style={styles.avatarWrap}>
         {variant !== 'error' && (
@@ -179,17 +178,17 @@ const RingingCard: FC<RingingCardProps> = ({
       </View>
 
       <View style={styles.ringingIdentity}>
-        <Text style={styles.ringingName}>
+        <Text style={[styles.ringingName, { color: theme.text }]}>
           {roomName ||
             (variant === 'incoming' ? t('call.unknownCaller') : t('call.title'))}
         </Text>
         <View style={styles.ringingSubtitleRow}>
           {kind === 'audio' ? (
-            <AudioCallIcon color={TEXT_MUTED} size={16} />
+            <AudioCallIcon color={theme.textSecondary} size={16} />
           ) : (
-            <VideoCallIcon color={TEXT_MUTED} size={16} />
+            <VideoCallIcon color={theme.textSecondary} size={16} />
           )}
-          <Text style={styles.ringingSubtitle}>{subtitle}</Text>
+          <Text style={[styles.ringingSubtitle, { color: theme.textSecondary }]}>{subtitle}</Text>
         </View>
       </View>
 
@@ -252,21 +251,57 @@ const RingingCard: FC<RingingCardProps> = ({
 };
 
 /**
+ * A crash in the call UI must not take the chat down with it (web wraps
+ * the overlay in a silent ChatErrorBoundary). Renders nothing on error and
+ * clears itself on the next call.
+ */
+class CallErrorBoundary extends Component<
+  { resetKey: string; children: ReactNode },
+  { failed: boolean }
+> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidUpdate(prev: { resetKey: string }) {
+    if (prev.resetKey !== this.props.resetKey && this.state.failed) {
+      this.setState({ failed: false });
+    }
+  }
+
+  componentDidCatch(error: unknown) {
+    console.warn('[calls] call UI crashed', error);
+  }
+
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
+
+/**
  * Call orchestration surface. Mounted once, above the chat, by XmppProvider,
  * so an incoming call rings on whatever screen the user happens to be on
  * rather than only inside <Chat>. Renders nothing while `call.phase` is
  * 'idle'.
+ *
+ * The LiveKit connection itself lives in callSessionController.ts, so
+ * switching between the full-screen Modal and the minimized panel (two
+ * different trees here) no longer drops the call.
  */
-export const VideoCallOverlay: FC = () => {
+const VideoCallOverlayInner: FC = () => {
   const dispatch = useDispatch();
   const call = useSelector((state: RootState) => state.call);
   const { config } = useChatSettingState();
+  const theme = useTheme();
   const t = useT();
+  const panel = useDraggable();
 
   const videoCallsConfig = config?.videoCalls;
   const enabled = videoCallsConfig?.enabled === true;
   const livekitUrl = (videoCallsConfig?.livekitUrl || '').trim();
-  const primaryColor = config?.colors?.primary || DEFAULT_PRIMARY;
+  const primaryColor = theme.primary || config?.colors?.primary || DEFAULT_PRIMARY;
 
   const isOpen = enabled && call.phase !== 'idle';
 
@@ -283,18 +318,35 @@ export const VideoCallOverlay: FC = () => {
     !!livekitUrl;
   const isMinimized = minimized && canRenderSession;
 
+  // Join the LiveKit room once the call has a token. Idempotent, and the
+  // controller tears itself down when the call slice leaves these phases.
+  useEffect(() => {
+    if (!enabled || !canRenderSession || !call.token) {return;}
+    startCallSession({
+      token: call.token,
+      livekitUrl,
+      kind: call.kind,
+      startWithMicOn: videoCallsConfig?.startWithMicOn,
+      startWithCameraOn: videoCallsConfig?.startWithCameraOn,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, canRenderSession, call.token, livekitUrl, call.kind]);
+
   // Reset the minimized flag whenever the call ends, so the next call
   // opens full-screen.
   useEffect(() => {
     if (call.phase === 'idle') {setMinimized(false);}
   }, [call.phase]);
 
-  // Give up on an unanswered outgoing dial.
+  // Give up on an unanswered outgoing dial. Unlike web (which only shows
+  // the error), also tell the callee, who would otherwise keep ringing:
+  // there is no incoming ring timeout on either platform.
   useEffect(() => {
     if (call.phase !== 'requesting' || call.direction !== 'outgoing') {
       return;
     }
     const timer = setTimeout(() => {
+      sendCallStateSignal('cancelled');
       dispatch(setCallError(t('call.error.noAnswerTimeout')));
     }, OUTGOING_CALL_TIMEOUT_MS);
     return () => clearTimeout(timer);
@@ -311,53 +363,15 @@ export const VideoCallOverlay: FC = () => {
     return () => Vibration.cancel();
   }, [call.direction, call.phase]);
 
-  const terminateCall = useCallback(
-    (state: CallSignalState) => {
-      // Write a local "call ended" log entry BEFORE endCall() wipes the
-      // call slice. The authoritative entry is a server call-state
-      // broadcast, but that isn't guaranteed to arrive, so we synthesize
-      // our own. It's deduped against any server copy by callId in
-      // addRoomMessage.
-      const snap = store.getState().call;
-      if (snap.roomJid && (snap.callId || snap.connectedAt)) {
-        const durationMs = snap.connectedAt
-          ? Math.max(0, Date.now() - snap.connectedAt)
-          : 0;
-        dispatch(
-          addRoomMessage({
-            roomJID: snap.roomJid,
-            message: buildLocalCallLogMessage({
-              callId: snap.callId || '',
-              direction:
-                snap.direction === 'incoming' ? 'incoming' : 'outgoing',
-              durationMs,
-              kind: snap.kind === 'audio' ? 'audio' : 'video',
-              selfXmppUsername:
-                store.getState().chatSettingStore.user?.xmppUsername || '',
-            }),
-          })
-        );
-      }
-      sendCallStateSignal(state);
-      dispatch(endCall());
-    },
-    [dispatch]
-  );
-
-  const declineCall = useCallback(() => {
-    sendCallStateSignal('declined');
-    dispatch(declineIncomingCall());
-  }, [dispatch]);
-
   const hangupCurrent = useCallback(() => {
     if (call.direction === 'incoming' && call.phase === 'ringing-incoming') {
-      declineCall();
+      declineActiveCall();
     } else if (call.phase === 'error') {
       dispatch(resetCall());
     } else {
-      terminateCall(call.phase === 'requesting' ? 'cancelled' : 'ended');
+      terminateActiveCall(call.phase === 'requesting' ? 'cancelled' : 'ended');
     }
-  }, [call.direction, call.phase, declineCall, terminateCall, dispatch]);
+  }, [call.direction, call.phase, dispatch]);
 
   // Android hardware back = hang up, the RN equivalent of the web Esc
   // handler. A minimized panel shouldn't swallow back: the user is using
@@ -402,29 +416,30 @@ export const VideoCallOverlay: FC = () => {
   const showIncomingDecision =
     call.direction === 'incoming' && call.phase === 'ringing-incoming';
 
+  const session = (
+    <VideoCallSession
+      kind={call.kind}
+      peerName={call.roomName}
+      primaryColor={primaryColor}
+      icons={videoCallsConfig?.icons}
+      minimized={isMinimized}
+      onToggleMinimize={() => setMinimized((m) => !m)}
+      onHangup={() => terminateActiveCall('ended')}
+    />
+  );
+
   // The minimized session is NOT a Modal: a modal is by definition on top
   // of everything and swallows touches, which is the opposite of what
   // minimize is for (keep talking, keep using the chat). It renders as a
-  // floating absolutely-positioned bar instead.
-  if (canRenderSession && isMinimized) {
+  // floating bar the user can drag out of the way, like web's panel.
+  if (isMinimized) {
     return (
-      <View style={styles.floatingPanel} pointerEvents="box-none">
-        <VideoCallSession
-          token={call.token as string}
-          livekitUrl={livekitUrl}
-          kind={call.kind}
-          peerName={call.roomName}
-          primaryColor={primaryColor}
-          icons={videoCallsConfig?.icons}
-          startWithCameraOn={videoCallsConfig?.startWithCameraOn}
-          startWithMicOn={videoCallsConfig?.startWithMicOn}
-          minimized
-          onToggleMinimize={() => setMinimized((m) => !m)}
-          onConnected={() => dispatch(setCallPhase('in-call'))}
-          onError={(message) => dispatch(setCallError(message))}
-          onHangup={() => terminateCall('ended')}
-        />
-      </View>
+      <Animated.View
+        {...panel.panHandlers}
+        style={[styles.floatingPanel, panel.style]}
+      >
+        {session}
+      </Animated.View>
     );
   }
 
@@ -434,101 +449,83 @@ export const VideoCallOverlay: FC = () => {
       transparent
       animationType="fade"
       statusBarTranslucent
+      supportedOrientations={['portrait', 'landscape']}
       onRequestClose={hangupCurrent}
     >
-      <View style={styles.backdrop}>
-        {canRenderSession ? (
-          <View
-            style={
-              call.kind === 'audio' ? styles.audioSessionCard : styles.sessionCard
-            }
-          >
-            <VideoCallSession
-              token={call.token as string}
-              livekitUrl={livekitUrl}
+      {canRenderSession ? (
+        // Full-bleed: on a phone the call owns the screen, like the native
+        // dialer. The audio call keeps the same dark canvas as video.
+        <View style={styles.sessionFull}>{session}</View>
+      ) : (
+        <View style={[styles.backdrop, { backgroundColor: theme.overlay }]}>
+          {showIncomingDecision ? (
+            <RingingCard
+              title={ringingHeader}
+              subtitle={ringingSubtitle}
+              roomName={call.roomName}
               kind={call.kind}
-              peerName={call.roomName}
+              variant="incoming"
               primaryColor={primaryColor}
               icons={videoCallsConfig?.icons}
-              startWithCameraOn={videoCallsConfig?.startWithCameraOn}
-              startWithMicOn={videoCallsConfig?.startWithMicOn}
-              minimized={false}
-              onToggleMinimize={() => setMinimized((m) => !m)}
-              onConnected={() => dispatch(setCallPhase('in-call'))}
-              onError={(message) => dispatch(setCallError(message))}
-              onHangup={() => terminateCall('ended')}
+              theme={theme}
+              onAccept={() => dispatch(acceptIncomingCall())}
+              onDecline={declineActiveCall}
             />
-          </View>
-        ) : showIncomingDecision ? (
-          <RingingCard
-            title={ringingHeader}
-            subtitle={ringingSubtitle}
-            roomName={call.roomName}
-            kind={call.kind}
-            variant="incoming"
-            primaryColor={primaryColor}
-            icons={videoCallsConfig?.icons}
-            onAccept={() => dispatch(acceptIncomingCall())}
-            onDecline={declineCall}
-          />
-        ) : call.phase === 'error' ? (
-          <RingingCard
-            title={ringingHeader}
-            subtitle={ringingSubtitle}
-            roomName={call.roomName}
-            kind={call.kind}
-            variant="error"
-            primaryColor={primaryColor}
-            errorMessage={
-              call.error ||
-              (!livekitUrl ? t('call.error.missingLivekitUrl') : null)
-            }
-            onDismiss={() => dispatch(resetCall())}
-          />
-        ) : (
-          <RingingCard
-            title={ringingHeader}
-            subtitle={ringingSubtitle}
-            roomName={call.roomName}
-            kind={call.kind}
-            variant="outgoing"
-            primaryColor={primaryColor}
-            icons={videoCallsConfig?.icons}
-            onHangup={() => terminateCall('cancelled')}
-          />
-        )}
-      </View>
+          ) : call.phase === 'error' ? (
+            <RingingCard
+              title={ringingHeader}
+              subtitle={ringingSubtitle}
+              roomName={call.roomName}
+              kind={call.kind}
+              variant="error"
+              primaryColor={primaryColor}
+              theme={theme}
+              errorMessage={
+                call.error ||
+                (!livekitUrl ? t('call.error.missingLivekitUrl') : null)
+              }
+              onDismiss={() => dispatch(resetCall())}
+            />
+          ) : (
+            <RingingCard
+              title={ringingHeader}
+              subtitle={ringingSubtitle}
+              roomName={call.roomName}
+              kind={call.kind}
+              variant="outgoing"
+              primaryColor={primaryColor}
+              icons={videoCallsConfig?.icons}
+              theme={theme}
+              onHangup={() => terminateActiveCall('cancelled')}
+            />
+          )}
+        </View>
+      )}
     </Modal>
+  );
+};
+
+export const VideoCallOverlay: FC = () => {
+  const callId = useSelector(
+    (state: RootState) => state.call.callId || String(state.call.startedAt || '')
+  );
+  return (
+    <CallErrorBoundary resetKey={callId}>
+      <VideoCallOverlayInner />
+    </CallErrorBoundary>
   );
 };
 
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 16,
   },
-  sessionCard: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 24,
-    backgroundColor: '#fff',
-    overflow: 'hidden',
-  },
-  // Audio calls don't need the full video canvas: a fixed tall card leaves
-  // a dead gap around the avatar and strands the controls far from
-  // anything else, so this one shrink-wraps its content.
-  audioSessionCard: {
-    width: '100%',
-    maxHeight: 600,
-    flexGrow: 0,
-    flexShrink: 1,
-    minHeight: 420,
-    borderRadius: 24,
-    backgroundColor: '#fff',
-    overflow: 'hidden',
+  sessionFull: {
+    flex: 1,
+    backgroundColor: '#0B1220',
   },
   floatingPanel: {
     position: 'absolute',
@@ -543,13 +540,11 @@ const styles = StyleSheet.create({
     maxWidth: 420,
     padding: 32,
     borderRadius: 24,
-    backgroundColor: '#fff',
     alignItems: 'center',
     gap: 24,
   },
   ringingTitle: {
     fontSize: 14,
-    color: TEXT_MUTED,
     letterSpacing: 0.2,
   },
   avatarWrap: {
@@ -571,7 +566,6 @@ const styles = StyleSheet.create({
   },
   ringingName: {
     fontSize: 24,
-    color: TEXT_PRIMARY,
     textAlign: 'center',
   },
   ringingSubtitleRow: {
@@ -580,7 +574,6 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   ringingSubtitle: {
-    color: TEXT_MUTED,
     fontSize: 14,
   },
   errorBox: {

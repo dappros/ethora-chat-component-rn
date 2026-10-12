@@ -58,7 +58,7 @@ export const handleCallPush = (
     (room: any) =>
       (room?.jid || '').split('@')[0] === parsed.roomBareName ||
       room?.jid === parsed.roomRef
-  ) as { jid?: string; name?: string } | undefined;
+  ) as { jid?: string; name?: string; title?: string } | undefined;
 
   const roomJid =
     resolved?.jid ||
@@ -70,7 +70,7 @@ export const handleCallPush = (
   store.dispatch(
     setIncomingCallToken({
       roomJid,
-      roomName: parsed.callerName || resolved?.name || null,
+      roomName: parsed.callerName || resolved?.title || resolved?.name || null,
       roomBareName: parsed.roomBareName,
       token: parsed.token,
       kind: parsed.kind,

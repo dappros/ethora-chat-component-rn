@@ -1,4 +1,5 @@
 import { ApiRoom, DeleteRoomMember, PostAddRoomMember, PostReportRoom, PostRoom, RoomMember } from '../../types/models/room.model';
+import { uniqueMembers } from '../../helpers/uniqueMembers';
 import { store } from '../../roomStore';
 import { addRoom, mergeUsersSet, updateRoom } from '../../roomStore/roomsSlice';
 import { IRoom } from '../../types/types';
@@ -118,7 +119,7 @@ export function ownAppId(): string {
 
 const toRoomMembers = (members: any[] | undefined): RoomMember[] => {
   const known = (store.getState().rooms?.usersSet || {}) as Record<string, RoomMember>;
-  return (members || []).map((m: any) => ({
+  return uniqueMembers(members).map((m: any) => ({
     firstName: m.firstName,
     lastName: m.lastName,
     profileImage:

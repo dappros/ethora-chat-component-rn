@@ -1,6 +1,7 @@
 /** @format */
 
 import { composeName } from '../../../helpers/displayName';
+import { uniqueMembers } from '../../../helpers/uniqueMembers';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
@@ -157,12 +158,14 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
   // true total). Opening the profile loads the whole room directory (once per
   // room, deduplicated, paged) and lists it after the known members.
   const knownMembers = useMemo<RoomMember[]>(
-    () => activeRoom?.roomMembers ?? activeRoom?.members ?? [],
+    // Deduped at display too: a list already cached with repeats (a 1:1
+    // chat showing four rows) cleans up without waiting for a refetch.
+    () => uniqueMembers(activeRoom?.roomMembers ?? activeRoom?.members ?? []),
     [activeRoom?.roomMembers, activeRoom?.members]
   );
   const countSource = useMemo(
-    () => ({ members: knownMembers, usersCnt: activeRoom?.usersCnt }),
-    [knownMembers, activeRoom?.usersCnt]
+    () => ({ members: knownMembers, usersCnt: activeRoom?.usersCnt, type: activeRoom?.type }),
+    [knownMembers, activeRoom?.usersCnt, activeRoom?.type]
   );
   const membersTruncated = isRoomMembersTruncated(countSource);
   const { members: directoryMembers, state: directoryState } =
