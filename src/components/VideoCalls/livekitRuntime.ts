@@ -26,6 +26,8 @@ export interface LiveKitRuntime {
   Track: any;
   /** livekit-client `ConnectionState` enum. */
   ConnectionState: any;
+  /** livekit-client `VideoPresets` (h540, h216...). */
+  VideoPresets: any;
   /** RN `<VideoTrack trackRef={...} />` renderer. */
   VideoTrack: any;
   /** Native audio session control (routing, speaker, focus). */
@@ -63,6 +65,7 @@ export const loadLiveKit = (): LiveKitRuntime | null => {
       RoomEvent: core.RoomEvent,
       Track: core.Track,
       ConnectionState: core.ConnectionState,
+      VideoPresets: core.VideoPresets,
       VideoTrack: rn.VideoTrack,
       AudioSession: rn.AudioSession,
       registerGlobals: rn.registerGlobals,

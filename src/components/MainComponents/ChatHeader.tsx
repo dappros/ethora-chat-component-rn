@@ -15,6 +15,7 @@ import { ProfileImagePlaceholder } from './ProfileImagePlaceholder';
 import Button from '../styled/Button';
 import { BackIcon, BurgerMenuIcon, LockIcon } from '../../assets/icons';
 import { CallButtons } from '../VideoCalls/CallButtons';
+import { HeaderCallBar } from '../VideoCalls/ActiveCallBar';
 import { LanguageSelectorButton } from './LanguageSelectorButton';
 import { MessageSearchButton } from './MessageSearchButton';
 import { useDispatch, useSelector, useStore } from 'react-redux';
@@ -263,6 +264,8 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
           )}
         </View>
       </ChatContainerHeader>
+      {/* Minimized call strip, Telegram-style; nothing without a call. */}
+      <HeaderCallBar />
       {config?.chatHeaderAdditional?.enabled &&
           config.chatHeaderAdditional.element()}
     </>

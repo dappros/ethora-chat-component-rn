@@ -15,6 +15,7 @@ import { MODAL_TYPES } from '../../helpers/constants/MODAL_TYPES';
 import { showsStandaloneDiscoverButton } from '../../helpers/publicChatsEntry';
 import { useConnectionLabel } from '../../hooks/useConnectionLabel';
 import { resolveHeaderHeight } from '../../helpers/headerLayout';
+import { HeaderCallBar } from '../VideoCalls/ActiveCallBar';
 
 export const ROOM_LIST_HEADER_TRIM = 5;
 const ROOM_LIST_HEADER_LIFT = 6;
@@ -56,76 +57,80 @@ export const HeaderRoomList: FC<HeaderRoomListProps> = ({ setDrawerOpen }) => {
   }, [config?.backgroundChat?.image]);
 
   return (
-    <View
-      style={[
-        styles.headerContainer,
-        { backgroundColor: theme.surface, shadowColor: theme.shadow },
-        { height: headerHeight, paddingTop: topInset, paddingBottom: ROOM_LIST_HEADER_LIFT },
-      ]}
-    >
-      {!config?.disableRoomMenu && config?.headerMenu ? (
-        <View style={styles.leftContainer}>
-          <Button
-            testID="room-list-burger"
-            style={styles.menuButton}
-            color="black"
-            unstyled
-            EndIcon={<BurgerMenuIcon color={theme.icon} />}
-            onPress={() =>
-              typeof config?.headerMenu === 'function'
-                ? config.headerMenu()
-                : setDrawerOpen()
-            }
-          />
-        </View>
-      ) : (
-        <View style={styles.leftContainer} />
-      )}
+    <>
       <View
         style={[
-          styles.centerContainer,
-          { top: topInset, bottom: ROOM_LIST_HEADER_LIFT },
+          styles.headerContainer,
+          { backgroundColor: theme.surface, shadowColor: theme.shadow },
+          { height: headerHeight, paddingTop: topInset, paddingBottom: ROOM_LIST_HEADER_LIFT },
         ]}
       >
-        {connectionLabel ? (
-          // The title gives way to the session's state: the list is not
-          // live until the stream is up and the rooms re-joined.
-          <View style={styles.connection} testID="room-list-connection">
-            <ActivityIndicator size="small" color={theme.textSecondary} />
-            <Text style={{ fontWeight: 500, fontSize: 16, color: theme.textSecondary }}>
-              {connectionLabel}
-            </Text>
+        {!config?.disableRoomMenu && config?.headerMenu ? (
+          <View style={styles.leftContainer}>
+            <Button
+              testID="room-list-burger"
+              style={styles.menuButton}
+              color="black"
+              unstyled
+              EndIcon={<BurgerMenuIcon color={theme.icon} />}
+              onPress={() =>
+                typeof config?.headerMenu === 'function'
+                  ? config.headerMenu()
+                  : setDrawerOpen()
+              }
+            />
           </View>
-        ) : config?.headerLogo ? (
-          HeaderLogo
         ) : (
-          <Text style={{ fontWeight: 500, fontSize: 18, color: theme.text }}>
-            {t('roomList.title')}
-          </Text>
+          <View style={styles.leftContainer} />
         )}
-      </View>
-      <View style={styles.rightContainer}>
-        {showsStandaloneDiscoverButton(config) && (
-          <Button
-            testID="room-list-discover"
-            style={styles.menuButton}
-            unstyled
-            EndIcon={<DiscoverIcon color={theme.icon} />}
-            onPress={() => dispatch(setActiveModal(MODAL_TYPES.PUBLIC_CHATS))}
-            accessibilityLabel={t('publicChats.title')}
+        <View
+          style={[
+            styles.centerContainer,
+            { top: topInset, bottom: ROOM_LIST_HEADER_LIFT },
+          ]}
+        >
+          {connectionLabel ? (
+            // The title gives way to the session's state: the list is not
+            // live until the stream is up and the rooms re-joined.
+            <View style={styles.connection} testID="room-list-connection">
+              <ActivityIndicator size="small" color={theme.textSecondary} />
+              <Text style={{ fontWeight: 500, fontSize: 16, color: theme.textSecondary }}>
+                {connectionLabel}
+              </Text>
+            </View>
+          ) : config?.headerLogo ? (
+            HeaderLogo
+          ) : (
+            <Text style={{ fontWeight: 500, fontSize: 18, color: theme.text }}>
+              {t('roomList.title')}
+            </Text>
+          )}
+        </View>
+        <View style={styles.rightContainer}>
+          {showsStandaloneDiscoverButton(config) && (
+            <Button
+              testID="room-list-discover"
+              style={styles.menuButton}
+              unstyled
+              EndIcon={<DiscoverIcon color={theme.icon} />}
+              onPress={() => dispatch(setActiveModal(MODAL_TYPES.PUBLIC_CHATS))}
+              accessibilityLabel={t('publicChats.title')}
+            />
+          )}
+          <ProfileImagePlaceholder
+            icon={modalUser?.profileImage ?? null}
+            name={modalUser?.name ?? modalUser?.firstName}
+            size={36}
+            click={{
+              isClick: true,
+              onPress: setDrawerOpen,
+            }}
           />
-        )}
-        <ProfileImagePlaceholder
-          icon={modalUser?.profileImage ?? null}
-          name={modalUser?.name ?? modalUser?.firstName}
-          size={36}
-          click={{
-            isClick: true,
-            onPress: setDrawerOpen,
-          }}
-        />
+        </View>
       </View>
-    </View>
+      {/* Minimized call strip, Telegram-style; nothing without a call. */}
+      <HeaderCallBar />
+    </>
   );
 };
 

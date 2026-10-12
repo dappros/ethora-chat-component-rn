@@ -2,6 +2,7 @@ import React, { FC, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
+  Pressable,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -17,7 +18,6 @@ import {
   MicOffIcon,
   MicOnIcon,
   MinimizeIcon,
-  ExpandIcon,
   SpeakerIcon,
   SpeakerOffIcon,
   SwitchCameraIcon,
@@ -47,9 +47,7 @@ export interface VideoCallSessionProps {
   peerName?: string | null;
   primaryColor?: string;
   icons?: VideoCallIcons;
-  /** Render the compact floating-panel layout instead of the full screen. */
-  minimized?: boolean;
-  /** Toggle between full and minimized layouts. */
+  /** Minimize to the header strip (ActiveCallBar). */
   onToggleMinimize?: () => void;
   onHangup: () => void;
 }
@@ -59,7 +57,7 @@ export interface VideoCallSessionProps {
  * `joinedAt` anchor so both sides show the same time (web's
  * useSharedCallElapsed). Null until the peer is in.
  */
-const useSharedCallElapsed = (anchorAt: number | null): number | null => {
+export const useSharedCallElapsed = (anchorAt: number | null): number | null => {
   const [, tick] = useState(0);
   useEffect(() => {
     if (anchorAt === null) {return;}
@@ -94,7 +92,6 @@ export const VideoCallSession: FC<VideoCallSessionProps> = ({
   peerName,
   primaryColor = DEFAULT_PRIMARY,
   icons,
-  minimized = false,
   onToggleMinimize,
   onHangup,
 }) => {
@@ -104,6 +101,8 @@ export const VideoCallSession: FC<VideoCallSessionProps> = ({
   const session = useCallSession();
   const selfView = useDraggable();
   const elapsed = useSharedCallElapsed(session.anchorAt);
+  // Telegram-style: tap the small tile to swap it with the big one.
+  const [swapped, setSwapped] = useState(false);
 
   if (!runtime) {
     return (
@@ -124,12 +123,22 @@ export const VideoCallSession: FC<VideoCallSessionProps> = ({
     speakerOn,
     deviceError,
     remoteMicMuted,
+    facingMode,
   } = session;
   // The call slice's name (the chat title) first, as web does: LiveKit's
   // participant name is often just the opaque xmpp identity.
   const displayName = peerName || session.remoteName || t('call.unknownCaller');
   const isVideo = kind === 'video';
   const showRemoteVideo = isVideo && !!remoteVideo;
+  const localLive = isVideo && cameraOn && !!localVideo;
+  // Swapping only means something while both sides have a picture; if
+  // either goes away, fall back to the default layout on its own.
+  const canSwap = showRemoteVideo && localLive;
+  const isSwapped = swapped && canSwap;
+  const mainVideo = isSwapped ? localVideo : showRemoteVideo ? remoteVideo : null;
+  const pipVideo = isSwapped ? remoteVideo : localLive ? localVideo : null;
+  // Only the front camera is mirrored, as in every camera app.
+  const selfMirror = facingMode === 'user';
 
   const statusText =
     elapsed !== null
@@ -142,54 +151,18 @@ export const VideoCallSession: FC<VideoCallSessionProps> = ({
 
   const peerMutedLabel = t('call.peerMuted', { name: displayName });
 
-  if (minimized) {
-    return (
-      <View style={styles.miniBar}>
-        <ProfileImagePlaceholder name={displayName} size={36} />
-        <View style={styles.miniInfo}>
-          <Text numberOfLines={1} style={styles.miniName}>
-            {displayName}
-          </Text>
-          <Text numberOfLines={1} style={styles.miniStatus}>
-            {remoteMicMuted ? `${statusText} · ${peerMutedLabel}` : statusText}
-          </Text>
-        </View>
-        <TouchableOpacity
-          accessibilityRole="button"
-          accessibilityLabel={micOn ? t('call.action.muteMic') : t('call.action.unmuteMic')}
-          onPress={toggleCallMic}
-          style={[styles.miniButton, { backgroundColor: micOn ? CONTROL_IDLE : DANGER }]}
-        >
-          {micOn
-            ? (icons?.micOn ?? <MicOnIcon color={TEXT_ON_DARK} size={20} />)
-            : (icons?.micOff ?? <MicOffIcon color={TEXT_ON_DARK} size={20} />)}
-        </TouchableOpacity>
-        <TouchableOpacity
-          accessibilityRole="button"
-          accessibilityLabel={t('call.action.expand')}
-          onPress={onToggleMinimize}
-          style={[styles.miniButton, { backgroundColor: CONTROL_IDLE }]}
-        >
-          <ExpandIcon color={TEXT_ON_DARK} size={20} />
-        </TouchableOpacity>
-        <TouchableOpacity
-          accessibilityRole="button"
-          accessibilityLabel={t('call.action.hangUp')}
-          onPress={onHangup}
-          style={[styles.miniButton, { backgroundColor: DANGER }]}
-        >
-          {icons?.hangup ?? <HangUpIcon color={TEXT_ON_DARK} size={20} />}
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
   return (
     <View style={styles.canvas}>
       {/* Stage */}
       <View style={styles.stage}>
-        {showRemoteVideo ? (
-          <VideoTrack trackRef={remoteVideo} style={styles.remoteVideo} objectFit="cover" />
+        {mainVideo ? (
+          <VideoTrack
+            trackRef={mainVideo}
+            style={styles.remoteVideo}
+            objectFit="cover"
+            mirror={isSwapped && selfMirror}
+            zOrder={0}
+          />
         ) : (
           <View style={styles.centered}>
             <ProfileImagePlaceholder name={displayName} size={120} />
@@ -216,7 +189,7 @@ export const VideoCallSession: FC<VideoCallSessionProps> = ({
         )}
 
         {/* Header strip: who, how long, and whether they can hear us. */}
-        {showRemoteVideo && (
+        {mainVideo && (
           <View style={[styles.header, { paddingTop: 14 + insets.top }]}>
             <Text style={styles.headerName} numberOfLines={1}>
               {displayName}
@@ -231,13 +204,28 @@ export const VideoCallSession: FC<VideoCallSessionProps> = ({
           </View>
         )}
 
-        {/* Local preview, picture-in-picture, draggable like web's self-view. */}
-        {isVideo && cameraOn && localVideo && (
+        {/* Picture-in-picture: draggable like web's self-view, tap to swap
+            it with the main video. */}
+        {pipVideo && (
           <Animated.View
             {...selfView.panHandlers}
             style={[styles.pip, { top: 16 + insets.top }, selfView.style]}
           >
-            <VideoTrack trackRef={localVideo} style={styles.pipVideo} objectFit="cover" mirror />
+            <Pressable
+              style={styles.pipVideo}
+              disabled={!canSwap}
+              onPress={() => setSwapped((value) => !value)}
+              accessibilityRole="button"
+              accessibilityLabel={t('call.action.swapVideo')}
+            >
+              <VideoTrack
+                trackRef={pipVideo}
+                style={styles.pipVideo}
+                objectFit="cover"
+                mirror={!isSwapped && selfMirror}
+                zOrder={1}
+              />
+            </Pressable>
           </Animated.View>
         )}
 
@@ -474,35 +462,6 @@ const styles = StyleSheet.create({
     color: TEXT_ON_DARK,
     fontSize: 13,
     textAlign: 'center',
-  },
-  miniBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 16,
-    backgroundColor: SURFACE_DARK,
-  },
-  miniInfo: {
-    flex: 1,
-    minWidth: 0,
-  },
-  miniName: {
-    color: TEXT_ON_DARK,
-    fontSize: 15,
-  },
-  miniStatus: {
-    color: TEXT_MUTED,
-    fontSize: 12,
-    fontVariant: ['tabular-nums'],
-  },
-  miniButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });
 

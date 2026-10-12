@@ -6,7 +6,6 @@ import React, {
   useEffect,
   useMemo,
   useRef,
-  useState,
 } from 'react';
 import {
   Animated,
@@ -34,7 +33,8 @@ import type { ChatTheme } from '../../theme/theme';
 import { VideoCallSession } from './VideoCallSession';
 import { startCallSession } from './callSessionController';
 import { declineActiveCall, terminateActiveCall } from './callActions';
-import { useDraggable } from './useDraggable';
+import { DockedCallBar } from './ActiveCallBar';
+import { setCallMinimized, useCallUi } from './callUiStore';
 import { ProfileImagePlaceholder } from '../MainComponents/ProfileImagePlaceholder';
 import {
   AudioCallIcon,
@@ -287,8 +287,8 @@ class CallErrorBoundary extends Component<
  * 'idle'.
  *
  * The LiveKit connection itself lives in callSessionController.ts, so
- * switching between the full-screen Modal and the minimized panel (two
- * different trees here) no longer drops the call.
+ * switching between the full-screen Modal and the minimized header strip
+ * (two different trees) no longer drops the call.
  */
 const VideoCallOverlayInner: FC = () => {
   const dispatch = useDispatch();
@@ -296,7 +296,6 @@ const VideoCallOverlayInner: FC = () => {
   const { config } = useChatSettingState();
   const theme = useTheme();
   const t = useT();
-  const panel = useDraggable();
 
   const videoCallsConfig = config?.videoCalls;
   const enabled = videoCallsConfig?.enabled === true;
@@ -310,7 +309,8 @@ const VideoCallOverlayInner: FC = () => {
   // fallback and always renders.
   useCallKeep();
 
-  const [minimized, setMinimized] = useState(false);
+  // Shared with the header strip (ActiveCallBar), which expands it again.
+  const { minimized } = useCallUi();
 
   const canRenderSession =
     !!call.token &&
@@ -331,12 +331,6 @@ const VideoCallOverlayInner: FC = () => {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, canRenderSession, call.token, livekitUrl, call.kind]);
-
-  // Reset the minimized flag whenever the call ends, so the next call
-  // opens full-screen.
-  useEffect(() => {
-    if (call.phase === 'idle') {setMinimized(false);}
-  }, [call.phase]);
 
   // Give up on an unanswered outgoing dial. Unlike web (which only shows
   // the error), also tell the callee, who would otherwise keep ringing:
@@ -422,25 +416,16 @@ const VideoCallOverlayInner: FC = () => {
       peerName={call.roomName}
       primaryColor={primaryColor}
       icons={videoCallsConfig?.icons}
-      minimized={isMinimized}
-      onToggleMinimize={() => setMinimized((m) => !m)}
+      onToggleMinimize={() => setCallMinimized(!minimized)}
       onHangup={() => terminateActiveCall('ended')}
     />
   );
 
-  // The minimized session is NOT a Modal: a modal is by definition on top
-  // of everything and swallows touches, which is the opposite of what
-  // minimize is for (keep talking, keep using the chat). It renders as a
-  // floating bar the user can drag out of the way, like web's panel.
+  // Minimized, the call is a strip under the visible SDK header
+  // (HeaderCallBar), Telegram-style, so the chat stays fully usable. With
+  // no SDK header on screen the same strip docks to the top instead.
   if (isMinimized) {
-    return (
-      <Animated.View
-        {...panel.panHandlers}
-        style={[styles.floatingPanel, panel.style]}
-      >
-        {session}
-      </Animated.View>
-    );
+    return <DockedCallBar />;
   }
 
   return (
@@ -526,14 +511,6 @@ const styles = StyleSheet.create({
   sessionFull: {
     flex: 1,
     backgroundColor: '#0B1220',
-  },
-  floatingPanel: {
-    position: 'absolute',
-    right: 16,
-    bottom: 24,
-    left: 16,
-    zIndex: 1001,
-    elevation: 12,
   },
   ringingCard: {
     width: '100%',

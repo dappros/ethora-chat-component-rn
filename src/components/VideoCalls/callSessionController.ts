@@ -31,6 +31,8 @@ export interface CallSessionSnapshot {
   micOn: boolean;
   cameraOn: boolean;
   speakerOn: boolean;
+  /** Which camera the local video comes from; only the front one is mirrored. */
+  facingMode: 'user' | 'environment';
   /** `{ participant, publication, source }` for `<VideoTrack />`, live and unmuted only. */
   remoteVideo: any;
   localVideo: any;
@@ -53,6 +55,7 @@ const IDLE: CallSessionSnapshot = {
   micOn: true,
   cameraOn: false,
   speakerOn: false,
+  facingMode: 'user',
   remoteVideo: null,
   localVideo: null,
   remoteName: null,
@@ -224,12 +227,24 @@ export const startCallSession = ({
   }
 
   ensureLiveKitGlobals(runtime);
-  const { Room, RoomEvent, AudioSession } = runtime;
+  const { Room, RoomEvent, AudioSession, VideoPresets } = runtime;
 
-  // adaptiveStream + dynacast keep mobile data and battery sane: the SDK
-  // drops resolution for a small tile and stops publishing layers nobody
-  // subscribes to. Both are safe defaults for 1:1.
-  const room = new Room({ adaptiveStream: true, dynacast: true });
+  // The web session's options, verbatim. `pixelDensity: 'screen'` matters:
+  // with a plain `adaptiveStream: true` the subscriber asks for a layer
+  // sized to the view in POINTS, i.e. 2-3x below the phone's real pixels,
+  // and the peer's video arrived visibly blurry next to web.
+  const room = new Room({
+    adaptiveStream: { pixelDensity: 'screen' },
+    dynacast: true,
+    ...(VideoPresets
+      ? {
+          publishDefaults: {
+            videoSimulcastLayers: [VideoPresets.h540, VideoPresets.h216],
+          },
+          videoCaptureDefaults: { resolution: VideoPresets.h720.resolution },
+        }
+      : {}),
+  });
   const current: Session = { key, room, kind, disposed: false, everJoined: false };
   session = current;
   snapshot = {
@@ -368,22 +383,25 @@ export const switchCallCamera = async (): Promise<void> => {
   const current = session;
   const runtime = loadLiveKit();
   if (!current || !runtime) {return;}
+  const mediaTrack = current.room.localParticipant.getTrackPublication?.(
+    runtime.Track.Source.Camera
+  )?.track?.mediaStreamTrack;
+  if (!mediaTrack?.applyConstraints) {return;}
+  const next = snapshot.facingMode === 'user' ? 'environment' : 'user';
   try {
-    const publication = current.room.localParticipant.getTrackPublication?.(
-      runtime.Track.Source.Camera
-    );
-    const track = publication?.track;
-    // `restartTrack` with the flipped facingMode is the portable way to
-    // switch cameras; the RN SDK's `_switchCamera` helper is internal.
-    await track?.restartTrack?.({
-      facingMode:
-        track?.mediaStreamTrack?.getSettings?.().facingMode === 'environment'
-          ? 'user'
-          : 'environment',
-    });
+    // Swap the capture device inside the SAME track (react-native-webrtc's
+    // own camera switch). `restartTrack` stopped the published track and
+    // made a new one, and the native view kept showing the stopped stream:
+    // the picture froze on the switch.
+    // Keep the current capture settings (resolution, frame rate) and only
+    // flip the camera, exactly like the library's `_switchCamera`.
+    const constraints = { ...(mediaTrack.getSettings?.() || {}) };
+    delete constraints.deviceId;
+    await mediaTrack.applyConstraints({ ...constraints, facingMode: next });
+    if (!current.disposed) {emit({ facingMode: next });}
     resync();
   } catch {
-    // Single camera, or the track is mid-restart.
+    // Single camera, or the switch is still in flight.
   }
 };
 
