@@ -8,7 +8,7 @@
     "newArchEnabled": true,
     "ios": {
       "bundleIdentifier": "com.ethora.chatcomponentrn",
-      "supportsTablet": false,
+      "supportsTablet": true,
       "infoPlist": {
         "NSMicrophoneUsageDescription": "$(PRODUCT_NAME) needs access to your microphone so you can talk during audio and video calls.",
         "NSCameraUsageDescription": "$(PRODUCT_NAME) needs access to your camera so you can be seen during video calls.",
