@@ -20,6 +20,12 @@ import { DeviceEventEmitter } from 'react-native';
 jest.mock('../src/services/pushSubscriptionService', () => ({
   pushSubscriptionService: { reset: jest.fn() },
 }));
+jest.mock('../src/services/pushRegistration', () => ({
+  releasePushRegistration: jest.fn(() => Promise.resolve()),
+}));
+
+// Swapped per-test to give performLogout an XMPP client to flush with.
+let mockClient: any = null;
 
 // useLogout reaches into the real shared store; replace with a tiny
 // jest.fn dispatch so we can assert the action sequence. Build the
@@ -37,7 +43,7 @@ jest.mock('../src/roomStore', () => {
       // mocked logout path doesn't TypeError on `state.rooms.rooms`.
       getState: () => ({
         rooms: { rooms: {}, activeRoomJID: null },
-        chatSettingStore: { client: null },
+        chatSettingStore: { client: mockClient },
       }),
     },
   };
@@ -48,6 +54,7 @@ import { logoutService } from '../src/hooks/useLogout';
 import {
   pushSubscriptionService,
 } from '../src/services/pushSubscriptionService';
+import { releasePushRegistration } from '../src/services/pushRegistration';
 const dispatchSpy = (jest.requireMock('../src/roomStore') as any)
   .__dispatchSpy as jest.Mock;
 
@@ -143,5 +150,31 @@ describe('logoutService.performLogout', () => {
     ]);
 
     emitSpy.mockRestore();
+  });
+
+  it('releases the push token before the private-store flush, not after it', async () => {
+    const order: string[] = [];
+    (releasePushRegistration as jest.Mock).mockImplementationOnce(() => {
+      order.push('release');
+      return Promise.resolve();
+    });
+    // A flush that never settles: logout falls back to its 2s budget,
+    // which is exactly when a host time limit could cut it off.
+    mockClient = {
+      flushLastViewedToPrivateStoreStanza: jest.fn(() => {
+        order.push('flush');
+        return new Promise(() => {});
+      }),
+    };
+    jest.useFakeTimers();
+    try {
+      const done = logoutService.performLogout();
+      expect(order).toEqual(['release', 'flush']);
+      await jest.advanceTimersByTimeAsync(2000);
+      await done;
+    } finally {
+      jest.useRealTimers();
+      mockClient = null;
+    }
   });
 });

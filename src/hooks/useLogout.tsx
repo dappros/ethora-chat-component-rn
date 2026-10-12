@@ -50,7 +50,18 @@ const logoutService = {
    * AFTER all the disk work has actually landed.
    */
   performLogout: async (): Promise<void> => {
-    // 0. Flush lastViewedTimestamp to the server's private store BEFORE
+    // 0. Push. Release the device-token registration on the backend
+    //    FIRST, while the access token is still valid (the token itself
+    //    is kept so the next login re-registers it). It runs alongside
+    //    the private-store flush below instead of after it: the flush
+    //    can take up to 2s, and a host with a logout time budget could
+    //    cut us off before the release went out, leaving the device
+    //    receiving pushes for the logged-out user.
+    const pushRelease = releasePushRegistration().catch((e) => {
+      console.warn('logoutService: push release failed', e);
+    });
+
+    // 0a. Flush lastViewedTimestamp to the server's private store BEFORE
     //    we close XMPP. Only rooms with no outstanding unread (plus the
     //    visible room) get their entries updated — rooms with unread
     //    keep their old marker so the next login still surfaces those
@@ -95,15 +106,9 @@ const logoutService = {
       /* non-fatal */
     }
 
-    // 2. Push. Release the device-token registration on the backend
-    //    while the access token is still valid (the token itself is kept
-    //    so the next login re-registers it), then clear the local MucSub
-    //    room cache.
-    try {
-      await releasePushRegistration();
-    } catch (e) {
-      console.warn('logoutService: push release failed', e);
-    }
+    // 2. Push. Wait for the release started in step 0, then clear the
+    //    local MucSub room cache.
+    await pushRelease;
     try {
       await pushSubscriptionService.reset();
     } catch (e) {
