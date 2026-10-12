@@ -385,8 +385,10 @@ describe('Chat profile screen', () => {
     expect(has('chat-profile-menu-delete-and-leave')).toBe(false);
   });
 
-  it('leaves the MUC and drops the room when Leave is confirmed', async () => {
+  it('leaves on the server, the MUC and drops the room when Leave is confirmed', async () => {
     await seedRoom();
+    const roomsApi = require('../src/networking/api-requests/rooms.api');
+    const leaveSpy = jest.spyOn(roomsApi, 'leaveRoom').mockImplementation(async () => {});
     const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     const { tree, handleCloseModal } = await renderProfile();
     await act(async () => {
@@ -399,10 +401,12 @@ describe('Chat profile screen', () => {
     await act(async () => {
       leave.onPress();
     });
+    expect(leaveSpy).toHaveBeenCalledWith(JID.split('@')[0]);
     expect(mockLeaveTheRoomStanza).toHaveBeenCalledWith(JID);
     expect(store.getState().rooms.rooms[JID]).toBeUndefined();
     expect(handleCloseModal).toHaveBeenCalled();
     alertSpy.mockRestore();
+    leaveSpy.mockRestore();
   });
 
   it('shows Add Members only to a moderator of a group chat', async () => {

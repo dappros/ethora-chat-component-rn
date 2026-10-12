@@ -18,9 +18,6 @@ import {
   NativeScrollEvent,
   NativeSyntheticEvent,
 } from 'react-native';
-import { useDispatch } from 'react-redux';
-import { deleteRoom } from '../../roomStore/roomsSlice';
-import { useXmppClient } from '../../context/xmppProvider';
 import SwipeableRoomRow, { closeOpenRoomRow } from '../RoomComponents/SwipeableRoomRow';
 import ReportChatModal from '../Modals/ChatProfileModal/ReportChatModal';
 import { IRoom } from '../../types/types';
@@ -35,6 +32,7 @@ import { getIconColor } from '../../helpers/getIconColor';
 import { useT } from '../../i18n/useT';
 import { useTheme } from '../../hooks/useTheme';
 import { useRoomMute } from '../../hooks/useRoomMute';
+import { useLeaveRoom } from '../../hooks/useLeaveRoom';
 import { isMessageSearchEnabled } from '../../helpers/isMessageSearchEnabled';
 import { useMessageSearch } from '../Modals/MessageSearchModal/useMessageSearch';
 import type { MessageSearchHit } from '../../networking/api-requests/messageSearch.api';
@@ -95,8 +93,6 @@ const RoomList: React.FC<RoomListProps> = ({
   const { config } = useChatSettingState();
   const t = useT();
   const theme = useTheme();
-  const dispatch = useDispatch();
-  const { client } = useXmppClient();
 
   const [open, setOpen] = useState(false);
   // The room a swiped row's Report opened the form for.
@@ -141,9 +137,10 @@ const RoomList: React.FC<RoomListProps> = ({
     setSearchTerm(text);
   }, []);
 
-  // Behind a row swiped left. Leaving is the chat profile's flow: an
-  // unavailable presence to the MUC, then the room dropped from the store.
+  // Behind a row swiped left. Leaving is the chat profile's flow: the
+  // server takes us out of the members, then the MUC and the store.
   const swipeActions = !config?.disableRoomSwipeActions;
+  const leaveRoom = useLeaveRoom();
   const handleLeaveRoom = useCallback(
     (jid: string) => {
       Alert.alert(t('modal.leaveChat.title'), t('modal.leaveChat.description'), [
@@ -151,18 +148,15 @@ const RoomList: React.FC<RoomListProps> = ({
         {
           text: t('action.leave'),
           style: 'destructive',
-          onPress: () => {
-            try {
-              client?.leaveTheRoomStanza?.(jid);
-            } catch (error) {
-              console.error('Failed to leave the room:', error);
+          onPress: async () => {
+            if (!(await leaveRoom(jid))) {
+              Alert.alert(t('toast.error'), t('toast.leaveFailed'));
             }
-            dispatch(deleteRoom({ jid }));
           },
         },
       ]);
     },
-    [client, dispatch, t]
+    [leaveRoom, t]
   );
   const handleReportRoom = useCallback((jid: string) => setReportJid(jid), []);
   const toggleRoomMuted = useRoomMute();

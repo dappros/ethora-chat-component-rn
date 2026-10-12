@@ -21,18 +21,17 @@ import { useDispatch, useSelector, useStore } from 'react-redux';
 import type { RootState } from '../../roomStore';
 import Composing from '../styled/StyledInputComponents/Composing';
 import {
-  deleteRoom,
   setCurrentRoom,
   setIsLoading,
 } from '../../roomStore/roomsSlice';
-import { useXmppClient } from '../../context/xmppProvider';
+import { useLeaveRoom } from '../../hooks/useLeaveRoom';
 import { setActiveModal } from '../../roomStore/chatSettingsSlice';
 import { MODAL_TYPES } from '../../helpers/constants/MODAL_TYPES';
 import { RoomMenu } from '../MenuRoom/MenuRoom';
 import { useChatSettingState } from '../../hooks/useChatSettingState';
 import { useFileToken } from '../../hooks/useFileToken';
 import { appendFileToken } from '../../helpers/secureFileUrl';
-import { View, StyleSheet, Text, Keyboard } from 'react-native';
+import { Alert, View, StyleSheet, Text, Keyboard } from 'react-native';
 import { getIconColor } from '../../helpers/getIconColor';
 import { useTheme } from '../../hooks/useTheme';
 import { resolveHeaderHeight } from '../../helpers/headerLayout';
@@ -52,7 +51,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
 }) => {
   const fileToken = useFileToken();
   const dispatch = useDispatch();
-  const { client } = useXmppClient();
+  const leaveRoom = useLeaveRoom();
 
   const reduxStore = useStore<RootState>();
   const activeRoomJID = useSelector(
@@ -79,16 +78,19 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
     dispatch(setIsLoading({ chatJID: chat.jid, loading: true }));
   };
 
-  const handleLeaveClick = useCallback(() => {
-    client?.leaveTheRoomStanza(activeRoomJID!);
-    dispatch(deleteRoom({ jid: activeRoomJID! }));
+  const handleLeaveClick = useCallback(async () => {
+    if (!activeRoomJID) {return;}
+    if (!(await leaveRoom(activeRoomJID))) {
+      Alert.alert(t('toast.error'), t('toast.leaveFailed'));
+      return;
+    }
 
     const nextRoomJID =
       Object.keys(reduxStore.getState().rooms.rooms || {})[0] || null;
     if (nextRoomJID) {
       dispatch(setCurrentRoom({ roomJID: nextRoomJID }));
     }
-  }, [activeRoomJID, reduxStore, dispatch, client]);
+  }, [activeRoomJID, reduxStore, dispatch, leaveRoom, t]);
 
   const handleHeaderChatMenu = () => {
     Keyboard.dismiss();

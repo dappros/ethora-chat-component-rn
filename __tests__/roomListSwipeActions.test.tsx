@@ -1,7 +1,8 @@
 /**
  * A room-list row swiped to the left shows Mute, Report and Leave behind it.
  * Mute toggles the chat's notifications (as in the chat profile).
- * Leave asks first, then sends the unavailable presence and drops the room;
+ * Leave asks first, takes the user out of the chat on the server, then sends
+ * the unavailable presence and drops the room (a refusal keeps it);
  * Report opens the report form for that room. `disableRoomSwipeActions`
  * turns the whole thing off.
  */
@@ -30,7 +31,9 @@ const mockSetRoomMuted = jest.fn(async (_name: string, muted: boolean) => muted)
 jest.mock('../src/networking/api-requests/rooms.api', () => ({
   ...jest.requireActual('../src/networking/api-requests/rooms.api'),
   setRoomMuted: (name: string, muted: boolean) => mockSetRoomMuted(name, muted),
+  leaveRoom: (chatName: string) => mockLeaveRoomApi(chatName),
 }));
+const mockLeaveRoomApi = jest.fn(async (_chatName: string) => {});
 
 const JID = 'one@conference.x';
 const CHATS = [
@@ -63,6 +66,8 @@ beforeEach(() => {
   jest.restoreAllMocks();
   leaveTheRoomStanza.mockClear();
   mockSetRoomMuted.mockClear();
+  mockLeaveRoomApi.mockReset();
+  mockLeaveRoomApi.mockImplementation(async () => {});
 });
 
 describe('room-list swipe actions', () => {
@@ -78,8 +83,26 @@ describe('room-list swipe actions', () => {
       find('room-action-leave-one')[0].props.onPress();
     });
     expect(alert).toHaveBeenCalledWith('Leave Chat', expect.any(String), expect.any(Array));
+    expect(mockLeaveRoomApi).toHaveBeenCalledWith('one');
     expect(leaveTheRoomStanza).toHaveBeenCalledWith(JID);
     expect(store.getState().rooms.rooms[JID]).toBeUndefined();
+    await act(async () => tree.unmount());
+  });
+
+  it('keeps the room and says so when the server refuses the leave', async () => {
+    mockLeaveRoomApi.mockImplementation(async () => {
+      throw new Error('500');
+    });
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, buttons) => {
+      buttons?.[1]?.onPress?.();
+    });
+    const { tree, find } = await render();
+    await act(async () => {
+      find('room-action-leave-one')[0].props.onPress();
+    });
+    expect(leaveTheRoomStanza).not.toHaveBeenCalled();
+    expect(store.getState().rooms.rooms[JID]).toBeDefined();
+    expect(alert).toHaveBeenLastCalledWith('Error', 'Could not leave this chat');
     await act(async () => tree.unmount());
   });
 

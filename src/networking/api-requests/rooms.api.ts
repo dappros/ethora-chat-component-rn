@@ -495,6 +495,32 @@ export async function deleteRoomMember(data: DeleteRoomMember) {
   }
 }
 
+/**
+ * Take the signed-in user out of a chat on the server (self-removal via the
+ * same endpoint that removes other members). The unavailable presence alone
+ * only leaves the MUC for this session: the backend keeps the user in
+ * `members` and the next /chats/my brings the chat back. A 404 means the
+ * server already has us out, which is what we wanted.
+ */
+export async function leaveRoom(chatName: string): Promise<void> {
+  const me = (store.getState().chatSettingStore?.user?.xmppUsername || '').split('@')[0];
+  if (!chatName || !me) {
+    throw new Error('Cannot leave the chat: no chat name or user');
+  }
+  const token = store.getState().chatSettingStore.user.token || '';
+  invalidateRoomsCache();
+  try {
+    await http.delete('/v1/chats/users-access', {
+      headers: { Authorization: token },
+      data: { chatName, members: [me] },
+    });
+  } catch (error: any) {
+    if (error?.response?.status !== 404) {throw error;}
+  } finally {
+    invalidateRoomsCache();
+  }
+}
+
 export async function deleteRoom(name: string) {
   const token = store.getState().chatSettingStore.user.token || '';
 

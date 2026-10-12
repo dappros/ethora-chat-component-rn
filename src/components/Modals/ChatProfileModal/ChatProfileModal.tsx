@@ -23,7 +23,7 @@ import { ProfileImagePlaceholder } from '../../MainComponents/ProfileImagePlaceh
 import { RootState, getActiveRoom } from '../../../roomStore';
 import { uploadFile } from '../../../networking/api-requests/auth.api';
 import { useXmppClient } from '../../../context/xmppProvider';
-import { deleteRoom, updateRoom } from '../../../roomStore/roomsSlice';
+import { updateRoom } from '../../../roomStore/roomsSlice';
 import Loader from '../../styled/Loader';
 import {
   AddNewIcon,
@@ -48,6 +48,7 @@ import { MODAL_TYPES } from '../../../helpers/constants/MODAL_TYPES';
 import SelectUsersModal from '../SelectUsersModal/SelectUsersModal';
 import { useToast } from '../../../context/ToastContext';
 import { useRoomMute } from '../../../hooks/useRoomMute';
+import { useLeaveRoom } from '../../../hooks/useLeaveRoom';
 import { useT } from '../../../i18n/useT';
 import DeleteChatModal from './DeleteChatModal';
 import { isMessageSearchEnabled } from '../../../helpers/isMessageSearchEnabled';
@@ -111,6 +112,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
   const { showToast } = useToast();
   const dispatch = useDispatch();
   const { client } = useXmppClient();
+  const leaveRoom = useLeaveRoom();
   const { user: stateUser, config } = useChatSettingState();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -335,22 +337,20 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
     );
   };
 
-  // Leaving is XMPP-side (an unavailable presence to the MUC); dropping the
-  // room from the store is what actually takes the user out of the chat in
-  // the UI, and the `!activeRoom` effect above then closes this modal.
+  // Leaving takes us out of the members on the server, then out of the MUC;
+  // dropping the room from the store is what takes the user out of the chat
+  // in the UI, and the `!activeRoom` effect above then closes this modal.
   const handleLeave = () => {
     Alert.alert(t('modal.leaveChat.title'), t('modal.leaveChat.description'), [
       { text: t('action.cancel'), style: 'cancel' },
       {
         text: t('action.leave'),
         style: 'destructive',
-        onPress: () => {
-          try {
-            client?.leaveTheRoomStanza?.(activeRoom?.jid || '');
-          } catch (error) {
-            console.error('Failed to leave the room:', error);
+        onPress: async () => {
+          if (!(await leaveRoom(activeRoom?.jid || ''))) {
+            Alert.alert(t('toast.error'), t('toast.leaveFailed'));
+            return;
           }
-          dispatch(deleteRoom({ jid: activeRoom?.jid || '' }));
           handleCloseModal?.();
         },
       },
