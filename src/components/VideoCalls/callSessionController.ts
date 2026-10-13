@@ -33,6 +33,11 @@ export interface CallSessionSnapshot {
   speakerOn: boolean;
   /** Which camera the local video comes from; only the front one is mirrored. */
   facingMode: 'user' | 'environment';
+  /**
+   * Bumped whenever the local camera track is re-acquired, so the self view
+   * can remount onto the new stream instead of holding the stopped one.
+   */
+  localVideoEpoch: number;
   /** `{ participant, publication, source }` for `<VideoTrack />`, live and unmuted only. */
   remoteVideo: any;
   localVideo: any;
@@ -56,6 +61,7 @@ const IDLE: CallSessionSnapshot = {
   cameraOn: false,
   speakerOn: false,
   facingMode: 'user',
+  localVideoEpoch: 0,
   remoteVideo: null,
   localVideo: null,
   remoteName: null,
@@ -299,7 +305,14 @@ export const startCallSession = ({
       // Claims audio focus and sets the right native audio mode. Must
       // start BEFORE connecting or the first seconds route to the earpiece
       // on Android even for a video call.
-      await AudioSession.startAudioSession();
+      try {
+        await AudioSession.startAudioSession();
+      } catch {
+        // A call answered from the CallKit banner: CallKit owns the iOS
+        // audio session and activates it itself (useCallKeep forwards that
+        // to WebRTC), so our own activation is refused. Not a reason to
+        // fail the call.
+      }
       await room.connect(livekitUrl, token);
     } catch (error: any) {
       if (current.disposed) {return;}
@@ -350,10 +363,12 @@ export const startCallSession = ({
 
 // ---- controls -----------------------------------------------------------
 
-export const toggleCallMic = async (): Promise<void> => {
+export const toggleCallMic = (): Promise<void> => setCallMicEnabled(!snapshot.micOn);
+
+/** Set the mic to a given state (system call UI reports absolute values). */
+export const setCallMicEnabled = async (next: boolean): Promise<void> => {
   const current = session;
-  if (!current) {return;}
-  const next = !snapshot.micOn;
+  if (!current || snapshot.micOn === next) {return;}
   emit({ micOn: next });
   try {
     await current.room.localParticipant.setMicrophoneEnabled(next);
@@ -379,29 +394,45 @@ export const toggleCallCamera = async (): Promise<void> => {
   }
 };
 
+let switchingCamera = false;
+
 export const switchCallCamera = async (): Promise<void> => {
   const current = session;
   const runtime = loadLiveKit();
-  if (!current || !runtime) {return;}
-  const mediaTrack = current.room.localParticipant.getTrackPublication?.(
+  if (!current || !runtime || switchingCamera) {return;}
+  const track = current.room.localParticipant.getTrackPublication?.(
     runtime.Track.Source.Camera
-  )?.track?.mediaStreamTrack;
-  if (!mediaTrack?.applyConstraints) {return;}
+  )?.track;
+  if (!track?.restartTrack) {return;}
   const next = snapshot.facingMode === 'user' ? 'environment' : 'user';
+  switchingCamera = true;
   try {
-    // Swap the capture device inside the SAME track (react-native-webrtc's
-    // own camera switch). `restartTrack` stopped the published track and
-    // made a new one, and the native view kept showing the stopped stream:
-    // the picture froze on the switch.
-    // Keep the current capture settings (resolution, frame rate) and only
-    // flip the camera, exactly like the library's `_switchCamera`.
-    const constraints = { ...(mediaTrack.getSettings?.() || {}) };
-    delete constraints.deviceId;
-    await mediaTrack.applyConstraints({ ...constraints, facingMode: next });
-    if (!current.disposed) {emit({ facingMode: next });}
+    // A real device change needs a new capture: react-native-webrtc's
+    // native applyConstraints only applies width/height/frameRate and
+    // ignores facingMode on both platforms, so the old approach kept the
+    // front camera and merely flipped our mirror flag (the picture looked
+    // swapped left to right). restartTrack re-acquires the camera with
+    // the new facing mode and swaps it into the published sender; the
+    // <VideoTrack /> view follows it through TrackEvent.Restarted.
+    await track.restartTrack({
+      facingMode: next,
+      ...(runtime.VideoPresets
+        ? { resolution: runtime.VideoPresets.h720.resolution }
+        : {}),
+    });
+    if (current.disposed) {return;}
+    // Trust what the camera reports: a device with a single camera stays
+    // on it, and the mirror must follow the real camera, not the request.
+    const actual = track.mediaStreamTrack?.getSettings?.()?.facingMode;
+    emit({
+      facingMode: actual === 'user' || actual === 'environment' ? actual : next,
+      localVideoEpoch: snapshot.localVideoEpoch + 1,
+    });
     resync();
-  } catch {
-    // Single camera, or the switch is still in flight.
+  } catch (error) {
+    if (!current.disposed) {emit({ deviceError: humanizeDeviceError(error) });}
+  } finally {
+    switchingCamera = false;
   }
 };
 

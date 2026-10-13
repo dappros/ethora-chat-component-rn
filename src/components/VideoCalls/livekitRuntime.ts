@@ -34,6 +34,11 @@ export interface LiveKitRuntime {
   AudioSession: any;
   /** Installs the WebRTC globals livekit-client expects. */
   registerGlobals: () => void;
+  /**
+   * `@livekit/react-native-webrtc` RTCAudioSession: tells WebRTC when
+   * CallKit activates/deactivates the iOS audio session.
+   */
+  RTCAudioSession: any;
 }
 
 let cached: LiveKitRuntime | null | undefined;
@@ -59,6 +64,13 @@ export const loadLiveKit = (): LiveKitRuntime | null => {
     // moving subset across versions, the core package does not.
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const core = require('livekit-client');
+    let webrtc: any = null;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      webrtc = require('@livekit/react-native-webrtc');
+    } catch {
+      // Only needed for CallKit; calls work without it.
+    }
 
     cached = {
       Room: core.Room,
@@ -69,6 +81,7 @@ export const loadLiveKit = (): LiveKitRuntime | null => {
       VideoTrack: rn.VideoTrack,
       AudioSession: rn.AudioSession,
       registerGlobals: rn.registerGlobals,
+      RTCAudioSession: webrtc?.RTCAudioSession ?? null,
     };
   } catch {
     cached = null;

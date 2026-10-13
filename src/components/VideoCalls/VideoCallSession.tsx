@@ -14,6 +14,8 @@ import { ProfileImagePlaceholder } from '../MainComponents/ProfileImagePlacehold
 import {
   CameraOffIcon,
   CameraOnIcon,
+  FillVideoIcon,
+  FitVideoIcon,
   HangUpIcon,
   MicOffIcon,
   MicOnIcon,
@@ -31,7 +33,7 @@ import {
   toggleCallSpeaker,
   useCallSession,
 } from './callSessionController';
-import { useDraggable } from './useDraggable';
+import { usePipTile } from './usePipTile';
 import { useT } from '../../i18n/useT';
 
 const DEFAULT_PRIMARY = '#0052CD';
@@ -99,10 +101,14 @@ export const VideoCallSession: FC<VideoCallSessionProps> = ({
   const insets = useSafeAreaInsets();
   const runtime = loadLiveKit();
   const session = useCallSession();
-  const selfView = useDraggable();
+  const pipTile = usePipTile({ topInset: insets.top });
   const elapsed = useSharedCallElapsed(session.anchorAt);
   // Telegram-style: tap the small tile to swap it with the big one.
   const [swapped, setSwapped] = useState(false);
+  // The peer's video is shown whole by default: a web camera is landscape,
+  // and filling a portrait phone crops most of it away. The button next to
+  // minimize stretches it to fill (the old behaviour) and back.
+  const [fillRemote, setFillRemote] = useState(false);
 
   if (!runtime) {
     return (
@@ -124,6 +130,7 @@ export const VideoCallSession: FC<VideoCallSessionProps> = ({
     deviceError,
     remoteMicMuted,
     facingMode,
+    localVideoEpoch,
   } = session;
   // The call slice's name (the chat title) first, as web does: LiveKit's
   // participant name is often just the opaque xmpp identity.
@@ -137,8 +144,14 @@ export const VideoCallSession: FC<VideoCallSessionProps> = ({
   const isSwapped = swapped && canSwap;
   const mainVideo = isSwapped ? localVideo : showRemoteVideo ? remoteVideo : null;
   const pipVideo = isSwapped ? remoteVideo : localLive ? localVideo : null;
+  const mainIsRemote = !!mainVideo && mainVideo === remoteVideo;
+  const mainFit = mainIsRemote && !fillRemote ? 'contain' : 'cover';
   // Only the front camera is mirrored, as in every camera app.
   const selfMirror = facingMode === 'user';
+  // The local view remounts when the camera is re-acquired (switching
+  // front/back), so it never keeps rendering the stopped stream.
+  const videoKey = (ref: any) =>
+    ref === localVideo ? `local-${localVideoEpoch}` : 'remote';
 
   const statusText =
     elapsed !== null
@@ -154,12 +167,13 @@ export const VideoCallSession: FC<VideoCallSessionProps> = ({
   return (
     <View style={styles.canvas}>
       {/* Stage */}
-      <View style={styles.stage}>
+      <View style={styles.stage} onLayout={pipTile.onStageLayout}>
         {mainVideo ? (
           <VideoTrack
+            key={videoKey(mainVideo)}
             trackRef={mainVideo}
             style={styles.remoteVideo}
-            objectFit="cover"
+            objectFit={mainFit}
             mirror={isSwapped && selfMirror}
             zOrder={0}
           />
@@ -204,12 +218,12 @@ export const VideoCallSession: FC<VideoCallSessionProps> = ({
           </View>
         )}
 
-        {/* Picture-in-picture: draggable like web's self-view, tap to swap
-            it with the main video. */}
+        {/* Picture-in-picture: drag it and it snaps to a corner, pinch it
+            for the large size, tap it to swap it with the main video. */}
         {pipVideo && (
           <Animated.View
-            {...selfView.panHandlers}
-            style={[styles.pip, { top: 16 + insets.top }, selfView.style]}
+            {...pipTile.panHandlers}
+            style={[styles.pip, pipTile.style]}
           >
             <Pressable
               style={styles.pipVideo}
@@ -219,6 +233,7 @@ export const VideoCallSession: FC<VideoCallSessionProps> = ({
               accessibilityLabel={t('call.action.swapVideo')}
             >
               <VideoTrack
+                key={videoKey(pipVideo)}
                 trackRef={pipVideo}
                 style={styles.pipVideo}
                 objectFit="cover"
@@ -237,6 +252,23 @@ export const VideoCallSession: FC<VideoCallSessionProps> = ({
             style={[styles.minimizeButton, { top: 16 + insets.top }]}
           >
             <MinimizeIcon color={TEXT_ON_DARK} size={20} />
+          </TouchableOpacity>
+        )}
+
+        {mainIsRemote && (
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={
+              fillRemote ? t('call.action.fitVideo') : t('call.action.fillVideo')
+            }
+            onPress={() => setFillRemote((value) => !value)}
+            style={[styles.minimizeButton, styles.fitButton, { top: 16 + insets.top }]}
+          >
+            {fillRemote ? (
+              <FitVideoIcon color={TEXT_ON_DARK} size={20} />
+            ) : (
+              <FillVideoIcon color={TEXT_ON_DARK} size={20} />
+            )}
           </TouchableOpacity>
         )}
 
@@ -354,7 +386,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: 64,
+    paddingHorizontal: 108,
     paddingBottom: 14,
     alignItems: 'center',
     backgroundColor: 'rgba(0,0,0,0.35)',
@@ -397,10 +429,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   pip: {
-    position: 'absolute',
-    right: 16,
-    width: 104,
-    height: 148,
     borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: '#000',
@@ -421,6 +449,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(0,0,0,0.45)',
     zIndex: 6,
+  },
+  // Next to minimize, top-left: the top-right corner belongs to the tile.
+  fitButton: {
+    left: 60,
   },
   controls: {
     flexDirection: 'row',

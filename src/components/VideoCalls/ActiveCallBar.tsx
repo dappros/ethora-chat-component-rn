@@ -1,4 +1,4 @@
-import React, { FC, useEffect, useState } from 'react';
+import React, { FC, useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,10 +9,24 @@ import { useT } from '../../i18n/useT';
 import { ExpandIcon, HangUpIcon, MicOffIcon, MicOnIcon } from './CallIcons';
 import { toggleCallMic, useCallSession } from './callSessionController';
 import { terminateActiveCall } from './callActions';
-import { registerCallBarHost, setCallMinimized, useCallUi } from './callUiStore';
+import {
+  registerCallBarHost,
+  setCallBarAnchor,
+  setCallMinimized,
+  useCallUi,
+} from './callUiStore';
 import { formatCallDuration, useSharedCallElapsed } from './VideoCallSession';
 
 const DANGER = '#E53935';
+
+/**
+ * The strip's geometry: a floating bubble under the header. Exported so the
+ * collapse animation of the full-screen call lands exactly on it.
+ */
+export const CALL_BAR_HEIGHT = 52;
+export const CALL_BAR_MARGIN_X = 8;
+export const CALL_BAR_MARGIN_TOP = 6;
+export const CALL_BAR_RADIUS = 18;
 const ON_BAR = '#FFFFFF';
 const CONTROL = 'rgba(255, 255, 255, 0.2)';
 
@@ -33,7 +47,7 @@ const useShowCallBar = (): boolean => {
  * Tapping anywhere on it (outside the buttons) brings the call back
  * full-screen, like Telegram's "return to call" bar.
  */
-export const ActiveCallBar: FC<{ topInset?: number }> = ({ topInset = 0 }) => {
+export const ActiveCallBar: FC = () => {
   const t = useT();
   const theme = useTheme();
   const { icons } = useChatSettingState().config?.videoCalls || {};
@@ -60,7 +74,7 @@ export const ActiveCallBar: FC<{ topInset?: number }> = ({ topInset = 0 }) => {
       onPress={expand}
       accessibilityRole="button"
       accessibilityLabel={t('call.action.expand')}
-      style={[styles.bar, { backgroundColor: theme.success, paddingTop: 8 + topInset }]}
+      style={[styles.bar, { backgroundColor: theme.success }]}
     >
       <View style={styles.info}>
         <Text numberOfLines={1} style={styles.name}>
@@ -112,12 +126,31 @@ export const HeaderCallBar: FC = () => {
   const [hostId, setHostId] = useState<number | null>(null);
   const { barHost } = useCallUi();
   const show = useShowCallBar();
+  const anchorRef = useRef<View>(null);
+  const isHost = hostId !== null && barHost === hostId;
 
   // Returns its own unregister, which is the effect's cleanup.
   useEffect(() => registerCallBarHost(setHostId), []);
 
-  if (!show || hostId === null || barHost !== hostId) {return null;}
-  return <ActiveCallBar />;
+  // Where the strip goes on screen, for the collapse animation to aim at.
+  const measure = useCallback(() => {
+    if (hostId === null) {return;}
+    anchorRef.current?.measureInWindow((_x, y) => {
+      if (Number.isFinite(y)) {setCallBarAnchor(hostId, y);}
+    });
+  }, [hostId]);
+
+  useEffect(() => {
+    if (isHost) {measure();}
+  }, [isHost, measure]);
+
+  return (
+    <>
+      {/* Zero-height marker at the top of the strip slot. */}
+      <View ref={anchorRef} collapsable={false} onLayout={measure} style={styles.anchor} />
+      {show && isHost ? <ActiveCallBar /> : null}
+    </>
+  );
 };
 
 /**
@@ -130,8 +163,8 @@ export const DockedCallBar: FC = () => {
   const show = useShowCallBar();
   if (!show || barHost !== null) {return null;}
   return (
-    <View style={styles.docked} pointerEvents="box-none">
-      <ActiveCallBar topInset={insets.top} />
+    <View style={[styles.docked, { paddingTop: insets.top }]} pointerEvents="box-none">
+      <ActiveCallBar />
     </View>
   );
 };
@@ -141,8 +174,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingHorizontal: 16,
-    paddingBottom: 8,
+    height: CALL_BAR_HEIGHT,
+    marginHorizontal: CALL_BAR_MARGIN_X,
+    marginTop: CALL_BAR_MARGIN_TOP,
+    marginBottom: 2,
+    paddingLeft: 16,
+    paddingRight: 9,
+    borderRadius: CALL_BAR_RADIUS,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  anchor: {
+    height: 0,
   },
   info: {
     flex: 1,

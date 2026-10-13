@@ -74,7 +74,8 @@ export const updateMessagesTillLast = async (
                 { coalesceRoom: true, source: 'background', selfApplied: true }
               );
 
-              if (!fetchedMessages.length) {break;}
+              // undefined when the stanza was dropped (e.g. reconnecting).
+              if (!fetchedMessages?.length) {break;}
 
               counter++;
 

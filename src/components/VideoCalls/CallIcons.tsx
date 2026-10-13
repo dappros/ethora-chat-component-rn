@@ -153,26 +153,50 @@ export const VideoCallIcon: React.FC<IconProps> = ({
   </Svg>
 );
 
+/**
+ * Front/back camera flip: a camera between two arrows turning around it
+ * (Material "cameraswitch", the glyph Telegram and the Android camera use),
+ * so it reads as "use the other camera", not as "reload".
+ */
 export const SwitchCameraIcon: React.FC<IconProps> = ({
   color = '#FFFFFF',
   size = 24,
 }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+  <Svg width={size} height={size} viewBox="0 0 24 24">
     <Path
-      d="M9 4h6l1.2 2H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3.8L9 4z"
-      stroke={color}
-      strokeWidth={1.8}
-      fill="none"
-      strokeLinejoin="round"
+      d="M16 7h-1l-1-1h-4L9 7H8c-1.1 0-2 .9-2 2v6c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V9c0-1.1-.9-2-2-2zm-4 7c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"
+      fill={color}
     />
     <Path
-      d="M9.5 12.5A2.5 2.5 0 0 1 14 11m.5 2.5A2.5 2.5 0 0 1 10 15"
-      stroke={color}
-      strokeWidth={1.8}
-      strokeLinecap="round"
-      fill="none"
+      d="M8.57.51l4.48 4.48V2.04c4.72.47 8.48 4.23 8.95 8.95h2C23.34 3.02 15.49-1.59 8.57.51zm2.38 21.45c-4.72-.47-8.48-4.23-8.95-8.95H0c.66 7.97 8.51 12.58 15.43 10.48l-4.48-4.48v2.95z"
+      fill={color}
     />
-    <Path d="M14 9.5V11h-1.5M10 16.5V15h1.5" stroke={color} strokeWidth={1.8} />
+  </Svg>
+);
+
+/** Stretch the video to fill the screen (Material "fullscreen"). */
+export const FillVideoIcon: React.FC<IconProps> = ({
+  color = '#FFFFFF',
+  size = 24,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24">
+    <Path
+      d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"
+      fill={color}
+    />
+  </Svg>
+);
+
+/** Show the whole video, letterboxed (Material "fit_screen"). */
+export const FitVideoIcon: React.FC<IconProps> = ({
+  color = '#FFFFFF',
+  size = 24,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24">
+    <Path
+      d="M17 4h3c1.1 0 2 .9 2 2v2h-2V6h-3V4zM4 8V6h3V4H4c-1.1 0-2 .9-2 2v2h2zm16 8v2h-3v2h3c1.1 0 2-.9 2-2v-2h-2zM7 18H4v-2H2v2c0 1.1.9 2 2 2h3v-2zM18 8H6v8h12V8z"
+      fill={color}
+    />
   </Svg>
 );
 

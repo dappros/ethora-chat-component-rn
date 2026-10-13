@@ -16,11 +16,26 @@ import { store } from '../../roomStore';
 
 interface CallUiState {
   minimized: boolean;
+  /**
+   * iOS shows this incoming call in its own CallKit UI (banner / full
+   * screen), so the in-app ring card stays hidden instead of doubling it.
+   */
+  systemRinging: boolean;
   /** Id of the header that shows the strip, or null when none is mounted. */
   barHost: number | null;
+  /**
+   * Window y of the top of the strip slot under the hosting header, so the
+   * collapse animation can land exactly on the strip. Null: no header.
+   */
+  barAnchorY: number | null;
 }
 
-let state: CallUiState = { minimized: false, barHost: null };
+let state: CallUiState = {
+  minimized: false,
+  systemRinging: false,
+  barHost: null,
+  barAnchorY: null,
+};
 const hosts: number[] = [];
 let nextHostId = 1;
 const listeners = new Set<() => void>();
@@ -35,8 +50,12 @@ const emit = (patch: Partial<CallUiState>) => {
 const ensureStoreWatcher = () => {
   if (storeUnsubscribe) {return;}
   storeUnsubscribe = store.subscribe(() => {
-    if (state.minimized && store.getState().call.phase === 'idle') {
+    const phase = store.getState().call.phase;
+    if (state.minimized && phase === 'idle') {
       emit({ minimized: false });
+    }
+    if (state.systemRinging && phase !== 'ringing-incoming') {
+      emit({ systemRinging: false });
     }
   });
 };
@@ -61,6 +80,10 @@ export const setCallMinimized = (minimized: boolean): void => {
   if (state.minimized !== minimized) {emit({ minimized });}
 };
 
+export const setCallSystemRinging = (systemRinging: boolean): void => {
+  if (state.systemRinging !== systemRinging) {emit({ systemRinging });}
+};
+
 export const registerCallBarHost = (
   onId?: (id: number) => void
 ): (() => void) => {
@@ -71,6 +94,13 @@ export const registerCallBarHost = (
   return () => {
     const index = hosts.indexOf(id);
     if (index >= 0) {hosts.splice(index, 1);}
-    emit({ barHost: hosts.length ? hosts[hosts.length - 1] : null });
+    const next = hosts.length ? hosts[hosts.length - 1] : null;
+    emit({ barHost: next, barAnchorY: next === null ? null : state.barAnchorY });
   };
+};
+
+/** The hosting header reports where its strip slot is on screen. */
+export const setCallBarAnchor = (hostId: number, y: number): void => {
+  if (state.barHost !== hostId || state.barAnchorY === y) {return;}
+  emit({ barAnchorY: y });
 };

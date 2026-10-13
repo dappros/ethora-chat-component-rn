@@ -12,14 +12,17 @@ import {
   BackHandler,
   Easing,
   Modal,
+  PanResponder,
   Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   Vibration,
   View,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RootState } from '../../roomStore';
 import {
   acceptIncomingCall,
@@ -33,7 +36,13 @@ import type { ChatTheme } from '../../theme/theme';
 import { VideoCallSession } from './VideoCallSession';
 import { startCallSession } from './callSessionController';
 import { declineActiveCall, terminateActiveCall } from './callActions';
-import { DockedCallBar } from './ActiveCallBar';
+import {
+  CALL_BAR_HEIGHT,
+  CALL_BAR_MARGIN_TOP,
+  CALL_BAR_MARGIN_X,
+  CALL_BAR_RADIUS,
+  DockedCallBar,
+} from './ActiveCallBar';
 import { setCallMinimized, useCallUi } from './callUiStore';
 import { ProfileImagePlaceholder } from '../MainComponents/ProfileImagePlaceholder';
 import {
@@ -44,6 +53,7 @@ import {
 import { VideoCallIcons } from '../../types/types';
 import { useT } from '../../i18n/useT';
 import { useCallKeep } from './useCallKeep';
+import { useOngoingCallNotification } from './useOngoingCallNotification';
 
 const DEFAULT_PRIMARY = '#0052CD';
 const DANGER = '#E53935';
@@ -251,6 +261,160 @@ const RingingCard: FC<RingingCardProps> = ({
 };
 
 /**
+ * The full-screen call, collapsible into the header strip, Telegram-style:
+ * pulling it up morphs the whole screen into the green bubble under the
+ * header (position, width, height and corner radius all travel together,
+ * and the bubble's colour fades in on the way), so it visibly *becomes* the
+ * strip rather than leaving and the strip popping in. Let go past a quarter
+ * of the way, or flick, and it finishes; released early it springs back.
+ * The minimize button runs the same morph; expanding from the strip runs it
+ * backwards.
+ *
+ * Buttons and the draggable video tile handle their own touches; a drag
+ * anywhere else on the screen is ours, and only its upward part counts.
+ */
+const CollapsibleCallSurface: FC<{
+  enterFromTop: boolean;
+  barColor: string;
+  onCollapsed: () => void;
+  children: (collapse: () => void) => ReactNode;
+}> = ({ enterFromTop, barColor, onCollapsed, children }) => {
+  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const { barAnchorY } = useCallUi();
+  // Where the bubble sits: under the hosting header, or under the status
+  // bar when no header is on screen (the docked fallback).
+  const target = {
+    top: (barAnchorY ?? insets.top) + CALL_BAR_MARGIN_TOP,
+    side: CALL_BAR_MARGIN_X,
+    height: CALL_BAR_HEIGHT,
+  };
+  // 0 = full screen, 1 = the bubble.
+  const progress = useRef(new Animated.Value(enterFromTop ? 1 : 0)).current;
+  const collapsingRef = useRef(false);
+  const onCollapsedRef = useRef(onCollapsed);
+  onCollapsedRef.current = onCollapsed;
+  const heightRef = useRef(height);
+  heightRef.current = height;
+
+  useEffect(() => {
+    if (!enterFromTop) {return;}
+    Animated.timing(progress, {
+      toValue: 0,
+      duration: 300,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+    // Mount-only: the entrance plays once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const collapse = useCallback(() => {
+    if (collapsingRef.current) {return;}
+    collapsingRef.current = true;
+    Animated.timing(progress, {
+      toValue: 1,
+      duration: 280,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start(() => onCollapsedRef.current());
+  }, [progress]);
+
+  const panHandlers = useMemo(() => {
+    const springBack = () =>
+      Animated.spring(progress, {
+        toValue: 0,
+        useNativeDriver: false,
+        damping: 22,
+        stiffness: 260,
+      }).start();
+    // How far the finger travels for the full morph.
+    const travel = () => heightRef.current * 0.6;
+    return PanResponder.create({
+      // Claim the touch as soon as it starts on the call screen itself
+      // (buttons and the video tile are deeper and win their own touches).
+      // Waiting for a move does not work here: the Modal's content sits
+      // under the host's screens in the React tree, and an ancestor there
+      // (a Pressable / keyboard-dismiss wrapper) takes the touch on start,
+      // after which no descendant is ever asked again.
+      onStartShouldSetPanResponder: () => !collapsingRef.current,
+      onMoveShouldSetPanResponder: () => !collapsingRef.current,
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderMove: (_event, gesture) => {
+        progress.setValue(Math.min(1, Math.max(0, -gesture.dy / travel())));
+      },
+      onPanResponderRelease: (_event, gesture) => {
+        if (-gesture.dy / travel() > 0.25 || gesture.vy < -0.8) {
+          collapse();
+        } else {
+          springBack();
+        }
+      },
+      onPanResponderTerminate: springBack,
+    }).panHandlers;
+  }, [progress, collapse]);
+
+  const at = (from: number, to: number) =>
+    progress.interpolate({ inputRange: [0, 1], outputRange: [from, to] });
+
+  return (
+    <Animated.View
+      {...panHandlers}
+      style={[
+        styles.collapsible,
+        {
+          top: at(0, target.top),
+          left: at(0, target.side),
+          width: at(width, width - target.side * 2),
+          height: at(height, target.height),
+          // Rounded as soon as it starts moving (a card, like the screen's
+          // own corners), then tightening to the bubble's radius.
+          borderRadius: progress.interpolate({
+            inputRange: [0, 0.08, 0.7, 1],
+            outputRange: [0, 36, 28, CALL_BAR_RADIUS],
+            extrapolate: 'clamp',
+          }),
+        },
+      ]}
+    >
+      {/* Fixed full-screen size: the content is clipped, never re-laid out
+          per frame (the video views would stutter). It fades as the bubble's
+          colour takes over. */}
+      <Animated.View
+        style={[
+          styles.sessionFixed,
+          {
+            width,
+            height,
+            opacity: progress.interpolate({
+              inputRange: [0, 0.55, 0.85],
+              outputRange: [1, 0.85, 0],
+              extrapolate: 'clamp',
+            }),
+          },
+        ]}
+      >
+        {children(collapse)}
+      </Animated.View>
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          StyleSheet.absoluteFill,
+          {
+            backgroundColor: barColor,
+            opacity: progress.interpolate({
+              inputRange: [0, 0.35, 0.9],
+              outputRange: [0, 0, 1],
+              extrapolate: 'clamp',
+            }),
+          },
+        ]}
+      />
+    </Animated.View>
+  );
+};
+
+/**
  * A crash in the call UI must not take the chat down with it (web wraps
  * the overlay in a silent ChatErrorBoundary). Renders nothing on error and
  * clears itself on the next call.
@@ -308,15 +472,25 @@ const VideoCallOverlayInner: FC = () => {
   // callkeep. No-op otherwise, the in-app ring screen below is the
   // fallback and always renders.
   useCallKeep();
+  // Host-provided system notification (Android) with hang up / mute /
+  // camera buttons while the call runs.
+  useOngoingCallNotification(enabled ? videoCallsConfig?.ongoingCallNotification : undefined);
 
   // Shared with the header strip (ActiveCallBar), which expands it again.
-  const { minimized } = useCallUi();
+  const { minimized, systemRinging } = useCallUi();
 
   const canRenderSession =
     !!call.token &&
     (call.phase === 'connecting' || call.phase === 'in-call') &&
     !!livekitUrl;
   const isMinimized = minimized && canRenderSession;
+  // Expanding from the header strip slides the call down from the top
+  // instead of fading it in.
+  const wasMinimizedRef = useRef(false);
+  const enterFromTop = wasMinimizedRef.current && !isMinimized;
+  useEffect(() => {
+    wasMinimizedRef.current = isMinimized;
+  }, [isMinimized]);
 
   // Join the LiveKit room once the call has a token. Idempotent, and the
   // controller tears itself down when the call slice leaves these phases.
@@ -352,10 +526,11 @@ const VideoCallOverlayInner: FC = () => {
   useEffect(() => {
     const isRinging =
       call.direction === 'incoming' && call.phase === 'ringing-incoming';
-    if (!isRinging) {return;}
+    // CallKit rings (and vibrates) on its own.
+    if (!isRinging || systemRinging) {return;}
     Vibration.vibrate(RING_VIBRATION_PATTERN, true);
     return () => Vibration.cancel();
-  }, [call.direction, call.phase]);
+  }, [call.direction, call.phase, systemRinging]);
 
   const hangupCurrent = useCallback(() => {
     if (call.direction === 'incoming' && call.phase === 'ringing-incoming') {
@@ -410,13 +585,19 @@ const VideoCallOverlayInner: FC = () => {
   const showIncomingDecision =
     call.direction === 'incoming' && call.phase === 'ringing-incoming';
 
-  const session = (
+  // The system's incoming-call banner is up (iOS CallKit); answering or
+  // declining it drives the call from there.
+  if (showIncomingDecision && systemRinging) {
+    return null;
+  }
+
+  const renderSession = (collapse: () => void) => (
     <VideoCallSession
       kind={call.kind}
       peerName={call.roomName}
       primaryColor={primaryColor}
       icons={videoCallsConfig?.icons}
-      onToggleMinimize={() => setCallMinimized(!minimized)}
+      onToggleMinimize={collapse}
       onHangup={() => terminateActiveCall('ended')}
     />
   );
@@ -432,7 +613,7 @@ const VideoCallOverlayInner: FC = () => {
     <Modal
       visible
       transparent
-      animationType="fade"
+      animationType={enterFromTop ? 'none' : 'fade'}
       statusBarTranslucent
       supportedOrientations={['portrait', 'landscape']}
       onRequestClose={hangupCurrent}
@@ -440,7 +621,13 @@ const VideoCallOverlayInner: FC = () => {
       {canRenderSession ? (
         // Full-bleed: on a phone the call owns the screen, like the native
         // dialer. The audio call keeps the same dark canvas as video.
-        <View style={styles.sessionFull}>{session}</View>
+        <CollapsibleCallSurface
+          enterFromTop={enterFromTop}
+          barColor={theme.success}
+          onCollapsed={() => setCallMinimized(true)}
+        >
+          {renderSession}
+        </CollapsibleCallSurface>
       ) : (
         <View style={[styles.backdrop, { backgroundColor: theme.overlay }]}>
           {showIncomingDecision ? (
@@ -510,6 +697,16 @@ const styles = StyleSheet.create({
   },
   sessionFull: {
     flex: 1,
+    backgroundColor: '#0B1220',
+  },
+  // No flex here: `flex: 1` would override the fixed height and re-lay the
+  // call out on every frame of the morph.
+  sessionFixed: {
+    backgroundColor: '#0B1220',
+  },
+  collapsible: {
+    position: 'absolute',
+    overflow: 'hidden',
     backgroundColor: '#0B1220',
   },
   ringingCard: {

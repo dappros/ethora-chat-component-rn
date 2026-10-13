@@ -1023,6 +1023,54 @@ export interface VideoCallsConfig {
   showScreenShare?: boolean;
   /** Custom icons for the call control bar / ring screen. */
   icons?: VideoCallIcons;
+  /**
+   * The system "call in progress" surface outside the app, typically an
+   * Android ongoing-call notification (a foreground service, which Android
+   * also needs to keep the microphone and camera alive in the background).
+   * Native code, so the host supplies it; the SDK drives it from the call
+   * state and handles its buttons. On iOS the same role is played by
+   * CallKit (`react-native-callkeep`), which the SDK uses on its own.
+   */
+  ongoingCallNotification?: OngoingCallNotification;
+}
+
+/** What the ongoing-call notification should show. Sent on every change. */
+export interface OngoingCallNotificationState {
+  callId: string;
+  /** The peer's display name. */
+  title: string;
+  /** Localized second line, e.g. "Ongoing video call" or "Connecting...". */
+  text: string;
+  kind: 'audio' | 'video';
+  /** Epoch ms the call connected, for a running timer; null before. */
+  connectedAt: number | null;
+  micOn: boolean;
+  cameraOn: boolean;
+  /** Localized button labels. */
+  labels: {
+    hangUp: string;
+    mute: string;
+    unmute: string;
+    cameraOn: string;
+    cameraOff: string;
+  };
+}
+
+export type OngoingCallNotificationAction =
+  | 'hangUp'
+  | 'toggleMic'
+  | 'toggleCamera'
+  /** The notification itself was tapped and brought the app forward. */
+  | 'open';
+
+export interface OngoingCallNotification {
+  /** Create the notification, or update it if it is already shown. */
+  show: (state: OngoingCallNotificationState) => void;
+  hide: () => void;
+  /** Returns the unsubscribe function. */
+  addActionListener: (
+    listener: (action: OngoingCallNotificationAction) => void
+  ) => () => void;
 }
 
 interface ConfigRoom {

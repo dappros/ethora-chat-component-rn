@@ -91,6 +91,9 @@ export type {
   ChatTextStyle,
   VideoCallsConfig,
   VideoCallIcons,
+  OngoingCallNotification,
+  OngoingCallNotificationAction,
+  OngoingCallNotificationState,
 } from './types/types';
 export type { Iso639_1Codes } from './types/models/language.model';
 export type { TranslateMode } from './utils/translateModePolicy';

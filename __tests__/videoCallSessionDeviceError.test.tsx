@@ -101,6 +101,8 @@ import {
 import {
   __resetCallSessionForTests,
   startCallSession,
+  switchCallCamera,
+  useCallSession,
 } from '../src/components/VideoCalls/callSessionController';
 import { VideoCallSession } from '../src/components/VideoCalls/VideoCallSession';
 
@@ -225,5 +227,50 @@ describe('callSessionController', () => {
 
     expect(store.getState().call.phase).toBe('idle');
     expect(room.disconnect).toHaveBeenCalled();
+  });
+
+  it('switches to the back camera by re-acquiring the track', async () => {
+    // applyConstraints({ facingMode }) is a no-op in react-native-webrtc's
+    // native code: the camera stayed front and only the mirror flipped.
+    let facing = 'user';
+    const cameraTrack = {
+      restartTrack: jest.fn(async (options: any) => {
+        facing = options.facingMode;
+      }),
+      mediaStreamTrack: {
+        getSettings: () => ({ facingMode: facing }),
+        applyConstraints: jest.fn(),
+      },
+    };
+    mockFakeRoomRef.current = makeFakeRoom({
+      localParticipant: {
+        getTrackPublication: () => ({ track: cameraTrack }),
+        setCameraEnabled: jest.fn().mockResolvedValue(undefined),
+      },
+    });
+    enterConnecting();
+    start();
+    await flush();
+
+    let latest: any;
+    const Probe = () => {
+      latest = useCallSession();
+      return null;
+    };
+    await act(async () => {
+      renderer.create(<Probe />);
+    });
+    const epochBefore = latest.localVideoEpoch;
+
+    await act(async () => {
+      await switchCallCamera();
+    });
+
+    expect(cameraTrack.restartTrack).toHaveBeenCalledWith(
+      expect.objectContaining({ facingMode: 'environment' })
+    );
+    expect(cameraTrack.mediaStreamTrack.applyConstraints).not.toHaveBeenCalled();
+    expect(latest.facingMode).toBe('environment');
+    expect(latest.localVideoEpoch).toBe(epochBefore + 1);
   });
 });
