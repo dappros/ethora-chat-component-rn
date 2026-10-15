@@ -795,6 +795,26 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
     let lastMessagesRef: any = null;
     let lastStampedMs = 0;
     let flushTimer: ReturnType<typeof setTimeout> | null = null;
+    // Room whose XEP-0333 marker is waiting on the 2 s debounce below. Set
+    // only while that room is the one on screen.
+    let pendingMarkerJid: string | null = null;
+
+    // Sends the waiting marker now: the debounce is cut short because the
+    // user left the room or the app, so it would otherwise be lost. The room
+    // counts as on screen for this one call (it was when the marker was
+    // queued); the jump window, the scroll boundary and the disable flags
+    // still apply inside computeReadWatermark.
+    const flushPendingMarker = () => {
+      const jid = pendingMarkerJid;
+      pendingMarkerJid = null;
+      if (!jid) {return;}
+      const st = store.getState();
+      const watermark = computeReadWatermark(
+        { ...st, rooms: { ...st.rooms, visibleRoomJID: jid } } as any,
+        jid
+      );
+      if (watermark) {client?.sendDisplayedMarkerStanza?.(watermark, jid);}
+    };
 
     const advance = () => {
       const s = store.getState();
@@ -827,9 +847,13 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
         setLastViewedTimestamp({ chatJID: jid, timestamp: newest })
       );
 
+      // Another room took over the debounce: send the old room's marker first.
+      if (pendingMarkerJid && pendingMarkerJid !== jid) {flushPendingMarker();}
       if (flushTimer) {clearTimeout(flushTimer);}
       if (client?.flushLastViewedToPrivateStoreStanza) {
+        if (s.rooms?.visibleRoomJID === jid) {pendingMarkerJid = jid;}
         flushTimer = setTimeout(() => {
+          pendingMarkerJid = null;
           // Re-read fresh state rather than closing over `boundaryTs`:
           // the user may have scrolled back to the bottom (clearing the
           // boundary) in the 2s between the stamp and this flush, and
@@ -861,6 +885,7 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
     return () => {
       unsub();
       if (flushTimer) {clearTimeout(flushTimer);}
+      flushPendingMarker();
     };
   }, [isVisible, client]);
 
