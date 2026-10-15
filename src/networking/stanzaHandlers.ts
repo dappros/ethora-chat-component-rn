@@ -57,6 +57,8 @@ const ackReceivedMessage = (
 ): void => {
   if (!xmppWs?.sendReceivedReceiptStanza || !message?.id) {return;}
   if (message.isSystemMessage === 'true') {return;}
+  // A call-log row is built on this device; the sender has no such message.
+  if (String(message.id).startsWith('calllog-')) {return;}
   const user = store.getState().chatSettingStore.user;
   if (isOwnIncomingMessage({ message, stanzaFrom, senderJID, user })) {return;}
   xmppWs.sendReceivedReceiptStanza(String(message.id), roomJID);
