@@ -177,4 +177,47 @@ describe('read watermark on the visible-room debounce', () => {
     expect(client.sendDisplayedMarkerStanza).not.toHaveBeenCalled();
     expect(client.flushLastViewedToPrivateStoreStanza).toHaveBeenCalled();
   });
+
+  it('sends the waiting watermark when the app is left before the 2 s debounce ends', async () => {
+    store.dispatch(addRoom({ roomData: mkRoom([msg(T0)]) }));
+    store.dispatch(setCurrentRoom({ roomJID: R }));
+    const client = makeClient();
+    await mount(client);
+    await advance(500);
+    expect(client.sendDisplayedMarkerStanza).not.toHaveBeenCalled();
+    await act(async () => {
+      tree.unmount();
+    });
+    tree = null;
+    expect(client.sendDisplayedMarkerStanza).toHaveBeenCalledTimes(1);
+    expect(client.sendDisplayedMarkerStanza).toHaveBeenCalledWith(String(T0), R);
+    // The cancelled timer must not send a second one.
+    await advance(2100);
+    expect(client.sendDisplayedMarkerStanza).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaving early does not send while a jump window is open', async () => {
+    store.dispatch(addRoom({ roomData: mkRoom([msg(T0)]) }));
+    store.dispatch(setCurrentRoom({ roomJID: R }));
+    const client = makeClient();
+    await mount(client);
+    await advance(500);
+    store.dispatch(
+      setJumpWindow({
+        roomJID: R,
+        targetId: String(T0),
+        messages: [msg(T0)],
+        olderCursor: null,
+        hasOlder: false,
+        newerCursor: null,
+        hasNewer: false,
+      } as any)
+    );
+    await act(async () => {
+      tree.unmount();
+    });
+    tree = null;
+    expect(client.sendDisplayedMarkerStanza).not.toHaveBeenCalled();
+    store.dispatch(clearJumpWindow());
+  });
 });
