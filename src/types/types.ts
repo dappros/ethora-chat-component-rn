@@ -43,6 +43,11 @@ export interface IRoom {
   composing?: boolean;
   composingList?: string[];
   lastViewedTimestamp?: number;
+  /**
+   * XEP-0333 read watermark per user: the id of the newest message each other
+   * occupant has displayed. Session-only (never persisted). See readReceipts.ts.
+   */
+  lastDisplayedByUser?: Record<string, string>;
   unreadMessages?: number;
   /**
    * Unread count the server reported for this room in `GET /v1/chats/my`
@@ -474,6 +479,15 @@ export interface IConfig {
   disableHeader?: boolean;
   disableMedia?: boolean;
   /**
+   * Limits for files picked in the composer. One message carries up to
+   * `maxFiles` files (hard ceiling 10, the default); `maxSizeMB` lowers the
+   * per-file cap below the built-in 50 MB upload limit.
+   */
+  attachments?: {
+    maxFiles?: number;
+    maxSizeMB?: number;
+  };
+  /**
    * Enable in-chat voice-message recording. **Opt-in — off by default.**
    * When `true`, an idle input (no text, no attachments) shows a
    * microphone in the send-button slot; tap → start recording → stop &
@@ -580,6 +594,12 @@ export interface IConfig {
   // ----- xmpp / QoS -----
   xmppSettings?: xmppSettingsInterface;
   disableLastRead?: boolean;
+  /**
+   * Stops this client from sending receipts: both the XEP-0184 delivery
+   * receipt and the XEP-0333 read marker, so other members see neither
+   * "delivered" nor "seen" for what this reader gets. Default false.
+   */
+  disableReadReceipts?: boolean;
   historyQoS?: HistoryQoSConfig;
   /**
    * Background history preload for the room list.
@@ -1129,13 +1149,27 @@ export interface ModalFile {
   originalName?: string;
   duration?: number | string;
   waveForm?: string;
+  /**
+   * The other files of the album this one was opened from, this one
+   * included, in order. With `index` it lets the viewer page through them.
+   */
+  siblings?: ModalFile[];
+  /** Position of this file in `siblings`. */
+  index?: number;
 }
 
 // Re-export so middleware/hooks that historically import from `types`
 // keep working without reaching into `types/models/...`.
 export type { ReactionAction } from './models/action.model';
 export type { Iso639_1Codes } from './models/language.model';
-export type { IMessage, IReply, LastMessage, ReactionMessage } from './models/message.model';
+export type {
+  IMessage,
+  IReply,
+  LastMessage,
+  ReactionMessage,
+  IMentionSpan,
+} from './models/message.model';
+export type { IAttachment } from './models/attachment.model';
 export type { RoomMember, ApiRoom, ChatAccessOption } from './models/room.model';
 export type { MediaFile } from './models/media.model';
 export type { TranslationObject } from '../helpers/transformTranslatations';

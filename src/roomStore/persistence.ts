@@ -1,6 +1,6 @@
 import { Middleware } from '@reduxjs/toolkit';
 import { IMessage, IRoom, User } from '../types/types';
-import type { FailedMessagePayload } from './roomHeapSlice';
+import type { FailedMediaFile, FailedMessagePayload } from './roomHeapSlice';
 import {
   getPersistBackend,
   legacyAsyncStorageBackend,
@@ -107,6 +107,11 @@ const PERSISTED_MESSAGE_FIELDS: (keyof IMessage)[] = [
   'fileName',
   'originalName',
   'size',
+  // Every file of a multi-attach message and its caption: without them a
+  // restored album paints as its first file only (see compactAttachments).
+  'attachments',
+  'caption',
+  'captionMentions',
   'langSource',
   // `translations` MUST be here. A previous version of this list dropped
   // it, on the theory that it mirrored the web SDK's persist contract —
@@ -185,8 +190,45 @@ const pickDefined = <T extends object>(
   return out;
 };
 
+// What a restored attachment is rendered from. Ownership and timestamp
+// fields the storage returns, and the sender's local upload state, are not
+// ours to cache and would repeat across up to ten files of every message.
+const PERSISTED_ATTACHMENT_FIELDS = [
+  'attachmentId',
+  'location',
+  'locationPreview',
+  'mimetype',
+  'originalName',
+  'fileName',
+  'size',
+  'duration',
+  'width',
+  'height',
+] as const;
+
+const compactAttachments = (attachments: unknown): IMessage['attachments'] => {
+  if (!Array.isArray(attachments) || attachments.length === 0) {return undefined;}
+  return attachments
+    .filter((item) => item && typeof item === 'object')
+    .map(
+      (item) =>
+        pickDefined(
+          item,
+          PERSISTED_ATTACHMENT_FIELDS as unknown as readonly string[]
+        ) as NonNullable<IMessage['attachments']>[number]
+    );
+};
+
 const compactMessageForPersist = (message: IMessage): IMessage => {
   const compact = pickDefined(message, PERSISTED_MESSAGE_FIELDS) as IMessage;
+  if (compact.attachments !== undefined) {
+    const attachments = compactAttachments(compact.attachments);
+    if (attachments) {
+      compact.attachments = attachments;
+    } else {
+      delete compact.attachments;
+    }
+  }
   const user = message?.user as Record<string, any> | undefined;
   if (user) {
     compact.user = pickDefined(
@@ -209,11 +251,17 @@ const sanitizeMessages = (messages: IMessage[]): IMessage[] => {
 /**
  * Room fields that describe ONE session and must never be written to disk:
  * the server's unread snapshot (a moment-in-time number the next /chats/my
- * re-seeds). Volatile slice state that is not on the room at all (jumpWindow,
+ * re-seeds) and the read watermarks other occupants sent this session. Volatile slice state that is not on the room at all (jumpWindow,
  * pendingJump, archivedMessage, usersSet) is never persisted because only
  * `rooms.rooms` is picked from the slice.
  */
-const SESSION_ROOM_FIELDS = ['apiUnreadCount', 'apiUnreadSeededAt'] as const;
+const SESSION_ROOM_FIELDS = [
+  'apiUnreadCount',
+  'apiUnreadSeededAt',
+  // XEP-0333 read watermarks: a peer's "seen" state is re-learned from the
+  // live marker stanzas, never restored from a previous session.
+  'lastDisplayedByUser',
+] as const;
 
 /**
  * Rehydrate step: a persisted room must be refetched once per session, so
@@ -303,6 +351,21 @@ const sanitizeMediaData = (
   return out;
 };
 
+// Every file of a multi-file failed send, trimmed the same way as `data`.
+// Capped so a corrupt payload cannot grow the cache without bound.
+const MAX_PERSISTED_FAILED_FILES = 10;
+const sanitizeMediaFiles = (files: unknown): FailedMediaFile[] | undefined => {
+  if (!Array.isArray(files)) {return undefined;}
+  const out: FailedMediaFile[] = [];
+  for (const file of files.slice(0, MAX_PERSISTED_FAILED_FILES)) {
+    const clean = sanitizeMediaData(file) as FailedMediaFile;
+    if (typeof (file as any)?.duration === 'number') {clean.duration = (file as any).duration;}
+    if (typeof (file as any)?.waveForm === 'string') {clean.waveForm = (file as any).waveForm;}
+    out.push(clean);
+  }
+  return out.length > 0 ? out : undefined;
+};
+
 const sanitizeFailedMessagePayload = (
   payload: FailedMessagePayload
 ): FailedMessagePayload | null => {
@@ -310,6 +373,8 @@ const sanitizeFailedMessagePayload = (
   if (!payload.id || typeof payload.id !== 'string') {return null;}
   if (!payload.roomJID || typeof payload.roomJID !== 'string') {return null;}
   if (payload.kind === 'media') {
+    const files = sanitizeMediaFiles(payload.files);
+    const caption = typeof payload.caption === 'string' ? payload.caption : undefined;
     return {
       kind: 'media',
       id: payload.id,
@@ -319,6 +384,11 @@ const sanitizeFailedMessagePayload = (
       isReply: payload.isReply,
       isChecked: payload.isChecked,
       mainMessage: payload.mainMessage,
+      ...(files ? { files } : {}),
+      ...(caption ? { caption } : {}),
+      ...(caption && Array.isArray(payload.captionMentions)
+        ? { captionMentions: payload.captionMentions }
+        : {}),
     };
   }
   if (payload.kind === 'text') {
@@ -377,6 +447,25 @@ export function reconstructFailedMessagePayload(
   const isChecked = message.showInChannel === 'true';
   const mainMessage = message.mainMessage;
   if (message.isMediafile === 'true') {
+    // A multi-file send keeps every file. Only a file still on this device
+    // has a uri to replay; an uploaded one has no local copy left to send.
+    const localUri = (value: unknown): string | undefined =>
+      typeof value === 'string' && /^(file|content|ph|assets-library):\/\//.test(value)
+        ? value
+        : undefined;
+    const attachments = Array.isArray(message.attachments) ? message.attachments : [];
+    const files: FailedMediaFile[] | undefined =
+      attachments.length > 1
+        ? attachments.slice(0, MAX_PERSISTED_FAILED_FILES).map((attachment) => ({
+            uri: localUri(attachment.localUrl) ?? localUri(attachment.location),
+            name: attachment.originalName || attachment.fileName,
+            type: attachment.mimetype,
+            size:
+              attachment.size !== undefined && attachment.size !== null
+                ? Number(attachment.size)
+                : undefined,
+          }))
+        : undefined;
     return {
       kind: 'media',
       id: message.id,
@@ -394,6 +483,8 @@ export function reconstructFailedMessagePayload(
       isReply,
       isChecked,
       mainMessage,
+      ...(files ? { files } : {}),
+      ...(message.caption ? { caption: message.caption } : {}),
     };
   }
   return {

@@ -189,10 +189,14 @@ const cloneFormData = (formData: FormData): FormData => {
   return copy;
 };
 
+// How long an upload may sit without progress before it is aborted.
+const UPLOAD_STALL_MS = 90_000;
+
 function postMultipart(
   url: string,
   body: FormData,
-  path: string
+  path: string,
+  onProgress?: (percent: number) => void
 ): Promise<{ data: any }> {
   const token = store.getState().chatSettingStore?.user?.token ?? '';
 
@@ -249,10 +253,59 @@ function postMultipart(
     xhr.ontimeout = () => failNetwork('Upload timed out');
     xhr.onabort = () => failNetwork('Upload aborted');
 
+    // A stalled connection must not hold an upload (and the message waiting on
+    // it) forever: abort when the body makes no progress for UPLOAD_STALL_MS,
+    // and again while the server takes that long to answer once it is up.
+    let stallTimer: ReturnType<typeof setTimeout> | null = null;
+    const armStall = () => {
+      if (stallTimer) {clearTimeout(stallTimer);}
+      stallTimer = setTimeout(() => {
+        try {
+          xhr.abort();
+        } catch {
+          // already finished
+        }
+      }, UPLOAD_STALL_MS);
+    };
+    const disarmStall = () => {
+      if (stallTimer) {clearTimeout(stallTimer);}
+      stallTimer = null;
+    };
+    const settledOnload = xhr.onload;
+    xhr.onload = (...args: any[]) => {
+      disarmStall();
+      (settledOnload as any)?.apply(xhr, args);
+    };
+    const settledOnerror = xhr.onerror;
+    xhr.onerror = (...args: any[]) => {
+      disarmStall();
+      (settledOnerror as any)?.apply(xhr, args);
+    };
+    const settledOnabort = xhr.onabort;
+    xhr.onabort = (...args: any[]) => {
+      disarmStall();
+      (settledOnabort as any)?.apply(xhr, args);
+    };
+
+    if (xhr.upload) {
+      xhr.upload.onprogress = (event: ProgressEvent) => {
+        armStall();
+        if (!onProgress) {return;}
+        if (!event.lengthComputable || !(event.total > 0)) {return;}
+        const percent = Math.min(100, Math.max(0, Math.round((event.loaded / event.total) * 100)));
+        try {
+          onProgress(percent);
+        } catch {
+          // A progress listener must never fail the upload itself.
+        }
+      };
+    }
+
     xhr.open('POST', url);
     xhr.setRequestHeader('Authorization', token);
     xhr.setRequestHeader('Accept', '*/*');
     // Deliberately no Content-Type — see the note above.
+    armStall();
     xhr.send(body as any);
   });
 }
@@ -268,6 +321,8 @@ let secureUploadUnavailable = false;
 
 export interface UploadFileOptions {
   clientEncrypted?: boolean;
+  /** Called with 0 to 100 as the request body goes up (XHR upload progress). */
+  onProgress?: (percent: number) => void;
 }
 
 export async function uploadFileV2(
@@ -289,7 +344,8 @@ export async function uploadFileV2(
       return await postMultipart(
         `${apiRoot}${SECURE_UPLOAD_PATH}`,
         body,
-        SECURE_UPLOAD_PATH
+        SECURE_UPLOAD_PATH,
+        options.onProgress
       );
     } catch (error) {
       if (!canFallBackToLegacyUpload(error)) {throw error;}
@@ -305,7 +361,8 @@ export async function uploadFileV2(
   return postMultipart(
     `${apiRoot}${LEGACY_UPLOAD_PATH}`,
     formData,
-    LEGACY_UPLOAD_PATH
+    LEGACY_UPLOAD_PATH,
+    options.onProgress
   );
 }
 

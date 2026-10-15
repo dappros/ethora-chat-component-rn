@@ -12,7 +12,7 @@ import {
   type Progress,
 } from './fileCipher';
 
-export { parseSealedMediaBody } from './sealedBody';
+export { parseSealedMediaBody, parseSealedMediaPayload } from './sealedBody';
 
 const MAGIC = Uint8Array.from([0x45, 0x54, 0x48, 0x4f, 0x46, 0x49, 0x4c, 0x45]);
 const VERSION = 1;

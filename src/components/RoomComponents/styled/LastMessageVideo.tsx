@@ -44,7 +44,10 @@ interface LastMessageVideoProps
   extends Pick<
     LastMessage,
     'user' | 'location' | 'originalName' | 'fileName' | 'mimetype'
-  > {}
+  > {
+  /** Replaces the file name: the caption, or the count of files. */
+  label?: string;
+}
 
 const LastMessageVideo: FC<LastMessageVideoProps> = ({
   user,
@@ -52,6 +55,7 @@ const LastMessageVideo: FC<LastMessageVideoProps> = ({
   originalName,
   fileName,
   mimetype,
+  label,
 }) => {
   const fileToken = useFileToken();
   // Bug #40: prefer the sender's original name over the stored hash
@@ -76,7 +80,7 @@ const LastMessageVideo: FC<LastMessageVideoProps> = ({
           </ShadeWrapper>
           <PlayButton><Text>▶</Text></PlayButton>
         </VideoContainer>
-        <LastRoomMessageText>{displayName}</LastRoomMessageText>
+        <LastRoomMessageText>{label ?? displayName}</LastRoomMessageText>
       </View>
     </LastRoomMessageContainer>
   );

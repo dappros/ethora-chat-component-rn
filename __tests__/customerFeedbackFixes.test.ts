@@ -220,17 +220,20 @@ describe('customer feedback round — locked behaviour', () => {
         isLikelyAudio('application/octet-stream', 'random.bin', null)
       ).toBe(false);
 
-      const fs = require('fs');
-      const src = fs.readFileSync(
-        require.resolve('../src/components/MainComponents/MediaMessage'),
-        'utf-8'
-      );
-      expect(src).toMatch(
-        /case\s+mimeType\.includes\('application\/octet-stream'\)/
-      );
-      expect(src).toMatch(/<AudioMessage\s+src=\{location \|\| ''\}/);
-      expect(src).toContain('mimeType={mimeType}');
-      expect(src).toContain('originalName={(message as any)?.originalName}');
+      // MediaMessage routes every file through getFileKind, which answers
+      // "audio" for octet-stream (voice notes) and for the isLikelyAudio
+      // heuristics, so these land on AudioMessage rather than a file card.
+      const { getFileKind } = require('../src/helpers/fileKind');
+      expect(
+        getFileKind({ mimetype: 'application/octet-stream', name: 'voice.mp3' })
+      ).toBe('audio');
+      expect(
+        getFileKind({ mimetype: 'application/octet-stream', name: 'random.bin' })
+      ).toBe('audio');
+      expect(
+        getFileKind({ mimetype: 'application/x-foo', name: 'voicemail-1.bin' })
+      ).toBe('audio');
+      expect(getFileKind({ mimetype: 'application/x-foo', name: 'a.zip' })).toBe('file');
     });
 
     it('isLikelyAudio recognises voice-message naming hints (octet-stream voicemails)', () => {

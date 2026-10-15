@@ -20,7 +20,10 @@ interface LastMessageFileProps
   extends Pick<
     LastMessage,
     'user' | 'originalName' | 'fileName' | 'mimetype' | 'locationPreview'
-  > {}
+  > {
+  /** Replaces the file name: the caption, or the count of files. */
+  label?: string;
+}
 
 const fallbackImage =
   'https://as2.ftcdn.net/v2/jpg/02/51/95/53/1000_F_251955356_FAQH0U1y1TZw3ZcdPGybwUkH90a3VAhb.jpg';
@@ -31,6 +34,7 @@ const LastMessageFile: FC<LastMessageFileProps> = ({
   fileName,
   mimetype,
   locationPreview,
+  label,
 }) => {
   const [imgSrc, setImgSrc] = useState(locationPreview);
   const fileToken = useFileToken();
@@ -69,7 +73,7 @@ const LastMessageFile: FC<LastMessageFileProps> = ({
         ) : (
           <FileIcon width={20} height={20} />
         )}
-        <LastRoomMessageText>{displayName}</LastRoomMessageText>
+        <LastRoomMessageText>{label ?? displayName}</LastRoomMessageText>
       </View>
     </LastRoomMessageContainer>
   );

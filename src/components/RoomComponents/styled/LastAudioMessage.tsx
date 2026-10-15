@@ -10,7 +10,10 @@ import { View } from 'react-native';
 import { PlayIcon } from '../../../assets/icons';
 import { useTheme } from '../../../hooks/useTheme';
 
-interface LastMessageEmojiProps extends Pick<LastMessage, 'user' | 'body'> {}
+interface LastMessageEmojiProps extends Pick<LastMessage, 'user' | 'body'> {
+  /** Replaces the body: the caption, or the count of files. */
+  label?: string;
+}
 
 const PlayButton = styled.View`
   width: 20px;
@@ -29,7 +32,7 @@ const AudioRow = styled.View`
   gap: 6px;
 `;
 
-const LastAudioMessage: FC<LastMessageEmojiProps> = ({ user, body }) => {
+const LastAudioMessage: FC<LastMessageEmojiProps> = ({ user, body, label }) => {
   const theme = useTheme();
   return (
     <LastRoomMessageContainer>
@@ -41,7 +44,7 @@ const LastAudioMessage: FC<LastMessageEmojiProps> = ({ user, body }) => {
           <PlayIcon width={10} height={10} color={theme.dark ? theme.text : '#1F2937'} />
         </PlayButton>
         <LastRoomMessageText numberOfLines={1}>
-          {body?.trim() ? body : 'audio'}
+          {label ?? (body?.trim() ? body : 'audio')}
         </LastRoomMessageText>
       </AudioRow>
     </LastRoomMessageContainer>

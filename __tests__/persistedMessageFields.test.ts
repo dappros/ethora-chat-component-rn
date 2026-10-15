@@ -130,3 +130,84 @@ describe('persisted message fields', () => {
     );
   });
 });
+
+describe('persisted multi-attachment fields', () => {
+  const albumMessage = () => ({
+    id: 'a1',
+    body: 'media',
+    date: new Date('2026-10-14T10:00:00.000Z').toISOString(),
+    roomJid: 'r@h',
+    user: { id: 'them', name: 'John Doe' },
+    isMediafile: 'true',
+    location: 'https://f.example/0.jpg',
+    mimetype: 'image/jpeg',
+    caption: 'weekend trip',
+    captionMentions: [{ jid: 'b@x', name: 'Bob', offset: 8, length: 4 }],
+    attachments: [0, 1, 2].map((n) => ({
+      attachmentId: `att-${n}`,
+      location: `https://f.example/${n}.jpg`,
+      locationPreview: `https://f.example/${n}-s.jpg`,
+      mimetype: 'image/jpeg',
+      originalName: `${n}.jpg`,
+      size: '10',
+      // Not ours to cache.
+      ownerKey: 'secret-owner',
+      userId: 'u1',
+      createdAt: '2026-10-14T10:00:00.000Z',
+      uploadStatus: 'uploading',
+      uploadProgress: 40,
+    })),
+  });
+
+  it('round-trips attachments, caption and caption spans', async () => {
+    const store = makeStore();
+    store.dispatch(
+      addRoom({
+        roomData: {
+          jid: 'r@h',
+          name: 'r',
+          title: 'r',
+          messages: [albumMessage()],
+        } as unknown as IRoom,
+      })
+    );
+    await flush();
+
+    const { rooms } = await readPersistedState();
+    const restored = rooms?.rooms['r@h'].messages[0] as any;
+
+    expect(restored.caption).toBe('weekend trip');
+    expect(restored.captionMentions).toEqual([
+      { jid: 'b@x', name: 'Bob', offset: 8, length: 4 },
+    ]);
+    expect(restored.attachments).toHaveLength(3);
+    expect(restored.attachments[2]).toEqual({
+      attachmentId: 'att-2',
+      location: 'https://f.example/2.jpg',
+      locationPreview: 'https://f.example/2-s.jpg',
+      mimetype: 'image/jpeg',
+      originalName: '2.jpg',
+      size: '10',
+    });
+  });
+
+  it('writes no attachments key for a message without any', async () => {
+    const store = makeStore();
+    const { attachments: _drop, ...single } = albumMessage();
+    store.dispatch(
+      addRoom({
+        roomData: {
+          jid: 'r@h',
+          name: 'r',
+          title: 'r',
+          messages: [{ ...single, attachments: [] }],
+        } as unknown as IRoom,
+      })
+    );
+    await flush();
+
+    const { rooms } = await readPersistedState();
+    expect(rooms?.rooms['r@h'].messages[0]).not.toHaveProperty('attachments');
+  });
+});
+

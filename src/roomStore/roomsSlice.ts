@@ -1,6 +1,6 @@
 import { createAsyncThunk, createSlice, PayloadAction, type Slice } from '@reduxjs/toolkit';
 import type { WritableDraft } from 'immer';
-import { EditAction, HistoryPreloadState, IMessage, IRoom } from '../types/types';
+import { EditAction, HistoryPreloadState, IAttachment, IMessage, IRoom } from '../types/types';
 import { insertMessageWithDelimiter } from '../helpers/insertMessageWithDelimiter';
 import { msgSortableMs } from '../helpers/msgSortableMs';
 import type XmppClient from '../networking/xmppClient';
@@ -955,6 +955,66 @@ const reducers = {
         message.translations[locale] = entry;
       });
     },
+    /**
+     * Local upload state of one file of an outgoing media message: its
+     * `uploadStatus` ('uploading' | 'failed') and `uploadProgress` (0-100).
+     * `null` for `uploadStatus` clears both, once the file is up. Matches the
+     * message in the room and in the jump window, like the other patches.
+     * Never persisted: the persist whitelist drops these fields.
+     */
+    setMediaUploadState(
+      state: WritableDraft<RoomMessagesState>,
+      action: PayloadAction<{
+        roomJID: string;
+        messageId: string;
+        attachmentId: string;
+        uploadStatus?: 'uploading' | 'failed' | null;
+        uploadProgress?: number;
+      }>
+    ) {
+      const { roomJID, messageId, attachmentId, uploadStatus, uploadProgress } =
+        action.payload;
+      if (!isSafeKey(roomJID) || !isSafeKey(messageId) || !isSafeKey(attachmentId)) {
+        return;
+      }
+      forEachMessageCopy(state, roomJID, messageId, (message) => {
+        const target = message.attachments?.find(
+          (attachment) => attachment.attachmentId === attachmentId
+        );
+        if (!target) {return;}
+        if (uploadStatus === null) {
+          delete target.uploadStatus;
+          delete target.uploadProgress;
+          return;
+        }
+        if (uploadStatus !== undefined) {target.uploadStatus = uploadStatus;}
+        if (typeof uploadProgress === 'number' && Number.isFinite(uploadProgress)) {
+          target.uploadProgress = Math.min(100, Math.max(0, uploadProgress));
+        }
+      });
+    },
+    /**
+     * Replaces the attachments of a message the sender already has, without
+     * touching its other fields: `pending` stays as it is, so the bubble is
+     * still waiting for the server echo. (addRoomMessage would count this as
+     * the echo and clear `pending`.)
+     */
+    setMessageAttachments(
+      state: WritableDraft<RoomMessagesState>,
+      action: PayloadAction<{
+        roomJID: string;
+        messageId: string;
+        attachments: IAttachment[];
+      }>
+    ) {
+      const { roomJID, messageId, attachments } = action.payload;
+      if (!isSafeKey(roomJID) || !isSafeKey(messageId) || !Array.isArray(attachments)) {
+        return;
+      }
+      forEachMessageCopy(state, roomJID, messageId, (message) => {
+        message.attachments = attachments.map((attachment) => ({ ...attachment }));
+      });
+    },
     addRoomMessage(
       state: WritableDraft<RoomMessagesState>,
       action: PayloadAction<{
@@ -1412,6 +1472,53 @@ const reducers = {
         list.push({ from, reactions, data, ts: latestReactionTimestamp });
       }
     },
+    /**
+     * XEP-0184: an occupant's client acknowledged one of our messages. Only
+     * the message id is matched (archive ids), on the live list and on a jump
+     * window copy. Session-only: not persisted.
+     */
+    setReceivedReceipt: (
+      state: WritableDraft<RoomMessagesState>,
+      action: PayloadAction<{
+        roomJID: string;
+        messageId: string;
+        fromXmppUsername: string;
+        timestamp: number;
+      }>
+    ) => {
+      const { roomJID, messageId, fromXmppUsername, timestamp } = action.payload;
+      // Both keys become property names: an unsafe key must never reach the write.
+      if (!isSafeKey(roomJID) || !isSafeKey(fromXmppUsername)) {return;}
+      if (!state.rooms[roomJID] || !messageId) {return;}
+      forEachMessageCopy(
+        state,
+        roomJID,
+        (message) => message.id === messageId,
+        (message) => {
+          if (!message.receivedBy) {message.receivedBy = {};}
+          message.receivedBy[fromXmppUsername] = timestamp;
+        }
+      );
+    },
+    /**
+     * XEP-0333: an occupant displayed up to `messageId`. One watermark per
+     * user and room, replaced on every marker. Session-only: not persisted.
+     */
+    setDisplayedMarker: (
+      state: WritableDraft<RoomMessagesState>,
+      action: PayloadAction<{
+        roomJID: string;
+        xmppUsername: string;
+        messageId: string;
+      }>
+    ) => {
+      const { roomJID, xmppUsername, messageId } = action.payload;
+      if (!isSafeKey(roomJID) || !isSafeKey(xmppUsername)) {return;}
+      const room = state.rooms[roomJID];
+      if (!room || !messageId) {return;}
+      if (!room.lastDisplayedByUser) {room.lastDisplayedByUser = {};}
+      room.lastDisplayedByUser[xmppUsername] = messageId;
+    },
     setLogoutState: (state: WritableDraft<RoomMessagesState>) => {
       state.rooms = {};
       state.pendingReactions = {};
@@ -1640,6 +1747,8 @@ export const {
   deleteAllRooms,
   setRoomMessages,
   addRoomMessage,
+  setMediaUploadState,
+  setMessageAttachments,
   deleteRoomMessage,
   setEditAction,
   editRoomMessage,
@@ -1671,6 +1780,8 @@ export const {
   setJoiningRoom,
   clearJoiningRoom,
   setReactions,
+  setReceivedReceipt,
+  setDisplayedMarker,
   mergeUsersSet,
   removeRoomMessage,
   addRoomFromApi,

@@ -1,5 +1,6 @@
 import { Element } from 'ltx';
 import { store } from '../roomStore';
+import type XmppClient from './xmppClient';
 import {
   claimMamResult,
   collectMamMessage,
@@ -14,6 +15,8 @@ import {
   editRoomMessage,
   setComposing,
   setCurrentRoom,
+  setDisplayedMarker,
+  setReceivedReceipt,
   setRoomRole,
   setReactions,
   updateRoom,
@@ -31,6 +34,35 @@ import { translateKey } from '../i18n/strings';
 import { isWindowQueryId } from './xmpp/mamQueryIds';
 import { loadRoomMembers } from './api-requests/rooms.api';
 import { subscribeRoomForPush } from '../services/pushSubscriptionService';
+import { isReceiptMarkerId } from '../helpers/readReceipts';
+
+const RECEIPTS_NS = 'urn:xmpp:receipts';
+const CHAT_MARKERS_NS = 'urn:xmpp:chat-markers:0';
+
+// XEP-0184 / XEP-0333 frames: broadcast to the room, carry no <data>, and are
+// never chat messages (no bubble, no unread, no toast).
+const isReceiptMarkerStanza = (stanza: any): boolean =>
+  isReceiptMarkerId(stanza?.attrs?.id) ||
+  !!stanza?.getChild?.('received', RECEIPTS_NS) ||
+  !!stanza?.getChild?.('displayed', CHAT_MARKERS_NS);
+
+// XEP-0184: ack a message from someone else so their client can move its
+// tick to "delivered". Our own echo and system messages are never acked.
+const ackReceivedMessage = (
+  message: IMessage,
+  roomJID: string,
+  stanzaFrom: string | undefined,
+  senderJID: string | undefined,
+  xmppWs?: XmppClient
+): void => {
+  if (!xmppWs?.sendReceivedReceiptStanza || !message?.id) {return;}
+  if (message.isSystemMessage === 'true') {return;}
+  // A call-log row is built on this device; the sender has no such message.
+  if (String(message.id).startsWith('calllog-')) {return;}
+  const user = store.getState().chatSettingStore.user;
+  if (isOwnIncomingMessage({ message, stanzaFrom, senderJID, user })) {return;}
+  xmppWs.sendReceivedReceiptStanza(String(message.id), roomJID);
+};
 
 // TO DO: we are thinking to refactor this code in the following way:
 // each stanza will be parsed for 'type'
@@ -41,7 +73,8 @@ import { subscribeRoomForPush } from '../services/pushSubscriptionService';
 // types can be added into our chat protocol (XMPP stanza add field type="") to make it easier to parse here
 
 //core default
-const onRealtimeMessage = async (stanza: Element) => {
+const onRealtimeMessage = async (stanza: Element, xmppWs?: XmppClient) => {
+  if (isReceiptMarkerStanza(stanza)) {return;}
   if (
     !stanza?.getChild('result') &&
     !stanza.getChild('composing') &&
@@ -120,6 +153,7 @@ const onRealtimeMessage = async (stanza: Element) => {
         message,
       })
     );
+    ackReceivedMessage(message, roomJID, stanza.attrs.from, senderJID, xmppWs);
     // A sender missing from usersSet (a big room only carries 30 members)
     // is resolved lazily; known and recently failed ids are dropped inside.
     try {
@@ -196,6 +230,38 @@ const onDeleteMessage = async (stanza: Element) => {
   }
 };
 
+// XEP-0184 delivery receipt from an occupant. The real sender travels in the
+// <received> `from` attr, because the stanza's own `from` is the room nick.
+const onReceivedReceipt = (stanza: Element) => {
+  if (!String(stanza?.attrs?.id || '').startsWith('message-received')) {return;}
+  const received = stanza.getChild('received', RECEIPTS_NS);
+  if (!received) {return;}
+  const messageId = received.attrs.id;
+  const fromXmppUsername = String(received.attrs.from || '').split('@')[0];
+  const roomJID = String(stanza.attrs.from || '').split('/')[0];
+  if (!messageId || !fromXmppUsername || !roomJID) {return;}
+  store.dispatch(
+    setReceivedReceipt({
+      roomJID,
+      messageId,
+      fromXmppUsername,
+      timestamp: Date.now(),
+    })
+  );
+};
+
+// XEP-0333 read marker from an occupant: one watermark per user and room.
+const onDisplayedMarker = (stanza: Element) => {
+  if (!String(stanza?.attrs?.id || '').startsWith('message-displayed')) {return;}
+  const displayed = stanza.getChild('displayed', CHAT_MARKERS_NS);
+  if (!displayed) {return;}
+  const messageId = displayed.attrs.id;
+  const xmppUsername = String(displayed.attrs.from || '').split('@')[0];
+  const roomJID = String(stanza.attrs.from || '').split('/')[0];
+  if (!messageId || !xmppUsername || !roomJID) {return;}
+  store.dispatch(setDisplayedMarker({ roomJID, xmppUsername, messageId }));
+};
+
 const onEditMessage = async (stanza: Element) => {
   if (stanza?.attrs?.id?.includes('edit-message')) {
     const stanzaId = stanza.getChild('stanza-id');
@@ -225,6 +291,11 @@ const parseMamResult = async (stanza: any): Promise<IMessage | undefined> => {
       .getChild('result')
       ?.getChild('forwarded')
       ?.getChild('message');
+    // A receipt or read marker archived with the room is not a message: the
+    // page still counts it (the paging cursor follows it), nothing is shown.
+    if (isReceiptMarkerStanza(forwardedMsg)) {
+      return undefined;
+    }
     if (forwardedMsg?.getChild?.('reactions')) {
       const reaction = extractReaction(
         forwardedMsg,
@@ -341,7 +412,7 @@ const parseMamResult = async (stanza: any): Promise<IMessage | undefined> => {
   }
 };
 
-const onMessageHistory = async (stanza: any) => {
+const onMessageHistory = async (stanza: any, xmppWs?: XmppClient) => {
   if (!isMamResult(stanza)) {return;}
   // A windowed query (a jump target's neighbourhood, a time lookup) belongs
   // to the caller that asked: its rows are collected and returned there and
@@ -355,6 +426,21 @@ const onMessageHistory = async (stanza: any) => {
     if (claimed) {
       collectMamMessage(stanza, message);
     }
+  }
+  if (message) {
+    // A message fetched by catch-up never reaches the live ack, so it is
+    // acked here (the client remembers which ones it already acked).
+    const innerFrom = stanza
+      .getChild('result')
+      ?.getChild('forwarded')
+      ?.getChild('message')?.attrs?.from;
+    ackReceivedMessage(
+      message,
+      String(stanza.attrs?.from || '').split('/')[0],
+      innerFrom,
+      undefined,
+      xmppWs
+    );
   }
   if (!claimed && message) {
     store.dispatch(
@@ -677,6 +763,9 @@ const onRoomKicked = (stanza: Element | any) => {
 export {
   onRealtimeMessage,
   onMessageHistory,
+  onReceivedReceipt,
+  onDisplayedMarker,
+  isReceiptMarkerStanza,
   onPresenceInRoom,
   onGetLastMessageArchive,
   handleComposing,
