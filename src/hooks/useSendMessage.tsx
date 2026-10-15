@@ -621,6 +621,10 @@ export const useSendMessage = (_configOverride?: IConfig) => {
       const uploaded: Array<IAttachment | undefined> = files.map(() => undefined);
       const rawResults: Array<any | undefined> = files.map(() => undefined);
       const sealedUploads: Array<SealedUpload | undefined> = files.map(() => undefined);
+      // Per-file key material, kept apart from the sealed upload: the upload
+      // is disposed once the message is assembled, but a send that fails after
+      // that point is retried and must still carry every key.
+      const keyMaterials: Array<string | undefined> = files.map(() => undefined);
       let delivered = false;
       let running = false;
       const concurrency = isE2ee ? MEDIA_E2EE_UPLOAD_CONCURRENCY : MEDIA_UPLOAD_CONCURRENCY;
@@ -678,6 +682,7 @@ export const useSendMessage = (_configOverride?: IConfig) => {
           });
         }
         const sealed = sealedUploads[index];
+        if (sealed) {keyMaterials[index] = sealed.keyMaterial;}
         const part = sealed
           ? { uri: sealed.uri, type: 'application/octet-stream', name: sealed.name }
           : fileBlob;
@@ -753,7 +758,7 @@ export const useSendMessage = (_configOverride?: IConfig) => {
           __v: head.__v,
           // One key per sealed file, in selection order.
           e2eeKeys: isE2ee
-            ? (sealedUploads.map((sealed) => sealed?.keyMaterial) as string[])
+            ? (keyMaterials as string[])
             : undefined,
         };
 
@@ -832,6 +837,11 @@ export const useSendMessage = (_configOverride?: IConfig) => {
             send: (c) => c.sendMediaMessageStanza(activeRoomJID, messagePayload, id),
           });
         }
+
+        // The upload time is spent: the wait for the server echo gets a full
+        // watchdog window of its own, not what was left of the upload's.
+        clearTimeout(mediaWatchdog);
+        mediaWatchdog = armWatchdog();
 
         delivered = true;
         unregisterMediaRetry(id);
