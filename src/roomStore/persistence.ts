@@ -107,6 +107,11 @@ const PERSISTED_MESSAGE_FIELDS: (keyof IMessage)[] = [
   'fileName',
   'originalName',
   'size',
+  // Every file of a multi-attach message and its caption: without them a
+  // restored album paints as its first file only (see compactAttachments).
+  'attachments',
+  'caption',
+  'captionMentions',
   'langSource',
   // `translations` MUST be here. A previous version of this list dropped
   // it, on the theory that it mirrored the web SDK's persist contract —
@@ -185,8 +190,45 @@ const pickDefined = <T extends object>(
   return out;
 };
 
+// What a restored attachment is rendered from. Ownership and timestamp
+// fields the storage returns, and the sender's local upload state, are not
+// ours to cache and would repeat across up to ten files of every message.
+const PERSISTED_ATTACHMENT_FIELDS = [
+  'attachmentId',
+  'location',
+  'locationPreview',
+  'mimetype',
+  'originalName',
+  'fileName',
+  'size',
+  'duration',
+  'width',
+  'height',
+] as const;
+
+const compactAttachments = (attachments: unknown): IMessage['attachments'] => {
+  if (!Array.isArray(attachments) || attachments.length === 0) {return undefined;}
+  return attachments
+    .filter((item) => item && typeof item === 'object')
+    .map(
+      (item) =>
+        pickDefined(
+          item,
+          PERSISTED_ATTACHMENT_FIELDS as unknown as readonly string[]
+        ) as NonNullable<IMessage['attachments']>[number]
+    );
+};
+
 const compactMessageForPersist = (message: IMessage): IMessage => {
   const compact = pickDefined(message, PERSISTED_MESSAGE_FIELDS) as IMessage;
+  if (compact.attachments !== undefined) {
+    const attachments = compactAttachments(compact.attachments);
+    if (attachments) {
+      compact.attachments = attachments;
+    } else {
+      delete compact.attachments;
+    }
+  }
   const user = message?.user as Record<string, any> | undefined;
   if (user) {
     compact.user = pickDefined(
