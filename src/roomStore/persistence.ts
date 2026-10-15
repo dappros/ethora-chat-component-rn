@@ -1,6 +1,6 @@
 import { Middleware } from '@reduxjs/toolkit';
 import { IMessage, IRoom, User } from '../types/types';
-import type { FailedMessagePayload } from './roomHeapSlice';
+import type { FailedMediaFile, FailedMessagePayload } from './roomHeapSlice';
 import {
   getPersistBackend,
   legacyAsyncStorageBackend,
@@ -345,6 +345,21 @@ const sanitizeMediaData = (
   return out;
 };
 
+// Every file of a multi-file failed send, trimmed the same way as `data`.
+// Capped so a corrupt payload cannot grow the cache without bound.
+const MAX_PERSISTED_FAILED_FILES = 10;
+const sanitizeMediaFiles = (files: unknown): FailedMediaFile[] | undefined => {
+  if (!Array.isArray(files)) {return undefined;}
+  const out: FailedMediaFile[] = [];
+  for (const file of files.slice(0, MAX_PERSISTED_FAILED_FILES)) {
+    const clean = sanitizeMediaData(file) as FailedMediaFile;
+    if (typeof (file as any)?.duration === 'number') {clean.duration = (file as any).duration;}
+    if (typeof (file as any)?.waveForm === 'string') {clean.waveForm = (file as any).waveForm;}
+    out.push(clean);
+  }
+  return out.length > 0 ? out : undefined;
+};
+
 const sanitizeFailedMessagePayload = (
   payload: FailedMessagePayload
 ): FailedMessagePayload | null => {
@@ -352,6 +367,8 @@ const sanitizeFailedMessagePayload = (
   if (!payload.id || typeof payload.id !== 'string') {return null;}
   if (!payload.roomJID || typeof payload.roomJID !== 'string') {return null;}
   if (payload.kind === 'media') {
+    const files = sanitizeMediaFiles(payload.files);
+    const caption = typeof payload.caption === 'string' ? payload.caption : undefined;
     return {
       kind: 'media',
       id: payload.id,
@@ -361,6 +378,11 @@ const sanitizeFailedMessagePayload = (
       isReply: payload.isReply,
       isChecked: payload.isChecked,
       mainMessage: payload.mainMessage,
+      ...(files ? { files } : {}),
+      ...(caption ? { caption } : {}),
+      ...(caption && Array.isArray(payload.captionMentions)
+        ? { captionMentions: payload.captionMentions }
+        : {}),
     };
   }
   if (payload.kind === 'text') {
@@ -419,6 +441,25 @@ export function reconstructFailedMessagePayload(
   const isChecked = message.showInChannel === 'true';
   const mainMessage = message.mainMessage;
   if (message.isMediafile === 'true') {
+    // A multi-file send keeps every file. Only a file still on this device
+    // has a uri to replay; an uploaded one has no local copy left to send.
+    const localUri = (value: unknown): string | undefined =>
+      typeof value === 'string' && /^(file|content|ph|assets-library):\/\//.test(value)
+        ? value
+        : undefined;
+    const attachments = Array.isArray(message.attachments) ? message.attachments : [];
+    const files: FailedMediaFile[] | undefined =
+      attachments.length > 1
+        ? attachments.slice(0, MAX_PERSISTED_FAILED_FILES).map((attachment) => ({
+            uri: localUri(attachment.localUrl) ?? localUri(attachment.location),
+            name: attachment.originalName || attachment.fileName,
+            type: attachment.mimetype,
+            size:
+              attachment.size !== undefined && attachment.size !== null
+                ? Number(attachment.size)
+                : undefined,
+          }))
+        : undefined;
     return {
       kind: 'media',
       id: message.id,
@@ -436,6 +477,8 @@ export function reconstructFailedMessagePayload(
       isReply,
       isChecked,
       mainMessage,
+      ...(files ? { files } : {}),
+      ...(message.caption ? { caption: message.caption } : {}),
     };
   }
   return {

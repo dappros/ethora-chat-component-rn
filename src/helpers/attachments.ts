@@ -129,7 +129,7 @@ const optionalDimensions = (
  */
 const normalizeUploadState = (
   source: Record<string, unknown>
-): Pick<IAttachment, 'uploadStatus' | 'uploadProgress'> => {
+): Pick<IAttachment, 'uploadStatus' | 'uploadProgress' | 'localUrl'> => {
   const status = source.uploadStatus === 'uploading' || source.uploadStatus === 'failed'
     ? source.uploadStatus
     : undefined;
@@ -138,7 +138,16 @@ const normalizeUploadState = (
     typeof source.uploadProgress === 'number' && Number.isFinite(source.uploadProgress)
       ? Math.min(100, Math.max(0, source.uploadProgress))
       : 0;
-  return { uploadStatus: status, uploadProgress: progress };
+  // Only a file on this device can be the local preview of an outgoing file.
+  const localUrl =
+    typeof source.localUrl === 'string' && /^(file|content):\/\//.test(source.localUrl)
+      ? source.localUrl
+      : undefined;
+  return {
+    uploadStatus: status,
+    uploadProgress: progress,
+    ...(localUrl ? { localUrl } : {}),
+  };
 };
 
 /** Accepts the parsed array, the raw JSON string, or junk. Never throws. */

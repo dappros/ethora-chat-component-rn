@@ -1,6 +1,6 @@
 import { createAsyncThunk, createSlice, PayloadAction, type Slice } from '@reduxjs/toolkit';
 import type { WritableDraft } from 'immer';
-import { EditAction, HistoryPreloadState, IMessage, IRoom } from '../types/types';
+import { EditAction, HistoryPreloadState, IAttachment, IMessage, IRoom } from '../types/types';
 import { insertMessageWithDelimiter } from '../helpers/insertMessageWithDelimiter';
 import { msgSortableMs } from '../helpers/msgSortableMs';
 import type XmppClient from '../networking/xmppClient';
@@ -955,6 +955,66 @@ const reducers = {
         message.translations[locale] = entry;
       });
     },
+    /**
+     * Local upload state of one file of an outgoing media message: its
+     * `uploadStatus` ('uploading' | 'failed') and `uploadProgress` (0-100).
+     * `null` for `uploadStatus` clears both, once the file is up. Matches the
+     * message in the room and in the jump window, like the other patches.
+     * Never persisted: the persist whitelist drops these fields.
+     */
+    setMediaUploadState(
+      state: WritableDraft<RoomMessagesState>,
+      action: PayloadAction<{
+        roomJID: string;
+        messageId: string;
+        attachmentId: string;
+        uploadStatus?: 'uploading' | 'failed' | null;
+        uploadProgress?: number;
+      }>
+    ) {
+      const { roomJID, messageId, attachmentId, uploadStatus, uploadProgress } =
+        action.payload;
+      if (!isSafeKey(roomJID) || !isSafeKey(messageId) || !isSafeKey(attachmentId)) {
+        return;
+      }
+      forEachMessageCopy(state, roomJID, messageId, (message) => {
+        const target = message.attachments?.find(
+          (attachment) => attachment.attachmentId === attachmentId
+        );
+        if (!target) {return;}
+        if (uploadStatus === null) {
+          delete target.uploadStatus;
+          delete target.uploadProgress;
+          return;
+        }
+        if (uploadStatus !== undefined) {target.uploadStatus = uploadStatus;}
+        if (typeof uploadProgress === 'number' && Number.isFinite(uploadProgress)) {
+          target.uploadProgress = Math.min(100, Math.max(0, uploadProgress));
+        }
+      });
+    },
+    /**
+     * Replaces the attachments of a message the sender already has, without
+     * touching its other fields: `pending` stays as it is, so the bubble is
+     * still waiting for the server echo. (addRoomMessage would count this as
+     * the echo and clear `pending`.)
+     */
+    setMessageAttachments(
+      state: WritableDraft<RoomMessagesState>,
+      action: PayloadAction<{
+        roomJID: string;
+        messageId: string;
+        attachments: IAttachment[];
+      }>
+    ) {
+      const { roomJID, messageId, attachments } = action.payload;
+      if (!isSafeKey(roomJID) || !isSafeKey(messageId) || !Array.isArray(attachments)) {
+        return;
+      }
+      forEachMessageCopy(state, roomJID, messageId, (message) => {
+        message.attachments = attachments.map((attachment) => ({ ...attachment }));
+      });
+    },
     addRoomMessage(
       state: WritableDraft<RoomMessagesState>,
       action: PayloadAction<{
@@ -1640,6 +1700,8 @@ export const {
   deleteAllRooms,
   setRoomMessages,
   addRoomMessage,
+  setMediaUploadState,
+  setMessageAttachments,
   deleteRoomMessage,
   setEditAction,
   editRoomMessage,
