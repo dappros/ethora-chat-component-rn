@@ -1,7 +1,8 @@
 import { IMessage } from '../types/types';
 import { isE2eeRoom } from '../e2ee';
 import { composeName } from './displayName';
-import { parseSealedMediaBody } from '../e2ee/sealedBody';
+import { parseSealedMediaPayload } from '../e2ee/sealedBody';
+import { normalizeMediaDataAttrs } from './mediaWireData';
 
 interface IMessageWithNewData extends IMessage {
   [x: string]: any;
@@ -66,7 +67,9 @@ export const createMessageFromXml = async (
   }
 
   const merged: any = {
-    ...inner,
+    // Idempotent: the wrapped path already ran it in getDataFromXml, the
+    // positional (MAM catch-up) path hands over the raw attrs.
+    ...normalizeMediaDataAttrs(inner),
     ...outerExtras,
     isDeleted: !!outerExtras?.deleted || !!(arg as any)?.isDeleted,
   };
@@ -140,15 +143,28 @@ export const createMessageFromXml = async (
   const unencrypted =
     merged.omemoEncrypted !== 'true' && isE2eeRoom(String(merged.roomJid || ''));
 
-  const sealedKeys =
+  // A sealed media body is `{v:1,keys,caption?,captionMentions?}`. The keys
+  // and the caption are lifted next to each other; the caption is the only
+  // one a sealed message may show (any open caption attribute was dropped
+  // by normalizeMediaDataAttrs).
+  const sealed =
     merged.clientEncrypted === 'true'
-      ? parseSealedMediaBody(merged.body)
+      ? parseSealedMediaPayload(merged.body)
       : undefined;
 
   const message: IMessage = {
     ...merged,
     ...(unencrypted ? { unencrypted: true } : {}),
-    ...(sealedKeys ? { e2eeKeys: sealedKeys, body: 'media' } : {}),
+    ...(sealed
+      ? {
+          e2eeKeys: sealed.keys,
+          body: 'media',
+          ...(sealed.caption ? { caption: sealed.caption } : {}),
+          ...(sealed.captionMentions
+            ? { captionMentions: sealed.captionMentions }
+            : {}),
+        }
+      : {}),
     user: {
       ...(merged.user || {}),
       id: merged?.user?.id || fromResource || senderLocal,

@@ -2,6 +2,7 @@ import { Element } from 'ltx';
 import { Iso639_1Codes, IUser } from '../types/types';
 import { transformArrayToObject } from './transformTranslatations';
 import { normalizeXmppUsername } from './xmppUsername';
+import { normalizeMediaDataAttrs } from './mediaWireData';
 
 const getLocalpartFromJid = (jid?: string): string | undefined => {
   const value = String(jid || '').trim();
@@ -122,7 +123,10 @@ export const getDataFromXml = async (stanza: Element): Promise<DataXml | undefin
     photoURL,
   } as any;
 
-  const dataAttrs = data?.attrs || {};
+  // `attachments` and `caption` ride on <data> as strings; decode them here
+  // so every consumer sees the typed values (sealed captions are lifted from
+  // the encrypted body later, see createMessageFromXml).
+  const dataAttrs = normalizeMediaDataAttrs(data?.attrs || {});
 
   return {
     data: dataAttrs,
