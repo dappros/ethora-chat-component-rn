@@ -24,6 +24,9 @@
     "src",
     "metro.js",
     "empty-shim.js",
+    "app.plugin.js",
+    "plugins/withNotificationServiceExtension.js",
+    "plugins/notification-service",
     "README.md",
     "CHANGELOG.md"
   ],

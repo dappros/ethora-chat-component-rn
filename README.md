@@ -96,6 +96,21 @@ cd ios && pod install
 
 After `npx expo prebuild` (or first `npm run ios` in an Expo project), the pods install runs automatically.
 
+### 4. Attachment previews in iOS pushes (optional)
+
+The push service sends a photo or video message with its thumbnail (`previewUrl`, `mutable-content: 1`). Android shows it by itself; iOS needs a Notification Service Extension in the app. The SDK ships one as an Expo config plugin:
+
+```json
+{
+  "expo": {
+    "ios": { "bundleIdentifier": "com.example.app", "appleTeamId": "ABCDE12345" },
+    "plugins": ["@ethora/chat-component-rn"]
+  }
+}
+```
+
+`npx expo prebuild` then adds the `EthoraNotificationService` target (bundle id `<app bundle id>.EthoraNotificationService`), embeds it in the app and registers it for EAS Build credentials (`extra.eas.build.experimental.ios.appExtensions`). The signing team comes from the plugin option `appleTeamId`, else `ios.appleTeamId`, else the team already set on the app target. The extension downloads the thumbnail and attaches it to the notification; text pushes and failed downloads (an expired link, no network, the iOS time limit) show the notification unchanged. The sender avatar is not attached. Encrypted (sealed) pushes are not handled yet.
+
 ## Quick start
 
 ```tsx
