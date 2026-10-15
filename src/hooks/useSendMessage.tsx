@@ -587,9 +587,14 @@ export const useSendMessage = (_configOverride?: IConfig) => {
       }
 
       // Silent-failure watchdog for media-send (bug #18). Re-armed on every
-      // retry, so a retried send gets its own window.
+      // retry, so a retried send gets its own window. While files are still
+      // going up it is not a failure: it waits one more window instead.
       const armWatchdog = (): ReturnType<typeof setTimeout> =>
         setTimeout(() => {
+          if (running) {
+            mediaWatchdog = armWatchdog();
+            return;
+          }
           const state = reduxStore.getState();
           const roomMsgs = state.rooms?.rooms?.[activeRoomJID]?.messages || [];
           const stillPending = roomMsgs.find(
@@ -613,14 +618,13 @@ export const useSendMessage = (_configOverride?: IConfig) => {
             });
           }
         }, MEDIA_PENDING_WATCHDOG_MS);
-      let mediaWatchdog = armWatchdog();
-
       const uploaded: Array<IAttachment | undefined> = files.map(() => undefined);
       const rawResults: Array<any | undefined> = files.map(() => undefined);
       const sealedUploads: Array<SealedUpload | undefined> = files.map(() => undefined);
       let delivered = false;
       let running = false;
       const concurrency = isE2ee ? MEDIA_E2EE_UPLOAD_CONCURRENCY : MEDIA_UPLOAD_CONCURRENCY;
+      let mediaWatchdog = armWatchdog();
 
       const publishTile = (
         index: number,

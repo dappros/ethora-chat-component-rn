@@ -211,6 +211,39 @@ describe('sendMedia with several files', () => {
     expect(store.getState().roomHeapSlice.failedMessages[bubble.id]).toBeUndefined();
   });
 
+  it('the send watchdog waits while files are still uploading', async () => {
+    jest.useFakeTimers();
+    try {
+      const store = makeStore();
+      seed(store);
+      const api = await mount(store);
+      const pending: Array<(v: any) => void> = [];
+      (uploadFileV2 as jest.Mock).mockImplementation(
+        () => new Promise((resolve) => pending.push(resolve))
+      );
+
+      let done!: Promise<boolean>;
+      await act(async () => {
+        done = api().sendMedia([pick(0), pick(1)], 'image/jpeg', ROOM);
+      });
+      // Past the media window, with both files still going up.
+      await act(async () => {
+        jest.advanceTimersByTime(31_000);
+      });
+      const bubble = optimisticOf(store);
+      expect(store.getState().roomHeapSlice.failedMessages[bubble.id]).toBeUndefined();
+
+      await act(async () => {
+        pending[0]!(uploaded(0));
+        pending[1]!(uploaded(1));
+        await done;
+      });
+      expect(client.sendMediaMessageStanza).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('reports each file upload progress on its own tile', async () => {
     const store = makeStore();
     seed(store);
