@@ -63,6 +63,7 @@ import { updateMessagesTillLast } from '../helpers/updateMessagesTillLast';
 import { secureUserStorage } from '../helpers/secureUserStorage';
 import { clearPersistedState } from '../roomStore/persistence';
 import { pushLog as devPushLog } from '../utils/devLogger';
+import { computeReadWatermark } from '../helpers/readReceipts';
 
 interface InitMode {
   current: 'provider' | 'chat';
@@ -845,6 +846,12 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
               ),
             })
             .catch(() => {});
+          // XEP-0333 read marker, on the same debounce as the private-store
+          // write above. computeReadWatermark sends nothing unless the room is
+          // still on screen, no jump window is open and the newest message
+          // is someone else's.
+          const watermark = computeReadWatermark(freshState, jid);
+          if (watermark) {client.sendDisplayedMarkerStanza?.(watermark, jid);}
         }, 2000);
       }
     };
