@@ -14,6 +14,12 @@
 export type UiStringTable = Record<string, string>;
 
 const en: UiStringTable = {
+  'attachment.moreCount': '+{count}',
+  'attachment.moreLabel': '{count} more files',
+  'attachment.previous': 'Previous file',
+  'attachment.next': 'Next file',
+  'attachment.position': '{index} of {total}',
+  'attachment.count': '{count} attachments',
   'search.placeholder': 'Search...',
   'roomList.title': 'Chats',
   'connection.connecting': 'Connecting…',
@@ -403,6 +409,12 @@ const en: UiStringTable = {
 };
 
 const fr: UiStringTable = {
+  'attachment.moreCount': '+{count}',
+  'attachment.moreLabel': '{count} fichiers de plus',
+  'attachment.previous': 'Fichier précédent',
+  'attachment.next': 'Fichier suivant',
+  'attachment.position': '{index} sur {total}',
+  'attachment.count': '{count} pièces jointes',
   'search.placeholder': 'Rechercher...',
   'roomList.title': 'Discussions',
   'connection.connecting': 'Connexion…',
@@ -792,6 +804,12 @@ const fr: UiStringTable = {
 };
 
 const es: UiStringTable = {
+  'attachment.moreCount': '+{count}',
+  'attachment.moreLabel': '{count} archivos más',
+  'attachment.previous': 'Archivo anterior',
+  'attachment.next': 'Archivo siguiente',
+  'attachment.position': '{index} de {total}',
+  'attachment.count': '{count} archivos adjuntos',
   'search.placeholder': 'Buscar...',
   'roomList.title': 'Conversaciones',
   'connection.connecting': 'Conectando…',
@@ -1181,6 +1199,12 @@ const es: UiStringTable = {
 };
 
 const pt: UiStringTable = {
+  'attachment.moreCount': '+{count}',
+  'attachment.moreLabel': 'mais {count} arquivos',
+  'attachment.previous': 'Arquivo anterior',
+  'attachment.next': 'Próximo arquivo',
+  'attachment.position': '{index} de {total}',
+  'attachment.count': '{count} anexos',
   'search.placeholder': 'Pesquisar...',
   'roomList.title': 'Conversas',
   'connection.connecting': 'A ligar…',
@@ -1570,6 +1594,12 @@ const pt: UiStringTable = {
 };
 
 const ht: UiStringTable = {
+  'attachment.moreCount': '+{count}',
+  'attachment.moreLabel': '{count} lòt fichye ankò',
+  'attachment.previous': 'Fichye anvan an',
+  'attachment.next': 'Fichye ki vini an',
+  'attachment.position': '{index} sou {total}',
+  'attachment.count': '{count} pyès jwenn',
   'search.placeholder': 'Chèche...',
   'roomList.title': 'Chat yo',
   'connection.connecting': 'Ap konekte…',
@@ -1959,6 +1989,12 @@ const ht: UiStringTable = {
 };
 
 const zh: UiStringTable = {
+  'attachment.moreCount': '+{count}',
+  'attachment.moreLabel': '另外 {count} 个文件',
+  'attachment.previous': '上一个文件',
+  'attachment.next': '下一个文件',
+  'attachment.position': '第 {index} 个，共 {total} 个',
+  'attachment.count': '{count} 个附件',
   'search.placeholder': '搜索...',
   'roomList.title': '聊天',
   'connection.connecting': '连接中…',
