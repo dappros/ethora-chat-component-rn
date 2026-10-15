@@ -64,6 +64,57 @@ const MIME_TO_EXT: Record<string, string> = {
 
 const VALID_EXT_RE = /\.[a-z0-9]{1,8}$/i;
 
+// Extensions that stand for a picture, video, audio or PDF a bubble can
+// show, read back from the table above (first entry per extension wins).
+// `.webm` and `.svg` are left out on purpose: a recorded voice note is often
+// a `.webm` and must stay generic (audio), and SVG is not a bubble picture.
+const INFERRABLE_EXT_TO_MIME: Record<string, string> = {};
+for (const [mime, ext] of Object.entries(MIME_TO_EXT)) {
+  const inferrable =
+    mime === 'application/pdf' ||
+    mime.startsWith('image/') ||
+    mime.startsWith('video/') ||
+    mime.startsWith('audio/');
+  const bare = ext.slice(1);
+  if (inferrable && bare !== 'webm' && bare !== 'svg' && !INFERRABLE_EXT_TO_MIME[bare]) {
+    INFERRABLE_EXT_TO_MIME[bare] = mime;
+  }
+}
+// Spellings the table above has no entry for.
+Object.assign(INFERRABLE_EXT_TO_MIME, {
+  jpeg: 'image/jpeg',
+  jpe: 'image/jpeg',
+  tif: 'image/tiff',
+  avif: 'image/avif',
+  avi: 'video/x-msvideo',
+  oga: 'audio/ogg',
+  opus: 'audio/ogg',
+  amr: 'audio/amr',
+});
+
+/** A mimetype that says nothing: empty, or the storage's "could not sniff". */
+export function isGenericMime(mime: string | undefined | null): boolean {
+  const normalized = (mime || '').toLowerCase().split(';')[0]!.trim();
+  return (
+    !normalized ||
+    normalized === 'application/octet-stream' ||
+    normalized === 'binary/octet-stream'
+  );
+}
+
+/**
+ * The mimetype a file name's extension stands for, for the pictures, videos,
+ * audio and PDFs a bubble can show. Undefined for anything else.
+ */
+export function inferMimeFromName(
+  name: string | undefined | null
+): string | undefined {
+  const base = String(name || '').split(/[?#]/)[0]!;
+  const dot = base.lastIndexOf('.');
+  if (dot < 1) {return undefined;}
+  return INFERRABLE_EXT_TO_MIME[base.slice(dot + 1).toLowerCase()];
+}
+
 // Audio file extensions we recognise across the SDK. Used for the
 // "looks like audio even when the mimetype is application/octet-stream"
 // heuristic in MediaMessage / FilePreviewModal. Voice-message senders

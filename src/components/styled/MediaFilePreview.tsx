@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Modal, TouchableOpacity, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, SafeAreaView, ScrollView } from 'react-native';
 import {
   MediaContainer,
   MediaImage,
@@ -8,6 +8,7 @@ import { RemoveButton, RemoveButtonText } from './StyledComponents';
 import { FC, useState } from 'react';
 import { MediaFile } from '../../types/types';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import { useT } from '../../i18n/useT';
 
 interface MediaFilePreviewProps {
   filePreviews: MediaFile[];
@@ -62,42 +63,56 @@ export const MediaFilePreview: FC<MediaFilePreviewProps> = ({
   handleRemoveImage,
 }) => {
   const [previewUri, setPreviewUri] = useState<string | null>(null);
+  const t = useT();
 
+  // The tray holds up to ten files, so it scrolls sideways rather than wrap.
   return (
-    <MediaContainer>
-      {filePreviews.map((file, index) => {
-        const isImage = file.type?.startsWith('image');
-        const isVideo = file.type?.startsWith('video');
-        return (
-          <View key={`${file.name}_${index}`}>
-            {isImage ? (
-              <MediaImage source={{ uri: file.uri }} />
-            ) : isVideo ? (
-              <VideoThumb uri={file.uri} onPress={() => setPreviewUri(file.uri)} />
-            ) : (
-              <View style={{ width: 70, height: 70, borderRadius: 8 }}>
-                <FileIcon width={70} height={70} />
-              </View>
-            )}
-            <RemoveButton onPress={() => handleRemoveImage(index)}>
-              <RemoveButtonText>&times;</RemoveButtonText>
-            </RemoveButton>
-          </View>
-        );
-      })}
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+      testID="media-tray"
+    >
+      <MediaContainer>
+        {filePreviews.map((file, index) => {
+          const isImage = file.type?.startsWith('image');
+          const isVideo = file.type?.startsWith('video');
+          return (
+            <View key={`${file.name}_${index}`}>
+              {isImage ? (
+                <MediaImage source={{ uri: file.uri }} />
+              ) : isVideo ? (
+                <VideoThumb uri={file.uri} onPress={() => setPreviewUri(file.uri)} />
+              ) : (
+                <View style={{ width: 70, height: 70, borderRadius: 8 }}>
+                  <FileIcon width={70} height={70} />
+                </View>
+              )}
+              <RemoveButton
+                testID={`media-tray-remove-${index}`}
+                accessibilityRole="button"
+                accessibilityLabel={t('attachment.remove')}
+                onPress={() => handleRemoveImage(index)}
+              >
+                <RemoveButtonText>&times;</RemoveButtonText>
+              </RemoveButton>
+            </View>
+          );
+        })}
 
-      <Modal visible={!!previewUri} animationType="fade" transparent>
-        <SafeAreaView style={styles.modalContainer}>
-          <TouchableOpacity
-            style={styles.closeButton}
-            onPress={() => setPreviewUri(null)}
-          >
-            <Text style={styles.closeText}>✕</Text>
-          </TouchableOpacity>
-          {previewUri && <FullscreenPreviewVideo uri={previewUri} />}
-        </SafeAreaView>
-      </Modal>
-    </MediaContainer>
+        <Modal visible={!!previewUri} animationType="fade" transparent>
+          <SafeAreaView style={styles.modalContainer}>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setPreviewUri(null)}
+            >
+              <Text style={styles.closeText}>✕</Text>
+            </TouchableOpacity>
+            {previewUri && <FullscreenPreviewVideo uri={previewUri} />}
+          </SafeAreaView>
+        </Modal>
+      </MediaContainer>
+    </ScrollView>
   );
 };
 

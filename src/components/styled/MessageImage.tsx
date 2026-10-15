@@ -36,6 +36,13 @@ interface CustomMessageImageProps {
    * route; rendering it inline is what left the bubbles blank.
    */
   locationPreview?: string;
+  /**
+   * Album mode: fill a tile of exactly this size (cover, square corners; the
+   * tile clips) instead of sizing itself to the picture.
+   */
+  tile?: { width: number; height: number };
+  /** Replaces the default "open this one file" tap, e.g. to open an album at an index. */
+  onOpen?: () => void;
 }
 
 /** Keep the personal file token out of the logs. */
@@ -51,6 +58,8 @@ const CustomMessageImage: React.FC<CustomMessageImageProps> = ({
   originalName,
   mimetype,
   locationPreview,
+  tile,
+  onOpen,
 }) => {
   // Preview first, original only as a fallback — mirrors the web client,
   // where the <img> src is the preview and `fileURL` is reserved for the
@@ -59,12 +68,13 @@ const CustomMessageImage: React.FC<CustomMessageImageProps> = ({
   const [loading, setLoading] = useState(true);
   // Start with a neutral box; swap to the real aspect ratio once the
   // image's natural dimensions are known so it's shown scaled, not cropped.
-  const [dims, setDims] = useState<MediaDims>(defaultMediaDims());
+  const [measured, setDims] = useState<MediaDims>(defaultMediaDims());
+  const dims: MediaDims = tile ?? measured;
 
   const dispatch = useDispatch();
 
   useEffect(() => {
-    if (!displayURL) {
+    if (!displayURL || tile) {
       return;
     }
     let active = true;
@@ -88,15 +98,21 @@ const CustomMessageImage: React.FC<CustomMessageImageProps> = ({
     return () => {
       active = false;
     };
-  }, [displayURL]);
+  }, [displayURL, tile]);
 
   const handleOpen = () => {
+    if (onOpen) {
+      onOpen();
+      return;
+    }
     dispatch(setActiveFile({ fileName, fileURL, mimetype, originalName }));
     dispatch(setActiveModal(MODAL_TYPES.FILE_PREVIEW));
   };
 
   return (
-    <Container style={{ width: dims.width }}>
+    <Container
+      style={tile ? { width: dims.width, borderRadius: 0 } : { width: dims.width }}
+    >
       <TouchableOpacity onPress={handleOpen} activeOpacity={0.9}>
         {loading && (
           <View
@@ -117,7 +133,7 @@ const CustomMessageImage: React.FC<CustomMessageImageProps> = ({
           style={{
             width: dims.width,
             height: dims.height,
-            borderRadius: 10,
+            borderRadius: tile ? 0 : 10,
             backgroundColor: 'rgba(0, 0, 0, 0)',
           }}
           onLoadEnd={() => setLoading(false)}

@@ -1,11 +1,24 @@
 import { createSlice, PayloadAction, type Slice } from '@reduxjs/toolkit';
 import type { WritableDraft } from 'immer';
-import { IMessage } from '../types/types';
+import { IMentionSpan, IMessage } from '../types/types';
 
 // Saved alongside a failed-message id so the retry button can resend
 // without the bubble needing to remember the original draft itself.
 // `kind === 'text'` carries the plain body; `kind === 'media'` carries
 // the upload payload so we don't have to make the user re-pick the file.
+/**
+ * One file of a failed media send, as the retry replays it. Only the fields
+ * an upload needs, so it persists as a plain JSON object.
+ */
+export interface FailedMediaFile {
+  uri?: string;
+  type?: string;
+  name?: string;
+  size?: number;
+  duration?: number;
+  waveForm?: string;
+}
+
 export type FailedMessagePayload =
   | {
       kind: 'text';
@@ -20,11 +33,20 @@ export type FailedMessagePayload =
       kind: 'media';
       id: string;
       roomJID: string;
+      /** The first file (or the only one); kept for single-file readers. */
       data: any;
       type: string;
       isReply?: boolean;
       isChecked?: boolean;
       mainMessage?: string;
+      /**
+       * Every file of the message, in selection order. Retry replays the
+       * whole list; a message with no list falls back to `data`.
+       */
+      files?: FailedMediaFile[];
+      /** The caption the files were sent with, if any. */
+      caption?: string;
+      captionMentions?: IMentionSpan[];
     };
 
 export interface roomHeapSliceState {

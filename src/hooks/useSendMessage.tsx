@@ -3,21 +3,38 @@ import { Platform } from 'react-native';
 import { v4 as uuidv4 } from 'uuid';
 import { useXmppClient } from '../context/xmppProvider';
 import { useDispatch, useSelector, useStore } from 'react-redux';
-import { addRoomMessage, setEditAction } from '../roomStore/roomsSlice';
+import {
+  addRoomMessage,
+  setEditAction,
+  setMediaUploadState,
+  setMessageAttachments,
+} from '../roomStore/roomsSlice';
 import {
   addMessageToHeap,
   clearMessageFailure,
   markMessageFailed,
 } from '../roomStore/roomHeapSlice';
+import type { FailedMediaFile, FailedMessagePayload } from '../roomStore/roomHeapSlice';
 import { uploadFileV2 } from '../networking/api-requests/auth.api';
 import { enqueueOutboundSend, removeOutboundSend } from '../networking/outboundQueue';
 import { RootState, store } from '../roomStore';
 import { getGlobalXmppClient } from '../utils/clientRegistry';
 import { useEventHandlers } from './useEventHandlers';
-import type { IConfig, IMessage } from '../types/types';
+import type { IAttachment, IConfig, IMessage } from '../types/types';
 import { canEditMessage, canSendMediaToRoom, canSendToRoom } from '../e2ee';
 import { shouldEncrypt } from '../e2ee/send';
 import type { SealedUpload } from '../e2ee/sealedFiles';
+import { MAX_SEAL_BYTES } from '../e2ee/limits';
+import { mapWithConcurrency } from '../helpers/mapWithConcurrency';
+import { normalizeCaptionInput, type CaptionInput } from '../helpers/caption';
+import { toUploadedAttachment } from '../helpers/attachments';
+import { mediaFileCap, mediaSizeLimit } from '../helpers/mediaLimits';
+import {
+  hasMediaRetry,
+  registerMediaRetry,
+  retryMediaSend,
+  unregisterMediaRetry,
+} from '../helpers/mediaSendRetry';
 
 // Watchdog: if a message stays "pending" (no server echo) for this
 // long after the optimistic dispatch, mark it failed so the bubble
@@ -52,10 +69,42 @@ let __sendIdSeq = 0;
 const nextStanzaId = (prefix: string): string =>
   `${prefix}-${Date.now()}-${(__sendIdSeq = (__sendIdSeq + 1) >>> 0)}`;
 
-// Hard client-side cap on a single upload. The backend rejects oversized
-// bodies with HTTP 413; SendInput blocks oversized files at pick time,
-// and this mirrors that limit on every send path (including retries).
-const MAX_MEDIA_BYTES = 50 * 1024 * 1024;
+// Uploads in flight per send. A sealed (e2ee) file is encrypted on the device
+// before it goes up, which is slow, so an e2ee send runs fewer at once.
+const MEDIA_UPLOAD_CONCURRENCY = 4;
+const MEDIA_E2EE_UPLOAD_CONCURRENCY = 2;
+
+/** The local id of a tile until the upload gives it the server's `_id`. */
+const localAttachmentId = (messageId: string, index: number): string =>
+  `${messageId}:${index}`;
+
+/** A tile without its local upload state (the file itself is unchanged). */
+const withoutUploadState = (attachment: IAttachment): IAttachment => {
+  const copy: IAttachment = { ...attachment };
+  delete copy.uploadStatus;
+  delete copy.uploadProgress;
+  return copy;
+};
+
+/** A picker uri as a plain file uri (iOS asset-library scheme rewritten). */
+const normalizeFileUri = (uri: unknown): string =>
+  typeof uri === 'string' ? uri.replace(/^assets-library:\/\//, 'file://') : '';
+
+/** The file's own uri when it is on this device, for the sender's preview. */
+const localPreviewUrl = (uri: unknown): string | undefined => {
+  const normalized = normalizeFileUri(uri);
+  return /^(file|content):\/\//.test(normalized) ? normalized : undefined;
+};
+
+/** One file as a failed send keeps it: plain fields only, so it persists. */
+const toFailedFile = (file: any, fallbackType: string): FailedMediaFile => ({
+  uri: typeof file?.uri === 'string' ? file.uri : undefined,
+  type: file?.type || file?.mimeType || fallbackType || undefined,
+  name: file?.name || file?.fileName || undefined,
+  ...(typeof file?.size === 'number' ? { size: file.size } : {}),
+  ...(typeof file?.duration === 'number' ? { duration: file.duration } : {}),
+  ...(typeof file?.waveForm === 'string' ? { waveForm: file.waveForm } : {}),
+});
 
 export const useSendMessage = (_configOverride?: IConfig) => {
   const { client } = useXmppClient();
@@ -381,58 +430,100 @@ export const useSendMessage = (_configOverride?: IConfig) => {
       isReply: boolean = false,
       isChecked: boolean = false,
       mainMessage: string = '',
-      existingId?: string
-    ) => {
+      existingId?: string,
+      caption?: CaptionInput
+    ): Promise<boolean> => {
       if (!canSendMediaToRoom(activeRoomJID)) {
         console.warn('media not sent: room is end-to-end encrypted');
-        return;
+        return false;
       }
 
       client?.onCriticalSend?.(activeRoomJID);
 
-      // Defensive 50 MB guard on every send path (SendInput blocks it at
+      // One send = one message, whatever the caller handed us: a single file,
+      // the composer's array, or the saved list on a retry. Extra files past
+      // the cap are dropped here as well as in the composer.
+      const files: any[] = (Array.isArray(data) ? data : [data])
+        .filter((file) => !!file && typeof file === 'object')
+        .slice(0, mediaFileCap(config));
+      if (files.length === 0) {return false;}
+      const first = files[0];
+
+      const isE2ee = shouldEncrypt(activeRoomJID);
+      const sizeLimit = mediaSizeLimit(config, isE2ee ? MAX_SEAL_BYTES : undefined);
+      const captionFields = normalizeCaptionInput(caption);
+      const id = existingId || `send-media-message:${uuidv4()}`;
+
+      // Everything a retry needs to replay this send, in selection order.
+      const failedPayload = (): FailedMessagePayload => ({
+        kind: 'media',
+        id,
+        roomJID: activeRoomJID,
+        data: toFailedFile(first, type),
+        type,
+        isReply,
+        isChecked,
+        mainMessage,
+        files: files.map((file) => toFailedFile(file, type)),
+        ...(captionFields
+          ? {
+              caption: captionFields.caption,
+              ...(captionFields.mentions ? { captionMentions: captionFields.mentions } : {}),
+            }
+          : {}),
+      });
+
+      // Defensive size guard on every send path (the composer blocks it at
       // pick time, but retries replay the saved payload straight here).
-      if (typeof data?.size === 'number' && data.size > MAX_MEDIA_BYTES) {
-        console.warn('media exceeds 50MB cap — not uploading', {
-          name: data?.name,
-          size: data?.size,
+      const oversize = files.find(
+        (file) => typeof file?.size === 'number' && file.size > sizeLimit
+      );
+      if (oversize) {
+        console.warn('media exceeds the size cap - not uploading', {
+          name: oversize?.name,
+          size: oversize?.size,
         });
+        const error = new Error(
+          `File exceeds the ${Math.round(sizeLimit / (1024 * 1024))} MB upload limit`
+        );
         if (existingId) {
-          dispatch(
-            markMessageFailed({
-              kind: 'media',
-              id: existingId,
-              roomJID: activeRoomJID,
-              data,
-              type,
-              isReply,
-              isChecked,
-              mainMessage,
-            })
-          );
+          dispatch(markMessageFailed(failedPayload()));
         }
         handleMessageFailed({
           message: 'media',
           roomJID: activeRoomJID,
-          error: new Error('File exceeds the 50 MB upload limit'),
+          error,
           messageType: 'media',
         });
-        return;
+        return false;
       }
 
-      const id = existingId || `send-media-message:${uuidv4()}`;
       const optimisticTimestamp = Date.now();
       const optimisticDate = new Date(optimisticTimestamp).toISOString();
       const selfId =
         (user as any)?.xmppUsername || (user as any)?.walletAddress || '';
       const displayName =
         `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || selfId;
-      const fileSizeStr = data?.size != null ? String(data.size) : '';
+      const normalizedFileUri = normalizeFileUri(first?.uri);
+      const fileSizeStr = first?.size != null ? String(first.size) : '';
 
-      const normalizedFileUri =
-        typeof data?.uri === 'string'
-          ? data.uri.replace(/^assets-library:\/\//, 'file://')
-          : '';
+      // One tile per file, in selection order. A tile's id is local until the
+      // upload returns the server's `_id`; the tile's upload state is keyed on it.
+      const tiles: IAttachment[] = files.map((file, index) => {
+        const localUrl = localPreviewUrl(file?.uri);
+        return {
+          attachmentId: localAttachmentId(id, index),
+          location: '',
+          mimetype: file?.type || file?.mimeType || type,
+          originalName: file?.name,
+          fileName: file?.name,
+          size: file?.size != null ? String(file.size) : undefined,
+          duration: file?.duration != null ? String(file.duration) : undefined,
+          ...(localUrl ? { localUrl } : {}),
+          uploadStatus: 'uploading',
+          uploadProgress: 0,
+        };
+      });
 
       if (!config?.disableSentLogic && !existingId) {
         dispatch(
@@ -454,17 +545,24 @@ export const useSendMessage = (_configOverride?: IConfig) => {
               xmppId: id,
               xmppFrom: `${activeRoomJID}/${selfId}`,
               isMediafile: 'true',
-              fileName: data?.name,
+              fileName: first?.name,
               location: normalizedFileUri,
               locationPreview: normalizedFileUri,
               mimetype: type,
-              originalName: data?.name,
+              originalName: first?.name,
               size: fileSizeStr,
-              duration: data?.duration,
-              waveForm: data?.waveForm,
+              duration: first?.duration,
+              waveForm: first?.waveForm,
+              attachments: tiles,
               isReply: isReply ? 'true' : 'false',
               showInChannel: `${isChecked}`,
               mainMessage,
+              ...(captionFields
+                ? {
+                    caption: captionFields.caption,
+                    captionMentions: captionFields.mentions,
+                  }
+                : {}),
             } as any as IMessage,
           })
         );
@@ -488,192 +586,266 @@ export const useSendMessage = (_configOverride?: IConfig) => {
         );
       }
 
-      // Silent-failure watchdog for media-send (bug #18). Same shape
-      // as the text path: if the optimistic bubble never gets the echo
-      // (e.g. upload completed but XMPP send is buffered offline), flip
-      // to failed → tap to retry.
-      const mediaWatchdog = setTimeout(() => {
-        const state = reduxStore.getState();
-        const roomMsgs = state.rooms?.rooms?.[activeRoomJID]?.messages || [];
-        const stillPending = roomMsgs.find(
-          (m: any) => m.id === id && m.pending
-        );
-        const alreadyFailed = state.roomHeapSlice?.failedMessages?.[id];
-        if (stillPending && !alreadyFailed) {
-          console.warn(
-            `Media-send watchdog fired — ${id} stuck pending > ${PENDING_WATCHDOG_MS}ms; marking failed`
+      // Silent-failure watchdog for media-send (bug #18). Re-armed on every
+      // retry, so a retried send gets its own window. While files are still
+      // going up it is not a failure: it waits one more window instead.
+      const armWatchdog = (): ReturnType<typeof setTimeout> =>
+        setTimeout(() => {
+          if (running) {
+            mediaWatchdog = armWatchdog();
+            return;
+          }
+          const state = reduxStore.getState();
+          const roomMsgs = state.rooms?.rooms?.[activeRoomJID]?.messages || [];
+          const stillPending = roomMsgs.find(
+            (m: any) => m.id === id && m.pending
           );
-          // See the text-send watchdog above: drop the buffered replay so
-          // a later onOnline flush can't silently resend behind the
-          // "failed / tap to retry" bubble.
-          removeOutboundSend(id);
-          dispatch(
-            markMessageFailed({
-              kind: 'media',
-              id,
+          const alreadyFailed = state.roomHeapSlice?.failedMessages?.[id];
+          if (stillPending && !alreadyFailed) {
+            console.warn(
+              `Media-send watchdog fired - ${id} stuck pending > ${MEDIA_PENDING_WATCHDOG_MS}ms; marking failed`
+            );
+            // See the text-send watchdog above: drop the buffered replay so
+            // a later onOnline flush can't silently resend behind the
+            // "failed / tap to retry" bubble.
+            removeOutboundSend(id);
+            dispatch(markMessageFailed(failedPayload()));
+            handleMessageFailed({
+              message: 'media',
               roomJID: activeRoomJID,
-              data,
-              type,
-              isReply,
-              isChecked,
-              mainMessage,
-            })
-          );
-          handleMessageFailed({
-            message: 'media',
-            roomJID: activeRoomJID,
-            error: new Error('Media send timed out (no server echo)'),
-            messageType: 'media',
-          });
-        }
-      }, MEDIA_PENDING_WATCHDOG_MS);
+              error: new Error('Media send timed out (no server echo)'),
+              messageType: 'media',
+            });
+          }
+        }, MEDIA_PENDING_WATCHDOG_MS);
+      const uploaded: Array<IAttachment | undefined> = files.map(() => undefined);
+      const rawResults: Array<any | undefined> = files.map(() => undefined);
+      const sealedUploads: Array<SealedUpload | undefined> = files.map(() => undefined);
+      // Per-file key material, kept apart from the sealed upload: the upload
+      // is disposed once the message is assembled, but a send that fails after
+      // that point is retried and must still carry every key.
+      const keyMaterials: Array<string | undefined> = files.map(() => undefined);
+      let delivered = false;
+      let running = false;
+      const concurrency = isE2ee ? MEDIA_E2EE_UPLOAD_CONCURRENCY : MEDIA_UPLOAD_CONCURRENCY;
+      let mediaWatchdog = armWatchdog();
 
-      // Help RN's FormData polyfill build a proper multipart/file part
-      // (instead of serialising the JS object as JSON). On iOS the
-      // picker can return ph:// or assets-library:// URIs for some
-      // legacy library items — those can't be read as files. Coerce
-      // to a file:// scheme when possible so the body is a real blob.
-      const fileBlob = {
-        uri: normalizedFileUri || data?.uri,
-        type:
-          data?.type ||
-          data?.mimeType ||
-          type ||
-          'application/octet-stream',
-        name: data?.name || data?.fileName || `media_${Date.now()}`,
+      const publishTile = (
+        index: number,
+        patch: { uploadStatus?: 'uploading' | 'failed' | null; uploadProgress?: number }
+      ) => {
+        const attachmentId = tiles[index]?.attachmentId;
+        if (config?.disableSentLogic || !attachmentId) {return;}
+        dispatch(
+          setMediaUploadState({
+            roomJID: activeRoomJID,
+            messageId: id,
+            attachmentId,
+            ...patch,
+          })
+        );
       };
 
-      let sealed: SealedUpload | undefined;
+      const missingIndices = () =>
+        uploaded.reduce<number[]>(
+          (acc, item, index) => (item ? acc : [...acc, index]),
+          []
+        );
 
-      const tryUpload = async () => {
-        if (shouldEncrypt(activeRoomJID) && !sealed) {
+      const uploadOne = async (index: number): Promise<void> => {
+        const file = files[index];
+        publishTile(index, { uploadStatus: 'uploading', uploadProgress: 0 });
+
+        // Helps RN's FormData polyfill build a proper multipart/file part
+        // (instead of serialising the JS object as JSON). On iOS the picker
+        // can return ph:// or assets-library:// URIs; coerce to file:// when
+        // possible so the body is a real blob.
+        const fileBlob = {
+          uri: normalizeFileUri(file?.uri) || file?.uri,
+          type: file?.type || file?.mimeType || type || 'application/octet-stream',
+          name: file?.name || file?.fileName || `media_${Date.now()}_${index}`,
+        };
+
+        // In an e2ee room each file is sealed before it leaves the device:
+        // the server only ever sees opaque bytes under a random name. The
+        // per-file keys ride in the encrypted <body> (see sendMediaMessage).
+        if (isE2ee) {
+          sealedUploads[index]?.dispose();
+          sealedUploads[index] = undefined;
           const { sealPickedFile } =
             require('../e2ee/sealedFiles') as typeof import('../e2ee/sealedFiles');
-          sealed = await sealPickedFile({
+          sealedUploads[index] = await sealPickedFile({
             uri: fileBlob.uri,
             name: fileBlob.name,
             type: fileBlob.type,
-            size: typeof data?.size === 'number' ? data.size : undefined,
+            size: typeof file?.size === 'number' ? file.size : undefined,
           });
         }
+        const sealed = sealedUploads[index];
+        if (sealed) {keyMaterials[index] = sealed.keyMaterial;}
         const part = sealed
           ? { uri: sealed.uri, type: 'application/octet-stream', name: sealed.name }
           : fileBlob;
-        const options = { clientEncrypted: !!sealed };
-        const fd = new FormData();
-        fd.append('files', part as any);
+        const options = {
+          clientEncrypted: !!sealed,
+          onProgress: (percent: number) =>
+            publishTile(index, { uploadProgress: percent }),
+        };
+        const post = (field: 'files' | 'file') => {
+          const fd = new FormData();
+          fd.append(field, part as any);
+          return uploadFileV2(fd, activeRoomJID, options);
+        };
+
+        let response: { data: any };
         try {
-          return await uploadFileV2(fd, activeRoomJID, options);
+          response = await post('files');
         } catch (err: any) {
-          if (err?.response?.status === 500) {
-            console.warn(
-              'upload "files" field returned 500 — retrying with "file" (singular)',
-              { name: part.name, type: part.type }
-            );
-            const fd2 = new FormData();
-            fd2.append('file', part as any);
-            return await uploadFileV2(fd2, activeRoomJID, options);
-          }
-          throw err;
+          if (err?.response?.status !== 500) {throw err;}
+          console.warn(
+            'upload "files" field returned 500 - retrying with "file" (singular)',
+            { name: part.name, type: part.type }
+          );
+          response = await post('file');
         }
+
+        const raw = Array.isArray(response?.data?.results)
+          ? response.data.results[0]
+          : undefined;
+        if (!raw) {throw new Error('media_upload_empty_response');}
+
+        uploaded[index] = toUploadedAttachment(raw);
+        rawResults[index] = raw;
+        // The bytes are up; the message waits for its siblings.
+        publishTile(index, { uploadStatus: 'uploading', uploadProgress: 100 });
       };
 
-      try {
-        const response = await tryUpload();
-        // Upload succeeded — the stanza is now in flight. If the
-        // server echo arrives within the watchdog window the bubble
-        // flips normally; if not, the watchdog still fires and marks
-        // it failed. We don't clear the timer on upload success because
-        // the XMPP send could still fail silently.
+      const sendAssembled = async (): Promise<void> => {
+        const raws = rawResults as any[];
+        const attachments = uploaded as IAttachment[];
+        const head = raws[0];
 
-        for (const item of response.data.results) {
-          const messagePayload = {
-            firstName: user.firstName,
-            lastName: user.lastName,
-            walletAddress: user.walletAddress,
-            createdAt: item.createdAt,
-            expiresAt: item.expiresAt,
-            fileName: item.filename,
-            isVisible: item?.isVisible,
-            location: item.location,
-            locationPreview: item.locationPreview,
-            mimetype: item.mimetype,
-            originalName: item?.originalname,
-            ownerKey: item?.ownerKey,
-            size: item.size,
-            duration: item?.duration ?? data?.duration,
-            waveForm: data?.waveForm,
-            updatedAt: item?.updatedAt,
-            userId: item?.userId,
-            attachmentId: item?._id,
-            wrappable: true,
-            roomJid: activeRoomJID,
-            showInChannel: isChecked,
-            isReply,
-            mainMessage,
-            isPrivate: item?.isPrivate,
-            __v: item.__v,
-            e2eeKeys: sealed ? [sealed.keyMaterial] : undefined,
-          };
-          if (sealed) {
+        const messagePayload = {
+          firstName: user.firstName,
+          lastName: user.lastName,
+          walletAddress: user.walletAddress,
+          createdAt: head.createdAt,
+          expiresAt: head.expiresAt,
+          fileName: head.filename,
+          isVisible: head?.isVisible,
+          location: head.location,
+          locationPreview: head.locationPreview,
+          mimetype: head.mimetype,
+          originalName: head?.originalname,
+          ownerKey: head?.ownerKey,
+          size: head.size,
+          duration: head?.duration ?? first?.duration,
+          waveForm: first?.waveForm,
+          updatedAt: head?.updatedAt,
+          userId: head?.userId,
+          attachmentId: head?._id,
+          // Only when there is more than one file: sendMediaMessage stamps
+          // the list on <data> and leaves a single-file stanza untouched.
+          attachments: attachments.length > 1 ? attachments : undefined,
+          caption: captionFields?.caption,
+          captionMentions: captionFields?.mentions,
+          wrappable: true,
+          roomJid: activeRoomJID,
+          showInChannel: isChecked,
+          isReply,
+          mainMessage,
+          isPrivate: head?.isPrivate,
+          __v: head.__v,
+          // One key per sealed file, in selection order.
+          e2eeKeys: isE2ee
+            ? (keyMaterials as string[])
+            : undefined,
+        };
+
+        // The local copies of sealed files are remembered for the sender and
+        // the scratch ciphertext is dropped.
+        if (isE2ee) {
+          const { rememberOpened } =
+            require('../e2ee/sealedFiles') as typeof import('../e2ee/sealedFiles');
+          for (let index = 0; index < files.length; index++) {
+            const item = attachments[index];
             try {
-              const { rememberOpened } =
-                require('../e2ee/sealedFiles') as typeof import('../e2ee/sealedFiles');
               await rememberOpened(item.location, {
-                uri: fileBlob.uri,
-                name: fileBlob.name,
-                type: fileBlob.type,
-                size: typeof data?.size === 'number' ? data.size : undefined,
+                uri: normalizeFileUri(files[index]?.uri) || files[index]?.uri,
+                name: files[index]?.name,
+                type: files[index]?.type || files[index]?.mimeType || type,
+                size: typeof files[index]?.size === 'number' ? files[index].size : undefined,
               });
             } catch (err) {
               console.warn('could not keep the sent attachment', err);
             }
-            sealed.dispose();
-          }
-          // Stanza id == placeholder id so the MUC echo's outer
-          // <message id="..."> matches xmppId on the placeholder and
-          // insertMessageWithDelimiter merges in place + flips pending.
-          // Same online-only guard as the text path: a surviving-but-offline
-          // client must NOT be used (the stanza would vanish into a dead
-          // socket) — fall through to enqueue so the reconnect flush replays.
-          const effectiveMediaClient: any = [
-            client,
-            getGlobalXmppClient(),
-            store.getState()?.chatSettingStore?.client,
-          ].find((c: any) => c && c.status === 'online');
-          if (effectiveMediaClient) {
-            effectiveMediaClient.setActiveRoomJid?.(activeRoomJID);
-            await Promise.resolve(
-              effectiveMediaClient.prioritizeRoomPresence?.(activeRoomJID)
-            ).catch(() => false);
-            effectiveMediaClient.sendMediaMessageStanza(
-              activeRoomJID,
-              messagePayload,
-              id
-            );
-            try {
-              effectiveMediaClient.ensureStreamAlive?.();
-            } catch {}
-          } else {
-            const anyMediaClient: any =
-              client ||
-              getGlobalXmppClient() ||
-              store.getState()?.chatSettingStore?.client;
-            try {
-              anyMediaClient?.forceReconnect?.();
-            } catch {}
-            enqueueOutboundSend({
-              optimisticId: id,
-              roomJID: activeRoomJID,
-              enqueuedAt: Date.now(),
-              // Match the media watchdog so a reconnect within the (longer)
-              // media window still auto-replays the buffered stanza.
-              ttlMs: MEDIA_PENDING_WATCHDOG_MS,
-              send: (c) =>
-                c.sendMediaMessageStanza(activeRoomJID, messagePayload, id),
-            });
+            sealedUploads[index]?.dispose();
+            sealedUploads[index] = undefined;
           }
         }
+
+        // Replace the optimistic tiles with the uploaded files. A sealed
+        // message keeps its local tiles (the server copies are ciphertext) and
+        // only drops the upload state. `pending` is left alone: only the
+        // server echo confirms the message.
+        if (!config?.disableSentLogic) {
+          dispatch(
+            setMessageAttachments({
+              roomJID: activeRoomJID,
+              messageId: id,
+              attachments: isE2ee
+                ? tiles.map(withoutUploadState)
+                : attachments.map((attachment, index) => {
+                    const localUrl = tiles[index]?.localUrl;
+                    return localUrl ? { ...attachment, localUrl } : attachment;
+                  }),
+            })
+          );
+        }
+
+        const effectiveMediaClient: any = [
+          client,
+          getGlobalXmppClient(),
+          store.getState()?.chatSettingStore?.client,
+        ].find((c: any) => c && c.status === 'online');
+        if (effectiveMediaClient) {
+          effectiveMediaClient.setActiveRoomJid?.(activeRoomJID);
+          await Promise.resolve(
+            effectiveMediaClient.prioritizeRoomPresence?.(activeRoomJID)
+          ).catch(() => false);
+          effectiveMediaClient.sendMediaMessageStanza(activeRoomJID, messagePayload, id);
+          try {
+            effectiveMediaClient.ensureStreamAlive?.();
+          } catch {}
+        } else {
+          // Same online-only guard as the text path: a surviving-but-offline
+          // client must NOT be used. Buffer the stanza for the reconnect flush.
+          const anyMediaClient: any =
+            client ||
+            getGlobalXmppClient() ||
+            store.getState()?.chatSettingStore?.client;
+          try {
+            anyMediaClient?.forceReconnect?.();
+          } catch {}
+          enqueueOutboundSend({
+            optimisticId: id,
+            roomJID: activeRoomJID,
+            enqueuedAt: Date.now(),
+            // Match the media watchdog so a reconnect within the (longer)
+            // media window still auto-replays the buffered stanza.
+            ttlMs: MEDIA_PENDING_WATCHDOG_MS,
+            send: (c) => c.sendMediaMessageStanza(activeRoomJID, messagePayload, id),
+          });
+        }
+
+        // The upload time is spent: the wait for the server echo gets a full
+        // watchdog window of its own, not what was left of the upload's.
+        clearTimeout(mediaWatchdog);
+        mediaWatchdog = armWatchdog();
+
+        delivered = true;
+        unregisterMediaRetry(id);
+        dispatch(clearMessageFailure(id));
 
         await handleMessageSent({
           message: 'media',
@@ -687,63 +859,79 @@ export const useSendMessage = (_configOverride?: IConfig) => {
             fileData: data,
             fileType: type,
             messageId: id,
-            uploadResults: response.data.results,
+            uploadResults: raws,
           },
         });
-      } catch (error: any) {
-        // Upload (or stanza send) threw an explicit error. Clear the
-        // watchdog so it doesn't double-fire `markMessageFailed`.
-        clearTimeout(mediaWatchdog);
-        sealed?.dispose();
-        // Surface the real server payload so we can see why the upload
-        // was rejected (axios collapses the message to "Request failed
-        // with status code N"; the actual reason lives in
-        // `error.response.data`).
-        const uriStr = typeof data?.uri === 'string' ? data.uri : '';
-        const uriScheme = uriStr.match(/^([a-z]+):/i)?.[1] ?? 'unknown';
-        console.error('upload failed', {
-          status: error?.response?.status,
-          statusText: error?.response?.statusText,
-          serverBody: error?.response?.data,
-          requestUrl: error?.config?.url,
-          axiosMessage: error?.message,
-          axiosCode: error?.code,
-          axiosCauseMessage: error?.cause?.message,
-          uri: uriStr,
-          uriScheme,
-          mime: fileBlob.type,
-          fileSizeBytes: data?.size ?? null,
-          fileName: fileBlob.name,
-          platformOS: Platform.OS,
-          platformVersion: Platform.Version,
-        });
-        dispatch(
-          markMessageFailed({
-            kind: 'media',
-            id,
-            roomJID: activeRoomJID,
-            data,
-            type,
-            isReply,
-            isChecked,
-            mainMessage,
-          })
-        );
+      };
+
+      const failMessage = (error: unknown) => {
+        console.error('Media send failed:', error);
+        // Every file stays held: the bubble shows Failed, and Retry replays
+        // the files that did not make it (in-session) or the whole list.
+        dispatch(markMessageFailed(failedPayload()));
         handleMessageFailed({
           message: 'media',
           roomJID: activeRoomJID,
           error: error as Error,
           messageType: 'media',
         });
-      }
+      };
+
+      /**
+       * Uploads `indices` (a retry passes only the files that failed), then
+       * sends once nothing is missing. Any failure leaves the message failed
+       * with its tiles marked, ready for a retry.
+       */
+      const run = async (indices: number[]): Promise<boolean> => {
+        if (delivered || running) {return false;}
+        running = true;
+        clearTimeout(mediaWatchdog);
+        mediaWatchdog = armWatchdog();
+        try {
+          await mapWithConcurrency(indices, concurrency, async (index) => {
+            try {
+              await uploadOne(index);
+            } catch (error: any) {
+              console.error('upload failed', {
+                status: error?.response?.status,
+                serverBody: error?.response?.data,
+                axiosMessage: error?.message,
+                fileName: files[index]?.name,
+                fileSizeBytes: files[index]?.size ?? null,
+                platformOS: Platform.OS,
+              });
+              publishTile(index, { uploadStatus: 'failed', uploadProgress: 0 });
+            }
+          });
+          if (missingIndices().length > 0) {
+            throw new Error('media_upload_failed');
+          }
+          await sendAssembled();
+          return true;
+        } catch (error) {
+          failMessage(error);
+          return false;
+        } finally {
+          running = false;
+        }
+      };
+
+      registerMediaRetry(id, (indices?: number[]) =>
+        run(
+          missingIndices().filter(
+            (position) => indices === undefined || indices.includes(position)
+          )
+        )
+      );
+
+      return run(files.map((_, index) => index));
     },
     [client, config, user, dispatch, handleMessageSent, handleMessageFailed, reduxStore]
   );
 
-  // Retry a previously-failed send by replaying the saved payload from
-  // the heap. Clears the failure flag first so the bubble flips back to
-  // "sending..."; if the retry fails again `markMessageFailed` re-arms
-  // it. No-op when the id isn't in the failed map.
+  // Retry a previously-failed send. An in-session send re-runs only the files
+  // still missing (its runner is still registered); after a restart the
+  // saved payload is replayed as a whole. No-op when the id isn't failed.
   const retryMessage = useCallback(
     async (failedId: string) => {
       const payload =
@@ -783,17 +971,28 @@ export const useSendMessage = (_configOverride?: IConfig) => {
           // instead of spawning a duplicate bubble.
           failedId
         );
-      } else {
-        await sendMedia(
-          payload.data,
-          payload.type,
-          payload.roomJID,
-          payload.isReply,
-          payload.isChecked,
-          payload.mainMessage,
-          failedId
-        );
+        return;
       }
+      if (hasMediaRetry(failedId)) {
+        await retryMediaSend(failedId);
+        return;
+      }
+      const list =
+        Array.isArray(payload.files) && payload.files.length > 0
+          ? payload.files
+          : payload.data;
+      await sendMedia(
+        list,
+        payload.type,
+        payload.roomJID,
+        payload.isReply,
+        payload.isChecked,
+        payload.mainMessage,
+        failedId,
+        payload.caption
+          ? { text: payload.caption, mentions: payload.captionMentions }
+          : undefined
+      );
     },
     [reduxStore, dispatch, handleMessageRetry, sendMessage, sendMedia]
   );

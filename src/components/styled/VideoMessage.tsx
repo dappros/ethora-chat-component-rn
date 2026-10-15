@@ -29,6 +29,10 @@ interface CustomMessageVideoProps {
   mimetype: string;
   /** The backend-generated poster frame (message.locationPreview). */
   previewURL?: string;
+  /** Album mode: fill a tile of exactly this size (square corners; the tile clips). */
+  tile?: { width: number; height: number };
+  /** Replaces the default "open this one file" tap, e.g. to open an album at an index. */
+  onOpen?: () => void;
 }
 
 const PlayBadge: React.FC = () => (
@@ -51,11 +55,13 @@ const PosterVideo: React.FC<{
   previewURL: string;
   onOpen: () => void;
   onPosterError: () => void;
-}> = ({ previewURL, onOpen, onPosterError }) => {
-  const [dims, setDims] = useState<MediaDims>(defaultMediaDims());
+  tile?: { width: number; height: number };
+}> = ({ previewURL, onOpen, onPosterError, tile }) => {
+  const [measured, setDims] = useState<MediaDims>(defaultMediaDims());
+  const dims: MediaDims = tile ?? measured;
 
   useEffect(() => {
-    if (!previewURL) {
+    if (!previewURL || tile) {
       return;
     }
     let active = true;
@@ -73,12 +79,16 @@ const PosterVideo: React.FC<{
     return () => {
       active = false;
     };
-  }, [previewURL]);
+  }, [previewURL, tile]);
 
   return (
     <Pressable
       onPress={onOpen}
-      style={[styles.wrapper, { width: dims.width, height: dims.height }]}
+      style={[
+        styles.wrapper,
+        { width: dims.width, height: dims.height },
+        tile && styles.tileWrapper,
+      ]}
       accessibilityRole="button"
       accessibilityLabel="Play video"
     >
@@ -115,13 +125,18 @@ const PosterVideo: React.FC<{
  */
 const PlaceholderVideo: React.FC<{
   onOpen: () => void;
-}> = ({ onOpen }) => {
-  const dims = defaultMediaDims();
+  tile?: { width: number; height: number };
+}> = ({ onOpen, tile }) => {
+  const dims = tile ?? defaultMediaDims();
 
   return (
     <Pressable
       onPress={onOpen}
-      style={[styles.wrapper, { width: dims.width, height: dims.height }]}
+      style={[
+        styles.wrapper,
+        { width: dims.width, height: dims.height },
+        tile && styles.tileWrapper,
+      ]}
       accessibilityRole="button"
       accessibilityLabel="Play video"
     >
@@ -136,11 +151,17 @@ const CustomMessageVideo: React.FC<CustomMessageVideoProps> = ({
   fileURL,
   mimetype,
   previewURL,
+  tile,
+  onOpen,
 }) => {
   const dispatch = useDispatch();
   const [posterFailed, setPosterFailed] = useState(false);
 
   const handleOpen = () => {
+    if (onOpen) {
+      onOpen();
+      return;
+    }
     dispatch(setActiveFile({ fileName, fileURL, mimetype, originalName }));
     dispatch(setActiveModal(MODAL_TYPES.FILE_PREVIEW));
   };
@@ -150,6 +171,7 @@ const CustomMessageVideo: React.FC<CustomMessageVideoProps> = ({
       <PosterVideo
         previewURL={previewURL}
         onOpen={handleOpen}
+        tile={tile}
         onPosterError={() => {
           if (isSecureFileUrl(previewURL)) {
             requestFileTokenRecovery();
@@ -160,7 +182,7 @@ const CustomMessageVideo: React.FC<CustomMessageVideoProps> = ({
     );
   }
 
-  return <PlaceholderVideo onOpen={handleOpen} />;
+  return <PlaceholderVideo onOpen={handleOpen} tile={tile} />;
 };
 
 export default CustomMessageVideo;
@@ -170,6 +192,9 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     overflow: 'hidden',
     backgroundColor: '#000',
+  },
+  tileWrapper: {
+    borderRadius: 0,
   },
   video: {
     width: '100%',

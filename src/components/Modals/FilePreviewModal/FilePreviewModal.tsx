@@ -430,6 +430,17 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
     }
   };
 
+  // An album opens with its siblings; the viewer pages through them.
+  const albumSize = activeFile.siblings?.length ?? 0;
+  const albumIndex = activeFile.index ?? 0;
+  const goToSibling = (next: number) => {
+    const target = activeFile.siblings?.[next];
+    if (!target) {return;}
+    dispatch(
+      setActiveFile({ ...target, siblings: activeFile.siblings, index: next })
+    );
+  };
+
   const closeModal = () => {
     dispatch(
       setActiveFile({
@@ -606,6 +617,39 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
         {getMediaComponent}
       </CenterContainer>
 
+      {albumSize > 1 && (
+        <View style={styles.albumNav} testID="file-preview-album-nav">
+          <TouchableOpacity
+            testID="file-preview-prev"
+            accessibilityRole="button"
+            accessibilityLabel={t('attachment.previous')}
+            disabled={albumIndex <= 0}
+            onPress={() => goToSibling(albumIndex - 1)}
+            hitSlop={12}
+            style={[styles.albumArrow, albumIndex <= 0 && styles.albumArrowOff]}
+          >
+            <Text style={[styles.albumArrowText, { color: theme.text }]}>{'\u2039'}</Text>
+          </TouchableOpacity>
+          <Text style={{ color: theme.textSecondary }}>
+            {t('attachment.position', { index: albumIndex + 1, total: albumSize })}
+          </Text>
+          <TouchableOpacity
+            testID="file-preview-next"
+            accessibilityRole="button"
+            accessibilityLabel={t('attachment.next')}
+            disabled={albumIndex >= albumSize - 1}
+            onPress={() => goToSibling(albumIndex + 1)}
+            hitSlop={12}
+            style={[
+              styles.albumArrow,
+              albumIndex >= albumSize - 1 && styles.albumArrowOff,
+            ]}
+          >
+            <Text style={[styles.albumArrowText, { color: theme.text }]}>{'\u203A'}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
     </ModalContainerFullScreen>
   );
 };
@@ -628,6 +672,26 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 13,
     fontWeight: '600',
+  },
+  albumNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 24,
+    paddingBottom: 24,
+  },
+  albumArrow: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  albumArrowOff: {
+    opacity: 0.3,
+  },
+  albumArrowText: {
+    fontSize: 32,
+    lineHeight: 36,
   },
   videoMessage: {
     alignItems: 'center',

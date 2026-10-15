@@ -38,6 +38,8 @@ jest.mock('../src/networking/stanzaHandlers', () => {
     onReactionHistory: noop(),
     onRoomKicked: noop(),
     onMessageError: noop(),
+    onReceivedReceipt: noop(),
+    onDisplayedMarker: noop(),
   };
 });
 

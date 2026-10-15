@@ -11,6 +11,8 @@ jest.mock('../src/networking/stanzaHandlers', () => ({
   onEditMessage: jest.fn(),
   onRealtimeMessage: jest.fn(),
   onMessageHistory: jest.fn(),
+  onReceivedReceipt: jest.fn(),
+  onDisplayedMarker: jest.fn(),
   onGetLastMessageArchive: jest.fn(),
   handleComposing: jest.fn(),
   onChatInvite: jest.fn(),
@@ -35,6 +37,8 @@ const HANDLER_NAMES = [
   'onEditMessage',
   'onRealtimeMessage',
   'onMessageHistory',
+  'onReceivedReceipt',
+  'onDisplayedMarker',
   'onGetLastMessageArchive',
   'handleComposing',
   'onChatInvite',
@@ -73,8 +77,8 @@ describe('handleStanza — dispatch table', () => {
     expect(handlers.onDeleteMessage).toHaveBeenCalledWith(s);
     expect(handlers.onEditMessage).toHaveBeenCalledWith(s);
     expect(handlers.onChatInvite).toHaveBeenCalledWith(s, fakeXmpp);
-    expect(handlers.onRealtimeMessage).toHaveBeenCalledWith(s);
-    expect(handlers.onMessageHistory).toHaveBeenCalledWith(s);
+    expect(handlers.onRealtimeMessage).toHaveBeenCalledWith(s, fakeXmpp);
+    expect(handlers.onMessageHistory).toHaveBeenCalledWith(s, fakeXmpp);
     expect(handlers.handleComposing).toHaveBeenCalledWith(s, '0xself');
     expect(handlers.onPresenceInRoom).toHaveBeenCalledWith(s);
     // Presence/IQ-only handlers stay quiet.
@@ -150,8 +154,8 @@ describe('handleStanza — dispatch table', () => {
 
     handleStanza(outer, fakeXmpp);
 
-    expect(handlers.onRealtimeMessage).toHaveBeenCalledWith(inner);
-    expect(handlers.onMessageHistory).toHaveBeenCalledWith(inner);
+    expect(handlers.onRealtimeMessage).toHaveBeenCalledWith(inner, fakeXmpp);
+    expect(handlers.onMessageHistory).toHaveBeenCalledWith(inner, fakeXmpp);
     expect(handlers.onDeleteMessage).toHaveBeenCalledWith(inner);
     expect(handlers.onEditMessage).toHaveBeenCalledWith(inner);
     // Never the outer envelope — that's the exact bug being guarded against.
@@ -161,6 +165,6 @@ describe('handleStanza — dispatch table', () => {
   it('a plain (non-mucsub) <message> passes through unchanged', () => {
     const s = stanza('message');
     handleStanza(s, fakeXmpp);
-    expect(handlers.onRealtimeMessage).toHaveBeenCalledWith(s);
+    expect(handlers.onRealtimeMessage).toHaveBeenCalledWith(s, fakeXmpp);
   });
 });
