@@ -216,12 +216,12 @@ describe('file name repair at the normalisation point', () => {
   });
 
   it('repairs the legacy single-file path', () => {
-    const [attachment] = getMessageAttachments({
+    const [first] = getMessageAttachments({
       location: 'https://x/f.pdf',
       mimetype: 'application/pdf',
       originalName: broken,
     } as never);
-    expect(attachment.originalName).toBe('Список.pdf');
+    expect(first!.originalName).toBe('Список.pdf');
   });
 
   it('repairs the upload result mapping', () => {

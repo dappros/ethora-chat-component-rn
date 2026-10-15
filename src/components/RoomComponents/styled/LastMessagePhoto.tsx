@@ -29,7 +29,10 @@ interface LastMessagePhotoProps
   extends Pick<
     LastMessage,
     'user' | 'originalName' | 'fileName' | 'mimetype' | 'locationPreview'
-  > {}
+  > {
+  /** Replaces the file name: the caption, or the count of files. */
+  label?: string;
+}
 
 const LastMessagePhoto: FC<LastMessagePhotoProps> = ({
   user,
@@ -37,6 +40,7 @@ const LastMessagePhoto: FC<LastMessagePhotoProps> = ({
   originalName,
   fileName,
   mimetype,
+  label,
 }) => {
   const fileToken = useFileToken();
   // Bug #40: prefer the sender's original name over the stored hash
@@ -60,7 +64,7 @@ const LastMessagePhoto: FC<LastMessagePhotoProps> = ({
             <LastMessageImg src={appendFileToken(locationPreview, fileToken)} />
           </ShadeWrapper>
         </PhotoContainer>
-        <LastRoomMessageText>{displayName}</LastRoomMessageText>
+        <LastRoomMessageText>{label ?? displayName}</LastRoomMessageText>
       </View>
     </LastRoomMessageContainer>
   );

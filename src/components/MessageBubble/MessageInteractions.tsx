@@ -26,6 +26,7 @@ import { useInteractionsOverlay } from './InteractionsOverlay';
 import { useTheme } from '../../hooks/useTheme';
 import { useT } from '../../i18n/useT';
 import { getEmojiNativeById } from '../../helpers/emoji';
+import { getMessageCaption } from '../../helpers/caption';
 import {
   quickReactionIds,
   reactionPickerEnabled,
@@ -376,7 +377,7 @@ const MessageInteractions: React.FC<MessageInteractionsProps> = ({
               <Delimeter />
             </>
           )}
-          <MenuItem onPress={() => handleCopyMessage(message.body!)}>
+          <MenuItem onPress={() => handleCopyMessage(getMessageCaption(message) ?? message.body!)}>
             <Text style={[styles.menuText, themedStyles.text]}>
               {MESSAGE_INTERACTIONS.COPY}
             </Text>
