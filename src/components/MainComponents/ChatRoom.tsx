@@ -201,14 +201,16 @@ const ChatRoom: React.FC<ChatRoomProps> = React.memo(
     );
 
     const sendMedia = useCallback(
-      (data: any, type: string) => {
+      (data: any, type: string, caption?: { text: string }) => {
         // Return the promise so callers can sequence the follow-up
         // text send AFTER the upload finishes (consumer expectation:
         // media first, text second — never interleaved).
         if (store.getState().rooms.jumpWindow) {
           dispatch(clearJumpWindow());
         }
-        return sendMessageMedia(data, type, activeRoomJID || '');
+        return caption
+          ? sendMessageMedia(data, type, activeRoomJID || '', false, false, '', undefined, caption)
+          : sendMessageMedia(data, type, activeRoomJID || '');
       },
       [activeRoomJID, dispatch],
     );
