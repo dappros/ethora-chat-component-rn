@@ -1129,6 +1129,13 @@ export interface ModalFile {
   originalName?: string;
   duration?: number | string;
   waveForm?: string;
+  /**
+   * The other files of the album this one was opened from, this one
+   * included, in order. With `index` it lets the viewer page through them.
+   */
+  siblings?: ModalFile[];
+  /** Position of this file in `siblings`. */
+  index?: number;
 }
 
 // Re-export so middleware/hooks that historically import from `types`
