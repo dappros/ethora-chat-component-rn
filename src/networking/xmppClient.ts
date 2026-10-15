@@ -17,6 +17,8 @@ import {
 } from './xmpp/getHistory.xmpp';
 import { sendTextMessage } from './xmpp/sendTextMessage.xmpp';
 import { sendMessageReaction } from './xmpp/sendMessageReaction.xmpp';
+import { sendReceivedReceipt } from './xmpp/sendReceivedReceipt.xmpp';
+import { sendDisplayedMarker } from './xmpp/sendDisplayedMarker.xmpp';
 import { sendTextMessageWithTranslateTag } from './xmpp/sendTextMessageWithTranslateTag.xmpp';
 import { deleteMessage } from './xmpp/deleteMessage.xmpp';
 import { RoomJoinManager } from './xmpp/roomJoinSweep';
@@ -48,6 +50,8 @@ import {
 
 // Canonical production XMPP WSS endpoint (standard wss/443, no port suffix).
 const DEFAULT_DEV_SERVER = 'xmpp.chat.ethora.com';
+// Upper bound on remembered XEP-0184 acks (oldest forgotten first).
+const RECEIPT_ACKED_CAP = 2000;
 
 // How long to wait for the old client's stop() during a reconnect before
 // giving up on it. Short on purpose: we are already tearing this client
@@ -279,6 +283,13 @@ export class XmppClient {
   }
   disableLastRead = false;
   private activeRoomJID: string | null = null;
+  // XEP-0184 acks already sent, as `room:messageId`. A message is acked once,
+  // whether it arrived live or again inside a MAM page. Oldest entries drop
+  // first once the set passes the cap.
+  private receiptAckedIds: Set<string> = new Set();
+  // XEP-0333: the last read watermark sent per room. A repeat flush for the
+  // same newest message sends nothing.
+  private lastWatermarkSentByRoom: Map<string, string> = new Map();
   private activeRoomBoostUntil = 0;
   private softPauseUntil = 0;
   private mamInFlightByRoom: Map<string, MamInFlightEntry> = new Map();
@@ -1592,6 +1603,40 @@ export class XmppClient {
     console.warn('createPrivateRoomStanza: not implemented; falling back to createRoom');
     const result = await this.createRoomStanza(title, description, to);
     return typeof result === 'string' ? result : '';
+  }
+
+  /**
+   * XEP-0184 delivery receipt for a message from someone else. Sent for live
+   * messages and for messages a MAM page brings in; a message already acked
+   * is skipped. When the stream is down nothing is recorded, so a later page
+   * can still ack it.
+   */
+  sendReceivedReceiptStanza(messageId: string, roomJid: string) {
+    if (!messageId || !roomJid || !this.isStreamReady()) {return;}
+    const jid = normalizeRoomJid(roomJid, this.conference);
+    const key = `${jid}:${messageId}`;
+    if (this.receiptAckedIds.has(key)) {return;}
+    this.receiptAckedIds.add(key);
+    if (this.receiptAckedIds.size > RECEIPT_ACKED_CAP) {
+      const oldest = this.receiptAckedIds.values().next().value;
+      if (oldest !== undefined) {this.receiptAckedIds.delete(oldest);}
+    }
+    sendReceivedReceipt(this.client, messageId, jid);
+  }
+
+  /**
+   * XEP-0333 read watermark for a room: the newest message the user has
+   * displayed. Off with `disableLastRead` or `config.disableReadReceipts`.
+   * The caller decides when the room counts as read (see computeReadWatermark).
+   */
+  sendDisplayedMarkerStanza(messageId: string, roomJid: string) {
+    if (this.disableLastRead) {return;}
+    if (store.getState().chatSettingStore.config?.disableReadReceipts) {return;}
+    if (!messageId || !roomJid || !this.isStreamReady()) {return;}
+    const jid = normalizeRoomJid(roomJid, this.conference);
+    if (this.lastWatermarkSentByRoom.get(jid) === messageId) {return;}
+    this.lastWatermarkSentByRoom.set(jid, messageId);
+    sendDisplayedMarker(this.client, messageId, jid);
   }
 
   sendMessageReactionStanza(

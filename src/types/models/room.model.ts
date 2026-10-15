@@ -52,6 +52,8 @@ export interface IRoom {
   composing?: boolean;
   composingList?: string[];
   lastViewedTimestamp?: number;
+  /** XEP-0333 read watermark per user (last displayed message id). Session-only. */
+  lastDisplayedByUser?: Record<string, string>;
   unreadMessages?: number;
   /**
    * Unread count the server reported for this room in `GET /v1/chats/my`

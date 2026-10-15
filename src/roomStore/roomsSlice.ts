@@ -1472,6 +1472,53 @@ const reducers = {
         list.push({ from, reactions, data, ts: latestReactionTimestamp });
       }
     },
+    /**
+     * XEP-0184: an occupant's client acknowledged one of our messages. Only
+     * the message id is matched (archive ids), on the live list and on a jump
+     * window copy. Session-only: not persisted.
+     */
+    setReceivedReceipt: (
+      state: WritableDraft<RoomMessagesState>,
+      action: PayloadAction<{
+        roomJID: string;
+        messageId: string;
+        fromXmppUsername: string;
+        timestamp: number;
+      }>
+    ) => {
+      const { roomJID, messageId, fromXmppUsername, timestamp } = action.payload;
+      // Both keys become property names: an unsafe key must never reach the write.
+      if (!isSafeKey(roomJID) || !isSafeKey(fromXmppUsername)) {return;}
+      if (!state.rooms[roomJID] || !messageId) {return;}
+      forEachMessageCopy(
+        state,
+        roomJID,
+        (message) => message.id === messageId,
+        (message) => {
+          if (!message.receivedBy) {message.receivedBy = {};}
+          message.receivedBy[fromXmppUsername] = timestamp;
+        }
+      );
+    },
+    /**
+     * XEP-0333: an occupant displayed up to `messageId`. One watermark per
+     * user and room, replaced on every marker. Session-only: not persisted.
+     */
+    setDisplayedMarker: (
+      state: WritableDraft<RoomMessagesState>,
+      action: PayloadAction<{
+        roomJID: string;
+        xmppUsername: string;
+        messageId: string;
+      }>
+    ) => {
+      const { roomJID, xmppUsername, messageId } = action.payload;
+      if (!isSafeKey(roomJID) || !isSafeKey(xmppUsername)) {return;}
+      const room = state.rooms[roomJID];
+      if (!room || !messageId) {return;}
+      if (!room.lastDisplayedByUser) {room.lastDisplayedByUser = {};}
+      room.lastDisplayedByUser[xmppUsername] = messageId;
+    },
     setLogoutState: (state: WritableDraft<RoomMessagesState>) => {
       state.rooms = {};
       state.pendingReactions = {};
@@ -1733,6 +1780,8 @@ export const {
   setJoiningRoom,
   clearJoiningRoom,
   setReactions,
+  setReceivedReceipt,
+  setDisplayedMarker,
   mergeUsersSet,
   removeRoomMessage,
   addRoomFromApi,

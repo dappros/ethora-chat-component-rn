@@ -93,6 +93,26 @@ const reactionRow = (
      </message>`
   );
 
+// A receipt or read marker archived with the room: no <data>, no <body>.
+const markerRow = (queryId: string, id: string, kind: 'received' | 'displayed') =>
+  parse(
+    `<message from="${ROOM}">
+       <result xmlns="urn:xmpp:mam:2" queryid="${queryId}" id="${id}">
+         <forwarded xmlns="urn:xmpp:forward:0">
+           <delay xmlns="urn:xmpp:delay" stamp="2026-10-14T08:42:00.000Z"/>
+           <message from="${ROOM}/${REACTOR}" id="message-${kind === 'received' ? 'received' : 'displayed'}:${id}" type="groupchat">
+             ${
+               kind === 'received'
+                 ? `<received xmlns="urn:xmpp:receipts" id="1700000000000" from="${REACTOR}@example.com"/>`
+                 : `<displayed xmlns="urn:xmpp:chat-markers:0" id="1700000000000" from="${REACTOR}@example.com"/>`
+             }
+             <store xmlns="urn:xmpp:hints"/>
+           </message>
+         </forwarded>
+       </result>
+     </message>`
+  );
+
 const fin = (
   id: string,
   opts: { complete?: string; first?: string; last?: string; count?: string } = {}
@@ -536,5 +556,37 @@ describe('getHistory compatibility', () => {
     void getHistory(client, ROOM, 10);
     const ids = send.mock.calls.map((c: any) => c[0].attrs.id);
     expect(new Set(ids).size).toBe(2);
+  });
+});
+
+describe('receipt markers in a page', () => {
+  beforeEach(() => seed());
+
+  it('a page of only receipt and read-marker rows adds no message and still moves the paging cursor', async () => {
+    seed([], 1500000000000000);
+    const { client } = makeClient(true);
+    const p = getHistoryPage(client, ROOM, 20, { id: 'mk' });
+    client.trigger('stanza', markerRow('mk', '1700000000001', 'received'));
+    client.trigger('stanza', markerRow('mk', '1700000000002', 'displayed'));
+    client.trigger('stanza', fin('mk', { first: '1700000000001', last: '1700000000002' }));
+    const page = await p;
+    expect(page.ok).toBe(true);
+    expect(page.messages).toEqual([]);
+    expect(page.received).toBe(2);
+    expect(room().messages).toHaveLength(0);
+    expect(cursorNow()).toBe(1700000000001);
+  });
+
+  it('a marker-only page does not count as a message for unread or history', async () => {
+    seed([cached('1700000000005')], 1700000000005);
+    const unreadBefore = room().unreadMessages;
+    const { client } = makeClient(true);
+    const p = getHistoryPage(client, ROOM, 20, { before: 1700000000005, id: 'mk2' });
+    client.trigger('stanza', markerRow('mk2', '1700000000003', 'received'));
+    client.trigger('stanza', fin('mk2', { first: '1700000000003', last: '1700000000003' }));
+    const page = await p;
+    expect(page.messages).toEqual([]);
+    expect(room().messages.map((m) => m.id)).toEqual(['1700000000005']);
+    expect(room().unreadMessages).toBe(unreadBefore);
   });
 });

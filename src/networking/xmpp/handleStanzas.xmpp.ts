@@ -5,6 +5,8 @@ import {
   onEditMessage,
   onRealtimeMessage,
   onMessageHistory,
+  onReceivedReceipt,
+  onDisplayedMarker,
   onGetLastMessageArchive,
   handleComposing,
   onChatInvite,
@@ -127,8 +129,10 @@ function dispatchStanza(stanza: Element, xmppWs: XmppClient) {
       onDeleteMessage(unwrapped);
       onEditMessage(unwrapped);
       onChatInvite(unwrapped, xmppWs);
-      onRealtimeMessage(unwrapped);
-      onMessageHistory(unwrapped);
+      onReceivedReceipt(unwrapped);
+      onDisplayedMarker(unwrapped);
+      onRealtimeMessage(unwrapped, xmppWs);
+      onMessageHistory(unwrapped, xmppWs);
       handleComposing(unwrapped, xmppWs.username);
       onPresenceInRoom(unwrapped);
       break;

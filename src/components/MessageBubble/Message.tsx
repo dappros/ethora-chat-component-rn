@@ -1,4 +1,5 @@
 import React, {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -15,7 +16,7 @@ import {
   Text,
   Keyboard,
 } from 'react-native';
-import { useDispatch, useSelector } from 'react-redux';
+import { shallowEqual, useDispatch, useSelector, useStore } from 'react-redux';
 import { RootState } from '../../roomStore';
 import { Avatar } from './Avatar';
 import { BubbleHighlight } from './BubbleHighlight';
@@ -43,7 +44,7 @@ import { useChatSettingState } from '../../hooks/useChatSettingState';
 import { parseMessageBody } from '../../helpers/parseMessageBody';
 import { chatTextStyle } from '../../helpers/typography';
 import { useMessageHeapState } from '../../hooks/useMessageHeapState';
-import { DoubleTick, LockIcon, LockOffIcon } from '../../assets/icons';
+import { DoubleTick, LockIcon, LockOffIcon, SingleTick } from '../../assets/icons';
 import { useT } from '../../i18n/useT';
 import { useFileToken } from '../../hooks/useFileToken';
 import {
@@ -66,6 +67,17 @@ import {
   requestUsers,
   subscribeUserResolver,
 } from '../../helpers/userResolver';
+import {
+  deliveredToOthers,
+  describeReceipt,
+  getReceiptStatus,
+  receiptNameFor,
+  selectSeenBy,
+  statusOf,
+} from '../../helpers/readReceipts';
+
+// Shared empty result for the seen-by selector (keeps shallowEqual cheap).
+const NO_RECEIPT_VIEWERS: string[] = [];
 
 // Stable-width stand-in for the sender name while its lookup is pending.
 const SENDER_NAME_PLACEHOLDER = '\u2026';
@@ -507,6 +519,42 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   const isPending =
     !isFailed && (idSet.has(message.id) || message?.pending || false);
 
+  // Delivery and read state of our own messages (XEP-0184 / XEP-0333). The
+  // seen list is a small array compared shallowly, so a bubble only renders
+  // again when its own readers change, not on every message in the room.
+  // Same identity the list uses to decide ownership (MessageList passes
+  // xmppUsername || walletAddress), so the tick and the watermark agree.
+  const selfXmppUsername = user?.xmppUsername || user?.walletAddress || '';
+  const seenBy = useSelector(
+    (state: RootState) =>
+      isUser
+        ? selectSeenBy(state, message.roomJid, String(message.id), selfXmppUsername)
+        : NO_RECEIPT_VIEWERS,
+    shallowEqual
+  );
+  const readStatus = statusOf(
+    seenBy,
+    isUser ? deliveredToOthers(message, selfXmppUsername) : []
+  );
+  const reduxStore = useStore<RootState>();
+  // Touch (no hover on mobile): the details sheet names who read or got it.
+  const onReceiptPress = useCallback(() => {
+    const state = reduxStore.getState();
+    const room = state.rooms.rooms[message.roomJid];
+    const details = getReceiptStatus(message, room, selfXmppUsername);
+    Alert.alert(
+      describeReceipt({
+        status: details.status,
+        isGroup: room?.type !== 'private',
+        seenBy: details.seenBy,
+        deliveredTo: details.deliveredTo,
+        nameOf: (xmppUsername) =>
+          receiptNameFor(state.rooms.usersSet, xmppUsername),
+        t,
+      })
+    );
+  }, [reduxStore, message, selfXmppUsername, t]);
+
   const onRetryPress = () => {
     if (isFailed) {retryMessage(message.id);}
   };
@@ -667,7 +715,27 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
           {timeLabel}
         </Text>
         {!config?.disableSentLogic && isUser && !isPending && !isFailed && (
-          <DoubleTick />
+          <Pressable
+            onPress={onReceiptPress}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel={
+              readStatus === 'seen'
+                ? t('message.receipt.read')
+                : readStatus === 'delivered'
+                  ? t('message.receipt.delivered')
+                  : t('message.receipt.sent')
+            }
+            testID="message-receipt-tick"
+          >
+            {readStatus === 'sent' ? (
+              <SingleTick stroke={theme.textMuted} />
+            ) : (
+              <DoubleTick
+                stroke={readStatus === 'seen' ? theme.primary : theme.textMuted}
+              />
+            )}
+          </Pressable>
         )}
       </CustomTimestampRow>
 
