@@ -720,7 +720,25 @@ export const ArowDownIcon = ({
   </Svg>
 );
 
-export const DoubleTick = ({ fill = '#fff', color = '#0052CD', ...props }) => (
+export const SingleTick = ({ stroke = '#16A34A', ...props }) => (
+  <Svg
+    width="16"
+    height="16"
+    viewBox="0 0 16 16"
+    fill="none"
+    {...props}
+  >
+    <Path
+      d="M4 8.5L7 11.5L12 5.5"
+      stroke={stroke}
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+export const DoubleTick = ({ fill = '#fff', color = '#0052CD', stroke = '#16A34A', ...props }) => (
   <Svg
     width="16"
     height="16"
@@ -730,7 +748,7 @@ export const DoubleTick = ({ fill = '#fff', color = '#0052CD', ...props }) => (
   >
     <Path
       d="M1.75 9.75L4.25 12.25M7.75 8.25L10.25 5.75M5.75 9.75L8.25 12.25L14.25 5.75"
-      stroke="#16A34A"
+      stroke={stroke}
       strokeWidth="1.5"
       strokeLinecap="round"
       strokeLinejoin="round"
