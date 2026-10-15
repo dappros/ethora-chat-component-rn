@@ -474,6 +474,15 @@ export interface IConfig {
   disableHeader?: boolean;
   disableMedia?: boolean;
   /**
+   * Limits for files picked in the composer. One message carries up to
+   * `maxFiles` files (hard ceiling 10, the default); `maxSizeMB` lowers the
+   * per-file cap below the built-in 50 MB upload limit.
+   */
+  attachments?: {
+    maxFiles?: number;
+    maxSizeMB?: number;
+  };
+  /**
    * Enable in-chat voice-message recording. **Opt-in — off by default.**
    * When `true`, an idle input (no text, no attachments) shows a
    * microphone in the send-button slot; tap → start recording → stop &

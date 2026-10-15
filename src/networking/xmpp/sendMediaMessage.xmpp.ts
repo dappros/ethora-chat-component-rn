@@ -1,5 +1,8 @@
 import { Client, xml } from '@xmpp/client';
 import { sendSealedMedia, shouldEncrypt } from '../../e2ee/send';
+import type { IAttachment, IMentionSpan } from '../../types/types';
+import { serializeAttachments } from '../../helpers/attachments';
+import { normalizeCaptionInput } from '../../helpers/caption';
 
 // Monotonic counter — see sendTextMessage for the rationale (avoids
 // Date.now() id collisions on <1ms-apart sends).
@@ -20,6 +23,18 @@ const toServiceXmlns = (devServer: string | undefined, client: Client): string =
   return `wss://${ds.replace(/^\/+|\/+$/g, '')}/ws`;
 };
 
+/**
+ * One media stanza for one or more files.
+ *
+ * `data` carries the flat fields that describe attachment #0, so a client
+ * that predates multi-attach still shows the first file. With more than one
+ * file the whole list rides on `<data attachments='JSON'>` (selection order).
+ *
+ * A typed caption rides on the message too: as `caption` / `captionMentions`
+ * attributes in a plain room, and inside the sealed <body> in an e2ee room
+ * (never as an attribute there). A message with one file and no caption is
+ * byte-identical to what this function produced before multi-attach.
+ */
 export function sendMediaMessage(
   client: Client,
   roomJID: string,
@@ -30,7 +45,7 @@ export function sendMediaMessage(
   const id =
     customId || `send-media-message-${Date.now()}-${(_sendMediaSeq = (_sendMediaSeq + 1) >>> 0)}`;
 
-  const dataToSend = {
+  const dataToSend: Record<string, unknown> = {
     xmlns: toServiceXmlns(devServer, client),
     senderJID: client.jid?.toString(),
     senderFirstName: data.firstName,
@@ -63,21 +78,63 @@ export function sendMediaMessage(
     push: 'true',
   };
 
+  // Only stamped when there is more than one file, so a single-file stanza
+  // keeps exactly the attributes it always had.
+  const files: IAttachment[] = Array.isArray(data?.attachments) ? data.attachments : [];
+  if (files.length > 1) {
+    // The flat fields describe attachment #0, whatever the caller passed, so
+    // an older client shows the first file of the message.
+    const head = files[0]!;
+    const flat: Array<keyof IAttachment> = [
+      'attachmentId',
+      'location',
+      'locationPreview',
+      'mimetype',
+      'originalName',
+      'fileName',
+      'size',
+      'duration',
+    ];
+    for (const key of flat) {
+      const value = head[key];
+      if (value !== undefined && value !== null && value !== '') {
+        dataToSend[key] = value;
+      }
+    }
+    dataToSend.attachments = serializeAttachments(files);
+  }
+
   const keys: string[] | undefined = data?.e2eeKeys;
   if (keys?.length) {
-    (dataToSend as Record<string, unknown>).clientEncrypted = 'true';
+    dataToSend.clientEncrypted = 'true';
   }
+
+  const caption = normalizeCaptionInput({
+    text: typeof data?.caption === 'string' ? data.caption : '',
+    mentions: data?.captionMentions as IMentionSpan[] | undefined,
+  });
   const hints = xml('store', { xmlns: 'urn:xmpp:hints' });
 
   if (keys?.length && shouldEncrypt(roomJID)) {
+    // The caption is sealed with the keys. It is never copied onto <data>.
+    const sealedBody = caption
+      ? { v: 1, keys, caption: caption.caption, ...(caption.mentions ? { captionMentions: caption.mentions } : {}) }
+      : { v: 1, keys };
     sendSealedMedia(
       client,
       roomJID,
       id,
-      xml('body', {}, JSON.stringify({ v: 1, keys })),
+      xml('body', {}, JSON.stringify(sealedBody)),
       [xml('data', dataToSend), hints]
     );
     return id;
+  }
+
+  if (caption) {
+    dataToSend.caption = caption.caption;
+    if (caption.mentions) {
+      dataToSend.captionMentions = JSON.stringify(caption.mentions);
+    }
   }
 
   const message = xml(
