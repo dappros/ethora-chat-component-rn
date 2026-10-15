@@ -251,11 +251,17 @@ const sanitizeMessages = (messages: IMessage[]): IMessage[] => {
 /**
  * Room fields that describe ONE session and must never be written to disk:
  * the server's unread snapshot (a moment-in-time number the next /chats/my
- * re-seeds). Volatile slice state that is not on the room at all (jumpWindow,
+ * re-seeds) and the read watermarks other occupants sent this session. Volatile slice state that is not on the room at all (jumpWindow,
  * pendingJump, archivedMessage, usersSet) is never persisted because only
  * `rooms.rooms` is picked from the slice.
  */
-const SESSION_ROOM_FIELDS = ['apiUnreadCount', 'apiUnreadSeededAt'] as const;
+const SESSION_ROOM_FIELDS = [
+  'apiUnreadCount',
+  'apiUnreadSeededAt',
+  // XEP-0333 read watermarks: a peer's "seen" state is re-learned from the
+  // live marker stanzas, never restored from a previous session.
+  'lastDisplayedByUser',
+] as const;
 
 /**
  * Rehydrate step: a persisted room must be refetched once per session, so

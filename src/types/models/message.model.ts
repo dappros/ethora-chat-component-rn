@@ -50,6 +50,11 @@ export interface IMessage {
   caption?: string;
   /** @-mention spans into `caption`. Stored, not rendered on RN. */
   captionMentions?: IMentionSpan[];
+  /**
+   * XEP-0184 delivery receipts: xmpp username -> epoch ms when that
+   * occupant's client acknowledged the message. Session-only (never persisted).
+   */
+  receivedBy?: Record<string, number>;
   xmppId?: string;
   xmppFrom?: string;
   deleted?: boolean;

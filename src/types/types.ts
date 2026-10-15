@@ -43,6 +43,11 @@ export interface IRoom {
   composing?: boolean;
   composingList?: string[];
   lastViewedTimestamp?: number;
+  /**
+   * XEP-0333 read watermark per user: the id of the newest message each other
+   * occupant has displayed. Session-only (never persisted). See readReceipts.ts.
+   */
+  lastDisplayedByUser?: Record<string, string>;
   unreadMessages?: number;
   /**
    * Unread count the server reported for this room in `GET /v1/chats/my`
@@ -580,6 +585,11 @@ export interface IConfig {
   // ----- xmpp / QoS -----
   xmppSettings?: xmppSettingsInterface;
   disableLastRead?: boolean;
+  /**
+   * Stops this client from sending XEP-0333 read markers (the "seen" ticks
+   * other members see). Delivery receipts are not affected. Default false.
+   */
+  disableReadReceipts?: boolean;
   historyQoS?: HistoryQoSConfig;
   /**
    * Background history preload for the room list.
