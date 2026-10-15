@@ -65,7 +65,7 @@ export const getReadWatermarkMessageId = (
 export interface ReceiptStoreState {
   chatSettingStore?: {
     config?: { disableLastRead?: boolean; disableReadReceipts?: boolean } | null;
-    user?: { xmppUsername?: string | null } | null;
+    user?: { xmppUsername?: string | null; walletAddress?: string | null } | null;
   } | null;
   rooms: {
     rooms: Record<string, IRoom>;
@@ -74,6 +74,11 @@ export interface ReceiptStoreState {
     readBoundaries: Record<string, number>;
   };
 }
+
+// The reader's identity as the message list resolves it (xmppUsername, then
+// walletAddress), so the watermark and the bubble agree on "own".
+export const selfIdentity = (state: ReceiptStoreState): string =>
+  state.chatSettingStore?.user?.xmppUsername || state.chatSettingStore?.user?.walletAddress || '';
 
 /**
  * Watermark to send for `roomJid` right now, or null. Sends only while the
@@ -93,7 +98,7 @@ export const computeReadWatermark = (
   if (rooms.jumpWindow?.roomJID === roomJid) return null;
   return getReadWatermarkMessageId(
     rooms.rooms?.[roomJid],
-    state.chatSettingStore?.user?.xmppUsername || '',
+    selfIdentity(state),
     rooms.readBoundaries?.[roomJid] ?? null
   );
 };

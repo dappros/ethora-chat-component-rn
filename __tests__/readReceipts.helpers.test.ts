@@ -255,6 +255,20 @@ describe('computeReadWatermark gates', () => {
     ).toBeNull();
   });
 
+  it('falls back to the wallet address when there is no xmpp username, as the list does', () => {
+    const s = {
+      chatSettingStore: { user: { walletAddress: ME }, config: {} },
+      rooms: {
+        rooms: { [ROOM]: room([msg(1, THEM), msg(2, ME)]) as IRoom },
+        visibleRoomJID: ROOM,
+        jumpWindow: null,
+        readBoundaries: {},
+      },
+    };
+    // The newest message is ours (by wallet), so nothing is sent.
+    expect(computeReadWatermark(s as any, ROOM)).toBeNull();
+  });
+
   it('respects a scroll boundary', () => {
     const s = store({ rooms: { readBoundaries: { [ROOM]: 1700000000001 } } });
     expect(computeReadWatermark(s as any, ROOM)).toBe(id(1));

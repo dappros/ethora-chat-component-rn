@@ -522,7 +522,9 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   // Delivery and read state of our own messages (XEP-0184 / XEP-0333). The
   // seen list is a small array compared shallowly, so a bubble only renders
   // again when its own readers change, not on every message in the room.
-  const selfXmppUsername = user?.xmppUsername || '';
+  // Same identity the list uses to decide ownership (MessageList passes
+  // xmppUsername || walletAddress), so the tick and the watermark agree.
+  const selfXmppUsername = user?.xmppUsername || user?.walletAddress || '';
   const seenBy = useSelector(
     (state: RootState) =>
       isUser
