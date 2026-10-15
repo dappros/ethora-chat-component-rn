@@ -43,4 +43,9 @@ export interface IAttachment {
    */
   uploadStatus?: 'uploading' | 'failed';
   uploadProgress?: number;
+  /**
+   * The file as it is on this device (`file://`), shown on the sender's own
+   * bubble while it uploads. Local only, like the upload state above.
+   */
+  localUrl?: string;
 }

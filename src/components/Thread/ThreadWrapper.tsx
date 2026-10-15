@@ -237,15 +237,11 @@ const ThreadWrapper: FC<ThreadWrapperProps> = ({
   );
 
   const sendMedia = useCallback(
-    (data: any, type: string) => {
-      return sendMessageMedia(
-        data,
-        type,
-        roomJid,
-        true,
-        isChecked,
-        createMainMessageForThread(activeMessage)
-      );
+    (data: any, type: string, caption?: { text: string }) => {
+      const mainMessage = createMainMessageForThread(activeMessage);
+      return caption
+        ? sendMessageMedia(data, type, roomJid, true, isChecked, mainMessage, undefined, caption)
+        : sendMessageMedia(data, type, roomJid, true, isChecked, mainMessage);
     },
     [activeMessage, isChecked, roomJid, sendMessageMedia]
   );

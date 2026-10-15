@@ -202,6 +202,43 @@ describe('persistence -- failedMessages write + read', () => {
     );
   });
 
+  it('keeps every file and the caption of a multi-file failed send, minus junk', async () => {
+    const store = makeStore();
+    store.dispatch(addRoom({ roomData: makeRoom('r@h') }));
+    store.dispatch(
+      markMessageFailed({
+        kind: 'media',
+        id: 'm3',
+        roomJID: 'r@h',
+        type: 'image/jpeg',
+        data: { uri: 'file:///tmp/0.jpg', name: '0.jpg', type: 'image/jpeg' } as any,
+        files: [
+          { uri: 'file:///tmp/0.jpg', name: '0.jpg', type: 'image/jpeg', size: 10, authToken: 'secret' },
+          { uri: 'file:///tmp/1.m4a', name: 'voice.m4a', type: 'audio/m4a', duration: 4, waveForm: '1,2,3' },
+          { uri: 'file:///tmp/2.pdf', name: '2.pdf', type: 'application/pdf', base64: 'A'.repeat(100) },
+        ] as any,
+        caption: 'three things',
+        captionMentions: [{ jid: 'bob@h', name: 'Bob', offset: 0, length: 4 }],
+      })
+    );
+    await flushDebouncedWrite();
+
+    const persisted = await readDecrypted(PERSIST_KEYS.KEY_HEAP);
+    const stored = persisted.failedMessages.m3;
+    expect(stored.files).toHaveLength(3);
+    expect(stored.files[0]).toEqual({ uri: 'file:///tmp/0.jpg', name: '0.jpg', type: 'image/jpeg', size: 10 });
+    expect(stored.files[1]).toEqual({
+      uri: 'file:///tmp/1.m4a',
+      name: 'voice.m4a',
+      type: 'audio/m4a',
+      duration: 4,
+      waveForm: '1,2,3',
+    });
+    expect(stored.files[2].base64).toBeUndefined();
+    expect(stored.caption).toBe('three things');
+    expect(stored.captionMentions).toHaveLength(1);
+  });
+
   it('round-trips through readPersistedState', async () => {
     const store = makeStore();
     store.dispatch(addRoom({ roomData: makeRoom('r@h') }));

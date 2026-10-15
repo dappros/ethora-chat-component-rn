@@ -192,7 +192,8 @@ const cloneFormData = (formData: FormData): FormData => {
 function postMultipart(
   url: string,
   body: FormData,
-  path: string
+  path: string,
+  onProgress?: (percent: number) => void
 ): Promise<{ data: any }> {
   const token = store.getState().chatSettingStore?.user?.token ?? '';
 
@@ -249,6 +250,18 @@ function postMultipart(
     xhr.ontimeout = () => failNetwork('Upload timed out');
     xhr.onabort = () => failNetwork('Upload aborted');
 
+    if (onProgress && xhr.upload) {
+      xhr.upload.onprogress = (event: ProgressEvent) => {
+        if (!event.lengthComputable || !(event.total > 0)) {return;}
+        const percent = Math.min(100, Math.max(0, Math.round((event.loaded / event.total) * 100)));
+        try {
+          onProgress(percent);
+        } catch {
+          // A progress listener must never fail the upload itself.
+        }
+      };
+    }
+
     xhr.open('POST', url);
     xhr.setRequestHeader('Authorization', token);
     xhr.setRequestHeader('Accept', '*/*');
@@ -268,6 +281,8 @@ let secureUploadUnavailable = false;
 
 export interface UploadFileOptions {
   clientEncrypted?: boolean;
+  /** Called with 0 to 100 as the request body goes up (XHR upload progress). */
+  onProgress?: (percent: number) => void;
 }
 
 export async function uploadFileV2(
@@ -289,7 +304,8 @@ export async function uploadFileV2(
       return await postMultipart(
         `${apiRoot}${SECURE_UPLOAD_PATH}`,
         body,
-        SECURE_UPLOAD_PATH
+        SECURE_UPLOAD_PATH,
+        options.onProgress
       );
     } catch (error) {
       if (!canFallBackToLegacyUpload(error)) {throw error;}
@@ -305,7 +321,8 @@ export async function uploadFileV2(
   return postMultipart(
     `${apiRoot}${LEGACY_UPLOAD_PATH}`,
     formData,
-    LEGACY_UPLOAD_PATH
+    LEGACY_UPLOAD_PATH,
+    options.onProgress
   );
 }
 

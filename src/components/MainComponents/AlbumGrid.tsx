@@ -16,12 +16,15 @@ import {
   setActiveModal,
 } from '../../roomStore/chatSettingsSlice';
 import { MODAL_TYPES } from '../../helpers/constants/MODAL_TYPES';
+import MediaUploadOverlay from './MediaUploadOverlay';
 
 interface AlbumGridProps {
   /** The pictures and videos of one message, in order. */
   attachments: IAttachment[];
   /** Width of the whole grid; the bubble's media width by default. */
   width?: number;
+  /** Re-runs the upload of the tile at this position (a failed outgoing file). */
+  onRetryTile?: (position: number) => void;
 }
 
 /**
@@ -35,6 +38,7 @@ interface AlbumGridProps {
 const AlbumGrid: React.FC<AlbumGridProps> = ({
   attachments,
   width = MEDIA_MAX_W,
+  onRetryTile,
 }) => {
   const t = useT();
   const dispatch = useDispatch();
@@ -61,11 +65,12 @@ const AlbumGrid: React.FC<AlbumGridProps> = ({
   const openAt = useCallback(
     (index: number) => {
       const target = siblings[index];
-      if (!target || !target.fileURL) {return;}
+      // A file still on its way up has no server copy to open yet.
+      if (!target || !target.fileURL || attachments[index]?.uploadStatus) {return;}
       dispatch(setActiveFile({ ...target, siblings, index }));
       dispatch(setActiveModal(MODAL_TYPES.FILE_PREVIEW));
     },
-    [dispatch, siblings]
+    [attachments, dispatch, siblings]
   );
 
   return (
@@ -86,8 +91,15 @@ const AlbumGrid: React.FC<AlbumGridProps> = ({
           url: attachment.location,
           duration: attachment.duration,
         });
-        const fileURL = appendFileToken(attachment.location, fileToken) || '';
-        const preview = appendFileToken(attachment.locationPreview, fileToken);
+        // An outgoing tile shows the file on this device until its upload
+        // has given it a server copy.
+        const outgoing = Boolean(attachment.uploadStatus);
+        const fileURL = outgoing
+          ? attachment.localUrl || ''
+          : appendFileToken(attachment.location, fileToken) || '';
+        const preview = outgoing
+          ? attachment.localUrl || undefined
+          : appendFileToken(attachment.locationPreview, fileToken);
         const showMore = position === layout.visible - 1 && layout.hidden > 0;
         const open = () => openAt(position);
 
@@ -105,7 +117,7 @@ const AlbumGrid: React.FC<AlbumGridProps> = ({
                 previewURL={preview}
                 mimetype={attachment.mimetype || ''}
                 tile={tile}
-                onOpen={open}
+                onOpen={outgoing ? undefined : open}
               />
             ) : (
               <CustomMessageImage
@@ -115,7 +127,14 @@ const AlbumGrid: React.FC<AlbumGridProps> = ({
                 locationPreview={preview}
                 mimetype={attachment.mimetype || ''}
                 tile={tile}
-                onOpen={open}
+                onOpen={outgoing ? undefined : open}
+              />
+            )}
+            {outgoing && attachment.uploadStatus && (
+              <MediaUploadOverlay
+                status={attachment.uploadStatus}
+                progress={attachment.uploadProgress}
+                onRetry={onRetryTile ? () => onRetryTile(position) : undefined}
               />
             )}
             {showMore && (

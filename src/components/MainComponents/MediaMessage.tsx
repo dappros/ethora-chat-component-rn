@@ -23,6 +23,8 @@ import { useTheme } from '../../hooks/useTheme';
 import SealedAttachment from './SealedAttachment';
 import AlbumGrid from './AlbumGrid';
 import MediaCaption from '../MessageBubble/MediaCaption';
+import MediaUploadOverlay from './MediaUploadOverlay';
+import { requestMediaRetry } from '../../helpers/mediaSendRetry';
 
 interface MediaMessageProps {
   mimeType?: string;
@@ -203,10 +205,11 @@ const AttachmentCard: React.FC<AttachmentCardProps> = ({
 
   // The sender's own voice note plays from its local file while it
   // uploads, waveform and all - no placeholder card in between.
-  if (message?.pending && kind === 'audio' && (previewText || location)) {
+  const localPreview = attachment.localUrl;
+  if (message?.pending && kind === 'audio' && (localPreview || previewText || location)) {
     return (
       <AudioMessage
-        src={previewText || location || ''}
+        src={localPreview || previewText || location || ''}
         mimeType={mimeType}
         fileName={displayName}
         duration={duration}
@@ -220,7 +223,7 @@ const AttachmentCard: React.FC<AttachmentCardProps> = ({
       <PendingMediaMessage
         fileName={displayName}
         mimeType={mimeType}
-        previewUri={previewText || location || ''}
+        previewUri={localPreview || previewText || location || ''}
         isUser={isUser}
         size={index === 0 ? message?.size : attachment.size}
       />
@@ -327,34 +330,56 @@ const MediaMessage: React.FC<MediaMessageProps> = ({
     return <Text style={{ color: theme.text }}>Unsupported media type</Text>;
   }
 
-  const card = (attachment: IAttachment, index: number) => (
-    <AttachmentCard
-      key={attachment.attachmentId || `${index}-${attachment.location}`}
-      attachment={attachment}
-      index={index}
-      message={message}
-      isUser={isUser}
-      fileToken={fileToken}
-    />
-  );
+  // A file of an outgoing multi-file message carries its upload state. It is
+  // "reachable" through its local copy, not a server one, until the send lands.
+  const isOutgoingFile = (attachment: IAttachment) =>
+    Boolean(message?.pending) &&
+    Boolean(attachment.uploadStatus || attachment.localUrl);
+
+  const card = (attachment: IAttachment, index: number) => {
+    const body = (
+      <AttachmentCard
+        key={attachment.attachmentId || `${index}-${attachment.location}`}
+        attachment={attachment}
+        index={index}
+        message={message}
+        isUser={isUser}
+        fileToken={fileToken}
+      />
+    );
+    // In a multi-file message each file gets its own progress and Retry.
+    if (!attachment.uploadStatus || attachments.length < 2) {return body;}
+    return (
+      <View
+        key={`tile-${attachment.attachmentId || index}`}
+        style={styles.uploadTile}
+        testID={`media-upload-tile-${index}`}
+      >
+        {body}
+        <MediaUploadOverlay
+          status={attachment.uploadStatus}
+          progress={attachment.uploadProgress}
+          onRetry={message?.id ? () => requestMediaRetry(message.id, index) : undefined}
+        />
+      </View>
+    );
+  };
 
   // Pictures and videos share one album when there are two or more of them;
   // documents and voice notes follow as one card each. A lone picture is the
   // ordinary bubble picture, exactly as a single-file message always was.
-  const album = message?.pending
-    ? []
-    : attachments.filter(
-        (attachment) =>
-          Boolean(attachment.location) &&
-          isAlbumKind(
-            getFileKind({
-              mimetype: attachment.mimetype,
-              name: getAttachmentName(attachment),
-              url: attachment.location,
-              duration: attachment.duration,
-            })
-          )
-      );
+  const album = attachments.filter(
+    (attachment) =>
+      (Boolean(attachment.location) || isOutgoingFile(attachment)) &&
+      isAlbumKind(
+        getFileKind({
+          mimetype: attachment.mimetype,
+          name: getAttachmentName(attachment),
+          url: attachment.location,
+          duration: attachment.duration,
+        })
+      )
+  );
   const useAlbum = album.length >= 2;
   const rest = useAlbum
     ? attachments.filter((attachment) => !album.includes(attachment))
@@ -367,7 +392,20 @@ const MediaMessage: React.FC<MediaMessageProps> = ({
 
   return (
     <View style={styles.stack}>
-      {useAlbum && <AlbumGrid attachments={album} />}
+      {useAlbum && (
+        <AlbumGrid
+          attachments={album}
+          onRetryTile={
+            message?.id
+              ? (position) =>
+                  requestMediaRetry(
+                    message.id,
+                    attachments.indexOf(album[position]!)
+                  )
+              : undefined
+          }
+        />
+      )}
       {rest.map((attachment) => card(attachment, attachments.indexOf(attachment)))}
       <MediaCaption text={caption} isUser={isUser} />
     </View>
@@ -380,6 +418,13 @@ const styles = StyleSheet.create({
   stack: {
     alignItems: 'flex-start',
     gap: 4,
+  },
+  // Frames one file of a multi-file message so its upload overlay covers it.
+  uploadTile: {
+    position: 'relative',
+    alignSelf: 'stretch',
+    borderRadius: 10,
+    overflow: 'hidden',
   },
   pendingImageWrapper: {
     width: pendingImageDims.width,

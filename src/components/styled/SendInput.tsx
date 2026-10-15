@@ -17,6 +17,7 @@ import { getElementFont } from '../../helpers/getElementFont';
 import { useTheme } from '../../hooks/useTheme';
 import { useT } from '../../i18n/useT';
 import { getMediaLibrary } from '../../helpers/mediaLibraryRuntime';
+import { mediaFileCap, mediaSizeLimit } from '../../helpers/mediaLimits';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -43,14 +44,6 @@ import {
 // recording, becomes the waveform the message carries (Telegram-style), so
 // receivers draw it without downloading and decoding the clip first.
 const VOICE_PRESET = { ...RecordingPresets.HIGH_QUALITY, isMeteringEnabled: true };
-
-// iOS photos default to HEIC; many web backends (incl. ours) 500 on
-// HEIC uploads because they can't decode it. Convert to JPEG before
-// upload — JPEG is universally supported. JPEGs pass through.
-// Server rejects uploads over its body-size cap with HTTP 413 (Request
-// Entity Too Large). Guard client-side so the user gets a clear message
-// instead of a silent failed bubble. 50 MB matches the backend limit.
-const MAX_MEDIA_BYTES = 50 * 1024 * 1024;
 
 const formatBytes = (bytes: number): string => {
   if (bytes >= 1024 * 1024) {
@@ -89,7 +82,11 @@ interface SendInputProps {
   sendMessage: (message: string) => void;
   isLoading: boolean;
   editMessage?: string;
-  sendMedia: (data: any, type: string) => void;
+  /**
+   * Sends one message carrying `data` (a file or the picked list). The typed
+   * text, when there is any, goes with it as the caption.
+   */
+  sendMedia: (data: any, type: string, caption?: { text: string }) => unknown;
   config?: IConfig;
   onFocus?: () => void;
   onBlur?: () => void;
@@ -164,25 +161,64 @@ const SendInput: React.FC<SendInputProps> = ({
   // "Document" row or a dev-mode double-run of the sheet's close callback.
   const pickingDocRef = useRef(false);
 
-  const handleFileSelect = (files: MediaFile[]) => {
-    // Enforce the upload size cap before anything reaches the network.
-    // The backend rejects oversized bodies with HTTP 413; catching it
-    // here gives a clear message instead of a silent failed bubble.
-    const limit = maxMediaBytes ?? MAX_MEDIA_BYTES;
-    const oversize = files.find(
-      (f) => typeof f.size === 'number' && f.size > limit
-    );
-    if (oversize) {
-      Alert.alert(
-        'File too large',
-        `"${oversize.name}" is ${formatBytes(oversize.size!)}. The maximum allowed size is ${Math.round(
-          limit / (1024 * 1024)
-        )} MB.`
-      );
-      return;
+  /**
+   * Adds picked files to the tray. The tray is a list, not a slot: a second
+   * pick or a camera shot appends. Enforces the per-message file cap and the
+   * per-file size cap before anything reaches the network; the size cap is
+   * the upload limit (50 MB, or the sealed-file limit in an e2ee room),
+   * lowered by `config.attachments.maxSizeMB`. The backend rejects oversized
+   * bodies with HTTP 413, so catching them here gives a clear message.
+   */
+  const handleFileSelect = (incoming: MediaFile[]) => {
+    if (incoming.length === 0) {return;}
+    const limit = mediaSizeLimit(config, maxMediaBytes);
+    const fitting = incoming.filter((file) => {
+      if (typeof file.size === 'number' && file.size > limit) {
+        Alert.alert(
+          t('attachment.tooLarge', {
+            name: file.name,
+            max: formatBytes(limit),
+          })
+        );
+        return false;
+      }
+      return true;
+    });
+    const cap = mediaFileCap(config);
+    const room = cap - filePreviewsRef.current.length;
+    if (fitting.length === 0) {return;}
+    if (room <= 0 || fitting.length > room) {
+      Alert.alert(t('attachment.limit', { count: cap }));
     }
-    filePreviewsRef.current = files;
-    setFilePreviews([...files]);
+    const accepted = fitting.slice(0, Math.max(0, room));
+    if (accepted.length === 0) {return;}
+    const next = [...filePreviewsRef.current, ...accepted];
+    filePreviewsRef.current = next;
+    setFilePreviews(next);
+  };
+
+  /** One picked image or video as the file the tray and the upload carry. */
+  const assetToFile = async (
+    asset: ImagePicker.ImagePickerAsset,
+    fallbackPrefix: string
+  ): Promise<MediaFile> => {
+    if (asset.type === 'video') {
+      return {
+        uri: asset.uri,
+        type: asset.mimeType || 'video/mp4',
+        name: asset.fileName || asset.uri.split('/').pop() || `${fallbackPrefix}_${Date.now()}.mp4`,
+        size: (asset as any).fileSize,
+      };
+    }
+    // Videos pass through unchanged; only images get the HEIC→JPEG
+    // normalization (manipulator is image-only).
+    const normalized = await normalizeImageAsset(asset);
+    return {
+      uri: normalized.uri,
+      type: normalized.mime,
+      name: normalized.name,
+      size: (asset as any).fileSize,
+    };
   };
 
   // Both pickers use expo-image-picker / expo-document-picker. They
@@ -205,33 +241,14 @@ const SendInput: React.FC<SendInputProps> = ({
     }
 
     try {
+      // Camera is a single shot per tap; the shot joins the tray.
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ['images', 'videos'],
         quality: 0.9,
         videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium,
       });
       if (result.canceled || !result.assets?.[0]) {return;}
-      const asset = result.assets[0];
-      if (asset.type === 'video') {
-        handleFileSelect([
-          {
-            uri: asset.uri,
-            type: asset.mimeType || 'video/mp4',
-            name: asset.fileName || asset.uri.split('/').pop() || `camera_${Date.now()}.mp4`,
-            size: (asset as any).fileSize,
-          },
-        ]);
-        return;
-      }
-      const normalized = await normalizeImageAsset(asset);
-      handleFileSelect([
-        {
-          uri: normalized.uri,
-          type: normalized.mime,
-          name: normalized.name,
-          size: (asset as any).fileSize,
-        },
-      ]);
+      handleFileSelect([await assetToFile(result.assets[0], 'camera')]);
     } catch (error) {
       console.error('Camera error:', error);
     }
@@ -244,38 +261,29 @@ const SendInput: React.FC<SendInputProps> = ({
       return;
     }
 
+    // The library takes as many as the tray has room for (at least one).
+    const remaining = mediaFileCap(config) - filePreviewsRef.current.length;
+    if (remaining <= 0) {
+      Alert.alert(t('attachment.limit', { count: mediaFileCap(config) }));
+      return;
+    }
+
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images', 'videos'],
         allowsEditing: false,
         quality: 0.9,
+        allowsMultipleSelection: true,
+        selectionLimit: remaining,
         preferredAssetRepresentationMode:
           ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
       });
-      if (result.canceled || !result.assets?.[0]) {return;}
-      const asset = result.assets[0];
-      // Videos pass through unchanged; only images get the HEIC→JPEG
-      // normalization (manipulator is image-only).
-      if (asset.type === 'video') {
-        handleFileSelect([
-          {
-            uri: asset.uri,
-            type: asset.mimeType || 'video/mp4',
-            name: asset.fileName || asset.uri.split('/').pop() || `gallery_${Date.now()}.mp4`,
-            size: (asset as any).fileSize,
-          },
-        ]);
-        return;
+      if (result.canceled || !result.assets?.length) {return;}
+      const picked: MediaFile[] = [];
+      for (const asset of result.assets) {
+        picked.push(await assetToFile(asset, 'gallery'));
       }
-      const normalized = await normalizeImageAsset(asset);
-      handleFileSelect([
-        {
-          uri: normalized.uri,
-          type: normalized.mime,
-          name: normalized.name,
-          size: (asset as any).fileSize,
-        },
-      ]);
+      handleFileSelect(picked);
     } catch (error) {
       console.error('Gallery error:', error);
     }
@@ -336,19 +344,18 @@ const SendInput: React.FC<SendInputProps> = ({
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: '*/*',
-        multiple: false,
+        multiple: true,
         copyToCacheDirectory: true,
       });
-      if (result.canceled || !result.assets?.[0]) {return;}
-      const asset = result.assets[0];
-      handleFileSelect([
-        {
+      if (result.canceled || !result.assets?.length) {return;}
+      handleFileSelect(
+        result.assets.map((asset) => ({
           uri: asset.uri,
           type: asset.mimeType || 'application/octet-stream',
           name: asset.name || `file_${Date.now()}`,
           size: asset.size ?? undefined,
-        },
-      ]);
+        }))
+      );
     } catch (err) {
       console.error('DocumentPicker error:', err);
     } finally {
@@ -383,6 +390,11 @@ const SendInput: React.FC<SendInputProps> = ({
   const libraryPermissionCheckedRef = useRef(false);
 
   const handleAttachPress = () => {
+    const cap = mediaFileCap(config);
+    if (filePreviewsRef.current.length >= cap) {
+      Alert.alert(t('attachment.limit', { count: cap }));
+      return;
+    }
     if (libraryPermissionCheckedRef.current) {
       setShowMediaMenu(true);
       return;
@@ -594,17 +606,19 @@ const SendInput: React.FC<SendInputProps> = ({
     setFilePreviews([]);
 
     try {
-      for (const file of filesToSend) {
-        try {
-          await sendMedia(file, file.type);
-        } catch (err) {
-          console.error(err);
-          return;
-        }
-      }
-      if (messageToSend) {
+      if (filesToSend.length > 0) {
+        // The files go as ONE message. The text typed with them is its
+        // caption, never a separate text message.
+        await sendMedia(
+          filesToSend,
+          filesToSend[0]!.type,
+          messageToSend ? { text: messageToSend } : undefined
+        );
+      } else if (messageToSend) {
         sendMessage(messageToSend);
       }
+    } catch (err) {
+      console.error(err);
     } finally {
       sendingRef.current = false;
     }
