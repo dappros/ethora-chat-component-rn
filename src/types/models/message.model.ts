@@ -1,6 +1,7 @@
 import { IUser } from './user.model';
 import { TranslationObject } from '../../helpers/transformTranslatations';
 import { Iso639_1Codes } from './language.model';
+import type { IAttachment } from './attachment.model';
 
 export interface IMessage {
   id: string;
@@ -35,6 +36,20 @@ export interface IMessage {
   langSource?: Iso639_1Codes;
   originalName?: string;
   size?: string;
+  /**
+   * Every file carried by this message. `attachments[0]` mirrors the flat
+   * `location`/`mimetype`/`originalName` fields above. Undefined on messages
+   * that predate multi-attach; read it through `getMessageAttachments()`.
+   */
+  attachments?: IAttachment[];
+  /**
+   * Text sent with a media message's files. `body` stays "media". In a sealed
+   * message it comes out of the encrypted body, never from `<data>`. Read it
+   * through `getMessageCaption()`.
+   */
+  caption?: string;
+  /** @-mention spans into `caption`. Stored, not rendered on RN. */
+  captionMentions?: IMentionSpan[];
   xmppId?: string;
   xmppFrom?: string;
   deleted?: boolean;
@@ -50,6 +65,15 @@ export interface IMessage {
     missed: boolean;
     kind: 'audio' | 'video';
   };
+}
+
+// One @-mention span inside a caption (or text body). `offset`/`length` index
+// into that string in UTF-16 code units.
+export interface IMentionSpan {
+  jid: string;
+  name: string;
+  offset: number;
+  length: number;
 }
 
 export interface ReactionMessage {

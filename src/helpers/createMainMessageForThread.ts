@@ -1,8 +1,13 @@
 import { IMessage } from '../types/types';
+import { getMessageCaption } from './caption';
 
 export const createMainMessageForThread = (message: IMessage): string => {
+  // A media message is quoted by its caption. A sealed one never is: the
+  // reply stanza travels in the clear, the caption does not.
+  const caption =
+    message.clientEncrypted === 'true' ? undefined : getMessageCaption(message);
   const data = {
-    text: message.body,
+    text: caption ?? message.body,
     id: message.id,
     userName: message.user.name,
     createdAt: message.date,

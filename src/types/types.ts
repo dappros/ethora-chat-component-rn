@@ -1135,7 +1135,14 @@ export interface ModalFile {
 // keep working without reaching into `types/models/...`.
 export type { ReactionAction } from './models/action.model';
 export type { Iso639_1Codes } from './models/language.model';
-export type { IMessage, IReply, LastMessage, ReactionMessage } from './models/message.model';
+export type {
+  IMessage,
+  IReply,
+  LastMessage,
+  ReactionMessage,
+  IMentionSpan,
+} from './models/message.model';
+export type { IAttachment } from './models/attachment.model';
 export type { RoomMember, ApiRoom, ChatAccessOption } from './models/room.model';
 export type { MediaFile } from './models/media.model';
 export type { TranslationObject } from '../helpers/transformTranslatations';
