@@ -104,12 +104,16 @@ describe('sendDisplayedMarkerStanza', () => {
     expect(send).not.toHaveBeenCalled();
   });
 
-  it('sends nothing with config.disableReadReceipts, and delivery receipts still go', () => {
+  it('sends neither marker nor delivery receipt with config.disableReadReceipts', () => {
     const { c, send } = makeOnline();
     store.dispatch(setConfig({ disableReadReceipts: true } as any));
     c.sendDisplayedMarkerStanza('1700000000002', ROOM);
     c.sendReceivedReceiptStanza('1700000000002', ROOM);
     expect(sentCount(send, 'message-displayed:')).toBe(0);
+    expect(sentCount(send, 'message-received:')).toBe(0);
+    // Turning it back on acks the same message (nothing was recorded while off).
+    store.dispatch(setConfig({} as any));
+    c.sendReceivedReceiptStanza('1700000000002', ROOM);
     expect(sentCount(send, 'message-received:')).toBe(1);
   });
 

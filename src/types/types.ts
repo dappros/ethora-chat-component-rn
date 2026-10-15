@@ -595,8 +595,9 @@ export interface IConfig {
   xmppSettings?: xmppSettingsInterface;
   disableLastRead?: boolean;
   /**
-   * Stops this client from sending XEP-0333 read markers (the "seen" ticks
-   * other members see). Delivery receipts are not affected. Default false.
+   * Stops this client from sending receipts: both the XEP-0184 delivery
+   * receipt and the XEP-0333 read marker, so other members see neither
+   * "delivered" nor "seen" for what this reader gets. Default false.
    */
   disableReadReceipts?: boolean;
   historyQoS?: HistoryQoSConfig;

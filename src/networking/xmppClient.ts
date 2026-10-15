@@ -1608,10 +1608,13 @@ export class XmppClient {
   /**
    * XEP-0184 delivery receipt for a message from someone else. Sent for live
    * messages and for messages a MAM page brings in; a message already acked
-   * is skipped. When the stream is down nothing is recorded, so a later page
-   * can still ack it.
+   * is skipped. When the stream is down (or `config.disableReadReceipts` is
+   * on) nothing is recorded, so a later page can still ack it.
    */
   sendReceivedReceiptStanza(messageId: string, roomJid: string) {
+    // Privacy switch: with read receipts off this client stays silent, so
+    // nobody learns that (or when) it received their message.
+    if (store.getState().chatSettingStore.config?.disableReadReceipts) {return;}
     if (!messageId || !roomJid || !this.isStreamReady()) {return;}
     const jid = normalizeRoomJid(roomJid, this.conference);
     const key = `${jid}:${messageId}`;
