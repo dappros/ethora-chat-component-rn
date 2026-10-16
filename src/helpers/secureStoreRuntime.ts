@@ -12,10 +12,25 @@
  * AsyncStorage rather than crash (see `secureKeyValue.ts`).
  */
 
+/**
+ * The subset of expo-secure-store's options the SDK uses. `keychainService`
+ * must be repeated on every read of an item written with it; the
+ * accessibility constants come from `SecureStoreRuntime.accessible`.
+ */
+export interface SecureStoreOptions {
+  keychainService?: string;
+  /** iOS only: one of `accessible`; ignored on Android. */
+  keychainAccessible?: unknown;
+}
+
 export interface SecureStoreRuntime {
-  getItemAsync: (key: string) => Promise<string | null>;
-  setItemAsync: (key: string, value: string) => Promise<void>;
-  deleteItemAsync: (key: string) => Promise<void>;
+  getItemAsync: (key: string, options?: SecureStoreOptions) => Promise<string | null>;
+  setItemAsync: (key: string, value: string, options?: SecureStoreOptions) => Promise<void>;
+  deleteItemAsync: (key: string, options?: SecureStoreOptions) => Promise<void>;
+  /** expo-secure-store's iOS keychain accessibility constants (undefined on older versions). */
+  accessible: {
+    afterFirstUnlockThisDeviceOnly?: unknown;
+  };
 }
 
 let cached: SecureStoreRuntime | null | undefined;
@@ -45,6 +60,9 @@ export const loadSecureStore = (): SecureStoreRuntime | null => {
         getItemAsync: mod.getItemAsync,
         setItemAsync: mod.setItemAsync,
         deleteItemAsync: mod.deleteItemAsync,
+        accessible: {
+          afterFirstUnlockThisDeviceOnly: mod.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
+        },
       };
     }
   } catch {

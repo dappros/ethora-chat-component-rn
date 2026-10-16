@@ -11,6 +11,13 @@ import { pushLog } from '../utils/devLogger';
 
 export interface RegisterPushTokenOptions {
   tokenType?: PushTokenType;
+  /**
+   * Encrypted pushes: base64 of the device's X25519 public key
+   * (`ensurePushKeyPair().publicKey`). Sent with the token as `pushKey`;
+   * the service seals every chat push for it. A backend without the
+   * feature refuses the registration instead of delivering in the clear.
+   */
+  pushKey?: string;
 }
 
 export type RegisterPushTokenOutcome =
@@ -29,6 +36,7 @@ export type UnregisterPushTokenOutcome =
 export interface RegisteredPushToken {
   token: string;
   tokenType: PushTokenType;
+  pushKey?: string;
 }
 
 type Slot = 'chat' | 'voip';
@@ -93,6 +101,7 @@ const sameRegistration = (
   !!current &&
   current.token === token.token &&
   current.tokenType === token.tokenType &&
+  (current.pushKey || '') === (token.pushKey || '') &&
   current.gateway === isGateway(session) &&
   current.appId === session.appId &&
   current.xmppUsername === session.xmppUsername;
@@ -147,6 +156,7 @@ const registerOne = async (
       token: token.token,
       tokenType: token.tokenType,
       authToken: session.authToken,
+      pushKey: token.pushKey,
     });
   }
   registered.set(slotOf(token.tokenType), {
@@ -158,7 +168,8 @@ const registerOne = async (
   pushLog(
     'rn',
     `push: ${token.tokenType} token registered` +
-      (isGateway(session) ? ' (gateway)' : ` for app ${session.appId}`)
+      (isGateway(session) ? ' (gateway)' : ` for app ${session.appId}`) +
+      (token.pushKey && !isGateway(session) ? ' with a device key (encrypted pushes)' : '')
   );
 };
 
@@ -209,7 +220,7 @@ const runTokenHook = (session: Session): void => {
       if (typeof entry?.token !== 'string' || !entry.token.trim()) {
         continue;
       }
-      hold(entry.token.trim(), entry.tokenType);
+      hold(entry.token.trim(), entry.tokenType, entry.pushKey);
     }
     await registerNow();
   })().catch((error) => {
@@ -219,9 +230,18 @@ const runTokenHook = (session: Session): void => {
   });
 };
 
-const hold = (token: string, tokenType?: PushTokenType): RegisteredPushToken => {
+const hold = (
+  token: string,
+  tokenType?: PushTokenType,
+  pushKey?: string
+): RegisteredPushToken => {
   const resolved = tokenType ?? detectPushTokenType(token);
-  const entry: RegisteredPushToken = { token, tokenType: resolved };
+  const key = typeof pushKey === 'string' ? pushKey.trim() : '';
+  const entry: RegisteredPushToken = {
+    token,
+    tokenType: resolved,
+    ...(key ? { pushKey: key } : {}),
+  };
   held.set(slotOf(resolved), entry);
   return entry;
 };
@@ -274,7 +294,7 @@ export async function registerPushToken(
   if (typeof token !== 'string' || !token.trim()) {
     throw new TypeError('registerPushToken: token must be a non-empty string');
   }
-  hold(token.trim(), options?.tokenType);
+  hold(token.trim(), options?.tokenType, options?.pushKey);
   ensureWatching();
 
   const session = readSession();

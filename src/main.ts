@@ -56,6 +56,36 @@ export type {
   PushSubscriptionPayload,
 } from './networking/api-requests/push.api';
 export type { PushTokenType, PushTokenRegistration } from './types/types';
+// Encrypted (sealed) pushes: the device key and the Android renderer.
+// iOS renders them in the notification service extension the config
+// plugin adds. See README, "Encrypted pushes".
+export {
+  ensurePushKeyPair,
+  getPushKeyPair,
+  resetPushKeyPair,
+  clearPushKeyPair,
+  PUSH_KEY_KEYCHAIN_SERVICE,
+  PUSH_SECRET_KEY_ITEM,
+} from './push/pushKeyStore';
+export type { PushKeyPair } from './push/pushKeyStore';
+export {
+  registerSealedPushTask,
+  presentSealedPush,
+  SEALED_PUSH_TASK,
+} from './push/sealedPushTask';
+export type { SealedPushTaskOptions } from './push/sealedPushTask';
+export {
+  openSealedPush,
+  isSealedPush,
+  sealedPushEnvelopeOf,
+  SEALED_PUSH_ALG,
+} from './push/sealedPush';
+export type {
+  SealedPushEnvelope,
+  SealedPushContent,
+  SealedPushFailure,
+  OpenSealedPushResult,
+} from './push/sealedPush';
 export { useChatRoomFocus } from './hooks/useChatRoomFocus';
 export { logoutService, useLogout } from './hooks/useLogout';
 export { useQRCodeChat, handleQRChatId } from './hooks/useQRCodeChatHandler';

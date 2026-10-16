@@ -257,6 +257,12 @@ export type PushTokenType = 'apns' | 'apns-voip' | 'fcm' | 'expo';
 export interface PushTokenRegistration {
   token: string;
   tokenType?: PushTokenType;
+  /**
+   * Encrypted pushes: base64 of the device's X25519 public key
+   * (`ensurePushKeyPair().publicKey`). The service then seals every chat
+   * push for it; see README, "Encrypted pushes".
+   */
+  pushKey?: string;
 }
 
 export interface MessageBubble {

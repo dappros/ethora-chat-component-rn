@@ -67,10 +67,20 @@ const isUnknownFieldError = (error: any): boolean =>
   error?.response?.status === 422 &&
   /not allowed/i.test(String(error?.response?.data?.error ?? ''));
 
+/** The only sealing scheme the push service knows (README, "Encrypted pushes"). */
+export const PUSH_KEY_ALG = 'sealed-box-x25519';
+
 export interface PushSubscriptionPayload {
   registrationToken: string;
   deviceType: PushDeviceType;
   tokenType?: PushTokenType;
+  /**
+   * Encrypted pushes: base64 of the device's 32-byte X25519 public key.
+   * Absent keeps whatever key the service holds for this token.
+   */
+  pushKey?: string;
+  pushKeyAlg?: typeof PUSH_KEY_ALG;
+  pushKeyId?: string;
 }
 
 export interface RegisterPushSubscriptionArgs {
@@ -78,15 +88,23 @@ export interface RegisterPushSubscriptionArgs {
   token: string;
   tokenType: PushTokenType;
   authToken: string;
+  /** Base64 public key for encrypted pushes (`ensurePushKeyPair().publicKey`). */
+  pushKey?: string;
+  pushKeyId?: string;
 }
 
 export const buildPushSubscriptionPayload = (
   token: string,
-  tokenType: PushTokenType
+  tokenType: PushTokenType,
+  pushKey?: string,
+  pushKeyId?: string
 ): PushSubscriptionPayload => ({
   registrationToken: token,
   deviceType: resolvePushDeviceType(),
   tokenType,
+  ...(pushKey
+    ? { pushKey, pushKeyAlg: PUSH_KEY_ALG, ...(pushKeyId ? { pushKeyId } : {}) }
+    : {}),
 });
 
 export async function registerPushSubscription({
@@ -94,22 +112,29 @@ export async function registerPushSubscription({
   token,
   tokenType,
   authToken,
+  pushKey,
+  pushKeyId,
 }: RegisterPushSubscriptionArgs): Promise<void> {
   const path = `/v1/push/subscription/${encodeURIComponent(appId)}`;
   const headers = { Authorization: authToken };
-  const payload = buildPushSubscriptionPayload(token, tokenType);
+  const payload = buildPushSubscriptionPayload(token, tokenType, pushKey, pushKeyId);
 
   try {
     await http.post(path, payload, { headers });
     return;
   } catch (error: any) {
-    const canDowngrade = tokenType === 'apns' || tokenType === 'fcm';
+    // A backend that predates `tokenType` still delivers to apns / fcm
+    // tokens. One that predates `pushKey` would deliver in the clear: the
+    // host asked for encryption, so that is an error, never a quiet fallback.
+    const canDowngrade = (tokenType === 'apns' || tokenType === 'fcm') && !pushKey;
     if (!(canDowngrade && isUnknownFieldError(error))) {
       throw toRegistrationError(
         error,
         tokenType === 'expo'
           ? 'Push registration (the backend does not accept Expo push tokens yet)'
-          : 'Push registration'
+          : pushKey && isUnknownFieldError(error)
+            ? 'Push registration (the backend does not support encrypted pushes)'
+            : 'Push registration'
       );
     }
   }
