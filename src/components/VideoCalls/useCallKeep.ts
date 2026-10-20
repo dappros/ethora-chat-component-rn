@@ -4,10 +4,16 @@ import { useDispatch, useSelector } from 'react-redux';
 import { RootState, store } from '../../roomStore';
 import { acceptIncomingCall, declineIncomingCall } from '../../roomStore/callSlice';
 import { sendCallStateSignal } from '../../networking/callTokenStanza';
-import { terminateActiveCall } from './callActions';
+import { declineActiveCallWhenOnline, terminateActiveCall } from './callActions';
 import { setCallMicEnabled, useCallSession } from './callSessionController';
 import { loadLiveKit } from './livekitRuntime';
 import { setCallSystemRinging } from './callUiStore';
+import {
+  callKitUuid,
+  loadCallKeep,
+  rememberSystemCallAction,
+  takeSystemCallAction,
+} from './systemCall';
 
 /**
  * Native incoming-call UI (Android ConnectionService / iOS CallKit) via
@@ -27,95 +33,15 @@ import { setCallSystemRinging } from './callUiStore';
  * Platform reality, stated plainly:
  *  - Android: full value. A ConnectionService call shows the system
  *    incoming-call screen over the lock screen.
- *  - iOS: this only fires while the app is running. A CallKit screen from
- *    a killed app requires a VoIP push over PushKit, which needs a
- *    separate Apple VoIP certificate and a separate send path on the
- *    backend (not FCM). Until that exists, iOS falls back to the regular
- *    data push and the in-app ring screen.
+ *  - iOS: this hook only runs while `<Chat>` is mounted. A CallKit screen
+ *    from a killed app comes from the host: its PushKit handler reports
+ *    the VoIP push to CallKit natively under `callKitUuid(callId)` and
+ *    hands the payload to `handlePushPayload`. This hook then adopts that
+ *    call (same UUID, CallKit answers "CallUUIDAlreadyExists" to our own
+ *    report) and replays what the user did on it before JS was up.
  */
 
-interface CallKeepModule {
-  setup: (options: any) => Promise<void>;
-  displayIncomingCall: (
-    uuid: string,
-    handle: string,
-    localizedCallerName?: string,
-    handleType?: string,
-    hasVideo?: boolean
-  ) => void;
-  endCall: (uuid: string) => void;
-  endAllCalls: () => void;
-  startCall?: (
-    uuid: string,
-    handle: string,
-    contactIdentifier?: string,
-    handleType?: string,
-    hasVideo?: boolean
-  ) => void;
-  answerIncomingCall?: (uuid: string) => void;
-  reportConnectingOutgoingCallWithUUID?: (uuid: string) => void;
-  reportConnectedOutgoingCallWithUUID?: (uuid: string) => void;
-  reportEndCallWithUUID?: (uuid: string, reason: number) => void;
-  setMutedCall?: (uuid: string, muted: boolean) => void;
-  addEventListener: (event: string, handler: (payload: any) => void) => void;
-  removeEventListener: (event: string) => void;
-  setAvailable?: (available: boolean) => void;
-  backToForeground?: () => void;
-}
-
-let cachedCallKeep: CallKeepModule | null | undefined;
-
-export const loadCallKeep = (): CallKeepModule | null => {
-  if (cachedCallKeep !== undefined) {
-    return cachedCallKeep;
-  }
-  try {
-    // The JS package being installed does NOT mean the native side is
-    // linked: a host can `npm i react-native-callkeep` and skip
-    // `pod install`, or (very common in this repo) node_modules can carry
-    // it over from another branch whose build did link it. In that state
-    // requiring the package builds a `new NativeEventEmitter(null)` at
-    // module scope, which throws an invariant that RN surfaces as an
-    // uncaught redbox on every render of the call overlay — the whole app
-    // becomes unusable over a feature the host never switched on.
-    // Probing NativeModules first keeps the optional dependency genuinely
-    // optional: no native module => behave exactly as if it isn't installed.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { NativeModules } = require('react-native');
-    if (!NativeModules?.RNCallKeep) {
-      cachedCallKeep = null;
-      return cachedCallKeep;
-    }
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const mod = require('react-native-callkeep');
-    cachedCallKeep = (mod?.default || mod) as CallKeepModule;
-  } catch {
-    cachedCallKeep = null;
-  }
-  return cachedCallKeep;
-};
-
-// CallKeep identifies calls by UUID. Our callIds aren't UUIDs, so derive a
-// stable v4-shaped string from the callId: same call always maps to the
-// same UUID, which is what endCall() needs to dismiss the right screen.
-const toUuid = (seed: string): string => {
-  let hash = 0x811c9dc5;
-  const bytes: number[] = [];
-  for (let i = 0; i < 32; i++) {
-    const ch = seed.charCodeAt(i % Math.max(1, seed.length)) + i;
-    hash ^= ch;
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-    bytes.push(hash & 0xff);
-  }
-  const hex = bytes.map((b) => b.toString(16).padStart(2, '0')).join('');
-  return [
-    hex.slice(0, 8),
-    hex.slice(8, 12),
-    '4' + hex.slice(13, 16),
-    ((parseInt(hex[16], 16) & 0x3) | 0x8).toString(16) + hex.slice(17, 20),
-    hex.slice(20, 32),
-  ].join('-');
-};
+export { loadCallKeep };
 
 const trace = (...args: unknown[]) => {
   if (__DEV__) {console.log('[calls] CallKit:', ...args);}
@@ -192,7 +118,25 @@ export const useCallKeep = (): void => {
   useEffect(() => {
     if (!callKeep) {return;}
 
-    const onAnswer = () => {
+    const isOtherCall = (payload: any): boolean => {
+      const uuid = String(payload?.callUUID || '').toLowerCase();
+      if (!uuid) {return false;}
+      const active = activeUuidRef.current?.toLowerCase() || null;
+      if (active === uuid) {return false;}
+      const current = store.getState().call;
+      const ringingUuid =
+        current.direction === 'incoming' && current.callId
+          ? callKitUuid(current.callId)
+          : null;
+      return ringingUuid !== uuid;
+    };
+
+    const onAnswer = (payload?: any) => {
+      if (isOtherCall(payload)) {
+        trace('answer before the call arrived', payload?.callUUID);
+        rememberSystemCallAction(String(payload.callUUID), 'answer');
+        return;
+      }
       answeredRef.current = true;
       // The user answered from the system screen, which on Android may
       // mean the app was not even in the foreground.
@@ -206,7 +150,12 @@ export const useCallKeep = (): void => {
       }
     };
 
-    const onEnd = () => {
+    const onEnd = (payload?: any) => {
+      if (isOtherCall(payload)) {
+        trace('declined before the call arrived', payload?.callUUID);
+        rememberSystemCallAction(String(payload.callUUID), 'end');
+        return;
+      }
       const snapshot = store.getState().call;
       if (snapshot.phase === 'idle') {return;}
       if (
@@ -262,16 +211,46 @@ export const useCallKeep = (): void => {
     callKeep.addEventListener('didResetProvider', onReset);
     // The system's verdict on displayIncomingCall ("Unentitled" means the
     // app lacks the voip background mode).
-    const onDisplayed = ({ error, errorCode }: { error?: string; errorCode?: string }) => {
-      trace('incoming call shown', error ? `failed: ${errorCode || ''} ${error}` : 'ok');
+    const onDisplayed = ({
+      error,
+      errorCode,
+      fromPushKit,
+    }: {
+      error?: string;
+      errorCode?: string;
+      fromPushKit?: string;
+    }) => {
+      trace(
+        `incoming call shown${fromPushKit === '1' ? ' (PushKit)' : ''}`,
+        error ? `failed: ${errorCode || ''} ${error}` : 'ok'
+      );
+      if (errorCode === 'CallUUIDAlreadyExists') {return;}
       // CallKit refused it (Do Not Disturb, unentitled...): bring the
-      // in-app ring card back so the call can still be answered.
-      if (error) {setCallSystemRinging(false);}
+      if (error && fromPushKit !== '1') {setCallSystemRinging(false);}
     };
     callKeep.addEventListener('didDisplayIncomingCall', onDisplayed);
     callKeep.addEventListener('didDeactivateAudioSession', onAudioDeactivated);
 
+    const replay: Record<string, (data: any) => void> = {
+      RNCallKeepPerformAnswerCallAction: onAnswer,
+      RNCallKeepPerformEndCallAction: onEnd,
+      RNCallKeepDidDisplayIncomingCall: onDisplayed,
+      RNCallKeepDidActivateAudioSession: onAudioActivated,
+      RNCallKeepDidDeactivateAudioSession: onAudioDeactivated,
+      RNCallKeepDidPerformSetMutedCallAction: onMuted,
+    };
+    const onLoadWithEvents = (events: { name: string; data: any }[]) => {
+      if (!Array.isArray(events) || events.length === 0) {return;}
+      trace('replaying', events.map((e) => e.name).join(', '));
+      callKeep.clearInitialEvents?.();
+      for (const event of events) {
+        replay[event.name]?.(event.data);
+      }
+    };
+    callKeep.addEventListener('didLoadWithEvents', onLoadWithEvents);
+
     return () => {
+      callKeep.removeEventListener('didLoadWithEvents');
       callKeep.removeEventListener('answerCall');
       callKeep.removeEventListener('endCall');
       callKeep.removeEventListener('didPerformSetMutedCallAction');
@@ -313,11 +292,23 @@ export const useCallKeep = (): void => {
 
     if (isRinging) {
       if (activeUuidRef.current) {return;}
-      const uuid = toUuid(call.callId || call.roomJid || String(Date.now()));
+      const uuid = callKitUuid(call.callId || call.roomJid || String(Date.now()));
       activeUuidRef.current = uuid;
       answeredRef.current = false;
+      const earlier = takeSystemCallAction(uuid);
+      if (earlier === 'answer') {
+        trace('answered earlier on the system screen', uuid);
+        answeredRef.current = true;
+        dispatch(acceptIncomingCall());
+        return;
+      }
+      if (earlier === 'end') {
+        trace('declined earlier on the system screen', uuid);
+        activeUuidRef.current = null;
+        declineActiveCallWhenOnline();
+        return;
+      }
       // iOS: the system banner is the ring UI (Telegram-style); the in-app
-      // card would only cover the screen under it.
       if (isIOS) {setCallSystemRinging(true);}
       try {
         callKeep.displayIncomingCall(
@@ -339,7 +330,7 @@ export const useCallKeep = (): void => {
     if (isIOS && isOutgoing && !activeUuidRef.current && callKeep.startCall) {
       // Unique per call: CallKit refuses a UUID it has seen before, and
       // the callId only arrives with the token.
-      const uuid = toUuid(`${call.roomJid || ''}|${call.startedAt || Date.now()}`);
+      const uuid = callKitUuid(`${call.roomJid || ''}|${call.startedAt || Date.now()}`);
       activeUuidRef.current = uuid;
       outgoingReportedRef.current = 'none';
       trace('startCall', uuid);
@@ -382,6 +373,7 @@ export const useCallKeep = (): void => {
   }, [
     callKeep,
     ready,
+    dispatch,
     isIOS,
     isRinging,
     isLive,

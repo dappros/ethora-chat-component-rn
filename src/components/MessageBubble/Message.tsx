@@ -407,12 +407,23 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
 
   const handleReactionMessage = (emoji: string) => {
     if (!reactionsEnabled(config) || config?.disableInteractions) {return;}
-    const sender = { firstName: user.firstName, lastName: user.lastName };
     const own = message.reaction?.[user.xmppUsername || '']?.emoji || [];
-    const next = own.includes(emoji)
-      ? own.filter((reaction) => reaction !== emoji)
-      : [...own, emoji];
-    client?.sendMessageReactionStanza(message.id, message.roomJid, next, sender);
+    const adding = !own.includes(emoji);
+    const next = adding ? [...own, emoji] : own.filter((reaction) => reaction !== emoji);
+    // The author gets a push about an added emoji (see sendMessageReaction);
+    // nothing for a removed one or for one's own message.
+    const author = message.user?.id || '';
+    client?.sendMessageReactionStanza(message.id, message.roomJid, next, {
+      firstName: user.firstName,
+      lastName: user.lastName,
+      photoURL: user.profileImage,
+      push: adding && !!author && author !== user.xmppUsername,
+      messageAuthor: author,
+      messageText: message.body,
+      isMediafile: message.isMediafile,
+      mimetype: message.mimetype,
+      fileName: message.originalName || message.fileName,
+    });
   };
 
   // Long-press → capture the bubble's on-screen bounding box. The actual

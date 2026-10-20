@@ -33,6 +33,14 @@ export { XmppProvider } from './context/xmppProvider';
 export { useUnread } from './hooks/useUnreadMessagesCounter';
 
 export { handlePushPayload, openRoomFromPush } from './helpers/pushPayload';
+export { callKitUuid } from './components/VideoCalls/systemCall';
+export {
+  answerCallFromPush,
+  declineCallFromPush,
+} from './helpers/incomingCallFromPush';
+export type { CallPushIntent } from './helpers/incomingCallFromPush';
+export { isCallPush, parseCallPush } from './helpers/callPush';
+export type { ParsedCallPush } from './helpers/callPush';
 export type { PushPayloadOutcome } from './helpers/pushPayload';
 export {
   registerPushToken,

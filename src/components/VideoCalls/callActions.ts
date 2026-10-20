@@ -7,6 +7,7 @@ import {
   sendCallStateSignal,
 } from '../../networking/callTokenStanza';
 import { translateKey } from '../../i18n/strings';
+import { getGlobalXmppClient } from '../../utils/clientRegistry';
 
 /**
  * Call teardown that doesn't need a mounted component.
@@ -49,6 +50,33 @@ export const terminateActiveCall = (state: CallSignalState): void => {
 export const declineActiveCall = (): void => {
   sendCallStateSignal('declined');
   store.dispatch(declineIncomingCall());
+};
+
+const DECLINE_SIGNAL_WAIT_MS = 30_000;
+const DECLINE_SIGNAL_POLL_MS = 500;
+
+/**
+ * Decline the ringing call, telling the caller as soon as the socket is
+ * up. A call declined on the lock screen right after a push woke the app
+ * gets here while XMPP is still connecting, and the signal would be lost.
+ */
+export const declineActiveCallWhenOnline = (): void => {
+  const call = store.getState().call;
+  const signal = {
+    peerXmppUsername: call.peerXmppUsername,
+    callId: call.callId,
+    roomBareName: call.roomBareName,
+  };
+  store.dispatch(declineIncomingCall());
+  const deadline = Date.now() + DECLINE_SIGNAL_WAIT_MS;
+  const attempt = () => {
+    if (getGlobalXmppClient()?.status === 'online') {
+      sendCallStateSignal('declined', signal);
+      return;
+    }
+    if (Date.now() < deadline) {setTimeout(attempt, DECLINE_SIGNAL_POLL_MS);}
+  };
+  attempt();
 };
 
 /** `t` for code outside React, resolved by the same rule as useT. */

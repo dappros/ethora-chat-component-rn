@@ -528,6 +528,16 @@ export const onCallTokenMessage = (stanza: Element): boolean => {
         return true;
       }
 
+      if (
+        callState.direction === 'incoming' &&
+        callState.phase !== 'idle' &&
+        !!callId &&
+        callState.callId === callId
+      ) {
+        callTrace('drop call-token: call already known from push', { callId });
+        return true;
+      }
+
       store.dispatch(
         setIncomingCallToken({
           roomJid,

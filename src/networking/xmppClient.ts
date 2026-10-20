@@ -16,7 +16,7 @@ import {
   HistoryPageCursor,
 } from './xmpp/getHistory.xmpp';
 import { sendTextMessage } from './xmpp/sendTextMessage.xmpp';
-import { sendMessageReaction } from './xmpp/sendMessageReaction.xmpp';
+import { sendMessageReaction, type ReactionStanzaData } from './xmpp/sendMessageReaction.xmpp';
 import { sendReceivedReceipt } from './xmpp/sendReceivedReceipt.xmpp';
 import { sendDisplayedMarker } from './xmpp/sendDisplayedMarker.xmpp';
 import { sendTextMessageWithTranslateTag } from './xmpp/sendTextMessageWithTranslateTag.xmpp';
@@ -1646,7 +1646,7 @@ export class XmppClient {
     messageId: string,
     roomJid: string,
     reactionsList: string[],
-    data?: { firstName?: string; lastName?: string }
+    data?: ReactionStanzaData
   ) {
     sendMessageReaction(
       this.client,

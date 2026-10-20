@@ -26,6 +26,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RootState } from '../../roomStore';
 import {
   acceptIncomingCall,
+  declineIncomingCall,
   resetCall,
   setCallError,
 } from '../../roomStore/callSlice';
@@ -63,6 +64,12 @@ const ACCEPT = '#10B981';
 // call-token (offline peer, backend error, etc). 30s matches the typical
 // PSTN ring window.
 const OUTGOING_CALL_TIMEOUT_MS = 30000;
+
+// Stop ringing an incoming call nobody cancelled. The caller gives up after
+// OUTGOING_CALL_TIMEOUT_MS and says so, but that signal is lost when the
+// call came in by push and the socket never came up (the system call
+// screen of a VoIP push would otherwise ring on).
+const INCOMING_CALL_TIMEOUT_MS = 45000;
 
 // Ring pattern for an incoming call: wait, buzz, pause, buzz... Android
 // loops this from index 0, iOS ignores the pattern and just vibrates.
@@ -507,8 +514,6 @@ const VideoCallOverlayInner: FC = () => {
   }, [enabled, canRenderSession, call.token, livekitUrl, call.kind]);
 
   // Give up on an unanswered outgoing dial. Unlike web (which only shows
-  // the error), also tell the callee, who would otherwise keep ringing:
-  // there is no incoming ring timeout on either platform.
   useEffect(() => {
     if (call.phase !== 'requesting' || call.direction !== 'outgoing') {
       return;
@@ -519,6 +524,17 @@ const VideoCallOverlayInner: FC = () => {
     }, OUTGOING_CALL_TIMEOUT_MS);
     return () => clearTimeout(timer);
   }, [call.phase, call.direction, call.startedAt, dispatch, t]);
+
+  useEffect(() => {
+    if (call.phase !== 'ringing-incoming' || call.direction !== 'incoming') {
+      return;
+    }
+    const elapsed = Date.now() - (call.startedAt || Date.now());
+    const timer = setTimeout(() => {
+      dispatch(declineIncomingCall());
+    }, Math.max(0, INCOMING_CALL_TIMEOUT_MS - elapsed));
+    return () => clearTimeout(timer);
+  }, [call.phase, call.direction, call.startedAt, dispatch]);
 
   // Buzz while an incoming call is ringing. The ring screen is already on
   // top, so this is the only alert needed when the app is in the

@@ -68,11 +68,11 @@ Define the task before anything else in the app loads. With expo-router that mea
 ```ts
 // index.ts  (package.json: "main": "index.ts")
 import { registerSealedPushTask } from '@ethora/chat-component-rn';
-registerSealedPushTask({ channelId: 'messages' });
+registerSealedPushTask({ channelId: 'messages', reactionChannelId: 'reactions' });
 import 'expo-router/entry';
 ```
 
-`channelId` is the Android notification channel to post on (create it with `Notifications.setNotificationChannelAsync`; omitted, the OS default channel is used). `placeholderTitle` / `placeholderBody` replace the "New message" placeholder.
+`channelId` is the Android notification channel to post on (create it with `Notifications.setNotificationChannelAsync`; omitted, the OS default channel is used). `reactionChannelId` is the channel for a push about an emoji put on the user's message (`type: 'reaction'` in the envelope): create it silent, the way Telegram shows reactions; omitted, `channelId` is used. A reaction is posted with its own identifier per chat, so it never replaces the chat's new-message notification. `placeholderTitle` / `placeholderBody` replace the "New message" (or "New reaction") placeholder.
 
 ### 5. iOS: nothing else
 

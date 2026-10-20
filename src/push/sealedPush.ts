@@ -20,6 +20,8 @@ export interface SealedPushEnvelope {
   msgID: string;
   /** Recipient. */
   userJid: string;
+  /** 'reaction' for a push about an emoji put on the user's message; absent for a message. */
+  type?: string;
   /** Base64 of the sealed box; absent when the service could not seal. */
   enc?: string;
 }
@@ -35,7 +37,13 @@ export interface SealedPushContent {
   msgID: string;
   /** Sender avatar URL, '' when none. */
   image: string;
+  /** 'reaction' with the emoji in `reaction`; absent for a message. */
+  type?: string;
+  reaction?: string;
 }
+
+export const isReactionPush = (envelope: Pick<SealedPushEnvelope, 'type'>): boolean =>
+  envelope.type === 'reaction';
 
 export type SealedPushFailure =
   /** No key on this device (never generated, or the store is not readable). */
@@ -68,6 +76,7 @@ export const sealedPushEnvelopeOf = (
     jid: str(data.jid),
     msgID: str(data.msgID),
     userJid: str(data.userJid),
+    ...(str(data.type) ? { type: str(data.type) } : {}),
     ...(enc ? { enc } : {}),
   };
 };
@@ -88,6 +97,8 @@ const parseContent = (plaintext: Uint8Array): SealedPushContent | null => {
       chatJid: str(parsed.chatJid),
       msgID: str(parsed.msgID),
       image: str(parsed.image),
+      ...(str(parsed.type) ? { type: str(parsed.type) } : {}),
+      ...(str(parsed.reaction) ? { reaction: str(parsed.reaction) } : {}),
     };
   } catch {
     return null;

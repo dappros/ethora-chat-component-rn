@@ -5,6 +5,7 @@
 // methods) rather than duplicating here.
 
 import { Client } from '@xmpp/client';
+import type { ReactionStanzaData } from '../../networking/xmpp/sendMessageReaction.xmpp';
 import XmppClient, {
   HistoryPage,
   HistoryPageCursor,
@@ -153,7 +154,7 @@ export interface XmppClientInterface {
     messageId: string,
     roomJid: string,
     reactionsList: string[],
-    data?: { firstName?: string; lastName?: string }
+    data?: ReactionStanzaData
   ): void;
   sendTextMessageWithTranslateTagStanza?(
     roomJID: string,

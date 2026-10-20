@@ -1,7 +1,13 @@
 import { AppState, Platform } from 'react-native';
 import { pushLog } from '../utils/devLogger';
+import { isCallPush } from '../helpers/callPush';
 import { loadPushSecretKey } from './pushKeyStore';
-import { openSealedPush, sealedPushEnvelopeOf, type OpenSealedPushResult } from './sealedPush';
+import {
+  isReactionPush,
+  openSealedPush,
+  sealedPushEnvelopeOf,
+  type OpenSealedPushResult,
+} from './sealedPush';
 
 // Android half of encrypted pushes. A sealed push is data-only, so the OS
 // shows nothing by itself: expo-notifications hands it to a background
@@ -18,12 +24,26 @@ export const SEALED_PUSH_TASK = 'ETHORA_SEALED_PUSH';
 export interface SealedPushTaskOptions {
   /** Android notification channel; the OS default channel when omitted. */
   channelId?: string;
+  /**
+   * Channel for a reaction to the user's message (a silent one, Telegram's
+   * way); `channelId` when omitted. Reactions carry no sound of their own
+   * either way.
+   */
+  reactionChannelId?: string;
   /** Shown when the box does not open (no key, another key, damaged). Default "New message". */
   placeholderTitle?: string;
   placeholderBody?: string;
+  /**
+   * An incoming-call push (data-only, high priority) while the app is not
+   * in the foreground; the host shows its own incoming-call notification
+   * (full-screen intent, Answer / Decline). Not called in the foreground,
+   * where the XMPP invite rings the in-app call screen.
+   */
+  onCallPush?: (data: Record<string, unknown>) => void | Promise<void>;
 }
 
 const PLACEHOLDER_TITLE = 'New message';
+const PLACEHOLDER_REACTION_TITLE = 'New reaction';
 
 let registered = false;
 
@@ -49,9 +69,9 @@ const loadNotifications = (): any => {
  * itself, `data.dataString` carries the same as a JSON string on some
  * versions, and a Firebase `RemoteMessage` keeps them under `data.data`.
  */
-export const sealedPushDataOf = (payload: unknown): Record<string, unknown> | null => {
+const pushDataCandidates = (payload: unknown): unknown[] => {
   const root = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : null;
-  if (!root) {return null;}
+  if (!root) {return [];}
   const candidates: unknown[] = [root.data, root];
   const data = root.data && typeof root.data === 'object' ? (root.data as Record<string, unknown>) : null;
   if (data) {
@@ -64,30 +84,39 @@ export const sealedPushDataOf = (payload: unknown): Record<string, unknown> | nu
     }
     candidates.push(data.data);
   }
-  for (const candidate of candidates) {
-    if (sealedPushEnvelopeOf(candidate as Record<string, unknown>)) {
-      return candidate as Record<string, unknown>;
-    }
-  }
-  return null;
+  return candidates.filter((c) => c && typeof c === 'object');
 };
+
+export const sealedPushDataOf = (payload: unknown): Record<string, unknown> | null =>
+  (pushDataCandidates(payload).find((candidate) =>
+    sealedPushEnvelopeOf(candidate as Record<string, unknown>)
+  ) as Record<string, unknown> | undefined) ?? null;
+
+/** The call fields of an incoming-call push in the task payload, if it is one. */
+export const callPushDataOf = (payload: unknown): Record<string, unknown> | null =>
+  (pushDataCandidates(payload).find((candidate) =>
+    isCallPush(candidate as Record<string, unknown>)
+  ) as Record<string, unknown> | undefined) ?? null;
 
 const notificationContent = (result: OpenSealedPushResult, options: SealedPushTaskOptions) => {
   const { envelope } = result;
   // What the tap handler (`handlePushPayload` through the host's response
   // listener) needs: the same ids a plain push carries on `data`.
+  const reaction = isReactionPush(envelope);
   const data = {
     jid: envelope.jid,
     msgID: envelope.msgID,
     userJid: envelope.userJid,
     sealed: true,
+    ...(reaction ? { type: 'reaction' } : {}),
   };
+  const sound = reaction ? false : 'default';
   if (!result.ok) {
     return {
-      title: options.placeholderTitle || PLACEHOLDER_TITLE,
+      title: options.placeholderTitle || (reaction ? PLACEHOLDER_REACTION_TITLE : PLACEHOLDER_TITLE),
       ...(options.placeholderBody ? { body: options.placeholderBody } : {}),
       data,
-      sound: 'default',
+      sound,
     };
   }
   const { content } = result;
@@ -95,14 +124,16 @@ const notificationContent = (result: OpenSealedPushResult, options: SealedPushTa
     title: content.title || content.sender || content.chat || PLACEHOLDER_TITLE,
     body: content.body,
     data: { ...data, chatJid: content.chatJid, senderJid: content.senderJid },
-    sound: 'default',
+    sound,
   };
 };
 
 /**
  * Open a sealed push and show it. One notification per chat: the room JID
  * is the identifier, so a newer message replaces the older one the way the
- * service's collapse key does for plain pushes.
+ * service's collapse key does for plain pushes. A reaction has its own
+ * identifier per chat (and its own channel), so it never replaces the
+ * chat's new-message notification.
  */
 export async function presentSealedPush(
   data: Record<string, unknown>,
@@ -122,10 +153,14 @@ export async function presentSealedPush(
     console.warn(`[push] sealed push kid=${envelope.kid} not opened (${result.reason}), showing the placeholder`);
     pushLog('warn', `push: sealed push not opened (${result.reason}), showing the placeholder`);
   }
+  const reaction = isReactionPush(envelope);
+  const base = envelope.jid || envelope.msgID || '';
+  const identifier = base ? (reaction ? `${base}#reaction` : base) : undefined;
+  const channelId = (reaction && options.reactionChannelId) || options.channelId;
   await notifications.scheduleNotificationAsync({
-    identifier: envelope.jid || envelope.msgID || undefined,
+    identifier,
     content: notificationContent(result, options),
-    trigger: options.channelId ? { channelId: options.channelId } : null,
+    trigger: channelId ? { channelId } : null,
   });
   return result;
 }
@@ -150,6 +185,17 @@ export function registerSealedPushTask(options: SealedPushTaskOptions = {}): boo
   }
   taskManager.defineTask(SEALED_PUSH_TASK, async ({ data, error }: { data: unknown; error: unknown }) => {
     if (error) {return;}
+    const call = callPushDataOf(data);
+    if (call) {
+      if (AppState.currentState === 'active' || !options.onCallPush) {return;}
+      try {
+        console.log(`[push] incoming call push ${String(call.callId ?? '')}`);
+        await options.onCallPush(call);
+      } catch (e) {
+        pushLog('warn', 'push: showing an incoming call failed', e);
+      }
+      return;
+    }
     const map = sealedPushDataOf(data);
     if (!map) {return;}
     // In the foreground the room is live over XMPP; the host's
