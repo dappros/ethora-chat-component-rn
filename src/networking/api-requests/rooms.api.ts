@@ -454,7 +454,7 @@ export async function postReportRoom(data: PostReportRoom) {
     );
     return response.data.result;
   } catch (error) {
-    throw new Error('Error updating profile');
+    throw new Error('Error reporting chat');
   }
 }
 

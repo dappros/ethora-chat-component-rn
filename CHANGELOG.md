@@ -91,6 +91,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this pr
 
 - **A call no longer hangs on after the other side drops it.** The `call-state` handler read the state, `callId` and `room` from the `<message>` instead of its `<data>`, so the peer's `cancelled` / `declined` / `ended` signal and the server's call log never ended the call; the server's `call-state-declined` is now handled too, and a late signal of an earlier call in the same room no longer ends the current one. A call declined on the CallKit / system screen tells the caller once the socket is up instead of losing the signal while it reconnects.
 
+- **Reporting a chat reaches the server.** The report form sent its UI ids (`violence`, `childAbuse`, `personalDetails`, `illegalDrugs`) as the category and no text when the details were empty, so `POST /v1/chats/reports/:chatName` rejected most reports with 422. Each category is now mapped onto the value the server accepts (Child Abuse, which the server has no value for, goes as `other` with its name in the text), the text is never empty, and the toasts say whether the report was sent. The mapping lives in `helpers/reportRoom.ts`, shared in shape with the web SDK.
+
 - **Removed reaction in a room with no loaded messages crashed the history parse, and archive-replayed reactions overwrote the room preview.** Both fixed.
 
 - **Prototype pollution guard and users cache cap.** Dynamic keys in the store are guarded against `__proto__` style keys, and the users cache is merged and capped at 5000 entries.
