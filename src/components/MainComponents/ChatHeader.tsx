@@ -15,6 +15,7 @@ import { ProfileImagePlaceholder } from './ProfileImagePlaceholder';
 import Button from '../styled/Button';
 import { BackIcon, BurgerMenuIcon, LockIcon } from '../../assets/icons';
 import { CallButtons } from '../VideoCalls/CallButtons';
+import { ScheduleCallButton } from '../Booking/ScheduleCallButton';
 import { HeaderCallBar } from '../VideoCalls/ActiveCallBar';
 import { LanguageSelectorButton } from './LanguageSelectorButton';
 import { MessageSearchButton } from './MessageSearchButton';
@@ -258,6 +259,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
               1:1 room, so it costs non-call hosts nothing. */}
           <MessageSearchButton />
           <LanguageSelectorButton />
+          <ScheduleCallButton />
           <CallButtons />
           {!config?.disableChatInfo?.disableRoomMenu && (
             <RoomMenu handleLeaveClick={handleLeaveClick} />

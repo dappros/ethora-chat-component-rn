@@ -1005,6 +1005,42 @@ export interface IConfig {
    * build or a prebuilt binary.
    */
   videoCalls?: VideoCallsConfig;
+
+  // ----- scheduled calls -----
+  /**
+   * Scheduled calls and their deep links. The schedule action, the invite
+   * cards and the join flow follow `videoCalls.enabled`; this only tells the
+   * SDK which links open the app. See README, "Scheduled calls and deep links".
+   */
+  scheduledCalls?: ScheduledCallsConfig;
+}
+
+export interface ScheduledCallsConfig {
+  /**
+   * Scheduling and the Join button. On whenever `videoCalls.enabled` is on;
+   * `false` hides the Schedule a call action and the Join buttons (an invite
+   * already in a room stays readable).
+   */
+  enabled?: boolean;
+  /**
+   * Called when a scheduled call opened from a link or a reminder could not
+   * be opened (the pre-join screen shows the matching message either way).
+   */
+  onOpenError?: (error: {
+    slug: string;
+    reason: 'not-found' | 'not-a-member' | 'cancelled' | 'network';
+  }) => void;
+  /**
+   * Hosts whose `https://<host>/call/<slug>` links open this app, in
+   * addition to the hosted web app (`app.chat.ethora.com`). Use the web
+   * domain of your Ethora app when it has its own.
+   */
+  hosts?: string[];
+  /**
+   * The app's own URL schemes, without `://`. `<scheme>://call/<slug>` opens
+   * a scheduled call. Unset: any custom scheme is accepted.
+   */
+  schemes?: string[];
 }
 
 /**
