@@ -9,11 +9,14 @@
 // exports) must be in the package, the Expo config plugin files must be there, and
 // nothing that looks like a test, a native project, a key or a local credential file may be.
 import { spawnSync } from 'node:child_process';
+import { jsonArrayFrom } from './lib/packjson.mjs';
 import { readFileSync } from 'node:fs';
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
 
 // --ignore-scripts: prepack would rebuild lib/, and the prepare script prints to stdout.
+// Some npm versions still print lifecycle output (patch-package) before the JSON, so
+// the JSON array is cut out of stdout instead of parsing all of it.
 const result = spawnSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], {
   encoding: 'utf8',
   maxBuffer: 64 * 1024 * 1024,
@@ -26,7 +29,7 @@ if (result.status !== 0) {
 
 let pack;
 try {
-  [pack] = JSON.parse(result.stdout);
+  [pack] = jsonArrayFrom(result.stdout);
 } catch (err) {
   console.error(`check-package: cannot read the npm pack output: ${err.message}`);
   process.exit(1);
