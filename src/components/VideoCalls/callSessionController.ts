@@ -4,6 +4,21 @@ import { store } from '../../roomStore';
 import { setCallError, setCallPhase } from '../../roomStore/callSlice';
 import { ensureLiveKitGlobals, loadLiveKit } from './livekitRuntime';
 import { terminateActiveCall, translateCallString } from './callActions';
+import {
+  getP2PSessionSnapshot,
+  isP2PSessionActive,
+  setP2PMicEnabled,
+  switchP2PCamera,
+  toggleP2PCamera,
+  toggleP2PSpeaker,
+  dismissP2PDeviceError,
+  useP2PSession,
+} from './p2pCallSession';
+import {
+  CallParticipantView,
+  CallSessionSnapshot,
+  IDLE_SESSION,
+} from './callSessionTypes';
 
 /**
  * The LiveKit connection of the current call, owned outside React.
@@ -22,64 +37,20 @@ import { terminateActiveCall, translateCallString } from './callActions';
  * only read the snapshot and call the controls.
  */
 
-export interface CallSessionSnapshot {
-  /** A LiveKit room exists for the current call. */
-  active: boolean;
-  connected: boolean;
-  /** Translated, dismissible camera/mic problem. Never fails the call. */
-  deviceError: string | null;
-  micOn: boolean;
-  cameraOn: boolean;
-  speakerOn: boolean;
-  /** Which camera the local video comes from; only the front one is mirrored. */
-  facingMode: 'user' | 'environment';
-  /**
-   * Bumped whenever the local camera track is re-acquired, so the self view
-   * can remount onto the new stream instead of holding the stopped one.
-   */
-  localVideoEpoch: number;
-  /** `{ participant, publication, source }` for `<VideoTrack />`, live and unmuted only. */
-  remoteVideo: any;
-  localVideo: any;
-  remoteName: string | null;
-  remoteJoined: boolean;
-  /** Peer joined but has no live microphone. */
-  remoteMicMuted: boolean;
-  /**
-   * When the call truly connected: the later of the two LiveKit `joinedAt`
-   * stamps. The server sets them, so both sides count from the same moment
-   * (web's useSharedCallElapsed). Null until the peer is in.
-   */
-  anchorAt: number | null;
-}
-
-const IDLE: CallSessionSnapshot = {
-  active: false,
-  connected: false,
-  deviceError: null,
-  micOn: true,
-  cameraOn: false,
-  speakerOn: false,
-  facingMode: 'user',
-  localVideoEpoch: 0,
-  remoteVideo: null,
-  localVideo: null,
-  remoteName: null,
-  remoteJoined: false,
-  remoteMicMuted: false,
-  anchorAt: null,
-};
+export type { CallParticipantView, CallSessionSnapshot } from './callSessionTypes';
 
 interface Session {
   key: string;
   room: any;
   kind: 'audio' | 'video';
+  /** Group room call: many participants, the call outlives any one leaving. */
+  isGroup: boolean;
   disposed: boolean;
   everJoined: boolean;
 }
 
 let session: Session | null = null;
-let snapshot: CallSessionSnapshot = IDLE;
+let snapshot: CallSessionSnapshot = IDLE_SESSION;
 const listeners = new Set<() => void>();
 let storeUnsubscribe: (() => void) | null = null;
 
@@ -97,8 +68,19 @@ const subscribe = (listener: () => void) => {
 
 const getSnapshot = () => snapshot;
 
-export const useCallSession = (): CallSessionSnapshot =>
+const useLiveKitSession = (): CallSessionSnapshot =>
   useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+
+/**
+ * The media session of the current call, whichever transport carries it: a
+ * peer to peer connection (p2pCallSession.ts) when one is bound, else the
+ * LiveKit room. Callers never need to tell them apart.
+ */
+export const useCallSession = (): CallSessionSnapshot => {
+  const livekit = useLiveKitSession();
+  const p2p = useP2PSession();
+  return p2p.active ? p2p : livekit;
+};
 
 const sessionKey = (livekitUrl: string, token: string) => `${livekitUrl}|${token}`;
 
@@ -134,6 +116,32 @@ const joinedAtMs = (participant: any): number => {
   return Number.isFinite(ms) ? ms : 0;
 };
 
+const micMutedOf = (participant: any, Track: any): boolean => {
+  const mic = participant?.getTrackPublication?.(Track.Source.Microphone);
+  return !mic || mic.isMuted !== false;
+};
+
+// Everyone in a group call: us first, then the others in join order.
+const groupParticipants = (room: any, Track: any): CallParticipantView[] => {
+  const speaking = new Set<string>(
+    (Array.from(room.activeSpeakers || []) as any[]).map((p) => p?.identity)
+  );
+  const view = (p: any, isLocal: boolean): CallParticipantView => ({
+    identity: String(p?.identity || ''),
+    name: String(p?.name || p?.identity || ''),
+    isLocal,
+    video: liveVideoRef(p, Track),
+    micMuted: micMutedOf(p, Track),
+    speaking: speaking.has(p?.identity),
+  });
+  return [
+    view(room.localParticipant, true),
+    ...(Array.from(room.remoteParticipants?.values?.() || []) as any[]).map((p) =>
+      view(p, false)
+    ),
+  ];
+};
+
 const resync = () => {
   const current = session;
   const runtime = loadLiveKit();
@@ -147,6 +155,31 @@ const resync = () => {
   const remoteMic = remote?.getTrackPublication?.(Track.Source.Microphone);
   const localJoined = joinedAtMs(room.localParticipant);
   const remoteJoinedAt = joinedAtMs(remote);
+
+  if (current.isGroup) {
+    // A group call began when the first two were in; later joiners do not
+    // restart the clock (web's useSharedCallElapsed(group)).
+    const joins = [
+      localJoined,
+      ...(Array.from(room.remoteParticipants?.values?.() || []) as any[]).map(
+        joinedAtMs
+      ),
+    ].filter((ms) => ms > 0);
+    emit({
+      remoteJoined: !!remote,
+      remoteName: null,
+      remoteVideo: null,
+      localVideo: liveVideoRef(room.localParticipant, Track),
+      remoteMicMuted: false,
+      participants: groupParticipants(room, Track),
+      anchorAt: remote
+        ? joins.length >= 2
+          ? Math.min(...joins)
+          : snapshot.anchorAt ?? Date.now()
+        : null,
+    });
+    return;
+  }
 
   emit({
     remoteJoined: !!remote,
@@ -179,7 +212,7 @@ export const stopCallSession = (): void => {
   } catch {
     // Never let teardown throw.
   }
-  snapshot = IDLE;
+  snapshot = IDLE_SESSION;
   listeners.forEach((listener) => listener());
 };
 
@@ -202,6 +235,8 @@ export interface StartCallSessionOptions {
   token: string;
   livekitUrl: string;
   kind: 'audio' | 'video';
+  /** Group room call: show everyone, and keep going while others remain. */
+  isGroup?: boolean;
   startWithMicOn?: boolean;
   startWithCameraOn?: boolean;
 }
@@ -214,6 +249,7 @@ export const startCallSession = ({
   token,
   livekitUrl,
   kind,
+  isGroup = false,
   startWithMicOn = true,
   startWithCameraOn = true,
 }: StartCallSessionOptions): void => {
@@ -251,11 +287,19 @@ export const startCallSession = ({
         }
       : {}),
   });
-  const current: Session = { key, room, kind, disposed: false, everJoined: false };
+  const current: Session = {
+    key,
+    room,
+    kind,
+    isGroup,
+    disposed: false,
+    everJoined: false,
+  };
   session = current;
   snapshot = {
-    ...IDLE,
+    ...IDLE_SESSION,
     active: true,
+    isGroup,
     micOn: startWithMicOn,
     cameraOn: kind === 'video' && startWithCameraOn,
     // Video calls belong on the loudspeaker, audio calls on the earpiece.
@@ -277,6 +321,7 @@ export const startCallSession = ({
     .on(RoomEvent.TrackMuted, onChange)
     .on(RoomEvent.TrackUnmuted, onChange)
     .on(RoomEvent.ParticipantConnected, onChange)
+    .on(RoomEvent.ActiveSpeakersChanged, onChange)
     .on(RoomEvent.MediaDevicesError, (error: unknown) => {
       if (current.disposed) {return;}
       emit({ deviceError: humanizeDeviceError(error) });
@@ -286,8 +331,13 @@ export const startCallSession = ({
       resync();
       // 1:1 semantics, as web's PeerLeaveWatcher: once the peer had been
       // in the room, their leaving IS the end of the call. Before they
-      // join (outgoing "Ringing...") an empty room is expected.
-      if (current.everJoined && (room.remoteParticipants?.size ?? 0) === 0) {
+      // join (outgoing "Ringing...") an empty room is expected. A group
+      // call goes on while anyone is left, and ends when we hang up.
+      if (
+        !current.isGroup &&
+        current.everJoined &&
+        (room.remoteParticipants?.size ?? 0) === 0
+      ) {
         terminateActiveCall('ended');
       }
     })
@@ -363,10 +413,19 @@ export const startCallSession = ({
 
 // ---- controls -----------------------------------------------------------
 
-export const toggleCallMic = (): Promise<void> => setCallMicEnabled(!snapshot.micOn);
+// The controls act on whichever transport carries the call.
+const currentSnapshot = (): CallSessionSnapshot =>
+  isP2PSessionActive() ? getP2PSessionSnapshot() : snapshot;
+
+export const toggleCallMic = (): Promise<void> =>
+  setCallMicEnabled(!currentSnapshot().micOn);
 
 /** Set the mic to a given state (system call UI reports absolute values). */
 export const setCallMicEnabled = async (next: boolean): Promise<void> => {
+  if (isP2PSessionActive()) {
+    setP2PMicEnabled(next);
+    return;
+  }
   const current = session;
   if (!current || snapshot.micOn === next) {return;}
   emit({ micOn: next });
@@ -380,6 +439,10 @@ export const setCallMicEnabled = async (next: boolean): Promise<void> => {
 };
 
 export const toggleCallCamera = async (): Promise<void> => {
+  if (isP2PSessionActive()) {
+    await toggleP2PCamera();
+    return;
+  }
   const current = session;
   if (!current) {return;}
   const next = !snapshot.cameraOn;
@@ -397,6 +460,10 @@ export const toggleCallCamera = async (): Promise<void> => {
 let switchingCamera = false;
 
 export const switchCallCamera = async (): Promise<void> => {
+  if (isP2PSessionActive()) {
+    switchP2PCamera();
+    return;
+  }
   const current = session;
   const runtime = loadLiveKit();
   if (!current || !runtime || switchingCamera) {return;}
@@ -437,6 +504,10 @@ export const switchCallCamera = async (): Promise<void> => {
 };
 
 export const toggleCallSpeaker = async (): Promise<void> => {
+  if (isP2PSessionActive()) {
+    await toggleP2PSpeaker();
+    return;
+  }
   const runtime = loadLiveKit();
   if (!session || !runtime) {return;}
   const next = !snapshot.speakerOn;
@@ -459,6 +530,10 @@ export const toggleCallSpeaker = async (): Promise<void> => {
 };
 
 export const dismissCallDeviceError = (): void => {
+  if (isP2PSessionActive()) {
+    dismissP2PDeviceError();
+    return;
+  }
   emit({ deviceError: null });
 };
 

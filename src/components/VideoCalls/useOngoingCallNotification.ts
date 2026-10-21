@@ -9,6 +9,7 @@ import type {
 import { terminateActiveCall } from './callActions';
 import { toggleCallCamera, toggleCallMic, useCallSession } from './callSessionController';
 import { setCallMinimized } from './callUiStore';
+import { callCanRenderSession } from './callLive';
 
 /**
  * Drives the host's ongoing-call notification (`videoCalls.
@@ -25,8 +26,7 @@ export const useOngoingCallNotification = (
   const session = useCallSession();
   const shownRef = useRef(false);
 
-  const live =
-    !!call.token && (call.phase === 'connecting' || call.phase === 'in-call');
+  const live = callCanRenderSession(call);
 
   useEffect(() => {
     if (!adapter) {return;}

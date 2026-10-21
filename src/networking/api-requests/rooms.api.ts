@@ -5,6 +5,10 @@ import { addRoom, mergeUsersSet, updateRoom } from '../../roomStore/roomsSlice';
 import { IRoom } from '../../types/types';
 import http from '../apiClient';
 import {
+  CallCreateResult,
+  parseCallCreateResponse,
+} from '../../calls/callMode';
+import {
   mapApiLastMessage,
   readApiUnreadCount,
   readApiUsersCnt,
@@ -544,6 +548,10 @@ export async function deleteRoom(name: string) {
 // call-token stanza for the callee. When the server doesn't recognize the
 // field both sides still fall through to a video call (the default), which
 // matches the prior single-mode behavior.
+// We never send a transport: the server decides (`p2p` for private chats when
+// it has P2P enabled, `livekit` otherwise and always for group chats) and
+// tells us in the response. An old server answers with no `mode`, which
+// parses as `livekit`.
 // No timeout is set on the shared `http` client (matches web — neither SDK
 // configures one anywhere), so a stalled connection leaves this request
 // hanging indefinitely with nothing surfaced to the caller. Observed live
@@ -560,12 +568,12 @@ const CALL_CREATE_TIMEOUT_MS = 15000;
 export async function createChatCall(
   chatName: string,
   options?: { kind?: 'audio' | 'video' }
-): Promise<void> {
+): Promise<CallCreateResult> {
   const token = store.getState().chatSettingStore.user.token || '';
   const kind = options?.kind || 'video';
 
   try {
-    await http.post(
+    const response = await http.post(
       `/v1/chats/call/create/${chatName}`,
       { kind },
       {
@@ -575,6 +583,7 @@ export async function createChatCall(
         timeout: CALL_CREATE_TIMEOUT_MS,
       }
     );
+    return parseCallCreateResponse(response?.data, kind);
   } catch (error: any) {
     // Distinguish a timeout from a real server rejection — the caller
     // (CallButtons) surfaces this string directly on the ring/error

@@ -6,6 +6,7 @@ import { acceptIncomingCall } from '../../roomStore/callSlice';
 import { declineActiveCallWhenOnline, terminateActiveCall } from './callActions';
 import { setCallMicEnabled, useCallSession } from './callSessionController';
 import { loadLiveKit } from './livekitRuntime';
+import { loadWebRTC } from '../../calls/p2p/webrtcRuntime';
 import { setCallSystemRinging } from './callUiStore';
 import {
   callKitUuid,
@@ -41,6 +42,12 @@ import {
  */
 
 export { loadCallKeep };
+
+// WebRTC's view of the iOS audio session. The LiveKit bridge and the p2p one
+// load the same class from the same fork; a p2p-only host may have no
+// LiveKit JS at all.
+const rtcAudioSession = () =>
+  loadLiveKit()?.RTCAudioSession ?? loadWebRTC()?.RTCAudioSession ?? null;
 
 const trace = (...args: unknown[]) => {
   if (__DEV__) {console.log('[calls] CallKit:', ...args);}
@@ -183,14 +190,14 @@ export const useCallKeep = (): void => {
     // unit once CallKit has activated the session.
     const onAudioActivated = () => {
       try {
-        loadLiveKit()?.RTCAudioSession?.audioSessionDidActivate?.();
+        rtcAudioSession()?.audioSessionDidActivate?.();
       } catch {
         // Older webrtc builds manage the session on their own.
       }
     };
     const onAudioDeactivated = () => {
       try {
-        loadLiveKit()?.RTCAudioSession?.audioSessionDidDeactivate?.();
+        rtcAudioSession()?.audioSessionDidDeactivate?.();
       } catch {
         // noop
       }
