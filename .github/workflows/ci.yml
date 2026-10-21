@@ -104,7 +104,8 @@ jobs:
       - name: Pack SDK
         id: pack
         run: |
-          TARBALL=$(npm pack --silent)
+          # prepack builds lib/ and bob prints to stdout; the tarball name is the last line
+          TARBALL=$(npm pack --silent | tail -n 1)
           echo "tarball=$PWD/$TARBALL" >> "$GITHUB_OUTPUT"
       # Stand up a tiny consumer project that mirrors what a real RN/Expo
       # app's tsconfig looks like. Install the packed SDK; run tsc on a
