@@ -27,6 +27,7 @@ import {installPromiseRejectionTracker} from '../../utils/installPromiseRejectio
 import {useChatFonts} from '../../hooks/useChatFonts';
 import {installPushTokenHook} from '../../services/pushRegistration';
 import {setE2eeEnabled} from '../../e2ee';
+import {installScheduledCallHook} from '../../booking/pendingScheduledCall';
 
 const gestureRootStyle = {flex: 1};
 
@@ -40,6 +41,10 @@ installPromiseRejectionTracker();
 // tokens handed over through `registerPushToken` before sign-in. Cheap
 // (one store subscription), no-op for hosts that never use push.
 installPushTokenHook();
+
+// Arms the scheduled-call link watcher: a link held before sign-in or before
+// the chat was up opens as soon as both are true.
+installScheduledCallHook();
 
 interface ChatWrapperProps {
   token?: string;
