@@ -143,8 +143,11 @@ describe('user.api', () => {
   });
 
   it('deleteMe + updateMe hit /users with the right verbs', () => {
+    store.dispatch(setUser({ token: 't1' } as any));
     deleteMe();
-    expect(mockHttp.delete).toHaveBeenCalledWith('/v1/users');
+    expect(mockHttp.delete).toHaveBeenCalledWith('/v1/users', {
+      headers: { Authorization: 't1' },
+    });
     updateMe({ firstName: 'A' });
     expect(mockHttp.put).toHaveBeenCalledWith('/v1/users', { firstName: 'A' });
   });
