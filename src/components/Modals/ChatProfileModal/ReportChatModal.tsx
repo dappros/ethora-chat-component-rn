@@ -19,21 +19,19 @@ import { getIconColor } from '../../../helpers/getIconColor';
 import { useChatSettingState } from '../../../hooks/useChatSettingState';
 import { useTheme } from '../../../hooks/useTheme';
 import type { ChatTheme } from '../../../theme/theme';
+import {
+  buildReportRoomPayload,
+  OTHER_REPORT_CATEGORY,
+  REPORT_CATEGORIES,
+} from '../../../helpers/reportRoom';
 
 /**
- * Category ids go to `POST /v1/chats/reports/{chatName}` as-is; the labels
- * come from the i18n table, which already carried `report.category.*`
- * strings in all six locales with nothing rendering them until now.
+ * The ids are UI ids: helpers/reportRoom maps each one onto the category
+ * value `POST /v1/chats/reports/{chatName}` accepts and builds the
+ * non-empty text it requires. Labels come from the `report.category.*`
+ * strings.
  */
-const CATEGORIES = [
-  'spam',
-  'violence',
-  'childAbuse',
-  'pornography',
-  'personalDetails',
-  'illegalDrugs',
-  'other',
-] as const;
+const CATEGORIES = [...REPORT_CATEGORIES, OTHER_REPORT_CATEGORY];
 
 interface ReportChatModalProps {
   visible: boolean;
@@ -66,17 +64,19 @@ const ReportChatModal: React.FC<ReportChatModalProps> = ({
 
   const submit = async () => {
     if (!category || sending) {return;}
+    const payload = buildReportRoomPayload(
+      roomJid || activeRoom?.jid || '',
+      category,
+      details
+    );
+    if (!payload) {return;}
     setSending(true);
     try {
-      await postReportRoom({
-        chatName: (roomJid || activeRoom?.jid || '').split('@')[0],
-        category,
-        text: details.trim() || undefined,
-      });
+      await postReportRoom(payload);
       showToast({
         id: Date.now().toString(),
         title: t('toast.successTitle'),
-        message: t('modal.report.chatTitle'),
+        message: t('toast.reportSent'),
         type: 'success',
       });
       close();
@@ -85,7 +85,7 @@ const ReportChatModal: React.FC<ReportChatModalProps> = ({
       showToast({
         id: Date.now().toString(),
         title: t('toast.error'),
-        message: t('modal.report.chatTitle'),
+        message: t('toast.reportFailed'),
         type: 'error',
       });
     } finally {
@@ -110,7 +110,7 @@ const ReportChatModal: React.FC<ReportChatModalProps> = ({
         <View style={styles.card}>
           <Text style={styles.title}>{t('modal.report.chatTitle')}</Text>
           <View style={styles.categories}>
-            {CATEGORIES.map((id) => {
+            {CATEGORIES.map(({ id, labelKey }) => {
               const selected = category === id;
               return (
                 <TouchableOpacity
@@ -126,13 +126,13 @@ const ReportChatModal: React.FC<ReportChatModalProps> = ({
                   <Text
                     style={[styles.categoryLabel, selected && { color: primary }]}
                   >
-                    {t(`report.category.${id}`)}
+                    {t(labelKey)}
                   </Text>
                 </TouchableOpacity>
               );
             })}
           </View>
-          {category === 'other' && (
+          {category === OTHER_REPORT_CATEGORY.id && (
             <TextInput
               testID="report-details"
               style={styles.input}
