@@ -273,14 +273,18 @@ export const HeaderRoomListMenu: FC<HeaderRoomListMenuProps> = ({
       onClick: () => void;
       styles?: { color: string };
     }[] = [
-      {
-        label: t('menu.newChat'),
-        icon: <AddNewIcon color={iconColor} />,
-        onClick: () => {
-          dispatch(setActiveModal(MODAL_TYPES.NEW_CHAT));
-        },
-        styles: { color: labelColor },
-      },
+      ...(!config?.chatHeaderSettings?.disableCreate
+        ? [
+            {
+              label: t('menu.newChat'),
+              icon: <AddNewIcon color={iconColor} />,
+              onClick: () => {
+                dispatch(setActiveModal(MODAL_TYPES.NEW_CHAT));
+              },
+              styles: { color: labelColor },
+            },
+          ]
+        : []),
       {
         label: t('menu.profile'),
         icon: <ProfileIcon color={iconColor} />,
@@ -329,6 +333,7 @@ export const HeaderRoomListMenu: FC<HeaderRoomListMenuProps> = ({
     iconColor,
     labelColor,
     config?.disablePublicChatsDirectory,
+    config?.chatHeaderSettings?.disableCreate,
     t,
   ]);
 

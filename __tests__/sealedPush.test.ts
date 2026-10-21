@@ -275,6 +275,47 @@ describe('Android task', () => {
     expect(request.trigger).toBeNull();
   });
 
+  it('hands a shown push with an avatar to onMessageShown, and not one without', async () => {
+    const pair = (await ensurePushKeyPair())!;
+    const onMessageShown = jest.fn();
+    await presentSealedPush(sealedPushFor(fromBase64(pair.publicKey)), {
+      channelId: 'messages',
+      onMessageShown,
+    });
+    expect(onMessageShown).toHaveBeenCalledTimes(1);
+    expect(onMessageShown.mock.calls[0]![0]).toEqual({
+      identifier: CONTENT.chatJid,
+      channelId: 'messages',
+      title: 'Alice',
+      body: 'See you at 5',
+      sender: 'Alice',
+      senderJid: CONTENT.senderJid,
+      chat: 'Team',
+      chatJid: CONTENT.chatJid,
+      image: CONTENT.image,
+      reaction: false,
+    });
+    // Called after the notification was scheduled: it redraws that one.
+    expect(scheduleNotificationAsync.mock.invocationCallOrder[0]).toBeLessThan(
+      onMessageShown.mock.invocationCallOrder[0]!
+    );
+
+    // Avatar switched off on the service: nothing to redraw.
+    onMessageShown.mockClear();
+    await presentSealedPush(sealedPushFor(fromBase64(pair.publicKey), { ...CONTENT, image: '' }), {
+      onMessageShown,
+    });
+    expect(onMessageShown).not.toHaveBeenCalled();
+
+    // A failing host callback never fails the push.
+    const failing = jest.fn(async () => {
+      throw new Error('native module missing');
+    });
+    await expect(
+      presentSealedPush(sealedPushFor(fromBase64(pair.publicKey)), { onMessageShown: failing })
+    ).resolves.toMatchObject({ ok: true });
+  });
+
   it('ignores plain pushes and a foreground app, and does nothing on iOS', async () => {
     registerSealedPushTask();
     const task = definedTasks.get(SEALED_PUSH_TASK)!;

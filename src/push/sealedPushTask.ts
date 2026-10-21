@@ -40,6 +40,20 @@ export interface SealedPushTaskOptions {
    * where the XMPP invite rings the in-app call screen.
    */
   onCallPush?: (data: Record<string, unknown>) => void | Promise<void>;
+  onMessageShown?: (shown: ShownMessagePush) => void | Promise<void>;
+}
+
+export interface ShownMessagePush {
+  identifier: string;
+  channelId?: string;
+  title: string;
+  body: string;
+  sender: string;
+  senderJid: string;
+  chat: string;
+  chatJid: string;
+  image: string;
+  reaction: boolean;
 }
 
 const PLACEHOLDER_TITLE = 'New message';
@@ -157,11 +171,30 @@ export async function presentSealedPush(
   const base = envelope.jid || envelope.msgID || '';
   const identifier = base ? (reaction ? `${base}#reaction` : base) : undefined;
   const channelId = (reaction && options.reactionChannelId) || options.channelId;
+  const content = notificationContent(result, options);
   await notifications.scheduleNotificationAsync({
     identifier,
-    content: notificationContent(result, options),
+    content,
     trigger: channelId ? { channelId } : null,
   });
+  if (result.ok && result.content.image && identifier && options.onMessageShown) {
+    try {
+      await options.onMessageShown({
+        identifier,
+        channelId,
+        title: content.title,
+        body: content.body ?? '',
+        sender: result.content.sender,
+        senderJid: result.content.senderJid,
+        chat: result.content.chat,
+        chatJid: result.content.chatJid,
+        image: result.content.image,
+        reaction,
+      });
+    } catch (e) {
+      pushLog('warn', 'push: drawing the sender avatar failed', e);
+    }
+  }
   return result;
 }
 

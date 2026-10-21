@@ -1,7 +1,9 @@
+import Intents
+import UIKit
 import UniformTypeIdentifiers
 import UserNotifications
 
-/// Ethora chat pushes, two jobs:
+/// Ethora chat pushes, three jobs:
 ///  - encrypted (sealed) pushes: the push carries a placeholder ("New message")
 ///    and a libsodium sealed box (`enc`) for the key this device registered
 ///    with its token. The box is opened with the secret key the app keeps in
@@ -9,11 +11,19 @@ import UserNotifications
 ///    the real title and text. Whatever goes wrong, the placeholder stays.
 ///  - attachment previews: a plain photo / video push carries `previewUrl`
 ///    with `mutable-content: 1`; the thumbnail is downloaded and attached.
+///  - the sender's avatar: a push with `image` (the push service sends it
+///    unless the app switched it off) becomes a communication notification,
+///    the avatar next to the text with the app icon as the small badge, the
+///    way messengers show it. Needs the app's Communication Notifications
+///    capability and `INSendMessageIntent` in its NSUserActivityTypes (the
+///    config plugin adds both); without them, or when the avatar does not
+///    load, the notification shows as before.
 class NotificationService: UNNotificationServiceExtension {
   private let lock = NSLock()
   private var contentHandler: ((UNNotificationContent) -> Void)?
   private var content: UNMutableNotificationContent?
-  private var download: URLSessionDownloadTask?
+  private var avatar: Data?
+  private var downloads: [URLSessionDownloadTask] = []
 
   override func didReceive(
     _ request: UNNotificationRequest,
@@ -28,28 +38,48 @@ class NotificationService: UNNotificationServiceExtension {
 
     if SealedPush.isSealed(content.userInfo) {
       SealedPush.apply(to: content)
-      finish()
-      return
     }
 
-    guard let url = Self.previewURL(in: content.userInfo) else {
-      finish()
-      return
-    }
-
-    let task = URLSession.shared.downloadTask(with: url) { [weak self] location, response, _ in
-      if let location = location, let attachment = Self.attachment(at: location, response: response, url: url) {
-        self?.attach(attachment)
+    let group = DispatchGroup()
+    if let url = Self.httpURL(content.userInfo["previewUrl"]) {
+      group.enter()
+      fetch(url) { [weak self] location, response in
+        if let location = location, let attachment = Self.attachment(at: location, response: response, url: url) {
+          self?.attach(attachment)
+        }
+        group.leave()
       }
-      self?.finish()
     }
-    download = task
-    task.resume()
+    if let url = Self.httpURL(content.userInfo["image"]) {
+      group.enter()
+      fetch(url) { [weak self] location, response in
+        if let location = location, let data = Self.imageData(at: location, response: response) {
+          self?.lock.lock()
+          self?.avatar = data
+          self?.lock.unlock()
+        }
+        group.leave()
+      }
+    }
+    group.notify(queue: .global()) { [weak self] in self?.finish() }
   }
 
   override func serviceExtensionTimeWillExpire() {
-    download?.cancel()
+    lock.lock()
+    let tasks = downloads
+    lock.unlock()
+    tasks.forEach { $0.cancel() }
     finish()
+  }
+
+  private func fetch(_ url: URL, completion: @escaping (URL?, URLResponse?) -> Void) {
+    let task = URLSession.shared.downloadTask(with: url) { location, response, _ in
+      completion(location, response)
+    }
+    lock.lock()
+    downloads.append(task)
+    lock.unlock()
+    task.resume()
   }
 
   private func attach(_ attachment: UNNotificationAttachment) {
@@ -62,18 +92,71 @@ class NotificationService: UNNotificationServiceExtension {
     lock.lock()
     let handler = contentHandler
     let content = self.content
+    let avatar = self.avatar
     contentHandler = nil
     lock.unlock()
-    if let handler = handler, let content = content { handler(content) }
+    guard let handler = handler, let content = content else { return }
+    if let avatar = avatar, let withSender = Self.communication(content, avatar: avatar) {
+      handler(withSender)
+    } else {
+      handler(content)
+    }
   }
 
-  private static func previewURL(in userInfo: [AnyHashable: Any]) -> URL? {
-    guard let raw = (userInfo["previewUrl"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+  /// The notification as an incoming message from a person with this
+  /// avatar. nil when iOS refuses it (no Communication Notifications
+  /// entitlement, for one): the caller shows the plain content then.
+  private static func communication(_ content: UNMutableNotificationContent, avatar: Data) -> UNNotificationContent? {
+    let info = content.userInfo
+    let name = content.title
+    let senderJid = (info["senderJid"] as? String) ?? ""
+    let senderId = senderJid.isEmpty ? name : senderJid
+    let chatJid = (info["jid"] as? String) ?? ""
+    let image = INImage(imageData: avatar)
+    let sender = INPerson(
+      personHandle: INPersonHandle(value: senderId, type: .unknown),
+      nameComponents: nil,
+      displayName: name,
+      image: image,
+      contactIdentifier: nil,
+      customIdentifier: senderId
+    )
+    let intent = INSendMessageIntent(
+      recipients: nil,
+      outgoingMessageType: .outgoingMessageText,
+      content: content.body,
+      speakableGroupName: nil,
+      conversationIdentifier: chatJid.isEmpty ? nil : chatJid,
+      serviceName: nil,
+      sender: sender,
+      attachments: nil
+    )
+    intent.setImage(image, forParameterNamed: \.sender)
+    let interaction = INInteraction(intent: intent, response: nil)
+    interaction.direction = .incoming
+    interaction.donate(completion: nil)
+    do {
+      return try content.updating(from: intent)
+    } catch {
+      NSLog("[EthoraNotificationService] no communication notification (%@), showing the plain one", error.localizedDescription)
+      return nil
+    }
+  }
+
+  private static func httpURL(_ value: Any?) -> URL? {
+    guard let raw = (value as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
           let url = URL(string: raw),
           let scheme = url.scheme?.lowercased(),
           scheme == "https" || scheme == "http"
     else { return nil }
     return url
+  }
+
+  /// The downloaded avatar, when it is an image iOS can draw.
+  private static func imageData(at location: URL, response: URLResponse?) -> Data? {
+    if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) { return nil }
+    guard let data = try? Data(contentsOf: location), UIImage(data: data) != nil else { return nil }
+    return data
   }
 
   private static func attachment(at location: URL, response: URLResponse?, url: URL) -> UNNotificationAttachment? {
@@ -99,7 +182,7 @@ class NotificationService: UNNotificationServiceExtension {
 /// pushes"). The envelope sits next to `aps`: `v`, `alg`, `kid`, `jid`,
 /// `msgID`, `userJid` in the clear, `enc` = base64 of the sealed box. Inside:
 /// UTF-8 JSON with `title`, `body`, `sender`, `senderJid`, `chat`, `chatJid`,
-/// `msgID`, `image`.
+/// `msgID`, `image`, `previewUrl`.
 ///
 /// The secret key is the item the SDK writes through expo-secure-store
 /// (`src/push/pushKeyStore.ts` in @ethora/chat-component-rn): a generic
@@ -158,6 +241,9 @@ enum SealedPush {
     info["enc"] = nil
     info["chatJid"] = text(json["chatJid"])
     info["senderJid"] = text(json["senderJid"])
+    // Downloaded by the service like the plain push's keys.
+    info["image"] = text(json["image"])
+    info["previewUrl"] = text(json["previewUrl"])
     info["sealed"] = true
     content.userInfo = info
   }

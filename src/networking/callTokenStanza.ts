@@ -310,6 +310,8 @@ const handleCallStateData = (
     !!currentCall.callId &&
     currentCall.callId === stanzaCallId;
 
+  if (stanzaCallId && currentCall.callId && !callIdMatches) {return;}
+
   const isTerminalState =
     state === 'ended' ||
     state === 'declined' ||
@@ -381,7 +383,7 @@ export const onCallTokenMessage = (stanza: Element): boolean => {
         .split('/')[0]
         .split('@')[0]
         .trim();
-      handleCallStateData(inner, fromRoom);
+      handleCallStateData(data, fromRoom);
 
       // Server call-logs (carry callerXmppUsername / durationMs) should
       // flow on to onRealtimeMessage / onMessageHistory where they become
@@ -391,6 +393,13 @@ export const onCallTokenMessage = (stanza: Element): boolean => {
       if (callStateHasLogData(data.attrs || {})) {
         return false;
       }
+      return true;
+    }
+
+    if (dataType === 'call-state-declined') {
+      handleCallStateData({
+        attrs: { ...data.attrs, state: 'declined' },
+      } as unknown as Element);
       return true;
     }
 

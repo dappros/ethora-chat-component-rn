@@ -81,7 +81,7 @@ export {
   presentSealedPush,
   SEALED_PUSH_TASK,
 } from './push/sealedPushTask';
-export type { SealedPushTaskOptions } from './push/sealedPushTask';
+export type { SealedPushTaskOptions, ShownMessagePush } from './push/sealedPushTask';
 export {
   openSealedPush,
   isSealedPush,

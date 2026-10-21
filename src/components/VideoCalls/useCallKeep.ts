@@ -2,8 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState, store } from '../../roomStore';
-import { acceptIncomingCall, declineIncomingCall } from '../../roomStore/callSlice';
-import { sendCallStateSignal } from '../../networking/callTokenStanza';
+import { acceptIncomingCall } from '../../roomStore/callSlice';
 import { declineActiveCallWhenOnline, terminateActiveCall } from './callActions';
 import { setCallMicEnabled, useCallSession } from './callSessionController';
 import { loadLiveKit } from './livekitRuntime';
@@ -162,8 +161,7 @@ export const useCallKeep = (): void => {
         snapshot.direction === 'incoming' &&
         snapshot.phase === 'ringing-incoming'
       ) {
-        sendCallStateSignal('declined');
-        dispatch(declineIncomingCall());
+        declineActiveCallWhenOnline();
         return;
       }
       // Ended from the Dynamic Island, the lock screen or a headset.

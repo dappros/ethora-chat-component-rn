@@ -5,7 +5,15 @@
  *    the keychain and shows the real title and text in place of the
  *    "New message" placeholder;
  *  - shows the attachment thumbnail (photo / video preview) the push service
- *    sends as `previewUrl`.
+ *    sends as `previewUrl`;
+ *  - shows the sender's avatar (`image`, unless the app switched it off on
+ *    the push service) next to the text with the app icon as the small
+ *    badge: a communication notification. For that the app gets the
+ *    Communication Notifications capability
+ *    (com.apple.developer.usernotifications.communication) and
+ *    INSendMessageIntent in NSUserActivityTypes. With manual signing the
+ *    App ID needs the capability switched on in the developer portal; EAS
+ *    and Xcode's automatic signing do that themselves.
  *
  * An extension is a separate target signed with the app, so it cannot ship
  * inside the npm package as code: this plugin writes it into ios/ on every
@@ -25,11 +33,19 @@
  * Options:
  *   appleTeamId  signing team of the extension; default: ios.appleTeamId,
  *                else the team already set on the app target in Xcode.
+ *   communicationNotifications
+ *                false leaves the capability out (the avatar is then never
+ *                shown, pushes look as before); default true.
  */
 
 const fs = require('fs');
 const path = require('path');
-const { withDangerousMod, withEntitlementsPlist, withXcodeProject } = require('expo/config-plugins');
+const {
+  withDangerousMod,
+  withEntitlementsPlist,
+  withInfoPlist,
+  withXcodeProject,
+} = require('expo/config-plugins');
 
 const TARGET_NAME = 'EthoraNotificationService';
 const SOURCE_DIR = path.join(__dirname, 'notification-service');
@@ -37,6 +53,8 @@ const SOURCES = ['NotificationService.swift', 'SealedBox.swift'];
 const FILES = [...SOURCES, 'Info.plist'];
 const ENTITLEMENTS_FILE = `${TARGET_NAME}.entitlements`;
 const KEYCHAIN_GROUPS_KEY = 'keychain-access-groups';
+const COMMUNICATION_KEY = 'com.apple.developer.usernotifications.communication';
+const SEND_MESSAGE_INTENT = 'INSendMessageIntent';
 
 const appBundleId = (config) => {
   const bundleId = config.ios && config.ios.bundleIdentifier;
@@ -92,6 +110,25 @@ const withAppKeychainGroup = (config) =>
     );
     return cfg;
   });
+
+// The sender's avatar: iOS shows a notification as a message from a person
+// only for an app with this capability that declares the intent.
+const withCommunicationNotifications = (config) =>
+  withInfoPlist(
+    withEntitlementsPlist(config, (cfg) => {
+      cfg.modResults[COMMUNICATION_KEY] = true;
+      return cfg;
+    }),
+    (cfg) => {
+      const types = Array.isArray(cfg.modResults.NSUserActivityTypes)
+        ? cfg.modResults.NSUserActivityTypes
+        : [];
+      if (!types.includes(SEND_MESSAGE_INTENT)) {
+        cfg.modResults.NSUserActivityTypes = [...types, SEND_MESSAGE_INTENT];
+      }
+      return cfg;
+    }
+  );
 
 const entitlementsPlist = (group) => `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -183,7 +220,10 @@ const withExtensionTarget = (config, { appleTeamId } = {}) =>
     return cfg;
   });
 
-const withNotificationServiceExtension = (config, props = {}) =>
-  withExtensionTarget(withExtensionFiles(withAppKeychainGroup(withEasAppExtension(config))), props);
+const withNotificationServiceExtension = (config, props = {}) => {
+  let next = withAppKeychainGroup(withEasAppExtension(config));
+  if (props.communicationNotifications !== false) next = withCommunicationNotifications(next);
+  return withExtensionTarget(withExtensionFiles(next), props);
+};
 
 module.exports = withNotificationServiceExtension;

@@ -177,6 +177,18 @@ describe('HeaderRoomListMenu — bottom sheet', () => {
   });
 });
 
+describe('HeaderRoomListMenu — New Chat item visibility', () => {
+  it('is hidden when the app does not let users create chats', async () => {
+    const { labels } = await renderMenu({ chatHeaderSettings: { disableCreate: true } });
+    expect(labels()).toEqual(['Profile', 'Settings', 'Discover chats']);
+  });
+
+  it('is shown when creating is allowed', async () => {
+    const { labels } = await renderMenu({ chatHeaderSettings: { disableCreate: false } });
+    expect(labels()[0]).toBe('New Chat');
+  });
+});
+
 describe('HeaderRoomListMenu — Sign out item visibility', () => {
   it('is absent when config.logout is missing', async () => {
     const { labels } = await renderMenu({});
