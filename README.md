@@ -19,6 +19,7 @@ React Native chat UI + chat core for iOS and Android, powered by the Ethora plat
 - [Logging out](#logging-out)
 - [Customization flags worth knowing](#customization-flags-worth-knowing)
 - [Server events](#server-events)
+- [Audio and video calls](#audio-and-video-calls)
 - [Startup behaviour](#startup-behaviour)
 - [Message reactions](#message-reactions)
 - [Replies & threads](#replies--threads)
@@ -374,6 +375,35 @@ The user's interface language wins over `config.i18n.locale`, which stays the de
 ## Server events
 
 The server can push `ethora-event` headlines (namespace `urn:ethora:events:1`) to refresh a client without a reload. Two types are handled: `user-profile-updated` (refreshes that user's cached profile and name) and `chat-meta-updated` (schedules a refresh of that room's metadata, for rooms the client already holds). A headline is accepted only from a trusted sender: a bare server JID (no resource) on the session's own XMPP domain, delivered as a headline. Room occupants, other users, and other domains are ignored. Set `trustedEventSenders` to pin the exact sender(s) instead of accepting any bare JID of the domain.
+
+## Audio and video calls
+
+Calls are opt-in (`config.videoCalls.enabled: true`). They use native modules, so the host needs a dev build or a prebuilt binary (not Expo Go) with the optional peers `@livekit/react-native` and `@livekit/react-native-webrtc`, the microphone/camera permissions and the audio background modes.
+
+| Where | Carried by |
+| --- | --- |
+| 1:1 (private) chat | Our own WebRTC peer to peer connection, with TURN/STUN from the backend (`GET /v1/calls/ice-servers`) and the offer/answer signalled over XMPP. The server decides per call: it answers `p2p` when it has P2P enabled and falls back to `livekit` otherwise, so an install without a TURN relay keeps calling over LiveKit exactly as before. |
+| Members-only group chat | LiveKit, always. The call screen is a grid of everyone in the room with the person who is speaking outlined; one member declining does not end the call for the others, and the call ends when you hang up (or the room drops). Public rooms do not call. |
+
+```tsx
+<Chat
+  config={{
+    videoCalls: {
+      enabled: true,
+      livekitUrl: 'wss://livekit.example.com',   // still required: it enables the call buttons
+      enableAudioCalls: true,                    // audio button next to the video one
+      allowedRoomTypes: ['private', 'group'],    // the default; ['private'] keeps calls 1:1
+    },
+  }}
+/>
+```
+
+- **One WebRTC.** Peer to peer calls use the WebRTC classes of `@livekit/react-native-webrtc` (LiveKit's fork). Do not add `react-native-webrtc` next to it: two copies of the native classes do not link. A build without the fork cannot take a p2p call; it declines it, so the caller is not left ringing.
+- **Encryption.** A p2p call is encrypted between the two phones by DTLS-SRTP; the LiveKit insertable-streams E2EE layer applies to LiveKit calls only.
+- **Ringing.** Every kind of call rings through the same path: an XMPP `call-token` while the app is connected, a VoIP push (`mode=p2p` with an empty `callToken` for a p2p call, `group=true` for a group call) when it is not, and CallKit (iOS) / ConnectionService (Android) via the optional `react-native-callkeep`. Answer and Decline on the system screen work for p2p calls too; a decline is reported to the server (`POST /v1/chats/call/state/decline/:callId`) because a p2p call has no LiveKit webhook to tell it. `handlePushPayload` / `handleCallPush` take the push payload as before.
+- **Who is calling.** `livekitUrl` and the ICE servers on a `call-token`, and the caller's name, are honoured only when the stanza comes from the app's system account. A raw chat name is never shown as a caller: the ring screen shows the caller's name, else a neutral "Incoming call".
+- **Reconnecting.** If the network drops mid-call, the p2p connection restarts ICE with fresh TURN credentials and the call shows "Reconnecting..."; it ends after a few failed restarts.
+- **Server side.** P2P needs a backend with `CALLS_P2P_ENABLED` and a TURN relay; group calls need a backend that accepts them (an older backend refuses with an error on the call screen). Everything else falls back to LiveKit 1:1.
 
 ## Startup behaviour
 
