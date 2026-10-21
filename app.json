@@ -2,6 +2,7 @@
   "expo": {
     "name": "ethoraChatComponentRN",
     "slug": "ethora-chat-component-rn",
+    "scheme": "ethorachatcomponentrn",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
@@ -13,7 +14,8 @@
         "NSMicrophoneUsageDescription": "$(PRODUCT_NAME) needs access to your microphone so you can talk during audio and video calls.",
         "NSCameraUsageDescription": "$(PRODUCT_NAME) needs access to your camera so you can be seen during video calls.",
         "UIBackgroundModes": ["audio", "voip"]
-      }
+      },
+      "associatedDomains": ["applinks:app.chat.ethora.com"]
     },
     "android": {
       "package": "com.ethora.chatcomponentrn",
@@ -34,6 +36,16 @@
         "android.permission.FOREGROUND_SERVICE_CAMERA",
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.USE_FULL_SCREEN_INTENT"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            { "scheme": "https", "host": "app.chat.ethora.com", "pathPrefix": "/call/" }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
       ]
     },
     "plugins": [

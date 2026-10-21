@@ -23,6 +23,7 @@ React Native chat UI + chat core for iOS and Android, powered by the Ethora plat
 - [Startup behaviour](#startup-behaviour)
 - [Message reactions](#message-reactions)
 - [Replies & threads](#replies--threads)
+- [Scheduled calls and deep links](#scheduled-calls-and-deep-links)
 - [Keyboard handling](#keyboard-handling)
 - [Header height & font sizing](#header-height--font-sizing)
 - [Dark theme](#dark-theme)
@@ -494,6 +495,64 @@ What is protected is the message text and the attachments. The sender, the room,
 Message flags a custom message component can read: `unencrypted`, `undecryptable` (`'true'` when the body is a placeholder) with `e2eeError` (`'unsupported' | 'other-device' | 'failed'`), `clientEncrypted` (`'true'` for a sealed attachment) and `e2eeKeys`. The captions are the `e2ee.*` and `media.sealed*` keys of `config.i18n.strings`. `omemo()` returns the live device (`devices(jid)`, `setTrust`, `fingerprint`) for a host that wants to show them.
 
 Requires an XMPP server that lets members read each other's OMEMO PEP nodes (`access_model: open`).
+
+## Scheduled calls and deep links
+
+With `config.videoCalls.enabled`, the room header gets a **Schedule a call** button (in the room types `videoCalls.allowedRoomTypes` allows, private and group by default). The sheet takes a title, a date and time, a duration (15 to 120 minutes) and, with `enableAudioCalls`, video or audio. The server posts an **invite card** into the room for every member: title, local date and time, duration, **Add to Google Calendar / Outlook / .ics** buttons (the server's own links, opened with `Linking.openURL`) and **Join**. The card is one per call: an edit or a cancel updates it in place, and the older messages of the same call draw nothing. Join is enabled from 15 minutes before the start until the call ends; before that the card says when it opens, afterwards it is greyed, and a cancelled call is struck through. Join is the room's ordinary call start (a private room starts or answers its call, a group room starts or joins the room call) and it only runs on that tap: no media starts when a card or a link is opened. The person who scheduled the call, and a room moderator, also see **Edit** and **Cancel call**.
+
+Every invite carries a link, `https://<web host>/call/<slug>`, which the calendar event, the invite e-mail and the reminder push (10 minutes before the start) all use. To make it open your app:
+
+```tsx
+import { useEffect } from 'react';
+import { Linking } from 'react-native';
+import { Chat, configureScheduledCallLinks, handleScheduledCallUrl } from '@ethora/chat-component-rn';
+
+// Once, at startup (before <Chat> mounts): which links belong to this app.
+configureScheduledCallLinks({
+  hosts: ['app.chat.ethora.com'], // the web domain of your Ethora app; this default is always accepted
+  schemes: ['myapp'],             // your URL scheme, for myapp://call/<slug>
+});
+
+export default function App() {
+  useEffect(() => {
+    Linking.getInitialURL().then((url) => url && handleScheduledCallUrl(url));
+    const sub = Linking.addEventListener('url', ({ url }) => handleScheduledCallUrl(url));
+    return () => sub.remove();
+  }, []);
+  // ...
+  return <Chat config={config} />;
+}
+```
+
+- `parseScheduledCallLink(url)` returns the slug for `https://<known host>/call/<slug>` and `<scheme>://call/<slug>`, otherwise `null`. Known hosts: `app.chat.ethora.com`, the ones passed to `configureScheduledCallLinks`, and `config.scheduledCalls.hosts`. With no scheme configured any custom scheme is accepted; once `schemes` is set only those are.
+- `openScheduledCall(slug)` opens a call by slug and `handleScheduledCallUrl(url)` does the parse and the open in one step (it returns `false` for any other URL, so your own routing can carry on).
+- **A link that comes too early is kept.** If it arrives before the user is signed in, or before `<Chat>` is configured and connected (a cold start from a tapped link, or the login screen in between), the slug is held, in memory and in AsyncStorage for 30 minutes, and opened as soon as both are true. Opening resolves the slug with the API, opens the room, and shows the **pre-join** sheet with a Join button. A call that was cancelled, an unknown one, and a room you are not a member of each get their own message instead.
+- **Reminder push.** The push `data` has `type: 'scheduledCallReminder'` and a `slug`. Passing a tapped notification's data to `handlePushPayload(data)` (see Pushes) opens the same flow and returns `'scheduledCall'`; `handleScheduledCallPush(data)` does only that.
+
+Making the OS hand the links to your app is host configuration. For an Expo app, in `app.json`:
+
+```json
+{
+  "expo": {
+    "scheme": "myapp",
+    "ios": { "associatedDomains": ["applinks:app.chat.ethora.com"] },
+    "android": {
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [{ "scheme": "https", "host": "app.chat.ethora.com", "pathPrefix": "/call/" }],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
+    }
+  }
+}
+```
+
+The web host must serve `/.well-known/apple-app-site-association` (your Apple team id and bundle id, path `/call/*`) and `/.well-known/assetlinks.json` (your Android package and SHA-256 fingerprints) for the universal links to open the app; the Ethora web app serves both from its runtime config. Until they do, `myapp://call/<slug>` still works. This repo's example app is wired this way (`app.json`, `App.tsx`).
+
+The server picks the links (`GET /v1/chats/calls/scheduled/:slug` returns them); the SDK never builds a calendar URL itself. `getScheduledCall`, `listScheduledCalls`, `createScheduledCall`, `updateScheduledCall` and `cancelScheduledCall` are exported for hosts that build their own UI. `config.scheduledCalls.enabled: false` hides the Schedule button and the Join buttons, and `config.scheduledCalls.onOpenError({ slug, reason })` is told when a link could not be opened (`'not-found' | 'not-a-member' | 'cancelled' | 'network'`). The strings are the `booking.*` keys of `config.i18n.strings`. The invite is sent in the clear even in an end-to-end encrypted room, like other system messages.
 
 ## Session loss
 
