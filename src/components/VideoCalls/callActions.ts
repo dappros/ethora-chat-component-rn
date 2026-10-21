@@ -8,6 +8,7 @@ import {
 } from '../../networking/callTokenStanza';
 import { translateKey } from '../../i18n/strings';
 import { getGlobalXmppClient } from '../../utils/clientRegistry';
+import { reportDeclineIfP2P } from '../../calls/declineReport';
 
 /**
  * Call teardown that doesn't need a mounted component.
@@ -48,6 +49,7 @@ export const terminateActiveCall = (state: CallSignalState): void => {
 };
 
 export const declineActiveCall = (): void => {
+  reportDeclineIfP2P(store.getState().call);
   sendCallStateSignal('declined');
   store.dispatch(declineIncomingCall());
 };
@@ -62,6 +64,7 @@ const DECLINE_SIGNAL_POLL_MS = 500;
  */
 export const declineActiveCallWhenOnline = (): void => {
   const call = store.getState().call;
+  reportDeclineIfP2P(call);
   const signal = {
     peerXmppUsername: call.peerXmppUsername,
     callId: call.callId,
