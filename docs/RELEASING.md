@@ -8,6 +8,7 @@ A release is one tag `vYY.M.D` on `main`. The Release workflow publishes `@ethor
 2. Start the release, either way:
    - GitHub: Actions > Release > Run workflow. Leave `version` empty for the default, or give `yy.m.d` (no leading zeros). The workflow bumps and tags `main` and publishes that tag.
    - Terminal: `npm run release:ci` (starts the same workflow with the GitHub CLI, no npm login needed), or `npm run release -- --yes --push` (bumps, tags and pushes; the tag push starts the workflow).
+   - Your own machine, when GitHub is not available: `npm run release -- --yes` (bump, commit, tag locally), then `npm run publish:npm` (see "From your machine" below).
 3. If the `npm-release` environment has required reviewers, approve the publish job.
 
 `npm run release` without `--yes` prints the version and the tag it would use and changes nothing.
@@ -22,6 +23,20 @@ A release is one tag `vYY.M.D` on `main`. The Release workflow publishes `@ethor
 | `publish` | `npm publish <tarball> --provenance --access public`, then the GitHub release with the `CHANGELOG.md` section as notes and the tarball attached |
 
 The publish job takes the tarball built and checked by the `package` job; nothing is rebuilt. Running failed jobs again is safe: a version already on npm is skipped and an existing release gets its files replaced.
+
+## From your machine
+
+`npm run publish:npm` publishes to npm without the workflow, for when GitHub Actions is down or you have not set up `NPM_TOKEN`. It publishes without provenance, because provenance needs GitHub's OIDC. The workflow is the normal path.
+
+```bash
+npm login                            # once
+npm run release -- --yes             # 1. bump, commit and tag v<version> locally
+npm run publish:npm -- --dry-run     # 2. all checks, nothing uploaded
+npm run publish:npm                  #    checks, then publishes
+git push origin HEAD && git push origin v<version>
+```
+
+Before it publishes it checks: you are logged in to npm, the working tree is clean, `HEAD` is the commit tagged `v<package.json version>`, the version is not on npm yet and is newer than the latest one, and `npm run ci:local` passes (lint, type check, jest, release script tests, build, package contents). The consumer smoke test runs only in the CI workflow.
 
 ## Dry run
 
