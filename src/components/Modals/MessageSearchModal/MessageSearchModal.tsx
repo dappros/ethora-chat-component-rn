@@ -46,13 +46,18 @@ import {
   useMessageSearch,
 } from './useMessageSearch';
 import { openSearchHit } from './openHit';
+import { setActiveModal } from '../../../roomStore/chatSettingsSlice';
+import { MODAL_TYPES } from '../../../helpers/constants/MODAL_TYPES';
 
 interface MessageSearchModalProps {
   handleCloseModal: () => void;
+  /** Search the open chat only: no "All chats" scope to switch to. */
+  chatOnly?: boolean;
 }
 
 const MessageSearchModalContent: React.FC<MessageSearchModalProps> = ({
   handleCloseModal,
+  chatOnly = false,
 }) => {
   const t = useT();
   const dispatch = useDispatch();
@@ -71,7 +76,7 @@ const MessageSearchModalContent: React.FC<MessageSearchModalProps> = ({
   const [query, setQuery] = useState('');
   const roomName = activeRoomJID ? activeRoomJID.split('@')[0] : undefined;
   const [scope, setScope] = useState<SearchScope>(
-    activeRoomJID ? 'chat' : 'all'
+    chatOnly || activeRoomJID ? 'chat' : 'all'
   );
 
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -182,34 +187,36 @@ const MessageSearchModalContent: React.FC<MessageSearchModalProps> = ({
         />
       </View>
 
-      <View style={styles.scopeRow} accessibilityLabel={t('search.messages.scope')}>
-        {(['chat', 'all'] as SearchScope[]).map((value) => {
-          const active = scope === value;
-          const disabled = value === 'chat' && !roomName;
-          return (
-            <TouchableOpacity
-              key={value}
-              testID={`message-search-scope-${value}`}
-              disabled={disabled}
-              onPress={() => setScope(value)}
-              accessibilityState={{ selected: active, disabled }}
-              style={[
-                styles.scopeButton,
-                active && { borderColor: primary, backgroundColor: primary + '1F' },
-                disabled && styles.hitDisabled,
-              ]}
-            >
-              <Text style={[styles.scopeLabel, active && { color: primary }]}>
-                {t(
-                  value === 'chat'
-                    ? 'search.messages.scopeChat'
-                    : 'search.messages.scopeAll'
-                )}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+      {!chatOnly && (
+        <View style={styles.scopeRow} accessibilityLabel={t('search.messages.scope')}>
+          {(['chat', 'all'] as SearchScope[]).map((value) => {
+            const active = scope === value;
+            const disabled = value === 'chat' && !roomName;
+            return (
+              <TouchableOpacity
+                key={value}
+                testID={`message-search-scope-${value}`}
+                disabled={disabled}
+                onPress={() => setScope(value)}
+                accessibilityState={{ selected: active, disabled }}
+                style={[
+                  styles.scopeButton,
+                  active && { borderColor: primary, backgroundColor: primary + '1F' },
+                  disabled && styles.hitDisabled,
+                ]}
+              >
+                <Text style={[styles.scopeLabel, active && { color: primary }]}>
+                  {t(
+                    value === 'chat'
+                      ? 'search.messages.scopeChat'
+                      : 'search.messages.scopeAll'
+                  )}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
 
       <TouchableOpacity
         testID="message-search-filters-toggle"
@@ -368,7 +375,11 @@ const MessageSearchModalContent: React.FC<MessageSearchModalProps> = ({
     <ModalContainerFullScreen style={styles.screen}>
       <ModalHeaderComponent
         handleCloseModal={handleCloseModal}
-        headerTitle={t('search.messages.title')}
+        headerTitle={
+          chatOnly && searchedRoom?.title
+            ? searchedRoom.title
+            : t('search.messages.title')
+        }
       />
       <FlatList
         style={styles.list}
@@ -482,6 +493,21 @@ const MessageSearchModal: React.FC<MessageSearchModalProps> = (props) => {
     return null;
   }
   return <MessageSearchModalContent {...props} />;
+};
+
+/**
+ * The chat profile's Search: the same search as the room list's, inside this
+ * chat only. Back returns to the profile it was opened from; opening a hit
+ * closes both and lands on the message in the chat.
+ */
+export const ChatMessageSearchModal: React.FC<MessageSearchModalProps> = () => {
+  const dispatch = useDispatch();
+  return (
+    <MessageSearchModal
+      chatOnly
+      handleCloseModal={() => dispatch(setActiveModal(MODAL_TYPES.CHAT_PROFILE))}
+    />
+  );
 };
 
 export default MessageSearchModal;

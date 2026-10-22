@@ -70,6 +70,7 @@ import {
   getRooms,
   clearRoomsRestCache,
   setRoomMuted,
+  leaveRoom,
 } from '../src/networking/api-requests/rooms.api';
 import {
   getUserByXmppUsername,
@@ -486,6 +487,28 @@ describe('rooms.api.getRooms', () => {
       land({ data: { items: [{ name: 'r1', muted: false }] } });
       await stale;
       expect(store.getState().rooms.rooms[JID]?.muted).toBe(true);
+    });
+  });
+
+  describe('leaveRoom', () => {
+    it('PUTs the caller\'s own leave flag, not the owner-only users-access', async () => {
+      store.dispatch(setUser({ token: 'tok' } as any));
+      mockHttp.put.mockResolvedValueOnce({ data: { ok: true } });
+      await leaveRoom('app_room');
+      expect(mockHttp.put).toHaveBeenCalledWith(
+        '/v1/chats/my/app_room/leave',
+        {},
+        { headers: { Authorization: 'tok' } }
+      );
+      expect(mockHttp.delete).not.toHaveBeenCalled();
+    });
+
+    it('takes a 404 as already out and rethrows anything else', async () => {
+      store.dispatch(setUser({ token: 'tok' } as any));
+      mockHttp.put.mockRejectedValueOnce({ response: { status: 404 } });
+      await expect(leaveRoom('app_room')).resolves.toBeUndefined();
+      mockHttp.put.mockRejectedValueOnce({ response: { status: 500 } });
+      await expect(leaveRoom('app_room')).rejects.toEqual({ response: { status: 500 } });
     });
   });
 

@@ -18,7 +18,9 @@ jest.mock('react-native-safe-area-context', () => ({
   SafeAreaProvider: ({ children }: any) => children,
 }));
 
-import MessageSearchModal from '../src/components/Modals/MessageSearchModal/MessageSearchModal';
+import MessageSearchModal, {
+  ChatMessageSearchModal,
+} from '../src/components/Modals/MessageSearchModal/MessageSearchModal';
 import {
   MessageSearchButton,
   isMessageSearchEnabled,
@@ -123,6 +125,52 @@ beforeEach(() => {
   store.dispatch(setActiveModal(MODAL_TYPES.MESSAGE_SEARCH));
 });
 afterEach(() => jest.useRealTimers());
+
+describe('ChatMessageSearchModal (the chat profile\'s Search)', () => {
+  const renderChat = async () => {
+    let tree!: renderer.ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(
+        <Provider store={store}>
+          <ChatMessageSearchModal handleCloseModal={jest.fn()} />
+        </Provider>,
+        { createNodeMock: () => ({ focus: jest.fn() }) }
+      );
+    });
+    const byId = (id: string) =>
+      tree.root.findAll((n) => n.props?.testID === id && typeof n.type !== 'string');
+    return { tree, byId };
+  };
+
+  it('searches this chat only, under its title, with no scope to switch', async () => {
+    await seed();
+    mockSearch.mockResolvedValue(pageOf([hit()]));
+    const { tree, byId } = await renderChat();
+    expect(byId('message-search-scope-all')).toHaveLength(0);
+    expect(byId('message-search-scope-chat')).toHaveLength(0);
+    const header = () => tree.root.findAll((n) => n.props?.headerTitle !== undefined)[0]!;
+    expect(header().props.headerTitle).toBe('General');
+    await act(async () => {
+      byId('message-search-input')[0].props.onChangeText('hello');
+    });
+    await advance(400);
+    expect(mockSearch.mock.calls[0][0].chatId).toBe('general');
+    await act(async () => tree.unmount());
+  });
+
+  it('goes back to the chat profile', async () => {
+    await seed();
+    store.dispatch(setActiveModal(MODAL_TYPES.CHAT_MESSAGE_SEARCH));
+    const { tree } = await renderChat();
+    await act(async () => {
+      tree.root
+        .findAll((n) => n.props?.headerTitle !== undefined)[0]!
+        .props.handleCloseModal();
+    });
+    expect(store.getState().chatSettingStore.activeModal).toBe(MODAL_TYPES.CHAT_PROFILE);
+    await act(async () => tree.unmount());
+  });
+});
 
 describe('MessageSearchModal', () => {
   it('focuses the field on open and shows the hint before typing', async () => {

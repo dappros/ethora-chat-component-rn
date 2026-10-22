@@ -188,13 +188,14 @@ describe('PublicChatsModal', () => {
 });
 
 describe('stand-alone Discover button rule', () => {
-  it('appears only when the host hides or overrides the menu', () => {
+  it('appears only when the host overrides the menu', () => {
     expect(showsStandaloneDiscoverButton({} as any)).toBe(false);
     expect(showsStandaloneDiscoverButton({ headerMenu: true } as any)).toBe(false);
     expect(showsStandaloneDiscoverButton({ headerMenu: () => {} } as any)).toBe(true);
+    // The avatar still opens the sheet with Discover in it: no duplicate.
     expect(
       showsStandaloneDiscoverButton({ chatHeaderSettings: { disableMenu: true } } as any)
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it('is removed by disableRoomMenu and by disablePublicChatsDirectory', () => {

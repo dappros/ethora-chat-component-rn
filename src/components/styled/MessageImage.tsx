@@ -11,6 +11,7 @@ import {
   setActiveModal,
 } from '../../roomStore/chatSettingsSlice';
 import { MODAL_TYPES } from '../../helpers/constants/MODAL_TYPES';
+import { useMediaSource } from '../../context/MediaSourceContext';
 import { ActivityIndicator, Image, TouchableOpacity, View } from 'react-native';
 import {
   defaultMediaDims,
@@ -72,6 +73,7 @@ const CustomMessageImage: React.FC<CustomMessageImageProps> = ({
   const dims: MediaDims = tile ?? measured;
 
   const dispatch = useDispatch();
+  const source = useMediaSource();
 
   useEffect(() => {
     if (!displayURL || tile) {
@@ -105,7 +107,7 @@ const CustomMessageImage: React.FC<CustomMessageImageProps> = ({
       onOpen();
       return;
     }
-    dispatch(setActiveFile({ fileName, fileURL, mimetype, originalName }));
+    dispatch(setActiveFile({ fileName, fileURL, mimetype, originalName, source }));
     dispatch(setActiveModal(MODAL_TYPES.FILE_PREVIEW));
   };
 

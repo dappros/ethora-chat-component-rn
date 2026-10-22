@@ -4,7 +4,8 @@ import { Alert, Animated, Image, Text, TouchableOpacity } from 'react-native';
 import { Provider } from 'react-redux';
 import { store } from '../src/roomStore';
 import { addRoom, setCurrentRoom, updateRoom } from '../src/roomStore/roomsSlice';
-import { setConfig, setUser } from '../src/roomStore/chatSettingsSlice';
+import { setActiveModal, setConfig, setUser } from '../src/roomStore/chatSettingsSlice';
+import { MODAL_TYPES } from '../src/helpers/constants/MODAL_TYPES';
 import ChatProfileModal, {
   searchScrollTarget,
 } from '../src/components/Modals/ChatProfileModal/ChatProfileModal';
@@ -151,43 +152,55 @@ describe('Chat profile screen', () => {
     expect(texts().some((label) => /favourite/i.test(label))).toBe(false);
   });
 
-  it('offers "Search messages" only when enabled with an appId and not when the host disabled it', async () => {
+  it('Search looks through this chat\'s messages where message search is on, members otherwise', async () => {
     await seedRoom();
+    const pressSearch = async (r: any) => {
+      await act(async () => {
+        r.tree.root
+          .find((n: any) => n.props?.testID === 'chat-profile-action-search')
+          .props.onPress();
+      });
+    };
     await act(async () => {
       store.dispatch(setConfig({ appId: 'app1', enableMessageSearch: true } as any));
     });
     let r = await renderProfile();
-    expect(r.has('chat-profile-search-messages')).toBe(true);
-    await act(async () => {
-      r.byId('chat-profile-search-messages')[0].props.onPress();
-    });
-    expect(store.getState().chatSettingStore.activeModal).toBe('message_search');
-
-    await act(async () => {
-      store.dispatch(
-        setConfig({ appId: 'app1', enableMessageSearch: true, disableMessageSearch: true } as any)
-      );
-    });
-    r = await renderProfile();
+    // One entry point: no separate "Search messages" card any more.
     expect(r.has('chat-profile-search-messages')).toBe(false);
+    await pressSearch(r);
+    expect(store.getState().chatSettingStore.activeModal).toBe('chat_message_search');
+    expect(r.has('chat-profile-member-search')).toBe(false);
 
-    await act(async () => {
-      store.dispatch(setConfig({ appId: 'app1' } as any));
-    });
-    r = await renderProfile();
-    expect(r.has('chat-profile-search-messages')).toBe(false);
+    for (const config of [
+      { appId: 'app1', enableMessageSearch: true, disableMessageSearch: true },
+      { appId: 'app1' },
+      { enableMessageSearch: true },
+      {},
+    ]) {
+      await act(async () => {
+        store.dispatch(setActiveModal(MODAL_TYPES.CHAT_PROFILE as any));
+        store.dispatch(setConfig(config as any));
+      });
+      r = await renderProfile();
+      await pressSearch(r);
+      expect(store.getState().chatSettingStore.activeModal).toBe(MODAL_TYPES.CHAT_PROFILE);
+      expect(r.has('chat-profile-member-search')).toBe(true);
+    }
+  });
 
+  it('opens the member search from the Members tab', async () => {
+    await seedRoom();
     await act(async () => {
-      store.dispatch(setConfig({ enableMessageSearch: true } as any));
+      store.dispatch(setConfig({ appId: 'app1', enableMessageSearch: true } as any));
     });
-    r = await renderProfile();
-    expect(r.has('chat-profile-search-messages')).toBe(false);
-
+    const { tree, has } = await renderProfile();
     await act(async () => {
-      store.dispatch(setConfig({} as any));
+      tree.root
+        .find((n) => n.props?.testID === 'chat-profile-member-search-open' && n.props.onPress)
+        .props.onPress();
     });
-    r = await renderProfile();
-    expect(r.has('chat-profile-search-messages')).toBe(false);
+    expect(has('chat-profile-member-search')).toBe(true);
+    expect(has('chat-profile-member-search-open')).toBe(false);
   });
 
   it('shows the chat picture as the hero when the room has one', async () => {
@@ -389,23 +402,22 @@ describe('Chat profile screen', () => {
     await seedRoom();
     const roomsApi = require('../src/networking/api-requests/rooms.api');
     const leaveSpy = jest.spyOn(roomsApi, 'leaveRoom').mockImplementation(async () => {});
-    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     const { tree, handleCloseModal } = await renderProfile();
     await act(async () => {
       tree.root
         .find((n) => n.props?.testID === 'chat-profile-action-leave')
         .props.onPress();
     });
-    const buttons = alertSpy.mock.calls[0][2] as any[];
-    const leave = buttons.find((b) => b.style === 'destructive');
+    expect(leaveSpy).not.toHaveBeenCalled();
     await act(async () => {
-      leave.onPress();
+      tree.root
+        .find((n) => n.props?.testID === 'leave-confirm' && typeof n.props.onPress === 'function')
+        .props.onPress();
     });
     expect(leaveSpy).toHaveBeenCalledWith(JID.split('@')[0]);
     expect(mockLeaveTheRoomStanza).toHaveBeenCalledWith(JID);
     expect(store.getState().rooms.rooms[JID]).toBeUndefined();
     expect(handleCloseModal).toHaveBeenCalled();
-    alertSpy.mockRestore();
     leaveSpy.mockRestore();
   });
 

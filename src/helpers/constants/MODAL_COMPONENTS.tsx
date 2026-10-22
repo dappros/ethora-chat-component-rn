@@ -7,7 +7,9 @@ import React from 'react';
 import { MODAL_TYPES } from './MODAL_TYPES';
 import ChatProfileModal from '../../components/Modals/ChatProfileModal/ChatProfileModal';
 import FilePreviewModal from '../../components/Modals/FilePreviewModal/FilePreviewModal';
-import MessageSearchModal from '../../components/Modals/MessageSearchModal/MessageSearchModal';
+import MessageSearchModal, {
+  ChatMessageSearchModal,
+} from '../../components/Modals/MessageSearchModal/MessageSearchModal';
 import PublicChatsModal from '../../components/Modals/PublicChatsModal/PublicChatsModal';
 import NewChatModal from '../../components/Modals/NewChatModal/NewChatModal';
 import BlockedUsersModal from '../../components/Modals/SettingsModals/BlockedUsers/BlockedUsersModal';
@@ -37,5 +39,6 @@ export const MODAL_COMPONENTS: Record<
   [MODAL_TYPES.BLOCKED_USERS]: BlockedUsersModal,
   [MODAL_TYPES.FILE_PREVIEW]: FilePreviewModal,
   [MODAL_TYPES.MESSAGE_SEARCH]: MessageSearchModal,
+  [MODAL_TYPES.CHAT_MESSAGE_SEARCH]: ChatMessageSearchModal,
   [MODAL_TYPES.PUBLIC_CHATS]: PublicChatsModal,
 };

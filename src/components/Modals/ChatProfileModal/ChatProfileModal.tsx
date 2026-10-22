@@ -49,7 +49,7 @@ import { MODAL_TYPES } from '../../../helpers/constants/MODAL_TYPES';
 import SelectUsersModal from '../SelectUsersModal/SelectUsersModal';
 import { useToast } from '../../../context/ToastContext';
 import { useRoomMute } from '../../../hooks/useRoomMute';
-import { useLeaveRoom } from '../../../hooks/useLeaveRoom';
+import LeaveChatModal from './LeaveChatModal';
 import { useT } from '../../../i18n/useT';
 import DeleteChatModal from './DeleteChatModal';
 import { isMessageSearchEnabled } from '../../../helpers/isMessageSearchEnabled';
@@ -67,6 +67,10 @@ import {
   isRoomMembersTruncated,
 } from '../../../helpers/roomUserCount';
 import { useRoomDirectory } from '../../../hooks/useRoomDirectory';
+import ChatMediaGrid from './ChatMediaGrid';
+import MediaViewer from '../FilePreviewModal/MediaViewer';
+import { useSaveFile } from '../FilePreviewModal/useSaveFile';
+import type { ModalFile } from '../../../types/types';
 
 /** Member rows rendered per step; the rest sits behind a 'Show more' row. */
 export const MEMBER_PAGE_SIZE = 50;
@@ -103,6 +107,11 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
   const [loading, setLoading] = useState<boolean>(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isReportOpen, setIsReportOpen] = useState(false);
+  const [isLeaveOpen, setIsLeaveOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'members' | 'media'>('members');
+  // A picture or video opened from the Media tab, shown over this screen.
+  const [viewerFile, setViewerFile] = useState<ModalFile | null>(null);
+  const saveFile = useSaveFile();
   const [memberQuery, setMemberQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   // Measured, not guessed: this screen renders inside whatever frame the
@@ -113,7 +122,6 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
   const { showToast } = useToast();
   const dispatch = useDispatch();
   const { client } = useXmppClient();
-  const leaveRoom = useLeaveRoom();
   const { user: stateUser, config } = useChatSettingState();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -343,27 +351,13 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
   // Leaving takes us out of the members on the server, then out of the MUC;
   // dropping the room from the store is what takes the user out of the chat
   // in the UI, and the `!activeRoom` effect above then closes this modal.
-  const handleLeave = () => {
-    Alert.alert(t('modal.leaveChat.title'), t('modal.leaveChat.description'), [
-      { text: t('action.cancel'), style: 'cancel' },
-      {
-        text: t('action.leave'),
-        style: 'destructive',
-        onPress: async () => {
-          if (!(await leaveRoom(activeRoom?.jid || ''))) {
-            Alert.alert(t('toast.error'), t('toast.leaveFailed'));
-            return;
-          }
-          handleCloseModal?.();
-        },
-      },
-    ]);
-  };
+  const handleLeave = () => setIsLeaveOpen(true);
 
   const isModerator = activeRoom?.role === 'moderator';
   const canEditIcon =
     !config?.disableChatInfo?.disableIconEdit && activeRoom?.role !== 'participant';
   const canAddMembers = isModerator && activeRoom?.type === 'group';
+  const showMembers = !config?.disableChatInfo?.hideMembers;
   const canDeleteChat = isModerator && activeRoom?.type !== 'private';
   const hasIcon = !!activeRoom?.icon;
 
@@ -379,9 +373,18 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
       collapsedForSearchRef.current = true;
       scrollHeaderTo(target);
     }
+    setActiveTab('members');
     setIsSearchOpen(true);
     setTimeout(() => searchInputRef.current?.focus(), 50);
   };
+
+  // Search looks through this chat's messages, like the room list's search
+  // does across chats. Where message search is off it falls back to the
+  // member search it used to be; members keep their own magnifier either way.
+  const openSearch = () =>
+    isMessageSearchEnabled(config)
+      ? dispatch(setActiveModal(MODAL_TYPES.CHAT_MESSAGE_SEARCH))
+      : openMemberSearch();
 
   const restoreHeader = () => {
     if (!collapsedForSearchRef.current) {return;}
@@ -432,7 +435,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
         key: 'search',
         label: t('action.search'),
         icon: (color: string) => <SearchIcon color={color} />,
-        onPress: openMemberSearch,
+        onPress: openSearch,
       },
       {
         key: 'leave',
@@ -478,7 +481,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
         key: 'search',
         label: t('action.search'),
         icon: <SearchIcon color={theme.text} width={18} height={18} />,
-        onPress: openMemberSearch,
+        onPress: openSearch,
       });
     }
     items.push({
@@ -593,24 +596,61 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
             </View>
           )}
 
-          {isMessageSearchEnabled(config) && (
-            <View style={styles.card}>
-              <TouchableOpacity
-                testID="chat-profile-search-messages"
-                activeOpacity={0.7}
-                style={styles.addMembersRow}
-                onPress={() => dispatch(setActiveModal(MODAL_TYPES.MESSAGE_SEARCH))}
-              >
-                <SearchIcon color={getIconColor(config)} />
-                <Text style={styles.addMembersLabel}>
-                  {t('search.messages.title')}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
 
-          {!config?.disableChatInfo?.hideMembers && (
-            <View style={styles.card}>
+          <View style={styles.card}>
+            {showMembers ? (
+              <View style={styles.tabsRow}>
+                {(['members', 'media'] as const).map((tab) => {
+                  const active = tab === activeTab;
+                  return (
+                    <TouchableOpacity
+                      key={tab}
+                      testID={`chat-profile-tab-${tab}`}
+                      activeOpacity={0.7}
+                      style={[
+                        styles.tab,
+                        active && { borderBottomColor: getIconColor(config) },
+                      ]}
+                      onPress={() => setActiveTab(tab)}
+                    >
+                      <Text
+                        style={[
+                          styles.tabLabel,
+                          getElementFont(config, 'profileSectionLabel'),
+                          active && { color: getIconColor(config) },
+                        ]}
+                      >
+                        {tab === 'members'
+                          ? t('modal.chatProfile.membersLabel', { count: memberCount })
+                          : t('modal.chatProfile.media')}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+                {activeTab === 'members' && !isSearchOpen && (
+                  <TouchableOpacity
+                    testID="chat-profile-member-search-open"
+                    accessibilityRole="button"
+                    accessibilityLabel={t('search.members')}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    style={styles.tabsSearch}
+                    onPress={openMemberSearch}
+                  >
+                    <SearchIcon color={theme.textSecondary} width={18} height={18} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            ) : (
+              <Text style={[styles.cardLabel, getElementFont(config, 'profileSectionLabel')]}>
+                {t('modal.chatProfile.media')}
+              </Text>
+            )}
+
+            {!showMembers || activeTab === 'media' ? (
+              <ChatMediaGrid roomJid={activeRoom.jid} onOpen={setViewerFile} />
+            ) : (
+            <>
               {canAddMembers && (
                 <SelectUsersModal
                   trigger={(open) => (
@@ -628,15 +668,6 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
                   )}
                 />
               )}
-
-              <Text
-                style={[
-                  styles.cardLabel,
-                  getElementFont(config, 'profileSectionLabel'),
-                ]}
-              >
-                {t('modal.chatProfile.membersLabel', { count: memberCount })}
-              </Text>
 
               {isSearchOpen && (
                 <View style={styles.searchRow}>
@@ -773,8 +804,9 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
                   </Text>
                 </TouchableOpacity>
               )}
-            </View>
-          )}
+            </>
+            )}
+          </View>
         </View>
       </Animated.ScrollView>
 
@@ -798,6 +830,24 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
         visible={isReportOpen}
         onClose={() => setIsReportOpen(false)}
       />
+      <LeaveChatModal
+        roomJid={isLeaveOpen && activeRoom?.jid ? activeRoom.jid : null}
+        onClose={() => setIsLeaveOpen(false)}
+        onLeft={() => handleCloseModal?.()}
+      />
+      {viewerFile && (
+        <MediaViewer
+          file={viewerFile}
+          onClose={() => setViewerFile(null)}
+          onPage={(index) => {
+            const next = viewerFile.siblings?.[index];
+            if (next) {setViewerFile({ ...next, siblings: viewerFile.siblings, index });}
+          }}
+          onSave={() => saveFile(viewerFile)}
+          // Reply opens the thread in the chat underneath this screen.
+          onReplyOpened={() => handleCloseModal?.()}
+        />
+      )}
     </ModalContainerFullScreen>
   );
 };
@@ -817,6 +867,27 @@ const createStyles = (theme: ChatTheme) => StyleSheet.create({
   body: {
     padding: 12,
     gap: 12,
+  },
+  tabsRow: {
+    flexDirection: 'row',
+    gap: 20,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: theme.border,
+    marginBottom: 12,
+  },
+  tabsSearch: {
+    marginLeft: 'auto',
+    paddingBottom: 10,
+  },
+  tab: {
+    paddingBottom: 10,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  tabLabel: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: theme.textSecondary,
   },
   card: {
     backgroundColor: theme.surface,

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { withFileToken } from '../../../helpers/secureFileUrl';
 import styled from 'styled-components/native';
 import {
@@ -10,26 +10,28 @@ import ModalHeaderComponent from '../ModalHeaderComponent';
 import { useChatSettingState } from '../../../hooks/useChatSettingState';
 import { useTheme } from '../../../hooks/useTheme';
 import { chatTextStyle } from '../../../helpers/typography';
-import { useDispatch, useSelector } from 'react-redux';
+import { useDispatch, useSelector, useStore } from 'react-redux';
 import Button from '../../styled/Button';
 import { RootState } from '../../../roomStore';
 import { FullScreenImage } from '../../styled/StyledInputComponents/MediaComponents';
 import { setActiveFile } from '../../../roomStore/chatSettingsSlice';
+import type { ModalFile } from '../../../types/types';
+import MediaViewer from './MediaViewer';
+import { isLocalFile, useSaveFile } from './useSaveFile';
+import { withChatSiblings } from '../../../helpers/roomMedia';
+import { loadRoomHistory } from '../../../helpers/loadRoomHistory';
+import { getGlobalXmppClient } from '../../../utils/clientRegistry';
+import { useFileToken } from '../../../hooks/useFileToken';
 import {
   ActivityIndicator,
-  Alert,
   Text,
   View,
   Platform,
   TouchableOpacity,
   StyleSheet,
-  Share,
 } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { PlayIcon } from '../../../assets/icons';
-import * as FileSystem from 'expo-file-system/legacy';
-import { getMediaLibrary } from '../../../helpers/mediaLibraryRuntime';
-import { useToast } from '../../../context/ToastContext';
 import { useT } from '../../../i18n/useT';
 import PdfViewer from './PdfView';
 import DocumentViewer from './DocumentViewer';
@@ -44,7 +46,6 @@ import {
 } from '../../../helpers/videoCache';
 import {
   getDisplayFileName,
-  getUniqueFileName,
   sanitizeFileNameForPath,
 } from '../../../helpers/getDisplayFileName';
 
@@ -62,13 +63,12 @@ const GVIEW_PREVIEWABLE = new Set<string>([
   'application/rtf',
 ]);
 
-const isLocalFile = (url: string | undefined | null) =>
-  /^file:\/\//i.test(url || '');
+const isMedia = (mime: string | undefined | null) =>
+  !!mime && (mime.startsWith('image/') || mime.startsWith('video/'));
 
-const fetchToCache = async (url: string, cachePath: string) =>
-  isLocalFile(url)
-    ? { status: 200, uri: url }
-    : FileSystem.downloadAsync(withFileToken(url), cachePath);
+/** Older history pages the viewer asked for; one at a time per room. */
+const historyInFlight = new Set<string>();
+const HISTORY_PAGE_SIZE = 30;
 
 const isGviewPreviewable = (mime: string | undefined | null) => {
   if (!mime) {return false;}
@@ -246,27 +246,100 @@ interface FilePreviewModalProps {
   handleCloseModal: any;
 }
 
+/** The viewer on the store's `activeFile`, as opened from a message bubble. */
 const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   handleCloseModal,
 }) => {
   const dispatch = useDispatch();
-  const { showToast } = useToast();
+  const store = useStore<RootState>();
+  const { activeFile } = useSelector(
+    (state: RootState) => state.chatSettingStore
+  );
+  const { user, config } = useChatSettingState();
+  const fileToken = useFileToken();
+  const roomJid = activeFile?.source?.roomJid;
+  const room = useSelector((state: RootState) =>
+    roomJid ? state.rooms.rooms?.[roomJid] : undefined
+  );
+  const messages = room?.messages;
+
+  // A picture or video opened from a bubble pages through the whole chat;
+  // anything not in the loaded history keeps what it was opened with.
+  const file = useMemo(() => {
+    if (!activeFile?.fileURL || !isMedia(activeFile.mimetype)) {return activeFile;}
+    return (
+      withChatSiblings(activeFile, messages, {
+        me: user,
+        fileToken,
+        interactive: !config?.disableInteractions,
+        repliesOn: !config?.disableReplies,
+      }) ?? activeFile
+    );
+  }, [activeFile, messages, user, fileToken, config?.disableInteractions, config?.disableReplies]);
+
+  // On the oldest loaded file, ask for an older page: what it brings in
+  // shows up to the left of it.
+  const atOldest = !!file?.siblings && file.index === 0 && !!roomJid;
+  const historyComplete = !!room?.historyComplete;
+  useEffect(() => {
+    if (!atOldest || historyComplete || !roomJid) {return;}
+    loadRoomHistory({
+      client: getGlobalXmppClient(),
+      room: store.getState().rooms.rooms?.[roomJid],
+      inFlight: historyInFlight,
+      chatJID: roomJid,
+      max: HISTORY_PAGE_SIZE,
+    });
+  }, [atOldest, historyComplete, roomJid, store]);
+
+  if (!file?.fileURL) {return null;}
+
+  const closeModal = () => {
+    dispatch(
+      setActiveFile({
+        fileName: '',
+        fileURL: '',
+        mimetype: '',
+      })
+    );
+    handleCloseModal?.();
+  };
+
+  return (
+    <FilePreview
+      file={file}
+      onClose={closeModal}
+      onChangeFile={(next) => dispatch(setActiveFile(next))}
+    />
+  );
+};
+
+interface FilePreviewProps {
+  file: ModalFile;
+  onClose: () => void;
+  /** Another file of the album (siblings and index included). */
+  onChangeFile: (file: ModalFile) => void;
+  /** After the media viewer's Reply opened a thread. */
+  onReplyOpened?: () => void;
+}
+
+/**
+ * One file, full screen: pictures and videos in the Telegram-style
+ * MediaViewer, everything else (documents, PDFs, voice notes) on the
+ * plain preview page with the save button in its header.
+ */
+export const FilePreview: React.FC<FilePreviewProps> = ({
+  file: activeFile,
+  onClose,
+  onChangeFile,
+  onReplyOpened,
+}) => {
   const t = useT();
   const { config } = useChatSettingState();
   const theme = useTheme();
   // Info / audio cards: light keeps its warm tint (not in the palette),
   // dark sits them on the secondary surface.
   const cardBackground = theme.dark ? theme.surfaceSecondary : '#FFF8ED';
-
-  // Cache the SAF directory the user granted so saving several documents
-  // in a row doesn't re-prompt for a folder every time (Android only).
-  const safDirUriRef = useRef<string | null>(null);
-
-  const { activeFile } = useSelector(
-    (state: RootState) => state.chatSettingStore
-  );
-
-  if (!activeFile) {return null;}
 
   // Bug #40: prefer the sender's original name over the server's stored
   // hash name everywhere this modal shows or saves/shares the file.
@@ -281,154 +354,8 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
     })
   );
 
-  const requestStoragePermission = async () => {
-    const MediaLibrary = getMediaLibrary();
-    if (!MediaLibrary?.requestPermissionsAsync) {return false;}
-    try {
-      const { status } = await MediaLibrary.requestPermissionsAsync();
-      return status === 'granted';
-    } catch (error) {
-      console.error('Error requesting permission:', error);
-      return false;
-    }
-  };
-
-  const saveToGallery = async () => {
-    const hasPermission = await requestStoragePermission();
-    if (!hasPermission) {
-      Alert.alert(
-        'Permission Denied',
-        'Storage permission is required to save files to the gallery.'
-      );
-      return;
-    }
-
-    try {
-      const filePath = FileSystem.cacheDirectory + displayFileName;
-      const download = await fetchToCache(activeFile.fileURL, filePath);
-
-      if (download.status === 200) {
-        await getMediaLibrary()?.saveToLibraryAsync(download.uri);
-        showToast({
-          id: Date.now().toString(),
-          title: t('toast.successTitle'),
-          message: t('toast.saveSuccessful'),
-          type: 'success',
-        });
-      } else {
-        Alert.alert('Error', 'Failed to save the file.');
-      }
-    } catch (err) {
-      Alert.alert('Error', `Failed to save the file: ${displayFileName}`);
-    }
-  };
-
-  // Best-effort existing-name lookup for the Android SAF branch below: SAF
-  // hands back content URIs, not plain names, so this decodes each one and
-  // takes its last path segment. If the provider's URI shape doesn't match
-  // what we expect, we fail open (empty set) rather than block the save -
-  // worst case we skip de-duplication, we never crash the save flow.
-  const listSafDirectoryNames = async (
-    saf: any,
-    dirUri: string
-  ): Promise<Set<string>> => {
-    try {
-      const uris: string[] = await saf.readDirectoryAsync(dirUri);
-      const names = uris.map((uri) => {
-        try {
-          const decoded = decodeURIComponent(uri);
-          const last = decoded.split('/').pop() || '';
-          return last.includes(':') ? last.split(':').pop() || '' : last;
-        } catch {
-          return '';
-        }
-      });
-      return new Set(names.filter(Boolean));
-    } catch {
-      return new Set<string>();
-    }
-  };
-
-  const saveFileToDownloads = async () => {
-    try {
-      const filePath = FileSystem.cacheDirectory + displayFileName;
-      const download = await fetchToCache(activeFile.fileURL, filePath);
-
-      if (download.status !== 200) {
-        Alert.alert('Error', 'Failed to save the file.');
-        return;
-      }
-
-      if (Platform.OS === 'android') {
-        const saf = (FileSystem as any).StorageAccessFramework;
-        let dirUri = safDirUriRef.current;
-        if (!dirUri) {
-          const perm = await saf.requestDirectoryPermissionsAsync();
-          if (!perm.granted) {
-            Alert.alert(
-              'Permission Denied',
-              'Storage permission is required to save the file.'
-            );
-            return;
-          }
-          dirUri = perm.directoryUri;
-          safDirUriRef.current = dirUri;
-        }
-
-        // Avoid silently overwriting a different attachment that happens
-        // to share the same display name (common now that we prefer the
-        // human-picked name over the unique server hash - bug #40) by
-        // suffixing " (1)", " (2)", ... on a collision.
-        const existingNames = await listSafDirectoryNames(saf, dirUri as string);
-        const uniqueName = await getUniqueFileName(
-          displayFileName,
-          async (candidate) => existingNames.has(candidate)
-        );
-        const baseName = uniqueName.replace(/\.[^/.]+$/, '');
-        const mime = activeFile.mimetype || 'application/octet-stream';
-        const base64 = await FileSystem.readAsStringAsync(download.uri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-        const destUri = await saf.createFileAsync(dirUri, baseName, mime);
-        await FileSystem.writeAsStringAsync(destUri, base64, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-
-        showToast({
-          id: Date.now().toString(),
-          title: t('toast.successTitle'),
-          message: t('toast.saveSuccessful'),
-          type: 'success',
-        });
-        return;
-      }
-
-      // iOS (and any non-Android): there is no app-writable "Downloads"
-      // folder, and MediaLibrary only accepts images/videos — which is why
-      // documents previously hit the success toast without ever being
-      // saved. Present the system share sheet so the user can "Save to
-      // Files", AirDrop, etc. The sheet itself is the confirmation (the
-      // user may cancel), so we don't show a "Save successful" toast here.
-      await Share.share({
-        url: download.uri,
-        title: displayFileName,
-      });
-    } catch (err) {
-      console.error('Error saving file:', err);
-      Alert.alert('Error', 'Failed to save the file.');
-    }
-  };
-
-  const saveClick = async () => {
-    if (
-      activeFile.mimetype.startsWith('image/') ||
-      activeFile.mimetype.startsWith('video/')
-    ) {
-      await saveToGallery();
-    } else {
-      await saveFileToDownloads();
-    }
-  };
+  const saveFile = useSaveFile();
+  const saveClick = () => saveFile(activeFile);
 
   // An album opens with its siblings; the viewer pages through them.
   const albumSize = activeFile.siblings?.length ?? 0;
@@ -436,21 +363,24 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   const goToSibling = (next: number) => {
     const target = activeFile.siblings?.[next];
     if (!target) {return;}
-    dispatch(
-      setActiveFile({ ...target, siblings: activeFile.siblings, index: next })
-    );
+    onChangeFile({ ...target, siblings: activeFile.siblings, index: next });
   };
+  const closeModal = onClose;
 
-  const closeModal = () => {
-    dispatch(
-      setActiveFile({
-        fileName: '',
-        fileURL: '',
-        mimetype: '',
-      })
+  if (
+    activeFile.mimetype.startsWith('image/') ||
+    activeFile.mimetype.startsWith('video/')
+  ) {
+    return (
+      <MediaViewer
+        file={activeFile}
+        onClose={onClose}
+        onPage={goToSibling}
+        onSave={saveClick}
+        onReplyOpened={onReplyOpened}
+      />
     );
-    handleCloseModal?.();
-  };
+  }
 
   // NOTE: plain computed value, NOT useMemo. It sits AFTER the
   // `if (!activeFile) return` guard above, so as a hook it would run
