@@ -1,6 +1,6 @@
 /** @format */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   CenterContainer,
@@ -26,14 +26,14 @@ import {
   setCurrentRoom,
   setIsLoading,
 } from '../../roomStore/roomsSlice';
-import { useLeaveRoom } from '../../hooks/useLeaveRoom';
+import LeaveChatModal from '../Modals/ChatProfileModal/LeaveChatModal';
 import { setActiveModal } from '../../roomStore/chatSettingsSlice';
 import { MODAL_TYPES } from '../../helpers/constants/MODAL_TYPES';
 import { RoomMenu } from '../MenuRoom/MenuRoom';
 import { useChatSettingState } from '../../hooks/useChatSettingState';
 import { useFileToken } from '../../hooks/useFileToken';
 import { appendFileToken } from '../../helpers/secureFileUrl';
-import { Alert, View, StyleSheet, Text, Keyboard } from 'react-native';
+import { View, StyleSheet, Text, Keyboard } from 'react-native';
 import { getIconColor } from '../../helpers/getIconColor';
 import { useTheme } from '../../hooks/useTheme';
 import { resolveHeaderHeight } from '../../helpers/headerLayout';
@@ -53,7 +53,8 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
 }) => {
   const fileToken = useFileToken();
   const dispatch = useDispatch();
-  const leaveRoom = useLeaveRoom();
+  // The room the menu's Leave is asking about.
+  const [leaveJid, setLeaveJid] = useState<string | null>(null);
 
   const reduxStore = useStore<RootState>();
   const activeRoomJID = useSelector(
@@ -80,19 +81,18 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
     dispatch(setIsLoading({ chatJID: chat.jid, loading: true }));
   };
 
-  const handleLeaveClick = useCallback(async () => {
-    if (!activeRoomJID) {return;}
-    if (!(await leaveRoom(activeRoomJID))) {
-      Alert.alert(t('toast.error'), t('toast.leaveFailed'));
-      return;
-    }
+  const handleLeaveClick = useCallback(() => {
+    if (activeRoomJID) {setLeaveJid(activeRoomJID);}
+  }, [activeRoomJID]);
 
+  // After the confirmation took us out: on to the first chat still left.
+  const handleLeft = useCallback(() => {
     const nextRoomJID =
       Object.keys(reduxStore.getState().rooms.rooms || {})[0] || null;
     if (nextRoomJID) {
       dispatch(setCurrentRoom({ roomJID: nextRoomJID }));
     }
-  }, [activeRoomJID, reduxStore, dispatch, leaveRoom, t]);
+  }, [reduxStore, dispatch]);
 
   const handleHeaderChatMenu = () => {
     Keyboard.dismiss();
@@ -270,6 +270,11 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
       <HeaderCallBar />
       {config?.chatHeaderAdditional?.enabled &&
           config.chatHeaderAdditional.element()}
+      <LeaveChatModal
+        roomJid={leaveJid}
+        onClose={() => setLeaveJid(null)}
+        onLeft={handleLeft}
+      />
     </>
   );
 };

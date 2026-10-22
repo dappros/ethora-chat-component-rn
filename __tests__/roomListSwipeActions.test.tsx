@@ -1,7 +1,7 @@
 /**
  * A room-list row swiped to the left shows Mute, Report and Leave behind it.
  * Mute toggles the chat's notifications (as in the chat profile).
- * Leave asks first, takes the user out of the chat on the server, then sends
+ * Leave asks first (LeaveChatModal), takes the user out of the chat on the server, then sends
  * the unavailable presence and drops the room (a refusal keeps it);
  * Report opens the report form for that room. `disableRoomSwipeActions`
  * turns the whole thing off.
@@ -72,17 +72,18 @@ beforeEach(() => {
 
 describe('room-list swipe actions', () => {
   it('leaves the room after a confirmation', async () => {
-    const alert = jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, buttons) => {
-      buttons?.[1]?.onPress?.();
-    });
     const { tree, find } = await render();
     expect(find('room-action-report-one').length).toBeGreaterThan(0);
     expect(find('room-action-leave-one').length).toBeGreaterThan(0);
+    expect(find('leave-confirm').length).toBe(0);
 
     await act(async () => {
       find('room-action-leave-one')[0].props.onPress();
     });
-    expect(alert).toHaveBeenCalledWith('Leave Chat', expect.any(String), expect.any(Array));
+    expect(mockLeaveRoomApi).not.toHaveBeenCalled();
+    await act(async () => {
+      find('leave-confirm')[0].props.onPress();
+    });
     expect(mockLeaveRoomApi).toHaveBeenCalledWith('one');
     expect(leaveTheRoomStanza).toHaveBeenCalledWith(JID);
     expect(store.getState().rooms.rooms[JID]).toBeUndefined();
@@ -93,12 +94,13 @@ describe('room-list swipe actions', () => {
     mockLeaveRoomApi.mockImplementation(async () => {
       throw new Error('500');
     });
-    const alert = jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, buttons) => {
-      buttons?.[1]?.onPress?.();
-    });
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     const { tree, find } = await render();
     await act(async () => {
       find('room-action-leave-one')[0].props.onPress();
+    });
+    await act(async () => {
+      find('leave-confirm')[0].props.onPress();
     });
     expect(leaveTheRoomStanza).not.toHaveBeenCalled();
     expect(store.getState().rooms.rooms[JID]).toBeDefined();
@@ -107,13 +109,14 @@ describe('room-list swipe actions', () => {
   });
 
   it('keeps the room when the confirmation is declined', async () => {
-    jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, buttons) => {
-      buttons?.[0]?.onPress?.();
-    });
     const { tree, find } = await render();
     await act(async () => {
       find('room-action-leave-one')[0].props.onPress();
     });
+    await act(async () => {
+      find('leave-cancel')[0].props.onPress();
+    });
+    expect(find('leave-confirm').length).toBe(0);
     expect(leaveTheRoomStanza).not.toHaveBeenCalled();
     expect(store.getState().rooms.rooms[JID]).toBeDefined();
     await act(async () => tree.unmount());

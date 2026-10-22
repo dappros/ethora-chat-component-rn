@@ -89,6 +89,26 @@ jest.mock('react-native-reanimated', () => {
     return {};
   }
 });
+// Gestures don't run under Jest (and the package ships untranspiled specs):
+// every builder chains to itself and a detector is just its child. Tests
+// that need more mock it themselves, which takes precedence over this.
+jest.mock('react-native-gesture-handler', () => {
+  const chain = new Proxy({}, { get: () => () => chain });
+  return {
+    Gesture: new Proxy({}, { get: () => () => chain }),
+    GestureDetector: ({ children }) => children,
+    GestureHandlerRootView: ({ children }) => children,
+  };
+});
+// expo-video ships untranspiled ESM; a player that does nothing.
+jest.mock('expo-video', () => ({
+  useVideoPlayer: () => ({
+    addListener: () => ({ remove: () => {} }),
+    play: () => {},
+    pause: () => {},
+  }),
+  VideoView: 'VideoView',
+}));
 // The room list's swipeable rows: render the row and its actions side by
 // side, so tests reach the buttons without a gesture; `close` is a no-op.
 jest.mock('react-native-gesture-handler/ReanimatedSwipeable', () => {

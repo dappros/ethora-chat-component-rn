@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* global Atomics, SharedArrayBuffer */
 /**
  * Make sure there's an Android device or emulator ready before
  * `expo run:android` is invoked. Without this, first-time runs hit

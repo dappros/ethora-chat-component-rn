@@ -10,6 +10,7 @@ import {
   setActiveModal,
 } from '../../roomStore/chatSettingsSlice';
 import { MODAL_TYPES } from '../../helpers/constants/MODAL_TYPES';
+import { useMediaSource } from '../../context/MediaSourceContext';
 import { PlayIcon } from '../../assets/icons';
 import {
   defaultMediaDims,
@@ -155,6 +156,7 @@ const CustomMessageVideo: React.FC<CustomMessageVideoProps> = ({
   onOpen,
 }) => {
   const dispatch = useDispatch();
+  const source = useMediaSource();
   const [posterFailed, setPosterFailed] = useState(false);
 
   const handleOpen = () => {
@@ -162,7 +164,9 @@ const CustomMessageVideo: React.FC<CustomMessageVideoProps> = ({
       onOpen();
       return;
     }
-    dispatch(setActiveFile({ fileName, fileURL, mimetype, originalName }));
+    dispatch(
+      setActiveFile({ fileName, fileURL, mimetype, originalName, previewURL, source })
+    );
     dispatch(setActiveModal(MODAL_TYPES.FILE_PREVIEW));
   };
 

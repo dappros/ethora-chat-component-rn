@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { IAttachment, IMessage } from '../../types/types';
+import { IAttachment, IMessage, ModalFileSource } from '../../types/types';
 import FileDownload from '../styled/UnsupportedType';
 import CustomMessageImage from '../styled/MessageImage';
 import CustomMessageVideo from '../styled/VideoMessage';
@@ -25,6 +25,7 @@ import AlbumGrid from './AlbumGrid';
 import MediaCaption from '../MessageBubble/MediaCaption';
 import MediaUploadOverlay from './MediaUploadOverlay';
 import { requestMediaRetry } from '../../helpers/mediaSendRetry';
+import { MediaSourceProvider } from '../../context/MediaSourceContext';
 
 interface MediaMessageProps {
   mimeType?: string;
@@ -32,6 +33,8 @@ interface MediaMessageProps {
   location?: string;
   messageText?: string;
   isUser: boolean;
+  /** What the file viewer's Reply and Delete act on, when opened from here. */
+  viewerSource?: ModalFileSource;
 }
 
 const pendingImageDims = defaultMediaDims();
@@ -289,7 +292,15 @@ const AttachmentCard: React.FC<AttachmentCardProps> = ({
   }
 };
 
-const MediaMessage: React.FC<MediaMessageProps> = ({
+// The viewer source wraps the whole bubble, so every picture and video in it
+// (single card or album tile) opens the viewer with it.
+const MediaMessage: React.FC<MediaMessageProps> = ({ viewerSource, ...props }) => (
+  <MediaSourceProvider value={viewerSource}>
+    <MediaMessageBody {...props} />
+  </MediaSourceProvider>
+);
+
+const MediaMessageBody: React.FC<Omit<MediaMessageProps, 'viewerSource'>> = ({
   mimeType,
   location: rawLocation,
   messageText: rawMessageText,

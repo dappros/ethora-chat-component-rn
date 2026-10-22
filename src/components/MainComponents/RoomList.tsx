@@ -32,7 +32,7 @@ import { getIconColor } from '../../helpers/getIconColor';
 import { useT } from '../../i18n/useT';
 import { useTheme } from '../../hooks/useTheme';
 import { useRoomMute } from '../../hooks/useRoomMute';
-import { useLeaveRoom } from '../../hooks/useLeaveRoom';
+import LeaveChatModal from '../Modals/ChatProfileModal/LeaveChatModal';
 import { isMessageSearchEnabled } from '../../helpers/isMessageSearchEnabled';
 import { useMessageSearch } from '../Modals/MessageSearchModal/useMessageSearch';
 import type { MessageSearchHit } from '../../networking/api-requests/messageSearch.api';
@@ -97,6 +97,8 @@ const RoomList: React.FC<RoomListProps> = ({
   const [open, setOpen] = useState(false);
   // The room a swiped row's Report opened the form for.
   const [reportJid, setReportJid] = useState<string | null>(null);
+  // The room a swiped row's Leave is asking about.
+  const [leaveJid, setLeaveJid] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLongPress, setIsLongPress] = useState(false);
   const [isDrawerOpen, setDrawerOpen] = useState(false);
@@ -140,24 +142,7 @@ const RoomList: React.FC<RoomListProps> = ({
   // Behind a row swiped left. Leaving is the chat profile's flow: the
   // server takes us out of the members, then the MUC and the store.
   const swipeActions = !config?.disableRoomSwipeActions;
-  const leaveRoom = useLeaveRoom();
-  const handleLeaveRoom = useCallback(
-    (jid: string) => {
-      Alert.alert(t('modal.leaveChat.title'), t('modal.leaveChat.description'), [
-        { text: t('action.cancel'), style: 'cancel' },
-        {
-          text: t('action.leave'),
-          style: 'destructive',
-          onPress: async () => {
-            if (!(await leaveRoom(jid))) {
-              Alert.alert(t('toast.error'), t('toast.leaveFailed'));
-            }
-          },
-        },
-      ]);
-    },
-    [leaveRoom, t]
-  );
+  const handleLeaveRoom = useCallback((jid: string) => setLeaveJid(jid), []);
   const handleReportRoom = useCallback((jid: string) => setReportJid(jid), []);
   const toggleRoomMuted = useRoomMute();
   const handleToggleMute = useCallback(
@@ -592,6 +577,10 @@ const RoomList: React.FC<RoomListProps> = ({
                   onClose={() => setReportJid(null)}
                 />
               )}
+              <LeaveChatModal
+                roomJid={leaveJid}
+                onClose={() => setLeaveJid(null)}
+              />
             </View>
           </>
         )}

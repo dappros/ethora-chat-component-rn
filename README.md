@@ -763,7 +763,7 @@ just don't commit a `yarn.lock` back into the repo.
 
 ### `expo prebuild` and the `dependencies` guard
 
-`npm run prebuild|ios|android` each chain through to `expo prebuild`
+`npm run prebuild:native|ios|android` each chain through to `expo prebuild`
 on first run, and `expo prebuild` likes to hoist `expo`, `react`,
 and `react-native` from `devDependencies` into `dependencies`.
 That's wrong for a published library — consumers of

@@ -33,7 +33,7 @@ import {
 import { MODAL_TYPES } from '../../helpers/constants/MODAL_TYPES';
 import { setActiveMessage, setEditAction } from '../../roomStore/roomsSlice';
 import styled from 'styled-components/native';
-import { IUser, MessageProps } from '../../types/types';
+import { IUser, MessageProps, ModalFileSource } from '../../types/types';
 import MediaMessage from '../MainComponents/MediaMessage';
 import MessageTranslate from './MessageTranslate';
 import { isUnresolvedSenderId } from '../../helpers/isUnresolvedSenderId';
@@ -376,6 +376,28 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
     return setIsPressed(false);
   };
 
+  // What the file viewer offers for this message's pictures and videos: the
+  // same Reply and Delete as the long-press menu, under the same rules.
+  const viewerSource = useMemo<ModalFileSource | undefined>(() => {
+    if (!message?.id || !message.roomJid) {return undefined;}
+    const interactive = !config?.disableInteractions && !message.pending;
+    const parent = parseMessageReference(message);
+    const sentAt = new Date(message.date as any).getTime();
+    return {
+      messageId: message.id,
+      roomJid: message.roomJid,
+      own: interactive && isUser,
+      replyTo:
+        interactive && !isReply && !config?.disableReplies
+          ? parent
+            ? { id: parent.id, chatJID: parent.roomJid || message.roomJid }
+            : { id: message.id, chatJID: message.roomJid }
+          : undefined,
+      senderName: senderNamePending ? undefined : senderDisplayName,
+      timestamp: Number.isFinite(sentAt) ? sentAt : undefined,
+    };
+  }, [message, isUser, isReply, config?.disableInteractions, config?.disableReplies, senderNamePending, senderDisplayName]);
+
   const handleDeleteMessage = () => {
     dispatch(
       setDeleteModal({
@@ -625,6 +647,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
           location={message?.location}
           message={message}
           isUser={isUser}
+          viewerSource={viewerSource}
         />
       ) : (
         <>

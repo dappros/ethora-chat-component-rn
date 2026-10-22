@@ -501,24 +501,25 @@ export async function deleteRoomMember(data: DeleteRoomMember) {
 }
 
 /**
- * Take the signed-in user out of a chat on the server (self-removal via the
- * same endpoint that removes other members). The unavailable presence alone
- * only leaves the MUC for this session: the backend keeps the user in
- * `members` and the next /chats/my brings the chat back. A 404 means the
- * server already has us out, which is what we wanted.
+ * Leave a chat on the server: `PUT /v1/chats/my/{chatName}/leave` sets the
+ * `left` flag on the caller's own membership, and /chats/my stops listing
+ * the room. The unavailable presence alone only leaves the MUC for this
+ * session, the next /chats/my would bring the chat back. Not
+ * `DELETE /users-access`: that one is owner-only and refuses self-removal.
+ * A 404 means we are not a member any more, which is what we wanted.
  */
 export async function leaveRoom(chatName: string): Promise<void> {
-  const me = (store.getState().chatSettingStore?.user?.xmppUsername || '').split('@')[0];
-  if (!chatName || !me) {
-    throw new Error('Cannot leave the chat: no chat name or user');
+  if (!chatName) {
+    throw new Error('Cannot leave the chat: no chat name');
   }
   const token = store.getState().chatSettingStore.user.token || '';
   invalidateRoomsCache();
   try {
-    await http.delete('/v1/chats/users-access', {
-      headers: { Authorization: token },
-      data: { chatName, members: [me] },
-    });
+    await http.put(
+      `/v1/chats/my/${encodeURIComponent(chatName)}/leave`,
+      {},
+      { headers: { Authorization: token } }
+    );
   } catch (error: any) {
     if (error?.response?.status !== 404) {throw error;}
   } finally {

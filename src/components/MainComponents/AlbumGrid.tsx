@@ -17,6 +17,7 @@ import {
 } from '../../roomStore/chatSettingsSlice';
 import { MODAL_TYPES } from '../../helpers/constants/MODAL_TYPES';
 import MediaUploadOverlay from './MediaUploadOverlay';
+import { useMediaSource } from '../../context/MediaSourceContext';
 
 interface AlbumGridProps {
   /** The pictures and videos of one message, in order. */
@@ -43,6 +44,7 @@ const AlbumGrid: React.FC<AlbumGridProps> = ({
   const t = useT();
   const dispatch = useDispatch();
   const fileToken = useFileToken();
+  const source = useMediaSource();
 
   const layout = useMemo(
     () => getAlbumLayout(attachments.length),
@@ -58,8 +60,10 @@ const AlbumGrid: React.FC<AlbumGridProps> = ({
         fileURL: appendFileToken(attachment.location, fileToken) || '',
         mimetype: attachment.mimetype || '',
         duration: attachment.duration,
+        previewURL: appendFileToken(attachment.locationPreview, fileToken),
+        source,
       })),
-    [attachments, fileToken]
+    [attachments, fileToken, source]
   );
 
   const openAt = useCallback(

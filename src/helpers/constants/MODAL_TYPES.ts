@@ -28,5 +28,7 @@ export const MODAL_TYPES = {
   NEW_CHAT: 'new_chat',
 
   MESSAGE_SEARCH: 'message_search',
+  /** Message search locked to the open chat, reached from its profile. */
+  CHAT_MESSAGE_SEARCH: 'chat_message_search',
   PUBLIC_CHATS: 'public_chats',
 };

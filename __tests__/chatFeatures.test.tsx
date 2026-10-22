@@ -132,7 +132,6 @@ const mockSpyClient: any = {
   deleteMessageStanza: jest.fn(),
   sendTypingRequestStanza: jest.fn(),
   onCriticalSend: jest.fn(),
-  setActiveRoomJid: jest.fn(),
   getRoomsStanza: jest.fn().mockResolvedValue(undefined),
   getChatsPrivateStoreRequestStanza: jest.fn().mockResolvedValue(null),
   waitForOnline: jest.fn().mockResolvedValue(undefined),
