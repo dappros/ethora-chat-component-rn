@@ -49,6 +49,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this pr
 
 ### Changed
 
+- `npm run build` no longer runs `expo prebuild` first. The npm hook was named `prebuild`; the script is now `prebuild:native` (`npm run prebuild:native`).
 - `pushNotifications.onClick` / `onNotificationPress` are marked deprecated: they were never called. The tapped notification's data goes to `handlePushPayload`, which opens the room. The push section of `instructions.md` now shows the whole host side in one place and states the rule the SDK cannot enforce: sign-out must go through the SDK (`useLogout()` / the built-in item), or the device stays registered.
 
 - **The interface language reaches every caption.** The room-list menu (New Chat / Profile / Settings / Sign out, and the sign-out confirmation), the room menu, the thread screen, the delete-message dialog, the Visibility and Manage Data screens, "sending..." / "edited" / the failed-send retry under a bubble and the toasts' titles were hard-coded in English and ignored the app language; they now come from the string tables (`menu.*`, `thread.*`, `message.sending` / `message.failedRetry`, `modal.deleteMessage.*`, `toast.copied` / `toast.copyFailed` / `toast.saveSuccessful` / `toast.failedToCreateRoom` in every locale). A host's `logout.label` / `logout.confirm` copy still wins; without it the SDK's own, in the UI language, is shown - hosts that passed English copy only to have a label can drop it. Spanish "Chats" is now "Conversaciones".
