@@ -36,6 +36,7 @@ import LeaveChatModal from '../Modals/ChatProfileModal/LeaveChatModal';
 import { isMessageSearchEnabled } from '../../helpers/isMessageSearchEnabled';
 import { useMessageSearch } from '../Modals/MessageSearchModal/useMessageSearch';
 import type { MessageSearchHit } from '../../networking/api-requests/messageSearch.api';
+import { canLeaveRoom } from '../../helpers/canLeaveRoom';
 import {
   MessageHitList,
   SecondaryPillButton,
@@ -352,7 +353,11 @@ const RoomList: React.FC<RoomListProps> = ({
           muted={!!item.muted}
           onToggleMute={handleToggleMute}
           onReport={handleReportRoom}
-          onLeave={handleLeaveRoom}
+          onLeave={
+            canLeaveRoom(item.jid, config?.defaultRooms)
+              ? handleLeaveRoom
+              : undefined
+          }
         >
           {row}
         </SwipeableRoomRow>

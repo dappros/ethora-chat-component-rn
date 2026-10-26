@@ -26,11 +26,6 @@ const hasLoadedRoomHistory = (room?: IRoom): boolean => {
   );
 };
 
-const defaultRoomJids = (config: IConfig): string[] =>
-  (config?.defaultRooms || []).map((room: any) =>
-    typeof room === 'string' ? room : room?.jid
-  );
-
 export const useRoomInitialization = (
   activeRoomJID: string,
   config: IConfig
@@ -48,11 +43,6 @@ export const useRoomInitialization = (
   const activeHistoryLoaded = useSelector((state: RootState) =>
     hasLoadedRoomHistory(state.rooms.rooms?.[activeRoomJID])
   );
-  const defaultRoomsMissing = useSelector((state: RootState) => {
-    const jids = defaultRoomJids(config);
-    return jids.length > 0 && jids.some((jid) => !state.rooms.rooms?.[jid]);
-  });
-
   const syncRooms = useGetNewArchRoom();
 
   // Rooms whose join flag this mount already raised. The effect below re-runs
@@ -180,24 +170,13 @@ export const useRoomInitialization = (
       initialPresenceAndHistory();
     }
 
-    if (client && config?.defaultRooms) {
-      if (defaultRoomsMissing) {
-        config?.defaultRooms.map(async (room) => {
-          client.presenceInRoomStanza(typeof room === 'string' ? room : room.jid);
-        });
-        if (config?.newArch) {
-          // syncRooms(client, config);
-        } else {
-          client.getRoomsStanza();
-        }
-      }
-    }
+    // Membership from /chats/my is authoritative. Automatically joining
+    // absent configured rooms would undo a user's explicit leave.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     activeRoomJID,
     hasRooms,
     activeRoomExists,
     activeHistoryLoaded,
-    defaultRoomsMissing,
   ]);
 };

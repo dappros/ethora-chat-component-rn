@@ -262,7 +262,10 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
           <ScheduleCallButton />
           <CallButtons />
           {!config?.disableChatInfo?.disableRoomMenu && (
-            <RoomMenu handleLeaveClick={handleLeaveClick} />
+            <RoomMenu
+              roomJid={currentRoom?.jid}
+              handleLeaveClick={handleLeaveClick}
+            />
           )}
         </View>
       </ChatContainerHeader>

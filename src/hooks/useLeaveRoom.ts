@@ -3,6 +3,8 @@ import { useDispatch } from 'react-redux';
 import { deleteRoom } from '../roomStore/roomsSlice';
 import { leaveRoom } from '../networking/api-requests/rooms.api';
 import { useXmppClient } from '../context/xmppProvider';
+import { useChatSettingState } from './useChatSettingState';
+import { canLeaveRoom as canLeaveConfiguredRoom } from '../helpers/canLeaveRoom';
 
 /** Rooms with a leave request in flight: a second tap waits for the first. */
 const inFlight = new Set<string>();
@@ -17,9 +19,11 @@ const inFlight = new Set<string>();
 export const useLeaveRoom = () => {
   const dispatch = useDispatch();
   const { client } = useXmppClient();
+  const { config } = useChatSettingState();
   return useCallback(
     async (jid: string): Promise<boolean> => {
       if (!jid || inFlight.has(jid)) {return true;}
+      if (!canLeaveConfiguredRoom(jid, config?.defaultRooms)) {return false;}
       inFlight.add(jid);
       try {
         await leaveRoom(jid.split('@')[0]);
@@ -37,6 +41,6 @@ export const useLeaveRoom = () => {
       dispatch(deleteRoom({ jid }));
       return true;
     },
-    [client, dispatch]
+    [client, config?.defaultRooms, dispatch]
   );
 };
