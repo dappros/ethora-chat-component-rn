@@ -11,6 +11,7 @@ import React, {
 import { AppState, DeviceEventEmitter } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import { VideoCallOverlay } from '../components/VideoCalls/VideoCallOverlay';
+import { ScheduledCallHost } from '../components/Booking/ScheduledCallHost';
 import XmppClient, {
   XmppCredentialsProvider,
 } from '../networking/xmppClient';
@@ -976,6 +977,8 @@ export const XmppProvider: React.FC<XmppProviderProps> = ({ children, config, is
           config and call state from Redux itself, so it needs nothing
           passed in, and renders null whenever no call is in flight. */}
       <VideoCallOverlay />
+      {/* Schedule / edit sheet and the pre-join screen of a scheduled call. */}
+      <ScheduledCallHost />
     </XmppContext.Provider>
   );
 };

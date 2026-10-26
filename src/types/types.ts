@@ -1015,14 +1015,52 @@ export interface IConfig {
 
   // ----- audio / video calls -----
   /**
-   * LiveKit-backed 1:1 audio and video calls. Off unless `enabled` is
-   * explicitly `true`. Requires the native peer dependencies
+   * Audio and video calls: 1:1 chats over our own WebRTC peer to peer (the
+   * server decides per call, with a LiveKit fallback), members-only group
+   * chats over LiveKit. Off unless `enabled` is explicitly `true`. Requires
+   * the native peer dependencies
    * `@livekit/react-native` and `@livekit/react-native-webrtc`, plus
    * microphone/camera permissions and the background audio modes listed
    * in the README. Expo Go cannot run these, the host app needs a dev
    * build or a prebuilt binary.
    */
   videoCalls?: VideoCallsConfig;
+
+  // ----- scheduled calls -----
+  /**
+   * Scheduled calls and their deep links. The schedule action, the invite
+   * cards and the join flow follow `videoCalls.enabled`; this only tells the
+   * SDK which links open the app. See README, "Scheduled calls and deep links".
+   */
+  scheduledCalls?: ScheduledCallsConfig;
+}
+
+export interface ScheduledCallsConfig {
+  /**
+   * Scheduling and the Join button. On whenever `videoCalls.enabled` is on;
+   * `false` hides the Schedule a call action and the Join buttons (an invite
+   * already in a room stays readable).
+   */
+  enabled?: boolean;
+  /**
+   * Called when a scheduled call opened from a link or a reminder could not
+   * be opened (the pre-join screen shows the matching message either way).
+   */
+  onOpenError?: (error: {
+    slug: string;
+    reason: 'not-found' | 'not-a-member' | 'cancelled' | 'network';
+  }) => void;
+  /**
+   * Hosts whose `https://<host>/call/<slug>` links open this app, in
+   * addition to the hosted web app (`app.chat.ethora.com`). Use the web
+   * domain of your Ethora app when it has its own.
+   */
+  hosts?: string[];
+  /**
+   * The app's own URL schemes, without `://`. `<scheme>://call/<slug>` opens
+   * a scheduled call. Unset: any custom scheme is accepted.
+   */
+  schemes?: string[];
 }
 
 /**
@@ -1046,7 +1084,15 @@ export interface VideoCallIcons {
 export interface VideoCallsConfig {
   enabled: boolean;
   livekitUrl: string;
-  allowedRoomTypes?: Array<'private'>;
+  /**
+   * Room types that can start and receive calls. Defaults to
+   * `['private', 'group']`: 1:1 chats plus members-only group chats (group
+   * calls always run over LiveKit and need a backend that accepts them; on an
+   * older backend the call fails with an error). Pass `['private']` to keep
+   * calls 1:1 only. The 1:1 transport (own WebRTC peer to peer, or LiveKit) is
+   * chosen by the server per call, not by this config.
+   */
+  allowedRoomTypes?: Array<'private' | 'group'>;
   /**
    * Show the audio-only call button next to the video-call button. Off by
    * default: it's a separate opt-in feature. An audio call uses the same

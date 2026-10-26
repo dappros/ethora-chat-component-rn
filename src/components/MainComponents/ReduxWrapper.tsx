@@ -28,6 +28,7 @@ import {useChatFonts} from '../../hooks/useChatFonts';
 import {installPushTokenHook} from '../../services/pushRegistration';
 import {installAppBadgeSync} from '../../services/appBadge';
 import {setE2eeEnabled} from '../../e2ee';
+import {installScheduledCallHook} from '../../booking/pendingScheduledCall';
 
 const gestureRootStyle = {flex: 1};
 
@@ -45,6 +46,10 @@ installPushTokenHook();
 // The server sets the icon badge only with a push; in the foreground it
 // follows the unread total instead, so opening the app clears a stale one.
 installAppBadgeSync();
+
+// Arms the scheduled-call link watcher: a link held before sign-in or before
+// the chat was up opens as soon as both are true.
+installScheduledCallHook();
 
 interface ChatWrapperProps {
   token?: string;

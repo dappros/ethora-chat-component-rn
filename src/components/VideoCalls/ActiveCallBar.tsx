@@ -9,6 +9,7 @@ import { useT } from '../../i18n/useT';
 import { ExpandIcon, HangUpIcon, MicOffIcon, MicOnIcon } from './CallIcons';
 import { toggleCallMic, useCallSession } from './callSessionController';
 import { terminateActiveCall } from './callActions';
+import { callCanRenderSession } from './callLive';
 import {
   registerCallBarHost,
   setCallBarAnchor,
@@ -33,10 +34,8 @@ const CONTROL = 'rgba(255, 255, 255, 0.2)';
 /** True while a call is up and minimized, i.e. the strip should show. */
 const useShowCallBar = (): boolean => {
   const { minimized } = useCallUi();
-  const active = useSelector(
-    (state: RootState) =>
-      !!state.call.token &&
-      (state.call.phase === 'connecting' || state.call.phase === 'in-call')
+  const active = useSelector((state: RootState) =>
+    callCanRenderSession(state.call)
   );
   const { config } = useChatSettingState();
   return minimized && active && config?.videoCalls?.enabled === true;
@@ -62,7 +61,9 @@ export const ActiveCallBar: FC = () => {
       : !session.connected
         ? t('call.status.connecting')
         : !session.remoteJoined
-          ? t('call.status.waitingForPeer')
+          ? session.isGroup
+            ? t('call.status.waitingForOthers')
+            : t('call.status.waitingForPeer')
           : t('call.status.inCall');
   const statusLine = session.remoteMicMuted
     ? `${status} · ${t('call.peerMuted', { name })}`

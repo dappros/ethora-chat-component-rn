@@ -42,6 +42,38 @@ export type { CallPushIntent } from './helpers/incomingCallFromPush';
 export { isCallPush, parseCallPush } from './helpers/callPush';
 export type { ParsedCallPush } from './helpers/callPush';
 export type { PushPayloadOutcome } from './helpers/pushPayload';
+
+// Scheduled calls and their deep links. The host passes incoming URLs and
+// reminder-push data in; see README, "Scheduled calls and deep links".
+export {
+  parseScheduledCallLink,
+  configureScheduledCallLinks,
+  DEFAULT_SCHEDULED_CALL_HOSTS,
+} from './booking/scheduledCallLink';
+export type { ScheduledCallLinkOptions } from './booking/scheduledCallLink';
+export {
+  openScheduledCall,
+  handleScheduledCallUrl,
+  handleScheduledCallPush,
+  isScheduledCallReminderPush,
+  scheduledCallSlugFromPush,
+  SCHEDULED_CALL_REMINDER_PUSH_TYPE,
+} from './booking/pendingScheduledCall';
+export {
+  getScheduledCall,
+  listScheduledCalls,
+  createScheduledCall,
+  updateScheduledCall,
+  cancelScheduledCall,
+  isScheduledCallApiError,
+} from './networking/api-requests/scheduledCalls.api';
+export type {
+  ScheduledCall,
+  ScheduledCallDetail,
+  ScheduledCallLinks,
+  CreateScheduledCallInput,
+  UpdateScheduledCallInput,
+} from './networking/api-requests/scheduledCalls.api';
 export {
   registerPushToken,
   unregisterPushToken,
@@ -128,6 +160,7 @@ export type {
   RNFontSource,
   ChatTextStyle,
   VideoCallsConfig,
+  ScheduledCallsConfig,
   VideoCallIcons,
   OngoingCallNotification,
   OngoingCallNotificationAction,

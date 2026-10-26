@@ -43,7 +43,6 @@ import { runLogoutFlow } from '../../Menu/HeaderRoomListMenu';
 import { useLogout } from '../../../hooks/useLogout';
 import {
   ApiRoom,
-  createChatCall,
   ownAppId,
   postPrivateRoom,
 } from '../../../networking/api-requests/rooms.api';
@@ -52,6 +51,8 @@ import { useSelector } from 'react-redux';
 import { store, type RootState } from '../../../roomStore';
 import { setCallError, startOutgoingCall } from '../../../roomStore/callSlice';
 import { sendCallInviteSignal } from '../../../networking/callTokenStanza';
+import { requestOutgoingCall } from '../../../calls/startCall';
+import { isCallRoomTypeAllowed } from '../../../calls/callMode';
 import { AudioCallIcon, VideoCallIcon } from '../../VideoCalls/CallIcons';
 import { accountNameOf } from '../../../helpers/accountName';
 import {
@@ -379,7 +380,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const canCall =
     videoCallsConfig?.enabled === true &&
     Boolean(videoCallsConfig?.livekitUrl?.trim()) &&
-    (videoCallsConfig?.allowedRoomTypes || ['private']).includes('private');
+    isCallRoomTypeAllowed('private', videoCallsConfig?.allowedRoomTypes);
   const isAudioCallsEnabled = canCall && videoCallsConfig?.enableAudioCalls === true;
   const isCallBusy = useSelector((state: RootState) => state.call.phase !== 'idle');
 
@@ -416,7 +417,11 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     dispatch(setActiveModal(undefined));
 
     try {
-      await createChatCall(room.bareName, { kind });
+      await requestOutgoingCall({
+        chatName: room.bareName,
+        kind,
+        peerXmppUsername: room.peerXmppUsername || null,
+      });
     } catch (error) {
       dispatch(
         setCallError(

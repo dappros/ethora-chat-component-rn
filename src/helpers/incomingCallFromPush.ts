@@ -2,6 +2,10 @@ import { store } from '../roomStore';
 import { acceptIncomingCall, setIncomingCallToken } from '../roomStore/callSlice';
 import { endSystemIncomingCall } from '../components/VideoCalls/systemCall';
 import { declineActiveCallWhenOnline } from '../components/VideoCalls/callActions';
+import { reportCallDeclined, reportCallEnded } from '../networking/api-requests/callState.api';
+import { sendCallStateSignal } from '../networking/callTokenStanza';
+import { decideIncomingWhileBusy } from '../calls/callMode';
+import { busySnapshot } from '../calls/callBusy';
 import { isCallPush, parseCallPush } from './callPush';
 import { normalizeRoomJid } from './normalizeRoomJid';
 
@@ -58,11 +62,53 @@ const ringFromPush = (data: Record<string, any>, intent: CallPushIntent): boolea
     return false;
   }
 
+  const isP2P = parsed.mode === 'p2p';
+
+  // A peer to peer call is correlated by its callId alone (there is no room
+  // token), and one call at a time: decided the way the call-token stanza
+  // decides it. The caller is told when we cannot take it.
+  if (isP2P) {
+    if (!parsed.callId) {
+      trace('p2p call push without a callId, dropping');
+      endSystemIncomingCall(parsed.callId);
+      return false;
+    }
+    const decision = decideIncomingWhileBusy(busySnapshot(state.call), {
+      mode: 'p2p',
+      callId: parsed.callId,
+      roomBareName: parsed.roomBareName,
+    });
+    if (decision === 'duplicate') {
+      applyIntent(intent);
+      return true;
+    }
+    if (decision === 'busy' || decision === 'replace') {
+      trace('busy, declining p2p call', parsed.callId);
+      reportCallDeclined(parsed.callId);
+      sendCallStateSignal('declined', {
+        peerXmppUsername: parsed.callerXmppUsername,
+        callId: parsed.callId,
+        roomBareName: parsed.roomBareName,
+      });
+      endSystemIncomingCall(parsed.callId);
+      return false;
+    }
+    if (decision === 'glare-keep') {
+      endSystemIncomingCall(parsed.callId);
+      return false;
+    }
+    if (decision === 'glare-yield') {
+      // Both sides dialled at once and theirs has the smaller id: drop ours.
+      sendCallStateSignal('cancelled');
+      reportCallEnded(state.call.callId);
+    }
+  }
+
   // Already ringing or in this exact call (the push raced the stanza, or
   // two pushes arrived). Re-dispatching would reset startedAt and restart
   // the ring, so leave the existing call alone.
   const current = state.call;
-  if (current.phase !== 'idle') {
+  if (!isP2P && current.phase !== 'idle') {
     const sameCall =
       (!!parsed.callId && parsed.callId === current.callId) ||
       (!!parsed.roomBareName && parsed.roomBareName === current.roomBareName);
@@ -70,8 +116,9 @@ const ringFromPush = (data: Record<string, any>, intent: CallPushIntent): boolea
       applyIntent(intent);
       return true;
     }
-    if (current.phase === 'in-call') {
-      // Busy with another call: no second ring.
+    if (current.phase === 'in-call' || current.mode === 'p2p') {
+      // Busy with another call: no second ring. (A p2p call is never
+      // replaced by a LiveKit one, whatever phase it is in.)
       endSystemIncomingCall(parsed.callId);
       return false;
     }
@@ -81,7 +128,8 @@ const ringFromPush = (data: Record<string, any>, intent: CallPushIntent): boolea
   // an alert. Ringing anyway would give the user an Accept button that
   // cannot work, so treat it as handled and let the stanza (once the
   // socket is back up) open the real ring screen.
-  if (!parsed.token) {
+  // A p2p call carries no token by design: it is answered over XMPP.
+  if (!parsed.token && !isP2P) {
     endSystemIncomingCall(parsed.callId);
     return false;
   }
@@ -107,15 +155,25 @@ const ringFromPush = (data: Record<string, any>, intent: CallPushIntent): boolea
     return false;
   }
 
+  // In a group the call is the ROOM and the caller is a separate line; a
+  // 1:1 call is named after the caller.
+  const roomTitle = resolved?.title || resolved?.name || null;
   store.dispatch(
     setIncomingCallToken({
       roomJid,
-      roomName: parsed.callerName || resolved?.title || resolved?.name || null,
+      roomName: parsed.isGroup
+        ? roomTitle
+        : parsed.callerName || roomTitle,
       roomBareName: parsed.roomBareName,
-      token: parsed.token,
+      token: parsed.token || '',
       kind: parsed.kind,
       callId: parsed.callId,
-      peerXmppUsername: parsed.callerXmppUsername,
+      // A group has no single peer to signal.
+      peerXmppUsername: parsed.isGroup ? null : parsed.callerXmppUsername,
+      mode: parsed.mode,
+      isGroup: parsed.isGroup,
+      callerName: parsed.callerName,
+      callerXmppUsername: parsed.callerXmppUsername,
     })
   );
   trace('ringing', parsed.callId, intent);

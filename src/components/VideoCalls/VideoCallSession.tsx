@@ -1,4 +1,4 @@
-import React, { FC, useEffect, useState } from 'react';
+import React, { FC, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -12,27 +12,18 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { VideoCallIcons } from '../../types/types';
 import { ProfileImagePlaceholder } from '../MainComponents/ProfileImagePlaceholder';
 import {
-  CameraOffIcon,
-  CameraOnIcon,
   FillVideoIcon,
   FitVideoIcon,
-  HangUpIcon,
   MicOffIcon,
-  MicOnIcon,
   MinimizeIcon,
-  SpeakerIcon,
-  SpeakerOffIcon,
-  SwitchCameraIcon,
 } from './CallIcons';
 import { loadLiveKit } from './livekitRuntime';
-import {
-  dismissCallDeviceError,
-  switchCallCamera,
-  toggleCallCamera,
-  toggleCallMic,
-  toggleCallSpeaker,
-  useCallSession,
-} from './callSessionController';
+import { loadWebRTC } from '../../calls/p2p/webrtcRuntime';
+import { dismissCallDeviceError, useCallSession } from './callSessionController';
+import { CallVideo } from './CallVideo';
+import { CallControlBar } from './CallControlBar';
+import { GroupCallView } from './GroupCallView';
+import { formatCallDuration, useSharedCallElapsed } from './callElapsed';
 import { usePipTile } from './usePipTile';
 import { useT } from '../../i18n/useT';
 
@@ -40,11 +31,15 @@ const DEFAULT_PRIMARY = '#0052CD';
 const SURFACE_DARK = '#0B1220';
 const TEXT_ON_DARK = '#FFFFFF';
 const TEXT_MUTED = '#9AA4B2';
-const DANGER = '#E53935';
 const CONTROL_IDLE = 'rgba(255, 255, 255, 0.16)';
+
+// Re-exported for the header strip, which shares the timer with this screen.
+export { formatCallDuration, useSharedCallElapsed };
 
 export interface VideoCallSessionProps {
   kind?: 'audio' | 'video';
+  /** Group room call: everyone in a grid, instead of the 1:1 stage. */
+  isGroup?: boolean;
   /** Display name of the peer, shown until LiveKit reports theirs. */
   peerName?: string | null;
   primaryColor?: string;
@@ -55,42 +50,18 @@ export interface VideoCallSessionProps {
 }
 
 /**
- * Seconds since the call truly connected, counted from the server-set
- * `joinedAt` anchor so both sides show the same time (web's
- * useSharedCallElapsed). Null until the peer is in.
- */
-export const useSharedCallElapsed = (anchorAt: number | null): number | null => {
-  const [, tick] = useState(0);
-  useEffect(() => {
-    if (anchorAt === null) {return;}
-    const id = setInterval(() => tick((n) => n + 1), 1000);
-    return () => clearInterval(id);
-  }, [anchorAt]);
-  if (anchorAt === null) {return null;}
-  return Math.max(0, Math.floor((Date.now() - anchorAt) / 1000));
-};
-
-export const formatCallDuration = (totalSeconds: number): string => {
-  const safe = Math.max(0, Math.floor(totalSeconds));
-  const hours = Math.floor(safe / 3600);
-  const minutes = Math.floor((safe % 3600) / 60);
-  const seconds = safe % 60;
-  const mm = String(minutes).padStart(2, '0');
-  const ss = String(seconds).padStart(2, '0');
-  return hours > 0 ? `${hours}:${mm}:${ss}` : `${mm}:${ss}`;
-};
-
-/**
- * The call screen, React Native edition. Pure view over the LiveKit session
- * owned by callSessionController.ts: it can unmount and remount (minimize,
- * leaving the chat screen) without touching the connection.
+ * The call screen, React Native edition. Pure view over the media session
+ * of the call (the LiveKit room in callSessionController.ts, or the peer to
+ * peer connection in p2pCallSession.ts): it can unmount and remount
+ * (minimize, leaving the chat screen) without touching the connection.
  *
  * The web SDK builds this on `@livekit/components-react` hooks, which
- * assume a DOM. Only the video surface comes from `@livekit/react-native`
- * (`<VideoTrack />`, `trackRef` prop, >= 2.7).
+ * assume a DOM. Only the video surfaces come from the native packages
+ * (`<CallVideo />`: LiveKit's `<VideoTrack />` or the fork's `<RTCView />`).
  */
 export const VideoCallSession: FC<VideoCallSessionProps> = ({
   kind = 'video',
+  isGroup = false,
   peerName,
   primaryColor = DEFAULT_PRIMARY,
   icons,
@@ -99,7 +70,8 @@ export const VideoCallSession: FC<VideoCallSessionProps> = ({
 }) => {
   const t = useT();
   const insets = useSafeAreaInsets();
-  const runtime = loadLiveKit();
+  // A p2p call needs the WebRTC package only, a LiveKit call the LiveKit one.
+  const hasMedia = !!loadLiveKit() || !!loadWebRTC();
   const session = useCallSession();
   const pipTile = usePipTile({ topInset: insets.top });
   const elapsed = useSharedCallElapsed(session.anchorAt);
@@ -110,7 +82,7 @@ export const VideoCallSession: FC<VideoCallSessionProps> = ({
   // minimize stretches it to fill (the old behaviour) and back.
   const [fillRemote, setFillRemote] = useState(false);
 
-  if (!runtime) {
+  if (!hasMedia) {
     return (
       <View style={[styles.canvas, styles.centered]}>
         <Text style={styles.errorText}>{t('call.error.sdkMissing')}</Text>
@@ -118,7 +90,20 @@ export const VideoCallSession: FC<VideoCallSessionProps> = ({
     );
   }
 
-  const { VideoTrack } = runtime;
+  if (isGroup) {
+    return (
+      <GroupCallView
+        session={session}
+        kind={kind}
+        title={peerName}
+        primaryColor={primaryColor}
+        icons={icons}
+        onToggleMinimize={onToggleMinimize}
+        onHangup={onHangup}
+      />
+    );
+  }
+
   const {
     connected,
     remoteJoined,
@@ -126,11 +111,11 @@ export const VideoCallSession: FC<VideoCallSessionProps> = ({
     localVideo,
     micOn,
     cameraOn,
-    speakerOn,
     deviceError,
     remoteMicMuted,
     facingMode,
     localVideoEpoch,
+    reconnecting,
   } = session;
   // The call slice's name (the chat title) first, as web does: LiveKit's
   // participant name is often just the opaque xmpp identity.
@@ -150,11 +135,16 @@ export const VideoCallSession: FC<VideoCallSessionProps> = ({
   const selfMirror = facingMode === 'user';
   // The local view remounts when the camera is re-acquired (switching
   // front/back), so it never keeps rendering the stopped stream.
+  // A p2p stream handle also carries its track ids (`key`), so a track that
+  // arrives or is replaced remounts the view.
   const videoKey = (ref: any) =>
-    ref === localVideo ? `local-${localVideoEpoch}` : 'remote';
+    `${ref === localVideo ? `local-${localVideoEpoch}` : 'remote'}${
+      ref?.key ? `:${ref.key}` : ''
+    }`;
 
-  const statusText =
-    elapsed !== null
+  const statusText = reconnecting
+    ? t('call.status.reconnecting')
+    : elapsed !== null
       ? formatCallDuration(elapsed)
       : !connected
         ? t('call.status.connecting')
@@ -169,9 +159,9 @@ export const VideoCallSession: FC<VideoCallSessionProps> = ({
       {/* Stage */}
       <View style={styles.stage} onLayout={pipTile.onStageLayout}>
         {mainVideo ? (
-          <VideoTrack
+          <CallVideo
             key={videoKey(mainVideo)}
-            trackRef={mainVideo}
+            source={mainVideo}
             style={styles.remoteVideo}
             objectFit={mainFit}
             mirror={isSwapped && selfMirror}
@@ -232,9 +222,9 @@ export const VideoCallSession: FC<VideoCallSessionProps> = ({
               accessibilityRole="button"
               accessibilityLabel={t('call.action.swapVideo')}
             >
-              <VideoTrack
+              <CallVideo
                 key={videoKey(pipVideo)}
-                trackRef={pipVideo}
+                source={pipVideo}
                 style={styles.pipVideo}
                 objectFit="cover"
                 mirror={!isSwapped && selfMirror}
@@ -286,62 +276,12 @@ export const VideoCallSession: FC<VideoCallSessionProps> = ({
       </View>
 
       {/* Control bar */}
-      <View style={[styles.controls, { paddingBottom: 20 + insets.bottom }]}>
-        <TouchableOpacity
-          accessibilityRole="button"
-          accessibilityLabel={micOn ? t('call.action.muteMic') : t('call.action.unmuteMic')}
-          onPress={toggleCallMic}
-          style={[styles.controlButton, { backgroundColor: micOn ? CONTROL_IDLE : DANGER }]}
-        >
-          {micOn
-            ? (icons?.micOn ?? <MicOnIcon color={TEXT_ON_DARK} />)
-            : (icons?.micOff ?? <MicOffIcon color={TEXT_ON_DARK} />)}
-        </TouchableOpacity>
-
-        {isVideo && (
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel={
-              cameraOn ? t('call.action.stopCamera') : t('call.action.startCamera')
-            }
-            onPress={toggleCallCamera}
-            style={[styles.controlButton, { backgroundColor: cameraOn ? CONTROL_IDLE : DANGER }]}
-          >
-            {cameraOn
-              ? (icons?.cameraOn ?? <CameraOnIcon color={TEXT_ON_DARK} />)
-              : (icons?.cameraOff ?? <CameraOffIcon color={TEXT_ON_DARK} />)}
-          </TouchableOpacity>
-        )}
-
-        {isVideo && cameraOn && (
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel={t('call.action.switchCamera')}
-            onPress={switchCallCamera}
-            style={[styles.controlButton, { backgroundColor: CONTROL_IDLE }]}
-          >
-            <SwitchCameraIcon color={TEXT_ON_DARK} />
-          </TouchableOpacity>
-        )}
-
-        <TouchableOpacity
-          accessibilityRole="button"
-          accessibilityLabel={speakerOn ? t('call.action.speakerOff') : t('call.action.speakerOn')}
-          onPress={toggleCallSpeaker}
-          style={[styles.controlButton, { backgroundColor: CONTROL_IDLE }]}
-        >
-          {speakerOn ? <SpeakerIcon color={TEXT_ON_DARK} /> : <SpeakerOffIcon color={TEXT_ON_DARK} />}
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          accessibilityRole="button"
-          accessibilityLabel={t('call.action.hangUp')}
-          onPress={onHangup}
-          style={[styles.controlButton, styles.hangupButton]}
-        >
-          {icons?.hangup ?? <HangUpIcon color={TEXT_ON_DARK} />}
-        </TouchableOpacity>
-      </View>
+      <CallControlBar
+        session={session}
+        isVideo={isVideo}
+        icons={icons}
+        onHangup={onHangup}
+      />
     </View>
   );
 };
@@ -453,24 +393,6 @@ const styles = StyleSheet.create({
   // Next to minimize, top-left: the top-right corner belongs to the tile.
   fitButton: {
     left: 60,
-  },
-  controls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 16,
-    paddingTop: 20,
-    paddingHorizontal: 16,
-  },
-  controlButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  hangupButton: {
-    backgroundColor: DANGER,
   },
   errorText: {
     color: TEXT_ON_DARK,

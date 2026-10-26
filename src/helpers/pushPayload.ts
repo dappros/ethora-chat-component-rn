@@ -7,8 +7,14 @@ import {
 } from '../roomStore/roomsSlice';
 import { handleCallPush } from './incomingCallFromPush';
 import { normalizeRoomJid } from './normalizeRoomJid';
+import { handleScheduledCallPush } from '../booking/pendingScheduledCall';
 
-export type PushPayloadOutcome = 'call' | 'room' | 'pending' | 'unknown';
+export type PushPayloadOutcome =
+  | 'call'
+  | 'scheduledCall'
+  | 'room'
+  | 'pending'
+  | 'unknown';
 
 export const PENDING_NOTIFICATION_JID_KEY = 'ethora_pending_notification_jid';
 export const PENDING_NOTIFICATION_TTL_MS = 5 * 60 * 1000;
@@ -54,6 +60,8 @@ export const handlePushPayload = (
 ): PushPayloadOutcome => {
   if (!data) {return 'unknown';}
   if (handleCallPush(data as Record<string, any>)) {return 'call';}
+  // The reminder before a scheduled call opens the same flow as its link.
+  if (handleScheduledCallPush(data)) {return 'scheduledCall';}
   const jid = data.jid ?? data.chatJid ?? data.roomJid ?? data.roomJID;
   if (typeof jid === 'string' && jid) {
     return openRoomFromPush(jid);

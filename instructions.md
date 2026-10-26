@@ -17,6 +17,7 @@ The canonical TypeScript surface is [`src/types/types.ts → IConfig`](src/types
   - [Room list](#room-list)
   - [Chat info panel](#chat-info-panel)
   - [Messaging and interactions](#messaging-and-interactions)
+  - [Audio and video calls](#audio-and-video-calls)
   - [Typing and sending control](#typing-and-sending-control)
   - [Notifications](#notifications)
   - [Push notifications](#push-notifications)
@@ -230,6 +231,19 @@ Pick **one** auth mode. Mixing is undefined behavior.
 | Field | Type | Description |
 | --- | --- | --- |
 | `e2ee` | `{ enabled: boolean }` | OMEMO 2 in rooms the backend marks `e2ee`, wire-compatible with the web SDK. **Off by default** - leave the block out or set `enabled: false`, and nothing is generated or published; encrypted rooms are still shown as such but cannot be written to from this app. With `enabled: true` this device publishes its keys after connecting and encrypts text and attachments (up to 20 MB) in those rooms; a user's devices and fingerprints appear in Settings and on profiles. See the README's "End-to-end encrypted rooms" and `docs/e2ee-port.md`. |
+
+### Audio and video calls
+
+Off unless `videoCalls.enabled` is `true`. Needs the optional native peers `@livekit/react-native` and `@livekit/react-native-webrtc`; see [Audio and video calls](README.md#audio-and-video-calls) in the README for how 1:1 (peer to peer) and group (LiveKit) calls, push ringing and CallKit fit together.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `videoCalls.enabled` | `boolean` | Turns calls on. |
+| `videoCalls.livekitUrl` | `string` | LiveKit server (`wss://...`). Required for the call buttons to show; a LiveKit call uses the URL the server sends with the call when there is one. |
+| `videoCalls.allowedRoomTypes` | `Array<'private' \| 'group'>` | Room types that can start and receive calls. Default `['private', 'group']`; `['private']` keeps calls 1:1. Public rooms never call. The 1:1 transport (peer to peer or LiveKit) is chosen by the server per call. |
+| `videoCalls.enableAudioCalls` | `boolean` | Audio-only call button next to the video one. Default `false`. |
+| `videoCalls.startWithCameraOn` / `startWithMicOn` | `boolean` | Initial device state of a call. Default `true`. |
+| `videoCalls.icons` / `ongoingCallNotification` | | Custom control icons; the host's Android ongoing-call notification. |
 
 ### Typing and sending control
 

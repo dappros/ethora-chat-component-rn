@@ -4,7 +4,8 @@ import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '../../roomStore';
 import { setCallError, startOutgoingCall } from '../../roomStore/callSlice';
 import { sendCallInviteSignal } from '../../networking/callTokenStanza';
-import { createChatCall } from '../../networking/api-requests/rooms.api';
+import { requestOutgoingCall } from '../../calls/startCall';
+import { isCallRoomTypeAllowed } from '../../calls/callMode';
 import { useChatSettingState } from '../../hooks/useChatSettingState';
 import { AudioCallIcon, VideoCallIcon } from './CallIcons';
 import { useT } from '../../i18n/useT';
@@ -19,7 +20,8 @@ import { getIconColor } from '../../helpers/getIconColor';
  * calls are off, which is the common case.
  *
  * Gating mirrors the web rules: calls need `config.videoCalls.enabled`, a
- * `livekitUrl`, a 1:1 (private) room, and no other call already running.
+ * `livekitUrl`, a 1:1 (private) or members-only group room (subject to
+ * `allowedRoomTypes`, default both), and no other call already running.
  * Audio is a second opt-in on top of that (`enableAudioCalls`).
  */
 export const CallButtons: FC = () => {
@@ -33,10 +35,14 @@ export const CallButtons: FC = () => {
   });
 
   const videoCallsConfig = config?.videoCalls;
-  const allowedRoomTypes = videoCallsConfig?.allowedRoomTypes || ['private'];
   const isVideoCallsEnabled = videoCallsConfig?.enabled === true;
-  const isPrivateRoom = currentRoom?.type === 'private';
-  const isRoomAllowed = isPrivateRoom && allowedRoomTypes.includes('private');
+  const isGroupRoom = currentRoom?.type === 'group';
+  // 1:1 chats and members-only group chats can call, subject to the host's
+  // videoCalls.allowedRoomTypes (default: both). Public rooms never do.
+  const isRoomAllowed = isCallRoomTypeAllowed(
+    currentRoom?.type,
+    videoCallsConfig?.allowedRoomTypes
+  );
   const hasLivekitUrl = Boolean(videoCallsConfig?.livekitUrl?.trim());
   const isCallBusy = call.phase !== 'idle';
   const canCall = isVideoCallsEnabled && isRoomAllowed && hasLivekitUrl;
@@ -60,12 +66,16 @@ export const CallButtons: FC = () => {
       if (!chatName) {return;}
 
       // Resolve the peer xmpp localpart so we can XMPP-signal them when we
-      // hang up or cancel, without this they'd keep ringing forever.
+      // hang up or cancel, without this they'd keep ringing forever. A group
+      // call has no single peer to signal; the server rings every member and
+      // LiveKit carries the call.
       const selfLocal = String(user?.xmppUsername || '').split('@')[0];
-      const peer = (currentRoom.members || []).find((member: any) => {
-        const mLocal = String(member?.xmppUsername || '').split('@')[0];
-        return mLocal && mLocal !== selfLocal;
-      });
+      const peer = isGroupRoom
+        ? undefined
+        : (currentRoom.members || []).find((member: any) => {
+            const mLocal = String(member?.xmppUsername || '').split('@')[0];
+            return mLocal && mLocal !== selfLocal;
+          });
       const peerXmppUsername = peer?.xmppUsername || null;
 
       // Don't show "deleted" / "Deleted User" / "Unknown" as the dial
@@ -96,6 +106,7 @@ export const CallButtons: FC = () => {
           roomBareName: chatName,
           kind,
           peerXmppUsername,
+          isGroup: isGroupRoom,
         })
       );
 
@@ -111,7 +122,7 @@ export const CallButtons: FC = () => {
       }
 
       try {
-        await createChatCall(chatName, { kind });
+        await requestOutgoingCall({ chatName, kind, peerXmppUsername });
       } catch (error) {
         const message =
           error instanceof Error
@@ -120,7 +131,7 @@ export const CallButtons: FC = () => {
         dispatch(setCallError(message));
       }
     },
-    [canCall, isCallBusy, currentRoom, user?.xmppUsername, dispatch, t]
+    [canCall, isCallBusy, currentRoom, isGroupRoom, user?.xmppUsername, dispatch, t]
   );
 
   if (!canCall || isCallBusy) {
