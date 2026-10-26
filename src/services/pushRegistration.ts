@@ -51,12 +51,14 @@ interface Session {
   projectName: string;
   gatewayUrl: string;
   pushDisabled: boolean;
+  language: string;
 }
 
 interface ServerRegistration extends RegisteredPushToken {
   appId: string;
   xmppUsername: string;
   gateway: boolean;
+  language: string;
 }
 
 const HOOK_RETRY_MS = 30_000;
@@ -78,6 +80,17 @@ const readSession = (): Session => {
     xmppUsername: String(user?.xmppUsername || ''),
     projectName: String(config?.projectName || '').trim(),
     gatewayUrl: String(config?.pushNotifications?.apiUrl || '').trim(),
+    // The language the backend writes this device's pushes in: the host's
+    // config first, then what the user picked in the chat. A change
+    // re-registers the token (see sameRegistration), so hosts never call
+    // registerPushToken again for it.
+    language: String(
+      config?.translates?.readerLocale ||
+        config?.i18n?.locale ||
+        slice?.langSource ||
+        slice?.uiLocale ||
+        ''
+    ).trim(),
     // Off by config (host) or by the user's Settings toggle.
     pushDisabled:
       config?.pushNotifications?.enabled === false ||
@@ -104,7 +117,18 @@ const sameRegistration = (
   (current.pushKey || '') === (token.pushKey || '') &&
   current.gateway === isGateway(session) &&
   current.appId === session.appId &&
-  current.xmppUsername === session.xmppUsername;
+  current.xmppUsername === session.xmppUsername &&
+  // The gateway takes no language.
+  (current.gateway || current.language === session.language);
+
+// Same device, same account, only the language moved: a plain re-POST
+// updates the subscription, no release first.
+const onlyLanguageChanged = (
+  token: RegisteredPushToken,
+  current: ServerRegistration,
+  session: Session
+): boolean =>
+  sameRegistration(token, current, { ...session, language: current.language });
 
 const slotsNeedingRegistration = (session: Session): Slot[] =>
   SLOTS.filter((slot) => {
@@ -157,6 +181,7 @@ const registerOne = async (
       tokenType: token.tokenType,
       authToken: session.authToken,
       pushKey: token.pushKey,
+      language: session.language || undefined,
     });
   }
   registered.set(slotOf(token.tokenType), {
@@ -164,12 +189,14 @@ const registerOne = async (
     appId: session.appId,
     xmppUsername: session.xmppUsername,
     gateway: isGateway(session),
+    language: session.language,
   });
   pushLog(
     'rn',
     `push: ${token.tokenType} token registered` +
       (isGateway(session) ? ' (gateway)' : ` for app ${session.appId}`) +
-      (token.pushKey && !isGateway(session) ? ' with a device key (encrypted pushes)' : '')
+      (token.pushKey && !isGateway(session) ? ' with a device key (encrypted pushes)' : '') +
+      (session.language && !isGateway(session) ? `, language ${session.language}` : '')
   );
 };
 
@@ -188,7 +215,11 @@ const registerNow = (): Promise<void> => {
     for (const slot of slotsNeedingRegistration(session)) {
       const token = held.get(slot)!;
       const previous = registered.get(slot);
-      if (previous && previous.xmppUsername === session.xmppUsername) {
+      if (
+        previous &&
+        previous.xmppUsername === session.xmppUsername &&
+        !onlyLanguageChanged(token, previous, session)
+      ) {
         registered.delete(slot);
         await releaseOnServer(previous, session.authToken).catch((error) =>
           pushLog('warn', 'push: releasing the replaced token failed', error)

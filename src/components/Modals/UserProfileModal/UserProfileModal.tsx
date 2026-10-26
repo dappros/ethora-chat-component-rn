@@ -33,7 +33,6 @@ import { useTheme } from '../../../hooks/useTheme';
 import type { ChatTheme } from '../../../theme/theme';
 import { chatTextStyle } from '../../../helpers/typography';
 import { getElementFont } from '../../../helpers/getElementFont';
-import { LANGUAGE_OPTIONS } from '../../../helpers/constants/LANGUAGE_OPTIONS';
 import { MODAL_TYPES } from '../../../helpers/constants/MODAL_TYPES';
 import {
   setActiveFile,
@@ -55,7 +54,10 @@ import { setCallError, startOutgoingCall } from '../../../roomStore/callSlice';
 import { sendCallInviteSignal } from '../../../networking/callTokenStanza';
 import { AudioCallIcon, VideoCallIcon } from '../../VideoCalls/CallIcons';
 import { accountNameOf } from '../../../helpers/accountName';
-import { setChatLanguage } from '../../../services/languageSettings';
+import {
+  chatLanguageChoices,
+  setChatLanguage,
+} from '../../../services/languageSettings';
 import { composeName } from '../../../helpers/displayName';
 import { isUnresolvedSenderId } from '../../../helpers/isUnresolvedSenderId';
 
@@ -158,15 +160,26 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     [files]
   );
 
+  // The install's translateLanguages (get-config) when the host passed
+  // them; none means no translation server, so no Language tab.
+  const languageChoices = useMemo(() => chatLanguageChoices(config), [config]);
+
   const tabs = useMemo(
     () =>
       profileTabs({
         isOwnProfile,
-        translatesEnabled: !!config?.translates?.enabled,
+        translatesEnabled:
+          !!config?.translates?.enabled && languageChoices.length > 0,
         hasMedia: media.length > 0,
         hasDocuments: documents.length > 0,
       }),
-    [isOwnProfile, config?.translates?.enabled, media.length, documents.length]
+    [
+      isOwnProfile,
+      config?.translates?.enabled,
+      languageChoices.length,
+      media.length,
+      documents.length,
+    ]
   );
 
   // Keep the selected tab valid as the lists load in.
@@ -556,8 +569,9 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     if (activeTab === 'language') {
       return (
         <View>
-          {LANGUAGE_OPTIONS.map((option) => {
-            const selected = langSource === option.id;
+          {languageChoices.map((option) => {
+            const selected =
+              String(langSource || '').toLowerCase() === option.id.toLowerCase();
             return (
               <TouchableOpacity
                 key={option.id}

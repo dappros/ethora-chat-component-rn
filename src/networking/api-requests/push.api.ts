@@ -81,6 +81,11 @@ export interface PushSubscriptionPayload {
   pushKey?: string;
   pushKeyAlg?: typeof PUSH_KEY_ALG;
   pushKeyId?: string;
+  /**
+   * BCP-47 tag the service writes this device's pushes in. A full tag is
+   * fine: the service reduces fr-CA / es-US to fr / es itself.
+   */
+  language?: string;
 }
 
 export interface RegisterPushSubscriptionArgs {
@@ -91,13 +96,16 @@ export interface RegisterPushSubscriptionArgs {
   /** Base64 public key for encrypted pushes (`ensurePushKeyPair().publicKey`). */
   pushKey?: string;
   pushKeyId?: string;
+  /** Language of this device's pushes (`config.translates.readerLocale` / `i18n.locale`). */
+  language?: string;
 }
 
 export const buildPushSubscriptionPayload = (
   token: string,
   tokenType: PushTokenType,
   pushKey?: string,
-  pushKeyId?: string
+  pushKeyId?: string,
+  language?: string
 ): PushSubscriptionPayload => ({
   registrationToken: token,
   deviceType: resolvePushDeviceType(),
@@ -105,6 +113,7 @@ export const buildPushSubscriptionPayload = (
   ...(pushKey
     ? { pushKey, pushKeyAlg: PUSH_KEY_ALG, ...(pushKeyId ? { pushKeyId } : {}) }
     : {}),
+  ...(language ? { language } : {}),
 });
 
 export async function registerPushSubscription({
@@ -114,13 +123,29 @@ export async function registerPushSubscription({
   authToken,
   pushKey,
   pushKeyId,
+  language,
 }: RegisterPushSubscriptionArgs): Promise<void> {
   const path = `/v1/push/subscription/${encodeURIComponent(appId)}`;
   const headers = { Authorization: authToken };
-  const payload = buildPushSubscriptionPayload(token, tokenType, pushKey, pushKeyId);
+  const payload = buildPushSubscriptionPayload(token, tokenType, pushKey, pushKeyId, language);
+  // A backend that predates `language` still delivers, in its default
+  // language: worth more than no push at all, so that field alone is retried
+  // without.
+  const post = async (body: PushSubscriptionPayload): Promise<void> => {
+    try {
+      await http.post(path, body, { headers });
+    } catch (error: any) {
+      if (!(body.language && isUnknownFieldError(error))) {
+        throw error;
+      }
+      const withoutLanguage = { ...body };
+      delete withoutLanguage.language;
+      await http.post(path, withoutLanguage, { headers });
+    }
+  };
 
   try {
-    await http.post(path, payload, { headers });
+    await post(payload);
     return;
   } catch (error: any) {
     // A backend that predates `tokenType` still delivers to apns / fcm

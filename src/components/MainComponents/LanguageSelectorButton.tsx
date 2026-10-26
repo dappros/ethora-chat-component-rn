@@ -3,6 +3,7 @@ import { StyleSheet, TouchableOpacity } from 'react-native';
 import { useChatSettingState } from '../../hooks/useChatSettingState';
 import { getIconColor } from '../../helpers/getIconColor';
 import { useT } from '../../i18n/useT';
+import { installTranslateLanguages } from '../../services/languageSettings';
 import { GlobeIcon, LanguageSelectorModal } from './LanguageSelectorModal';
 
 /**
@@ -11,7 +12,9 @@ import { GlobeIcon, LanguageSelectorModal } from './LanguageSelectorModal';
  * Renders only when translation is on. A host that drives the reader's
  * language from its own settings screen (via `config.translates
  * .readerLocale`) can hide this with `showLanguageSelector: false` rather
- * than shipping two competing controls.
+ * than shipping two competing controls. An install whose get-config
+ * reports no translate languages (`translates.languages: []`) has no
+ * translation server, so there is nothing to pick either.
  */
 export const LanguageSelectorButton: FC = () => {
   const { config } = useChatSettingState();
@@ -20,7 +23,11 @@ export const LanguageSelectorButton: FC = () => {
 
   const translates = config?.translates;
   const enabled = Boolean(translates?.enabled || config?.enableTranslates);
-  if (!enabled || translates?.showLanguageSelector === false) {
+  if (
+    !enabled ||
+    translates?.showLanguageSelector === false ||
+    installTranslateLanguages(config)?.length === 0
+  ) {
     return null;
   }
 

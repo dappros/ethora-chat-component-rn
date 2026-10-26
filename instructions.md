@@ -222,7 +222,7 @@ Pick **one** auth mode. Mixing is undefined behavior.
 | --- | --- | --- |
 | `settings.hideAppearance` | `boolean` | Hide the Light / Dark / System picker. |
 | `settings.hidePushToggle` | `boolean` | Hide the push-notifications toggle. |
-| `settings.languages` | `{ enabled: boolean; appLanguages?: string[]; chatLanguages?: string[] }` | **Off by default.** A "Language" card: the interface language (`user.appLanguage`; the user's pick wins over `config.i18n.locale`) and the language messages are translated into (`user.chatLanguage`). Applied at once, kept on the device, written to the profile with `PUT /v1/users` one field per request; the profile's values are applied at session start. BCP-47 tags; defaults to en-CA / es-US / fr-CA. Pair with `translates.enabled` to show the server's translations. |
+| `settings.languages` | `{ enabled: boolean; appLanguages?: string[]; chatLanguages?: string[] }` | **Off by default.** A "Language" card: the interface language (`user.appLanguage`; the user's pick wins over `config.i18n.locale`) and the language messages are translated into (`user.chatLanguage`). Applied at once, kept on the device, written to the profile with `PUT /v1/users` one field per request; the profile's values are applied at session start. BCP-47 tags; defaults to `translates.languages`, else en-CA / es-US / fr-CA. Pair with `translates.enabled` to show the server's translations. |
 | `settings.changePassword` | `boolean` | **Off by default.** A "Change password" row: current password and the new one, `PUT /v2/users/me/password`. |
 
 ### End-to-end encryption
@@ -256,6 +256,8 @@ The SDK does **not** mint push tokens and has no Firebase dependency. Your app o
 
 - `registerPushToken(token, { tokenType? })` files the token with the backend under the signed-in user: `POST /v1/push/subscription/{appId}`, the same endpoint the web SDK and the Ethora app use (`appId` from `config.appId`, else the signed-in user). Call it once per launch as soon as you have a token, and again when it rotates (a rotated token releases the one it replaces). Safe before sign-in (resolves `'deferred'` and registers on login). Same token + same account is sent once. Resolves `'registered' | 'deferred' | 'disabled'`; rejects with `PushRegistrationError` (`status`, `body`) when the backend refuses or is unreachable, and when no app id is known.
 - `config.pushNotifications.getPushTokens` is the declarative alternative: the SDK calls it once per signed-in session (again after a logout and a new login) and registers what it returns — one `{ token, tokenType? }`, an array, or `null`. A rejection is logged and retried after 30 s. Both ways can be combined.
+- Every registration carries `language`, the language the backend writes this device's pushes in: `translates.readerLocale`, else `i18n.locale`, else the language the user picked in the chat. Full tags are fine (the server reduces `fr-CA` to `fr`). When it changes, the SDK registers the token again by itself; do not call `registerPushToken` for it.
+- While the app is in the foreground the icon badge follows the unread total (0 once everything is read): the server sets it only with a push. Needs `expo-notifications`; `pushNotifications.syncAppBadge: false` leaves the badge to you.
 - A device holds up to two tokens: the chat token (`expo` / `fcm` / `apns`) and, optionally, a PushKit `apns-voip` token for ringing calls on a killed iOS app. Registering into a slot replaces what was there; `getRegisteredPushTokens()` lists both.
 - The Settings screen's "Push notifications" switch (and `setPushEnabled`, exported) is honoured: off releases every registration on the backend and keeps the tokens, on registers them again; `registerPushToken` resolves `'disabled'` meanwhile.
 - **Logout must go through the SDK.** `performLogout` (the built-in "Sign out" item, `useLogout()`, or `logoutService.performLogout()` from your own button) releases the registration (`DELETE`, while the access token is still valid) and keeps the token, so the next login — any account — is registered again without another call. The SDK has no other way to learn that your app signed out: clearing your own session and unmounting `<Chat>` leaves the device registered and pushes keep arriving. Call the SDK's logout **before** dropping your own tokens (the `DELETE` is authorized with them), or `unregisterPushToken()` if you must sign out some other way.
@@ -355,6 +357,7 @@ Privacy: for regulated deployments keep message text out of push payloads; a rel
 | `pushNotifications.enabled` | `boolean` | Set `false` to keep the SDK from registering tokens (`registerPushToken` resolves `'disabled'`, `getPushTokens` is not called). Default on. |
 | `pushNotifications.getPushTokens` | `() => Promise<PushTokenRegistration \\| PushTokenRegistration[] \\| null>` | Called once per signed-in session; the SDK registers what it returns. `PushTokenRegistration = { token, tokenType? }`. |
 | `appId` | `string` | App the token is registered under. Falls back to the signed-in user's `appId`. |
+| `pushNotifications.syncAppBadge` | `boolean` | Keep the app icon badge equal to the unread total while the app is in the foreground. Needs `expo-notifications`. Default `true`. |
 | `pushNotifications.apiUrl` | `string` | **Legacy.** Base URL of a self-hosted push gateway (`ethora-node-push`), e.g. `https://push.example.com/api/v1`. When set, tokens go to `POST {apiUrl}/subscriptions` (needs `projectName`) instead of the main API, and there is no unregister. Omit on the hosted clusters. |
 | `pushNotifications.onClick` / `onNotificationPress` | — | **Deprecated, never called.** Hand the tapped notification's data to `handlePushPayload` (below); the SDK opens the room. |
 | `pushNotifications.firebaseConfig` | `FBConfig` | **Deprecated, no effect.** The SDK never talks to Firebase. |
@@ -391,6 +394,8 @@ Privacy: for regulated deployments keep message text out of push payloads; a rel
 | --- | --- | --- |
 | `translates.enabled` | `boolean` | Enable in-chat translation UI. |
 | `translates.translations` | `Iso639_1Codes` | Default target language. |
+| `translates.languages` | `string[]` | The languages offered in every chat-language list (globe picker, profile Language tab, Settings). Pass `translateLanguages` from `GET /v1/apps/get-config` as-is, e.g. `["en-CA", "fr-CA", "es-US"]`. The interface-language list takes the ones the SDK has captions for. `[]` = no translation server: the lists and the globe are hidden. Omitted: built-in en-CA / es-US / fr-CA. |
+| `translates.readerLocale` | `string` | The reader's language (BCP-47), when your app drives it. Also the push language (see Push notifications). |
 | `enableTranslates` | `boolean` | Shorthand for `translates.enabled`. |
 
 ### Event hooks

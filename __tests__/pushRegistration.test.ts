@@ -11,6 +11,8 @@
  *   - a backend that predates `tokenType` still gets apns / fcm tokens;
  *     expo tokens are never downgraded into something it cannot deliver to
  *   - `pushNotifications.apiUrl` switches to the legacy gateway contract
+ *   - the push language comes from the config (readerLocale, i18n.locale)
+ *     and a change of it re-registers the token by itself
  */
 jest.mock('axios', () => {
   const fakeHttp: any = jest.fn();
@@ -40,7 +42,13 @@ jest.mock('../src/roomStore', () => {
 
 import axios from 'axios';
 import { store } from '../src/roomStore';
-import { logout, setConfig, setPushEnabled, setUser } from '../src/roomStore/chatSettingsSlice';
+import {
+  logout,
+  setConfig,
+  setLangSource,
+  setPushEnabled,
+  setUser,
+} from '../src/roomStore/chatSettingsSlice';
 import {
   __resetPushRegistrationForTests,
   getRegisteredPushToken,
@@ -377,6 +385,78 @@ describe('registerPushToken — lifecycle', () => {
       registerPushToken(FCM_TOKEN),
     ]);
     expect(fakeHttp.post).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('push language', () => {
+  it('sends config.translates.readerLocale as language, full tag as-is', async () => {
+    remountWithConfig({
+      translates: { enabled: true, readerLocale: 'fr-CA' },
+      i18n: { locale: 'es-US' },
+    });
+    signIn();
+    await registerPushToken(FCM_TOKEN);
+    expect(lastPost()[1]).toEqual({
+      registrationToken: FCM_TOKEN,
+      deviceType: 'ios',
+      tokenType: 'fcm',
+      language: 'fr-CA',
+    });
+  });
+
+  it('falls back to config.i18n.locale, then to the language picked in the chat', async () => {
+    remountWithConfig({ i18n: { locale: 'es-US' } });
+    signIn();
+    await registerPushToken(FCM_TOKEN);
+    expect(lastPost()[1].language).toBe('es-US');
+
+    __resetPushRegistrationForTests();
+    remountWithConfig();
+    store.dispatch(setLangSource('fr-CA'));
+    await registerPushToken(FCM_TOKEN);
+    expect(lastPost()[1].language).toBe('fr-CA');
+  });
+
+  it('re-registers the token when the locale in the config changes, without a release first', async () => {
+    remountWithConfig({ i18n: { locale: 'en-CA' } });
+    signIn();
+    await registerPushToken(FCM_TOKEN);
+    expect(fakeHttp.post).toHaveBeenCalledTimes(1);
+
+    remountWithConfig({ i18n: { locale: 'fr-CA' } });
+    await flush();
+    expect(fakeHttp.post).toHaveBeenCalledTimes(2);
+    expect(lastPost()[1]).toMatchObject({ registrationToken: FCM_TOKEN, language: 'fr-CA' });
+    expect(fakeHttp.delete).not.toHaveBeenCalled();
+
+    // Same locale again: nothing to send.
+    remountWithConfig({ i18n: { locale: 'fr-CA' }, dark: true });
+    await flush();
+    expect(fakeHttp.post).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries without language on a backend that predates the field', async () => {
+    remountWithConfig({ i18n: { locale: 'fr-CA' } });
+    signIn();
+    fakeHttp.post.mockRejectedValueOnce(unknownField('language'));
+    await expect(registerPushToken(EXPO_TOKEN)).resolves.toBe('registered');
+    expect(fakeHttp.post).toHaveBeenCalledTimes(2);
+    expect(lastPost()[1]).toEqual({
+      registrationToken: EXPO_TOKEN,
+      deviceType: 'ios',
+      tokenType: 'expo',
+    });
+  });
+
+  it('sends no language to the legacy gateway', async () => {
+    remountWithConfig({
+      projectName: 'proj',
+      i18n: { locale: 'fr-CA' },
+      pushNotifications: { apiUrl: 'https://push.example.com/api/v1' },
+    });
+    signIn();
+    await registerPushToken(FCM_TOKEN);
+    expect(lastPost()[1]).not.toHaveProperty('language');
   });
 });
 

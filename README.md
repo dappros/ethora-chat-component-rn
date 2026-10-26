@@ -17,6 +17,7 @@ React Native chat UI + chat core for iOS and Android, powered by the Ethora plat
 - [Pinning a single room](#pinning-a-single-room)
 - [Unread tracking in tab-based hosts](#unread-tracking-in-tab-based-hosts)
 - [Logging out](#logging-out)
+- [Languages and push language](#languages-and-push-language)
 - [Customization flags worth knowing](#customization-flags-worth-knowing)
 - [Server events](#server-events)
 - [Startup behaviour](#startup-behaviour)
@@ -344,6 +345,41 @@ config = {
 ```
 
 The user's interface language wins over `config.i18n.locale`, which stays the default for a user who never chose. `hideAppearance` and `hidePushToggle` hide the built-in cards.
+
+## Languages and push language
+
+The languages offered to the user come from your install: pass `translateLanguages` from `GET /v1/apps/get-config` as `translates.languages`. The SDK does not call get-config itself (it needs your `domainName`), so read it where your app already does, or fetch it once:
+
+```tsx
+const [translateLanguages, setTranslateLanguages] = useState<string[]>();
+
+useEffect(() => {
+  fetch(`https://api.chat.ethora.com/v1/apps/get-config?domainName=${DOMAIN_NAME}`)
+    .then((r) => r.json())
+    .then((json) => setTranslateLanguages(json?.result?.translateLanguages ?? []))
+    .catch(() => undefined); // keeps the built-in list
+}, []);
+
+<Chat
+  config={{
+    ...baseConfig,
+    translates: {
+      enabled: true,
+      mode: 'auto',
+      languages: translateLanguages, // e.g. ["en-CA", "fr-CA", "es-US"]
+      // Optional, when your own app picks the reader's language:
+      // readerLocale: userLocale,
+    },
+    // Optional: the interface language of the chat.
+    // i18n: { locale: userLocale },
+  }}
+/>
+```
+
+- The list drives the globe picker, the profile's Language tab and the Settings chat-language list; the interface-language list takes the languages the SDK has captions for (en, fr, es, pt, ht, zh).
+- `[]` means the install has no translation server: the language lists and the globe are hidden. Leaving `languages` out keeps the built-in en-CA / es-US / fr-CA.
+- **Push language** needs no code: the push token is registered with `language` = `translates.readerLocale`, else `i18n.locale`, else what the user picked in the chat, and is registered again by itself whenever that changes.
+- **App icon badge:** in the foreground it follows the unread total (0 once everything is read), since the server sets it only with a push. Needs `expo-notifications`; `pushNotifications.syncAppBadge: false` turns it off.
 
 ## Customization flags worth knowing
 

@@ -19,6 +19,7 @@ import { setLangSource, setUiLocale, updateUser } from '../roomStore/chatSetting
 import { savePreferences } from '../helpers/preferencesStorage';
 import { updateMe } from '../networking/api-requests/user.api';
 import { LANGUAGE_OPTIONS } from '../helpers/constants/LANGUAGE_OPTIONS';
+import { BUILTIN_STRINGS, toBaseLanguage } from '../i18n/strings';
 import type { IConfig } from '../types/types';
 
 export interface LanguageChoice {
@@ -66,23 +67,57 @@ export const languageLabel = (id: string): string => {
   return AUTONYMS[id.split('-')[0]!.toLowerCase()] || id;
 };
 
-const toChoices = (ids: string[] | undefined): LanguageChoice[] | undefined => {
+const canonicalList = (ids: string[] | undefined): string[] => {
   const list = (ids || []).map(canonicalLocale).filter((id): id is string => !!id);
-  return list.length ? list.map((id) => ({ id, name: languageLabel(id) })) : undefined;
+  return Array.from(new Set(list));
 };
+
+const asChoices = (ids: string[]): LanguageChoice[] =>
+  ids.map((id) => ({ id, name: languageLabel(id) }));
+
+const toChoices = (ids: string[] | undefined): LanguageChoice[] | undefined => {
+  const list = canonicalList(ids);
+  return list.length ? asChoices(list) : undefined;
+};
+
+const BUILTIN_CHOICES = (): LanguageChoice[] =>
+  LANGUAGE_OPTIONS.map((o) => ({ id: o.id, name: o.name }));
 
 export const languagesEnabled = (config?: IConfig | null): boolean =>
   config?.settings?.languages?.enabled === true;
 
+/**
+ * What the install's translation server can translate into
+ * (`config.translates.languages`, get-config's `translateLanguages`).
+ * `undefined` when the host did not pass it; `[]` means no translation
+ * server, which is an answer, not a reason to fall back.
+ */
+export const installTranslateLanguages = (
+  config?: IConfig | null
+): string[] | undefined => {
+  const raw = config?.translates?.languages;
+  return Array.isArray(raw) ? canonicalList(raw) : undefined;
+};
+
 /** What the interface can be shown in. */
-export const appLanguageChoices = (config?: IConfig | null): LanguageChoice[] =>
-  toChoices(config?.settings?.languages?.appLanguages) ??
-  LANGUAGE_OPTIONS.map((o) => ({ id: o.id, name: o.name }));
+export const appLanguageChoices = (config?: IConfig | null): LanguageChoice[] => {
+  const own = toChoices(config?.settings?.languages?.appLanguages);
+  if (own) {return own;}
+  // Narrowed to languages with a caption table: anything else would render
+  // the interface in English, which reads as a broken choice.
+  const captioned = (installTranslateLanguages(config) || []).filter(
+    (id) => !!BUILTIN_STRINGS[toBaseLanguage(id)]
+  );
+  return captioned.length ? asChoices(captioned) : BUILTIN_CHOICES();
+};
 
 /** What messages can be translated into. */
-export const chatLanguageChoices = (config?: IConfig | null): LanguageChoice[] =>
-  toChoices(config?.settings?.languages?.chatLanguages) ??
-  LANGUAGE_OPTIONS.map((o) => ({ id: o.id, name: o.name }));
+export const chatLanguageChoices = (config?: IConfig | null): LanguageChoice[] => {
+  const own = toChoices(config?.settings?.languages?.chatLanguages);
+  if (own) {return own;}
+  const install = installTranslateLanguages(config);
+  return install ? asChoices(install) : BUILTIN_CHOICES();
+};
 
 async function writeToProfile(field: 'appLanguage' | 'chatLanguage', value: string) {
   try {

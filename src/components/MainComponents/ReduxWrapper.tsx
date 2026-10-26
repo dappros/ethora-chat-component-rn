@@ -26,6 +26,7 @@ import '../../helpers/storeConsole';
 import {installPromiseRejectionTracker} from '../../utils/installPromiseRejectionTracker';
 import {useChatFonts} from '../../hooks/useChatFonts';
 import {installPushTokenHook} from '../../services/pushRegistration';
+import {installAppBadgeSync} from '../../services/appBadge';
 import {setE2eeEnabled} from '../../e2ee';
 
 const gestureRootStyle = {flex: 1};
@@ -40,6 +41,10 @@ installPromiseRejectionTracker();
 // tokens handed over through `registerPushToken` before sign-in. Cheap
 // (one store subscription), no-op for hosts that never use push.
 installPushTokenHook();
+
+// The server sets the icon badge only with a push; in the foreground it
+// follows the unread total instead, so opening the app clears a stale one.
+installAppBadgeSync();
 
 interface ChatWrapperProps {
   token?: string;

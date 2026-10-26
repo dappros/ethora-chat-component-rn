@@ -46,6 +46,7 @@ import {
   setUser,
 } from '../src/roomStore/chatSettingsSlice';
 import {
+  appLanguageChoices,
   applyProfileLanguages,
   canonicalLocale,
   chatLanguageChoices,
@@ -105,6 +106,33 @@ describe('language tags', () => {
       { id: 'de', name: 'Deutsch' },
       { id: 'uk-UA', name: 'Українська' },
     ]);
+  });
+
+  it("follow the install's get-config translateLanguages (translates.languages)", () => {
+    const config = {
+      translates: { enabled: true, languages: ['en-CA', 'fr-CA', 'es-US', 'uk-UA', 'fr-ca'] },
+    } as any;
+    expect(chatLanguageChoices(config).map((c) => c.id)).toEqual([
+      'en-CA',
+      'fr-CA',
+      'es-US',
+      'uk-UA',
+    ]);
+    // The interface only in languages it has captions for.
+    expect(appLanguageChoices(config).map((c) => c.id)).toEqual(['en-CA', 'fr-CA', 'es-US']);
+    // The host's own Settings list still wins.
+    expect(
+      chatLanguageChoices({
+        ...config,
+        settings: { languages: { enabled: true, chatLanguages: ['de'] } },
+      }).map((c) => c.id)
+    ).toEqual(['de']);
+  });
+
+  it('an empty translates.languages means no translation server: no chat languages', () => {
+    const config = { translates: { enabled: true, languages: [] } } as any;
+    expect(chatLanguageChoices(config)).toEqual([]);
+    expect(appLanguageChoices(config).map((c) => c.id)).toEqual(['en-CA', 'es-US', 'fr-CA']);
   });
 });
 

@@ -1,4 +1,4 @@
-import React, { FC, useCallback } from 'react';
+import React, { FC, useCallback, useMemo } from 'react';
 import {
   Modal,
   Pressable,
@@ -15,7 +15,7 @@ import {
   setTranslateMode,
 } from '../../roomStore/chatSettingsSlice';
 import { useChatSettingState } from '../../hooks/useChatSettingState';
-import { LANGUAGE_OPTIONS } from '../../helpers/constants/LANGUAGE_OPTIONS';
+import { chatLanguageChoices } from '../../services/languageSettings';
 import { Iso639_1Codes } from '../../types/models/language.model';
 import {
   canReaderChooseTranslateMode,
@@ -79,12 +79,16 @@ export const LanguageSelectorModal: FC<{
   const translates = config?.translates;
   const effectiveMode = resolveTranslateMode(translates, translateMode);
   const showModeSwitcher = canReaderChooseTranslateMode(translates);
-  const showLanguageList = translates?.showLanguageList !== false;
+  // The install's translateLanguages (get-config) when the host passed
+  // them, the built-in list otherwise; empty hides the list.
+  const languageChoices = useMemo(() => chatLanguageChoices(config), [config]);
+  const showLanguageList =
+    translates?.showLanguageList !== false && languageChoices.length > 0;
   const activeLocale = translates?.readerLocale || langSource;
 
   const selectLanguage = useCallback(
-    (id: Iso639_1Codes) => {
-      dispatch(setLangSource(id));
+    (id: string) => {
+      dispatch(setLangSource(id as Iso639_1Codes));
       onClose();
     },
     [dispatch, onClose]
@@ -166,7 +170,7 @@ export const LanguageSelectorModal: FC<{
                 {t('language.select')}
               </Text>
               <ScrollView style={styles.list}>
-                {LANGUAGE_OPTIONS.map((option) => {
+                {languageChoices.map((option) => {
                   // Compare on the base language so a reader on "fr" still
                   // sees "Français" (id fr-CA) ticked.
                   const selected =

@@ -865,6 +865,17 @@ export interface IConfig {
      */
     showLanguageList?: boolean;
     /**
+     * The languages the install can translate into: pass the
+     * `translateLanguages` field of `GET /v1/apps/get-config` as-is
+     * (e.g. ["en-CA", "fr-CA", "es-US"]). It drives every chat-language
+     * list (the globe picker, the profile's Language tab, Settings), and
+     * the interface-language list narrowed to the languages the component
+     * has captions for. An empty array means the install has no
+     * translation server: the language lists and the globe picker are
+     * hidden. Omitted, the built-in list (en-CA, es-US, fr-CA) is offered.
+     */
+    languages?: string[];
+    /**
      * Host-provided translation function. When set, the manual Translate
      * action calls this, wire it to your own service, instead of reading
      * `message.translations`. Optional; omit to use only what already
@@ -917,6 +928,14 @@ export interface IConfig {
     }) => void | Promise<void>;
     /** @deprecated Never called; see `onClick`. */
     onNotificationPress?: (data: any) => void;
+    /**
+     * Keep the app icon badge in step with the unread total while the app
+     * is in the foreground (0 once everything is read). The backend sets
+     * the badge only with a push, so without this an opened app keeps the
+     * last push's count. Needs expo-notifications. Default true; set false
+     * when the host manages the badge itself.
+     */
+    syncAppBadge?: boolean;
     getPushTokens?: () => Promise<
       PushTokenRegistration[] | PushTokenRegistration | null | undefined
     >;
@@ -937,7 +956,8 @@ export interface IConfig {
      * `PUT /v1/users`, one field per request; the profile's values are
      * applied when a session starts. Translation itself is the server's,
      * per the reader's chat language - so `translates.enabled` is what
-     * shows the result. Options default to the built-in list (en-CA, es-US,
+     * shows the result. Options default to `translates.languages` (the
+     * install's get-config list), else the built-in list (en-CA, es-US,
      * fr-CA); pass BCP-47 tags to offer others.
      */
     languages?: {

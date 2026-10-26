@@ -94,13 +94,15 @@ const LanguageCard: React.FC<LanguageCardProps> = ({ style, testID }) => {
         appChoices,
         appCurrent
       )}
-      {group(
-        'chat',
-        t('settings.language.chat'),
-        t('settings.language.chatHint'),
-        chatChoices,
-        chatCurrent
-      )}
+      {/* No translate languages from get-config: no translation server. */}
+      {chatChoices.length > 0 &&
+        group(
+          'chat',
+          t('settings.language.chat'),
+          t('settings.language.chatHint'),
+          chatChoices,
+          chatCurrent
+        )}
     </View>
   );
 };
