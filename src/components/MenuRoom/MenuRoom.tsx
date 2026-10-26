@@ -3,13 +3,18 @@ import DropdownMenu from '../DropdownMenu/DropdownMenu';
 import Button from '../styled/Button';
 import { LeaveIcon, MoreIcon, ReportIcon } from '../../assets/icons';
 import { useT } from '../../i18n/useT';
+import { useChatSettingState } from '../../hooks/useChatSettingState';
+import { canLeaveRoom } from '../../helpers/canLeaveRoom';
 
 interface RoomMenuProps {
   handleLeaveClick: () => void;
+  roomJid?: string;
 }
 
-export const RoomMenu: FC<RoomMenuProps> = ({ handleLeaveClick }) => {
+export const RoomMenu: FC<RoomMenuProps> = ({ handleLeaveClick, roomJid }) => {
   const t = useT();
+  const { config } = useChatSettingState();
+  const showLeave = canLeaveRoom(roomJid, config?.defaultRooms);
   const menuOptions = useMemo(
     () => [
       {
@@ -20,16 +25,20 @@ export const RoomMenu: FC<RoomMenuProps> = ({ handleLeaveClick }) => {
         },
         styles: { color: 'red' },
       },
-      {
-        label: t('action.leave'),
-        icon: <LeaveIcon />,
-        onClick: () => {
-          handleLeaveClick();
-        },
-        styles: { color: 'red' },
-      },
+      ...(showLeave
+        ? [
+            {
+              label: t('action.leave'),
+              icon: <LeaveIcon />,
+              onClick: () => {
+                handleLeaveClick();
+              },
+              styles: { color: 'red' },
+            },
+          ]
+        : []),
     ],
-    [handleLeaveClick, t]
+    [handleLeaveClick, showLeave, t]
   );
 
   return (

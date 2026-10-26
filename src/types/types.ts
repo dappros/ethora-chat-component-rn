@@ -1168,6 +1168,8 @@ export interface OngoingCallNotification {
 interface ConfigRoom {
   jid: string;
   pinned: boolean;
+  /** Whether a user may leave this configured app-level room. */
+  removable?: boolean;
   _id?: string;
 }
 

@@ -30,7 +30,7 @@ interface SwipeableRoomRowProps {
   /** Mute / unmute, as in the chat profile. No handler → no button. */
   onToggleMute?: (roomJid: string) => void;
   onReport: (roomJid: string) => void;
-  onLeave: (roomJid: string) => void;
+  onLeave?: (roomJid: string) => void;
   children: React.ReactNode;
 }
 
@@ -49,7 +49,7 @@ const SwipeableRoomRow: React.FC<SwipeableRoomRowProps> = ({
 }) => {
   const theme = useTheme();
   const t = useT();
-  const actionCount = onToggleMute ? 3 : 2;
+  const actionCount = 1 + (onToggleMute ? 1 : 0) + (onLeave ? 1 : 0);
   const styles = useMemo(
     () => createStyles(theme, actionCount),
     [theme, actionCount]
@@ -109,17 +109,19 @@ const SwipeableRoomRow: React.FC<SwipeableRoomRowProps> = ({
           <ReportIcon color={theme.textOnPrimary} width={22} height={22} />
           <Text style={styles.label}>{t('action.report')}</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          testID={`room-action-leave-${roomJid.split('@')[0]}`}
-          accessibilityRole="button"
-          accessibilityLabel={t('action.leave')}
-          activeOpacity={0.8}
-          style={[styles.action, { backgroundColor: theme.danger }]}
-          onPress={() => act(onLeave)}
-        >
-          <LeaveIcon color={theme.textOnPrimary} width={22} height={22} />
-          <Text style={styles.label}>{t('action.leave')}</Text>
-        </TouchableOpacity>
+        {onLeave ? (
+          <TouchableOpacity
+            testID={`room-action-leave-${roomJid.split('@')[0]}`}
+            accessibilityRole="button"
+            accessibilityLabel={t('action.leave')}
+            activeOpacity={0.8}
+            style={[styles.action, { backgroundColor: theme.danger }]}
+            onPress={() => act(onLeave)}
+          >
+            <LeaveIcon color={theme.textOnPrimary} width={22} height={22} />
+            <Text style={styles.label}>{t('action.leave')}</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
     ),
     [act, muted, onLeave, onReport, onToggleMute, roomJid, styles, t, theme]
