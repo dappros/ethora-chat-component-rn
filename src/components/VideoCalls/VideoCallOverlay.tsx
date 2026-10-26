@@ -35,7 +35,9 @@ import { sendCallStateSignal } from '../../networking/callTokenStanza';
 import { useTheme } from '../../hooks/useTheme';
 import type { ChatTheme } from '../../theme/theme';
 import { VideoCallSession } from './VideoCallSession';
+import { P2PCallRunner } from './P2PCallRunner';
 import { startCallSession } from './callSessionController';
+import { callCanRenderSession } from './callLive';
 import { declineActiveCall, terminateActiveCall } from './callActions';
 import {
   CALL_BAR_HEIGHT,
@@ -197,7 +199,7 @@ const RingingCard: FC<RingingCardProps> = ({
       <View style={styles.ringingIdentity}>
         <Text style={[styles.ringingName, { color: theme.text }]}>
           {roomName ||
-            (variant === 'incoming' ? t('call.unknownCaller') : t('call.title'))}
+            (variant === 'incoming' ? t('call.incomingNeutral') : t('call.title'))}
         </Text>
         <View style={styles.ringingSubtitleRow}>
           {kind === 'audio' ? (
@@ -470,7 +472,14 @@ const VideoCallOverlayInner: FC = () => {
 
   const videoCallsConfig = config?.videoCalls;
   const enabled = videoCallsConfig?.enabled === true;
-  const livekitUrl = (videoCallsConfig?.livekitUrl || '').trim();
+  // The server's own LiveKit URL (call-token or create response) wins over
+  // the host config.
+  const livekitUrl = (
+    call.livekitUrl ||
+    videoCallsConfig?.livekitUrl ||
+    ''
+  ).trim();
+  const isP2P = call.mode === 'p2p';
   const primaryColor = theme.primary || config?.colors?.primary || DEFAULT_PRIMARY;
 
   const isOpen = enabled && call.phase !== 'idle';
@@ -486,10 +495,11 @@ const VideoCallOverlayInner: FC = () => {
   // Shared with the header strip (ActiveCallBar), which expands it again.
   const { minimized, systemRinging } = useCallUi();
 
-  const canRenderSession =
-    !!call.token &&
-    (call.phase === 'connecting' || call.phase === 'in-call') &&
-    !!livekitUrl;
+  // A p2p call has no LiveKit token or URL: the media is the peer connection
+  // owned by P2PCallRunner.
+  const canRenderSession = isP2P
+    ? callCanRenderSession(call)
+    : callCanRenderSession(call) && !!livekitUrl;
   const isMinimized = minimized && canRenderSession;
   // Expanding from the header strip slides the call down from the top
   // instead of fading it in.
@@ -502,16 +512,17 @@ const VideoCallOverlayInner: FC = () => {
   // Join the LiveKit room once the call has a token. Idempotent, and the
   // controller tears itself down when the call slice leaves these phases.
   useEffect(() => {
-    if (!enabled || !canRenderSession || !call.token) {return;}
+    if (!enabled || isP2P || !canRenderSession || !call.token) {return;}
     startCallSession({
       token: call.token,
       livekitUrl,
       kind: call.kind,
+      isGroup: call.isGroup,
       startWithMicOn: videoCallsConfig?.startWithMicOn,
       startWithCameraOn: videoCallsConfig?.startWithCameraOn,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, canRenderSession, call.token, livekitUrl, call.kind]);
+  }, [enabled, isP2P, canRenderSession, call.token, livekitUrl, call.kind, call.isGroup]);
 
   // Give up on an unanswered outgoing dial. Unlike web (which only shows
   useEffect(() => {
@@ -575,6 +586,11 @@ const VideoCallOverlayInner: FC = () => {
 
   const ringingHeader = useMemo(() => {
     if (call.direction === 'incoming') {
+      if (call.isGroup) {
+        return call.kind === 'audio'
+          ? t('call.incomingGroupAudio')
+          : t('call.incomingGroupVideo');
+      }
       return call.kind === 'audio'
         ? t('call.incomingAudio')
         : t('call.incomingVideo');
@@ -583,16 +599,38 @@ const VideoCallOverlayInner: FC = () => {
     if (call.phase === 'connecting') {return t('call.connecting');}
     if (call.phase === 'error') {return t('call.failed');}
     return t('call.title');
-  }, [call.direction, call.phase, call.kind, t]);
+  }, [call.direction, call.phase, call.kind, call.isGroup, t]);
 
   const ringingSubtitle = useMemo(() => {
+    // The card title is the room's name; make it clear it is a group ring.
+    const label = call.isGroup
+      ? call.kind === 'audio'
+        ? t('call.groupAudioCall')
+        : t('call.groupVideoCall')
+      : call.kind === 'audio'
+        ? t('call.audioCall')
+        : t('call.videoCall');
     if (call.direction === 'incoming') {
-      return call.kind === 'audio' ? t('call.audioCall') : t('call.videoCall');
+      // "<person> is calling in <room>" once both are known.
+      return call.isGroup && call.callerName && call.roomName
+        ? t('call.callingIn', { caller: call.callerName, room: call.roomName })
+        : label;
     }
-    if (call.phase === 'connecting') {return t('call.connectingToRoom');}
+    if (call.phase === 'connecting') {
+      return isP2P ? t('call.connecting') : t('call.connectingToRoom');
+    }
     if (call.phase === 'error') {return t('call.tryAgainLater');}
-    return call.kind === 'audio' ? t('call.audioCall') : t('call.videoCall');
-  }, [call.direction, call.kind, call.phase, t]);
+    return label;
+  }, [
+    call.direction,
+    call.kind,
+    call.phase,
+    call.isGroup,
+    call.callerName,
+    call.roomName,
+    isP2P,
+    t,
+  ]);
 
   if (!isOpen) {
     return null;
@@ -610,6 +648,7 @@ const VideoCallOverlayInner: FC = () => {
   const renderSession = (collapse: () => void) => (
     <VideoCallSession
       kind={call.kind}
+      isGroup={call.isGroup}
       peerName={call.roomName}
       primaryColor={primaryColor}
       icons={videoCallsConfig?.icons}
@@ -670,7 +709,7 @@ const VideoCallOverlayInner: FC = () => {
               theme={theme}
               errorMessage={
                 call.error ||
-                (!livekitUrl ? t('call.error.missingLivekitUrl') : null)
+                (!livekitUrl && !isP2P ? t('call.error.missingLivekitUrl') : null)
               }
               onDismiss={() => dispatch(resetCall())}
             />
@@ -697,10 +736,16 @@ export const VideoCallOverlay: FC = () => {
   const callId = useSelector(
     (state: RootState) => state.call.callId || String(state.call.startedAt || '')
   );
+  // The runner is headless and owns the p2p controller. It sits beside the
+  // boundary, not inside it: a crash in the call UI blanks the screen, it
+  // must not tear the call down.
   return (
-    <CallErrorBoundary resetKey={callId}>
-      <VideoCallOverlayInner />
-    </CallErrorBoundary>
+    <>
+      <P2PCallRunner />
+      <CallErrorBoundary resetKey={callId}>
+        <VideoCallOverlayInner />
+      </CallErrorBoundary>
+    </>
   );
 };
 

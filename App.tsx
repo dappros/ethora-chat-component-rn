@@ -12,8 +12,13 @@
  *   ...
  *   <ReduxWrapper config={{userLogin: {enabled: true, user: defaultUser}}} />
  */
-import React from 'react';
+import React, { useEffect } from 'react';
+import { Linking } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import {
+  configureScheduledCallLinks,
+  handleScheduledCallUrl,
+} from './src/booking';
 import AppLoginChatsRn from './AppLoginChatsRn';
 import AppUnreadRepro from './AppUnreadRepro';
 // import AppLoginChatsRn from './AppLoginChatsRn';
@@ -38,7 +43,29 @@ if (ErrorUtils && !(global as any).__claudeErrTrap) {
   });
 }
 
+// Which links belong to this app: https://app.chat.ethora.com/call/<slug>
+// (the associated domain / intent filter in app.json) and the app's own
+// scheme, ethorachatcomponentrn://call/<slug>. Set before anything renders
+// so a link that launches the app is already recognised.
+configureScheduledCallLinks({
+  hosts: ['app.chat.ethora.com'],
+  schemes: ['ethorachatcomponentrn'],
+});
+
 function App(): React.JSX.Element {
+  // A scheduled-call link opens the app (cold start) or arrives while it
+  // runs. The SDK holds it until the user is signed in and <Chat> is up,
+  // then opens the room and the pre-join screen.
+  useEffect(() => {
+    Linking.getInitialURL().then((url) => {
+      if (url) {handleScheduledCallUrl(url);}
+    });
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      handleScheduledCallUrl(url);
+    });
+    return () => subscription.remove();
+  }, []);
+
   return (
     <SafeAreaProvider>
       {/* <AppUnreadRepro /> */}

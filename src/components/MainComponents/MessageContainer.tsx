@@ -10,6 +10,8 @@ import {
 import { View } from 'react-native';
 import { useT } from '../../i18n/useT';
 import { formatCallLogLabel } from '../../helpers/callLogMessage';
+import { isScheduledCallMessage } from '../../booking/scheduledCall';
+import ScheduledCallMessage from '../Booking/ScheduledCallMessage';
 
 interface MessageContainerProps {
   CustomMessage?: React.ComponentType<{
@@ -53,6 +55,19 @@ const MessageContainerImpl: FC<MessageContainerProps> = ({
   const t = useT();
 
   const messageDate = new Date(message.date);
+
+  // Before the system-message branch: the backend sends the invite from the
+  // system account, but it is a card, not a centred pill.
+  if (isScheduledCallMessage(message)) {
+    return (
+      <ScheduledCallMessage
+        message={message}
+        config={config}
+        showDateLabel={showDateLabel}
+        CustomDaySeparator={CustomDaySeparator}
+      />
+    );
+  }
 
   if (message?.isSystemMessage === 'true') {
     const SystemMessageComponent = config?.customSystemMessage;

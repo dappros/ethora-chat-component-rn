@@ -9,7 +9,10 @@
 
 export interface ParsedCallPush {
   callId: string | null;
-  /** LiveKit token, if the push carried one (lets us ring + accept offline). */
+  /**
+   * LiveKit token, if the push carried one (lets us ring + accept offline).
+   * Empty for a peer to peer call: there is no room to join with it.
+   */
   token: string | null;
   kind: 'audio' | 'video';
   /** Bare room name (JID localpart) the call belongs to. */
@@ -20,6 +23,13 @@ export interface ParsedCallPush {
   callerName: string | null;
   /** Caller's xmpp localpart, when provided. */
   callerXmppUsername: string | null;
+  /**
+   * How the call is carried. `p2p` pushes carry an empty token; an older push
+   * service sends no `mode`, which means `livekit`.
+   */
+  mode: 'p2p' | 'livekit';
+  /** The call is for a group room (always LiveKit). */
+  isGroup: boolean;
 }
 
 const pick = (data: Record<string, any>, keys: string[]): string => {
@@ -86,5 +96,7 @@ export const parseCallPush = (
     callerXmppUsername:
       pick(d, ['callerXmppUsername', 'callerUsername', 'userJid', 'senderJid'])
         .split('@')[0] || null,
+    mode: pick(d, ['mode', 'callMode']).toLowerCase() === 'p2p' ? 'p2p' : 'livekit',
+    isGroup: ['true', '1'].includes(pick(d, ['group', 'isGroup']).toLowerCase()),
   };
 };
