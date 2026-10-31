@@ -10,12 +10,18 @@ export const ANDROID_INPUT_DOCK_GAP = 12;
 // composer is glued to the keyboard without touching its edge.
 export const IOS_KEYBOARD_DOCK_GAP = 4;
 
+// Sticky-input strategy: pushes the dock down into the keyboard by the part
+// of its bottom padding that only exists to clear the system bars. On Android
+// the dock keeps its fixed gap above the keyboard.
 export const getKeyboardVerticalOffset = ({
   platform,
   configuredOffset = 0,
   bottomInset = 0,
 }: KeyboardLayoutArgs): number =>
-  configuredOffset + (platform === 'ios' ? bottomInset : 0);
+  configuredOffset +
+  (platform === 'ios'
+    ? bottomInset
+    : Math.max(0, bottomInset - ANDROID_INPUT_DOCK_GAP));
 
 // Offset for the KeyboardAvoidingView strategy. Unlike KeyboardStickyView
 // (where a positive `opened` offset pushes the dock DOWN into the keyboard),
@@ -27,8 +33,8 @@ export const getKeyboardAvoidingOffset = ({
 }: Pick<KeyboardLayoutArgs, 'configuredOffset'>): number => configuredOffset;
 
 // Dock bottom padding while the keyboard is open (KeyboardAvoidingView
-// strategy). On iOS the safe-area padding collapses to a small gap; Android
-// keeps its fixed gap.
+// strategy). The safe-area padding collapses to a small gap: the keyboard
+// already covers the home indicator / navigation bar.
 export const getInputDockKeyboardPadding = ({
   platform,
   inputDockPaddingBottom,
@@ -36,9 +42,10 @@ export const getInputDockKeyboardPadding = ({
   platform: string;
   inputDockPaddingBottom: number;
 }): number =>
-  platform === 'ios'
-    ? Math.min(inputDockPaddingBottom, IOS_KEYBOARD_DOCK_GAP)
-    : inputDockPaddingBottom;
+  Math.min(
+    inputDockPaddingBottom,
+    platform === 'ios' ? IOS_KEYBOARD_DOCK_GAP : ANDROID_INPUT_DOCK_GAP
+  );
 
 type InputDockPaddingArgs = Omit<KeyboardLayoutArgs, 'configuredOffset'> & {
   // Explicit `inputDockPaddingBottom` config value, verbatim on both
@@ -65,5 +72,10 @@ export const getInputDockPaddingBottom = ({
   if (hostOwnsLayout) {
     return 0;
   }
-  return platform === 'ios' ? bottomInset : ANDROID_INPUT_DOCK_GAP;
+  // Android is edge-to-edge (forced from SDK 35), so the navigation bar
+  // overlaps the bottom of the window: the dock must clear it, and never sit
+  // closer than the fixed gap.
+  return platform === 'ios'
+    ? bottomInset
+    : Math.max(bottomInset, ANDROID_INPUT_DOCK_GAP);
 };

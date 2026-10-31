@@ -14,7 +14,7 @@ interface KeyboardInputDockProps extends ViewProps {
 }
 
 /**
- * Input dock for the KeyboardAvoidingView strategy on iOS. The dock's
+ * Input dock for the KeyboardAvoidingView strategy. The dock's
  * safe-area padding is only needed while the keyboard is closed; with the
  * keyboard open it collapses in sync with the keyboard animation, so the
  * composer sits right on top of the keyboard instead of leaving a band of

@@ -18,12 +18,19 @@ describe('keyboardLayout', () => {
     ).toBe(46);
   });
 
-  it('does not add a bottom inset on Android', () => {
+  it('adds only the part of the Android inset above the fixed gap', () => {
     expect(
       getKeyboardVerticalOffset({
         platform: 'android',
         configuredOffset: 12,
-        bottomInset: 34,
+        bottomInset: 48,
+      })
+    ).toBe(12 + 48 - ANDROID_INPUT_DOCK_GAP);
+    expect(
+      getKeyboardVerticalOffset({
+        platform: 'android',
+        configuredOffset: 12,
+        bottomInset: 0,
       })
     ).toBe(12);
   });
@@ -42,13 +49,19 @@ describe('keyboardLayout', () => {
     ).toBe(0);
   });
 
-  it('keeps the Android dock padding while the keyboard is open', () => {
+  it('collapses the Android dock padding to the fixed gap while the keyboard is open', () => {
     expect(
       getInputDockKeyboardPadding({
         platform: 'android',
-        inputDockPaddingBottom: 12,
+        inputDockPaddingBottom: 48,
       })
-    ).toBe(12);
+    ).toBe(ANDROID_INPUT_DOCK_GAP);
+    expect(
+      getInputDockKeyboardPadding({
+        platform: 'android',
+        inputDockPaddingBottom: 0,
+      })
+    ).toBe(0);
   });
 
   it('pads the input dock by the safe-area inset on iOS', () => {
@@ -60,11 +73,20 @@ describe('keyboardLayout', () => {
     ).toBe(34);
   });
 
-  it('pads the input dock by a small fixed gap on Android so the input is not flush against the keyboard', () => {
+  it('pads the input dock above the Android navigation bar (edge-to-edge)', () => {
     expect(
       getInputDockPaddingBottom({
         platform: 'android',
-        bottomInset: 34,
+        bottomInset: 48,
+      })
+    ).toBe(48);
+  });
+
+  it('keeps a small fixed gap on Android when there is no bottom inset', () => {
+    expect(
+      getInputDockPaddingBottom({
+        platform: 'android',
+        bottomInset: 0,
       })
     ).toBe(ANDROID_INPUT_DOCK_GAP);
   });
