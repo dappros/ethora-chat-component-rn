@@ -1352,6 +1352,25 @@ const reducers = {
     clearArchivedMessage: (state: WritableDraft<RoomMessagesState>) => {
       state.archivedMessage = null;
     },
+    
+    confirmMessageDelivered: (
+      state: WritableDraft<RoomMessagesState>,
+      action: PayloadAction<{ roomJID: string; messageId: string }>
+    ) => {
+      const { roomJID, messageId } = action.payload;
+      if (!isSafeKey(roomJID) || !messageId) {return;}
+      const isTarget = (m: IMessage | undefined) =>
+        !!m && (m.id === messageId || m.xmppId === messageId);
+      for (const m of state.rooms[roomJID]?.messages || []) {
+        if (isTarget(m as IMessage) && m.pending) {m.pending = false;}
+      }
+      const win = state.jumpWindow;
+      if (win && win.roomJID === roomJID) {
+        for (const m of win.messages) {
+          if (isTarget(m as IMessage) && m.pending) {m.pending = false;}
+        }
+      }
+    },
     setJumpWindow: (
       state: WritableDraft<RoomMessagesState>,
       action: PayloadAction<JumpWindow>
@@ -1788,6 +1807,7 @@ export const {
   setMessageTranslation,
   showArchivedMessage,
   clearArchivedMessage,
+  confirmMessageDelivered,
   setJumpWindow,
   prependJumpWindowMessages,
   appendJumpWindowMessages,

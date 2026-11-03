@@ -8,9 +8,12 @@ import {
   replayArchivedReaction,
 } from './xmpp/mamRouter';
 import { extractReaction } from '../helpers/mamReactions';
+import { clearMessageFailure } from '../roomStore/roomHeapSlice';
+import { removeOutboundSend } from './outboundQueue';
 import {
   addRooms,
   addRoomMessage,
+  confirmMessageDelivered,
   deleteRoomMessage,
   editRoomMessage,
   setComposing,
@@ -688,10 +691,30 @@ const onGetChatRooms = (stanza: Element, xmpp: any) => {
   }
 };
 
-// No-op stubs for handlers that handleStanzas.xmpp.ts imports but the
-// RN side hasn't ported yet. Without these the bundle compiles but
-// require() returns undefined at runtime → "X is not a function".
-const onMessageError = (_stanza: Element, _xmpp?: any) => {};
+const STANZA_ERRORS_NS = 'urn:ietf:params:xml:ns:xmpp-stanzas';
+
+const onMessageError = (stanza: Element, _xmpp?: any) => {
+  if (!stanza?.is?.('message') || stanza.attrs?.type !== 'error') {return;}
+  const messageId = stanza.attrs?.id;
+  const roomJID = String(stanza.attrs?.from || '').split('/')[0];
+  if (!messageId || !roomJID) {return;}
+  const conflict = stanza
+    .getChild('error')
+    ?.getChild('conflict', STANZA_ERRORS_NS);
+  if (!conflict) {return;}
+
+  const state: any = store.getState();
+  const isOurs = (state.rooms?.rooms?.[roomJID]?.messages || []).some(
+    (m: IMessage) => m && (m.id === messageId || m.xmppId === messageId)
+  );
+  if (!isOurs) {return;}
+
+  removeOutboundSend(messageId);
+  store.dispatch(confirmMessageDelivered({ roomJID, messageId }));
+  if (state.roomHeapSlice?.failedMessages?.[messageId]) {
+    store.dispatch(clearMessageFailure(messageId));
+  }
+};
 /** A live reaction: the reactor's full current list on one message. */
 const onReactionMessage = (stanza: Element) => {
   if (!stanza?.is?.('message') || stanza.getChild('result')) {return;}
