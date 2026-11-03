@@ -64,6 +64,10 @@ import {
   outboundQueueLength,
   OUTBOUND_QUEUE_TTL_MS,
   OutboundQueueClient,
+  removeOutboundSend,
+  hasSendsAwaitingEcho,
+  AWAITING_ECHO_MAX_AGE_MS,
+  BUSY_STREAM_PING_TIMEOUT_MS,
 } from '../src/networking/outboundQueue';
 import XmppClient from '../src/networking/xmppClient';
 import { sendTextMessage } from '../src/networking/xmpp/sendTextMessage.xmpp';
@@ -268,5 +272,84 @@ describe('XmppClient — send buffering across reconnect', () => {
     expect(sendTextMessage).not.toHaveBeenCalled();
     expect(outboundQueueLength()).toBe(0);
     jest.useRealTimers();
+  });
+});
+
+describe('outboundQueue — sends awaiting their echo', () => {
+  const item = (id: string, at = Date.now()) => ({
+    optimisticId: id,
+    roomJID: 'r@h',
+    enqueuedAt: at,
+    send: jest.fn(),
+  });
+  const client = {} as OutboundQueueClient;
+
+  it('counts a send from enqueue until its echo removes it', () => {
+    expect(hasSendsAwaitingEcho()).toBe(false);
+    enqueueOutboundSend(item('a'));
+    expect(hasSendsAwaitingEcho()).toBe(true);
+    removeOutboundSend('a');
+    expect(hasSendsAwaitingEcho()).toBe(false);
+  });
+
+  it('keeps counting a replayed send after the flush', () => {
+    enqueueOutboundSend(item('a'));
+    flushOutboundSends(client, Date.now());
+    expect(outboundQueueLength()).toBe(0);
+    expect(hasSendsAwaitingEcho()).toBe(true);
+  });
+
+  it('stops counting a send the flush drops as stale', () => {
+    const now = Date.now();
+    enqueueOutboundSend(item('a', now - OUTBOUND_QUEUE_TTL_MS - 1));
+    flushOutboundSends(client, now);
+    expect(hasSendsAwaitingEcho(now)).toBe(false);
+  });
+
+  it('forgets sends older than the max age', () => {
+    const now = Date.now();
+    enqueueOutboundSend(item('a', now));
+    expect(hasSendsAwaitingEcho(now + AWAITING_ECHO_MAX_AGE_MS + 1)).toBe(false);
+  });
+
+  it('is cleared on teardown', () => {
+    enqueueOutboundSend(item('a'));
+    clearOutboundSends();
+    expect(hasSendsAwaitingEcho()).toBe(false);
+  });
+});
+
+describe('XmppClient.ensureStreamAlive — ping wait', () => {
+  const setup = () => {
+    const c = new XmppClient('u', 'p', { devServer: 'h' });
+    (c as any).status = 'online';
+    const probe = jest.spyOn(c, 'verifyStreamAlive').mockResolvedValue(true);
+    return { c, probe };
+  };
+
+  it('uses the short timeout when nothing awaits an echo', async () => {
+    const { c, probe } = setup();
+    await c.ensureStreamAlive();
+    expect(probe).toHaveBeenCalledWith(4000);
+  });
+
+  it('waits longer while a send awaits its echo', async () => {
+    const { c, probe } = setup();
+    enqueueOutboundSend({
+      optimisticId: 'a',
+      roomJID: 'r@h',
+      enqueuedAt: Date.now(),
+      send: jest.fn(),
+    });
+    await c.ensureStreamAlive();
+    expect(probe).toHaveBeenCalledWith(BUSY_STREAM_PING_TIMEOUT_MS);
+  });
+
+  it('reconnects when the probe goes unanswered', async () => {
+    const { c, probe } = setup();
+    probe.mockResolvedValue(false);
+    const reconnect = jest.spyOn(c, 'forceReconnect').mockImplementation(() => {});
+    await c.ensureStreamAlive();
+    expect(reconnect).toHaveBeenCalledTimes(1);
   });
 });

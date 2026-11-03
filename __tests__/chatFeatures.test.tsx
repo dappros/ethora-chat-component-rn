@@ -493,6 +493,46 @@ describe('useSendMessage — send watchdog', () => {
 
     expect(onMessageFailed).toHaveBeenCalledTimes(1);
   });
+
+  // A slow server-side translation holds the sender's session, so the echo
+  // can take longer than one window while the connection is perfectly fine.
+  it('keeps waiting while the session still answers, up to the cap', async () => {
+    jest.useFakeTimers();
+    const onMessageFailed = jest.fn();
+    const verifyStreamAlive = jest.fn().mockResolvedValue(true);
+    setGlobalXmppClient({ status: 'online', verifyStreamAlive } as any);
+    await sendAndWait(onMessageFailed);
+
+    for (let i = 0; i < 5; i++) {
+      await act(async () => {
+        jest.advanceTimersByTime(10_000);
+      });
+    }
+    expect(verifyStreamAlive).toHaveBeenCalledTimes(5);
+    expect(onMessageFailed).not.toHaveBeenCalled();
+
+    // 60s with no echo: give up even though the session answers.
+    await act(async () => {
+      jest.advanceTimersByTime(10_000);
+    });
+    expect(onMessageFailed).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails and reconnects when the session does not answer', async () => {
+    jest.useFakeTimers();
+    const onMessageFailed = jest.fn();
+    const forceReconnect = jest.fn();
+    const verifyStreamAlive = jest.fn().mockResolvedValue(false);
+    setGlobalXmppClient({ status: 'online', verifyStreamAlive, forceReconnect } as any);
+    await sendAndWait(onMessageFailed);
+
+    await act(async () => {
+      jest.advanceTimersByTime(10_000);
+    });
+
+    expect(onMessageFailed).toHaveBeenCalledTimes(1);
+    expect(forceReconnect).toHaveBeenCalledTimes(1);
+  });
 });
 
 // 4. useSendMessage — media (file upload + sendMediaMessageStanza)

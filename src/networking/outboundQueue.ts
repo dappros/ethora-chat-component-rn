@@ -56,11 +56,24 @@ export const OUTBOUND_QUEUE_TTL_MS = 10_000;
 
 let queue: QueuedSend[] = [];
 
+const awaitingEcho = new Map<string, number>();
+
+export const AWAITING_ECHO_MAX_AGE_MS = 60_000;
+export const BUSY_STREAM_PING_TIMEOUT_MS = 15_000;
+
+export function hasSendsAwaitingEcho(now: number = Date.now()): boolean {
+  for (const [id, sentAt] of awaitingEcho) {
+    if (now - sentAt > AWAITING_ECHO_MAX_AGE_MS) {awaitingEcho.delete(id);}
+  }
+  return awaitingEcho.size > 0;
+}
+
 /**
  * Append (or, if the id is already queued, replace in place) a pending
  * send. Order is preserved for FIFO flush.
  */
 export function enqueueOutboundSend(item: QueuedSend): void {
+  awaitingEcho.set(item.optimisticId, item.enqueuedAt);
   const idx = queue.findIndex((q) => q.optimisticId === item.optimisticId);
   if (idx >= 0) {
     // Re-enqueue of the same id (e.g. a media retry): refresh in place so
@@ -86,6 +99,7 @@ export function flushOutboundSends(
   for (const item of pending) {
     if (now - item.enqueuedAt > (item.ttlMs ?? OUTBOUND_QUEUE_TTL_MS)) {
       // Stale — the send watchdog owns the failure; don't duplicate.
+      awaitingEcho.delete(item.optimisticId);
       continue;
     }
     try {
@@ -98,13 +112,15 @@ export function flushOutboundSends(
 }
 
 /**
- * Drop a single buffered send by its optimistic/stanza id. Called when a
- * server-confirmed copy of the message arrives (see newMessageMidlleware):
+ * Drop a single buffered send by its optimistic/stanza id, and stop counting
+ * it as awaiting an echo. Called when a server-confirmed copy of the message
+ * arrives (see newMessageMidlleware):
  * the send went through, so the buffered replay is no longer needed and must
  * not fire on a later reconnect. No-op if the id isn't queued.
  */
 export function removeOutboundSend(optimisticId: string): void {
   if (!optimisticId) {return;}
+  awaitingEcho.delete(optimisticId);
   const idx = queue.findIndex((q) => q.optimisticId === optimisticId);
   if (idx >= 0) {queue.splice(idx, 1);}
 }
@@ -112,6 +128,7 @@ export function removeOutboundSend(optimisticId: string): void {
 /** Drop everything — called on permanent teardown (logout / close). */
 export function clearOutboundSends(): void {
   queue = [];
+  awaitingEcho.clear();
 }
 
 /** Current depth — for tests and diagnostics. */

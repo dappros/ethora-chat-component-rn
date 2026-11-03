@@ -16,7 +16,12 @@ import {
 } from '../roomStore/roomHeapSlice';
 import type { FailedMediaFile, FailedMessagePayload } from '../roomStore/roomHeapSlice';
 import { uploadFileV2 } from '../networking/api-requests/auth.api';
-import { enqueueOutboundSend, removeOutboundSend } from '../networking/outboundQueue';
+import {
+  AWAITING_ECHO_MAX_AGE_MS,
+  BUSY_STREAM_PING_TIMEOUT_MS,
+  enqueueOutboundSend,
+  removeOutboundSend,
+} from '../networking/outboundQueue';
 import { RootState, store } from '../roomStore';
 import { getGlobalXmppClient } from '../utils/clientRegistry';
 import { useEventHandlers } from './useEventHandlers';
@@ -58,6 +63,11 @@ const PENDING_WATCHDOG_MS = 10_000;
 // it at 10s mid-upload would flash a wrong "Failed" and let the user kick off a
 // duplicate upload.
 const MEDIA_PENDING_WATCHDOG_MS = 30_000;
+
+// Hard cap on how long a text send may stay "sending..." while the server
+// keeps answering (see runWatchdog). Matches how long the outbound queue
+// counts a send as awaiting its echo.
+const PENDING_MAX_WAIT_MS = AWAITING_ECHO_MAX_AGE_MS;
 
 // Monotonic counter for stanza ids. Bumped on each send within a single
 // process. Two rapid sends in the same millisecond used to collide on
@@ -267,23 +277,52 @@ export const useSendMessage = (_configOverride?: IConfig) => {
       // One-shot extension for the case below. Declared outside the
       // timer so the rescheduled run can't extend again.
       let watchdogExtended = false;
-      const runWatchdog = () => {
+      const sentAt = Date.now();
+      const isStillPending = () => {
         const state = reduxStore.getState();
         const roomMsgs = state.rooms?.rooms?.[activeRoomJID]?.messages || [];
-        const stillPending = roomMsgs.find(
+        const stillPending = roomMsgs.some(
           (m: any) => m.id === optimisticId && m.pending
         );
         const alreadyFailed = state.roomHeapSlice?.failedMessages?.[optimisticId];
+        return stillPending && !alreadyFailed;
+      };
+      const markFailed = () => {
+        if (!isStillPending()) {return;}
+        console.warn(
+          `Send watchdog fired — message ${optimisticId} stuck pending ${Date.now() - sentAt}ms; marking failed`
+        );
+        // Drop the buffered replay now that the bubble is showing
+        // "failed / tap to retry" — a later onOnline flush must not
+        // silently resend it behind the user's back. If the original
+        // send actually lands after this point, the server echo still
+        // flips the bubble back to delivered (newMessageMidlleware);
+        // only an explicit tap-to-retry should trigger another send.
+        removeOutboundSend(optimisticId);
+        dispatch(
+          markMessageFailed({
+            kind: 'text',
+            id: optimisticId,
+            roomJID: activeRoomJID,
+            body: message,
+            isReply,
+            isChecked,
+            mainMessage,
+          })
+        );
+        handleMessageFailed({
+          message,
+          roomJID: activeRoomJID,
+          error: new Error('Send timed out (no server echo)'),
+          messageType: 'text',
+        });
+      };
+      const runWatchdog = () => {
+        if (!isStillPending()) {return;}
+        const liveClient: any = getGlobalXmppClient();
 
-        // Don't call it a failure while the stream is still coming back.
-        // A reconnect tears the old client down and builds a new one, and
-        // any echo in flight during that window is simply lost — the
-        // message may well have been delivered (it has been observed
-        // arriving twice on the receiving side). Failing it here shows a
-        // red "tap to retry" under a message that actually went through.
-        // Give the reconnect one more window to produce an echo, once.
-        const streamOnline = getGlobalXmppClient()?.status === 'online';
-        if (stillPending && !alreadyFailed && !streamOnline && !watchdogExtended) {
+        const streamOnline = liveClient?.status === 'online';
+        if (!streamOnline && !watchdogExtended) {
           watchdogExtended = true;
           console.warn(
             `Send watchdog — ${optimisticId} still pending but the stream is not online; extending one window`
@@ -292,35 +331,28 @@ export const useSendMessage = (_configOverride?: IConfig) => {
           return;
         }
 
-        if (stillPending && !alreadyFailed) {
-          console.warn(
-            `Send watchdog fired — message ${optimisticId} stuck pending > ${PENDING_WATCHDOG_MS}ms; marking failed`
-          );
-          // Drop the buffered replay now that the bubble is showing
-          // "failed / tap to retry" — a later onOnline flush must not
-          // silently resend it behind the user's back. If the original
-          // send actually lands after this point, the server echo still
-          // flips the bubble back to delivered (newMessageMidlleware);
-          // only an explicit tap-to-retry should trigger another send.
-          removeOutboundSend(optimisticId);
-          dispatch(
-            markMessageFailed({
-              kind: 'text',
-              id: optimisticId,
-              roomJID: activeRoomJID,
-              body: message,
-              isReply,
-              isChecked,
-              mainMessage,
+        if (
+          streamOnline &&
+          typeof liveClient.verifyStreamAlive === 'function' &&
+          Date.now() - sentAt < PENDING_MAX_WAIT_MS
+        ) {
+          Promise.resolve(liveClient.verifyStreamAlive(BUSY_STREAM_PING_TIMEOUT_MS))
+            .then((alive: boolean) => {
+              if (!isStillPending()) {return;}
+              if (alive) {
+                watchdogTimer = setTimeout(runWatchdog, PENDING_WATCHDOG_MS);
+                return;
+              }
+              markFailed();
+              try {
+                liveClient.forceReconnect?.();
+              } catch {}
             })
-          );
-          handleMessageFailed({
-            message,
-            roomJID: activeRoomJID,
-            error: new Error('Send timed out (no server echo)'),
-            messageType: 'text',
-          });
+            .catch(markFailed);
+          return;
         }
+
+        markFailed();
       };
 
       let watchdogTimer = setTimeout(runWatchdog, PENDING_WATCHDOG_MS);

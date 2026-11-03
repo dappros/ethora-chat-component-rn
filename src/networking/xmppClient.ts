@@ -42,6 +42,8 @@ import {
   clearOutboundSends,
   enqueueOutboundSend,
   flushOutboundSends,
+  hasSendsAwaitingEcho,
+  BUSY_STREAM_PING_TIMEOUT_MS,
 } from './outboundQueue';
 import {
   getServerReadTimestamp,
@@ -988,7 +990,10 @@ export class XmppClient {
 
   async ensureStreamAlive(timeoutMs: number = 4000): Promise<void> {
     if (this.suppressReconnect || this.status !== 'online') {return;}
-    const alive = await this.verifyStreamAlive(timeoutMs);
+    const effectiveTimeoutMs = hasSendsAwaitingEcho()
+      ? Math.max(timeoutMs, BUSY_STREAM_PING_TIMEOUT_MS)
+      : timeoutMs;
+    const alive = await this.verifyStreamAlive(effectiveTimeoutMs);
     // Re-check state: a reconnect may have started meanwhile.
     if (!alive && this.status === 'online' && !this.suppressReconnect) {
       try {
