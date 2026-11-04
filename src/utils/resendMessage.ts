@@ -3,6 +3,10 @@ import { store } from '../roomStore';
 import { addRoomMessage } from '../roomStore/roomsSlice';
 import { v4 as uuidv4 } from 'uuid';
 import { IMessage } from '../types/types';
+import {
+  isTranslatesEnabled,
+  shouldTagOutgoingTranslateSource,
+} from './translateModePolicy';
 
 type ResendOptions = {
   respectTranslateConfig?: boolean;
@@ -46,9 +50,9 @@ export async function resendMessage(
     })
   );
 
-  const useTranslate = !!(
-    options.respectTranslateConfig && config?.translates?.enabled
-  );
+  const useTranslate =
+    !!options.respectTranslateConfig &&
+    shouldTagOutgoingTranslateSource(isTranslatesEnabled(config));
 
   if (useTranslate) {
     client.sendTextMessageWithTranslateTagStanza(

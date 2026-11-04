@@ -29,3 +29,12 @@ export const resolveTranslateMode = (
   if (translates?.forceType) {return hostDefault;}
   return readerMode || hostDefault;
 };
+
+export const isTranslatesEnabled = (
+  config?: Pick<IConfig, 'translates' | 'enableTranslates'>
+): boolean => Boolean(config?.translates?.enabled || config?.enableTranslates);
+
+export const shouldTagOutgoingTranslateSource = (
+  translatesEnabled: boolean | undefined,
+  translateSendEnabled?: boolean
+): boolean => !!translatesEnabled && translateSendEnabled !== false;

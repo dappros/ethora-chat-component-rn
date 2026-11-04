@@ -35,6 +35,10 @@ import { normalizeCaptionInput, type CaptionInput } from '../helpers/caption';
 import { toUploadedAttachment } from '../helpers/attachments';
 import { mediaFileCap, mediaSizeLimit } from '../helpers/mediaLimits';
 import {
+  isTranslatesEnabled,
+  shouldTagOutgoingTranslateSource,
+} from '../utils/translateModePolicy';
+import {
   hasMediaRetry,
   registerMediaRetry,
   retryMediaSend,
@@ -133,10 +137,12 @@ export const useSendMessage = (_configOverride?: IConfig) => {
     (state: RootState) => state.chatSettingStore.config
   );
   // The sender's own language, driven by the header globe picker (or the
-  // host via config.translates.readerLocale). Declared on every outgoing
-  // message as `<translate source>` so the backend can translate it for
-  // readers in other languages (see sendTextMessageWithTranslateTagStanza).
-  // Mirrors the web SDK, which always sends through the translate-tag path.
+  // host via config.translates.readerLocale). Declared on outgoing messages
+  // as `<translate source>` so the backend translates them for readers in
+  // other languages (see sendTextMessageWithTranslateTagStanza) — only when
+  // translations are enabled: an untagged message is stored as-is and never
+  // goes to the translation service (shouldTagOutgoingTranslateSource, same
+  // rule as the web SDK).
   const langSource = useSelector(
     (state: RootState) => state.chatSettingStore.langSource
   );
@@ -214,6 +220,9 @@ export const useSendMessage = (_configOverride?: IConfig) => {
       // dedupes by id and flips `pending: false` → DoubleTick renders.
       // Without this, the user taps send and sees nothing for ~200ms
       // until the echo lands, which feels broken.
+      const tagTranslateSource = shouldTagOutgoingTranslateSource(
+        isTranslatesEnabled(config)
+      );
       const optimisticId = existingId || nextStanzaId('send-text-message');
       const optimisticDate = new Date().toISOString();
       const selfId =
@@ -233,7 +242,9 @@ export const useSendMessage = (_configOverride?: IConfig) => {
         // Declare the sender's language on their own optimistic bubble so
         // manual-mode readers see the Translate link on it too (parity with
         // the web SDK, which stamps langSource on the optimistic message).
-        langSource: (langSource as any) || 'en',
+        ...(tagTranslateSource
+          ? { langSource: (langSource as any) || 'en' }
+          : {}),
         // Reply fields as the wire carries them (strings), so a thread reply
         // shows in its thread — and NOT in the channel — from the first
         // frame, not only once the server echo lands.
@@ -363,21 +374,37 @@ export const useSendMessage = (_configOverride?: IConfig) => {
         // means the server echoes it back with the same value, so the
         // reducer's dedupe matches and the bubble flips pending → delivered
         // in-place (rather than rendering a second copy).
+        // Translations off → plain send without `<translate source>`, so the
+        // server neither translates nor stores translations for it.
         const replaySend = (c: any) =>
-          c.sendTextMessageWithTranslateTagStanza(
-            activeRoomJID,
-            user.firstName,
-            user.lastName,
-            '',
-            user.walletAddress,
-            message,
-            '',
-            isReply || false,
-            isChecked || false,
-            mainMessage || '',
-            (langSource as any) || 'en',
-            optimisticId
-          );
+          tagTranslateSource
+            ? c.sendTextMessageWithTranslateTagStanza(
+                activeRoomJID,
+                user.firstName,
+                user.lastName,
+                '',
+                user.walletAddress,
+                message,
+                '',
+                isReply || false,
+                isChecked || false,
+                mainMessage || '',
+                (langSource as any) || 'en',
+                optimisticId
+              )
+            : c.sendMessage(
+                activeRoomJID,
+                user.firstName,
+                user.lastName,
+                '',
+                user.walletAddress,
+                message,
+                '',
+                isReply || false,
+                isChecked || false,
+                mainMessage || '',
+                optimisticId
+              );
 
         // Always buffer a copy BEFORE attempting the live send. The WebSocket
         // can still read `status: 'online'` for a beat after the network
@@ -451,7 +478,7 @@ export const useSendMessage = (_configOverride?: IConfig) => {
         });
       }
     },
-    [editAction, client, user, langSource, dispatch, handleMessageSent, handleMessageEdited, handleMessageFailed, reduxStore]
+    [editAction, client, user, config, langSource, dispatch, handleMessageSent, handleMessageEdited, handleMessageFailed, reduxStore]
   );
 
   const sendMedia = useCallback(
