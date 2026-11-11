@@ -9,7 +9,7 @@ import {
 } from './xmpp/mamRouter';
 import { extractReaction } from '../helpers/mamReactions';
 import { clearMessageFailure } from '../roomStore/roomHeapSlice';
-import { removeOutboundSend } from './outboundQueue';
+import { rejectPendingSend, removeOutboundSend } from './outboundQueue';
 import {
   addRooms,
   addRoomMessage,
@@ -698,10 +698,20 @@ const onMessageError = (stanza: Element, _xmpp?: any) => {
   const messageId = stanza.attrs?.id;
   const roomJID = String(stanza.attrs?.from || '').split('/')[0];
   if (!messageId || !roomJID) {return;}
-  const conflict = stanza
-    .getChild('error')
-    ?.getChild('conflict', STANZA_ERRORS_NS);
-  if (!conflict) {return;}
+  const error = stanza.getChild('error');
+  const conflict = error?.getChild('conflict', STANZA_ERRORS_NS);
+  if (!conflict) {
+    const condition =
+      (error?.children || []).find(
+        (c: any) => c?.attrs?.xmlns === STANZA_ERRORS_NS && c.name !== 'text'
+      )?.name || 'unknown';
+    const text = error?.getChildText?.('text', STANZA_ERRORS_NS);
+    rejectPendingSend(
+      messageId,
+      new Error(`Server rejected the message: ${condition}${text ? ` (${text})` : ''}`)
+    );
+    return;
+  }
 
   const state: any = store.getState();
   const isOurs = (state.rooms?.rooms?.[roomJID]?.messages || []).some(

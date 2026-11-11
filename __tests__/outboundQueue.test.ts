@@ -67,7 +67,8 @@ import {
   removeOutboundSend,
   hasSendsAwaitingEcho,
   AWAITING_ECHO_MAX_AGE_MS,
-  BUSY_STREAM_PING_TIMEOUT_MS,
+  onSendRejected,
+  rejectPendingSend,
 } from '../src/networking/outboundQueue';
 import XmppClient from '../src/networking/xmppClient';
 import { sendTextMessage } from '../src/networking/xmpp/sendTextMessage.xmpp';
@@ -333,8 +334,12 @@ describe('XmppClient.ensureStreamAlive — ping wait', () => {
     expect(probe).toHaveBeenCalledWith(4000);
   });
 
-  it('waits longer while a send awaits its echo', async () => {
+  // The server may be busy with that send (slow translation), which holds
+  // the ping reply too: an unanswered ping proves nothing then.
+  it('neither probes nor reconnects while a send awaits its echo', async () => {
     const { c, probe } = setup();
+    probe.mockResolvedValue(false);
+    const reconnect = jest.spyOn(c, 'forceReconnect').mockImplementation(() => {});
     enqueueOutboundSend({
       optimisticId: 'a',
       roomJID: 'r@h',
@@ -342,7 +347,8 @@ describe('XmppClient.ensureStreamAlive — ping wait', () => {
       send: jest.fn(),
     });
     await c.ensureStreamAlive();
-    expect(probe).toHaveBeenCalledWith(BUSY_STREAM_PING_TIMEOUT_MS);
+    expect(probe).not.toHaveBeenCalled();
+    expect(reconnect).not.toHaveBeenCalled();
   });
 
   it('reconnects when the probe goes unanswered', async () => {
@@ -351,5 +357,31 @@ describe('XmppClient.ensureStreamAlive — ping wait', () => {
     const reconnect = jest.spyOn(c, 'forceReconnect').mockImplementation(() => {});
     await c.ensureStreamAlive();
     expect(reconnect).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('outboundQueue — server rejections', () => {
+  it('runs the handler once for its id', () => {
+    const handler = jest.fn();
+    onSendRejected('a', handler);
+    expect(rejectPendingSend('b', new Error('x'))).toBe(false);
+    expect(rejectPendingSend('a', new Error('x'))).toBe(true);
+    expect(rejectPendingSend('a', new Error('x'))).toBe(false);
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it('forgets the handler once the send is confirmed', () => {
+    const handler = jest.fn();
+    onSendRejected('a', handler);
+    removeOutboundSend('a');
+    expect(rejectPendingSend('a', new Error('x'))).toBe(false);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('forgets every handler on teardown', () => {
+    const handler = jest.fn();
+    onSendRejected('a', handler);
+    clearOutboundSends();
+    expect(rejectPendingSend('a', new Error('x'))).toBe(false);
   });
 });

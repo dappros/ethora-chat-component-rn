@@ -18,8 +18,8 @@ import type { FailedMediaFile, FailedMessagePayload } from '../roomStore/roomHea
 import { uploadFileV2 } from '../networking/api-requests/auth.api';
 import {
   AWAITING_ECHO_MAX_AGE_MS,
-  BUSY_STREAM_PING_TIMEOUT_MS,
   enqueueOutboundSend,
+  onSendRejected,
   removeOutboundSend,
 } from '../networking/outboundQueue';
 import { RootState, store } from '../roomStore';
@@ -45,20 +45,6 @@ import {
   unregisterMediaRetry,
 } from '../helpers/mediaSendRetry';
 
-// Watchdog: if a message stays "pending" (no server echo) for this
-// long after the optimistic dispatch, mark it failed so the bubble
-// flips out of the "sending..." state. Covers the silent-failure
-// case (e.g. device offline before the message ever made it to the
-// XMPP socket) — bug #18.
-//
-// 10s window: a brief network blip that reconnects inside this window
-// still resolves on its own — the offline send is buffered in the
-// outbound queue (OUTBOUND_QUEUE_TTL_MS, kept in lockstep) and replayed
-// the moment the stream comes back, so the server echo flips the bubble
-// to delivered. Only a drop that outlasts 10s flips it to "Failed → tap
-// to retry". If a slow send completes just after the window, the
-// delivery clears the failed flag (see newMessageMidlleware) so it
-// doesn't get stuck showing "Failed".
 const PENDING_WATCHDOG_MS = 10_000;
 
 // Media gets a longer window than text: the optimistic bubble appears before
@@ -68,9 +54,6 @@ const PENDING_WATCHDOG_MS = 10_000;
 // duplicate upload.
 const MEDIA_PENDING_WATCHDOG_MS = 30_000;
 
-// Hard cap on how long a text send may stay "sending..." while the server
-// keeps answering (see runWatchdog). Matches how long the outbound queue
-// counts a send as awaiting its echo.
 const PENDING_MAX_WAIT_MS = AWAITING_ECHO_MAX_AGE_MS;
 
 // Monotonic counter for stanza ids. Bumped on each send within a single
@@ -281,12 +264,36 @@ export const useSendMessage = (_configOverride?: IConfig) => {
         );
       }
 
-      // Silent-failure watchdog (bug #18). If no echo lands within
-      // PENDING_WATCHDOG_MS, flip the bubble to "failed → tap to
-      // retry". We check at fire-time whether the message is still
-      // pending and not already marked failed by the catch path.
-      // One-shot extension for the case below. Declared outside the
-      // timer so the rescheduled run can't extend again.
+      const replaySend = (c: any) =>
+        tagTranslateSource
+          ? c.sendTextMessageWithTranslateTagStanza(
+              activeRoomJID,
+              user.firstName,
+              user.lastName,
+              '',
+              user.walletAddress,
+              message,
+              '',
+              isReply || false,
+              isChecked || false,
+              mainMessage || '',
+              (langSource as any) || 'en',
+              optimisticId
+            )
+          : c.sendMessage(
+              activeRoomJID,
+              user.firstName,
+              user.lastName,
+              '',
+              user.walletAddress,
+              message,
+              '',
+              isReply || false,
+              isChecked || false,
+              mainMessage || '',
+              optimisticId
+            );
+
       let watchdogExtended = false;
       const sentAt = Date.now();
       const isStillPending = () => {
@@ -298,10 +305,10 @@ export const useSendMessage = (_configOverride?: IConfig) => {
         const alreadyFailed = state.roomHeapSlice?.failedMessages?.[optimisticId];
         return stillPending && !alreadyFailed;
       };
-      const markFailed = () => {
-        if (!isStillPending()) {return;}
+      const failNow = (error: Error) => {
+        clearTimeout(watchdogTimer);
         console.warn(
-          `Send watchdog fired — message ${optimisticId} stuck pending ${Date.now() - sentAt}ms; marking failed`
+          `Send failed — message ${optimisticId} after ${Date.now() - sentAt}ms: ${error.message}`
         );
         // Drop the buffered replay now that the bubble is showing
         // "failed / tap to retry" — a later onOnline flush must not
@@ -324,87 +331,55 @@ export const useSendMessage = (_configOverride?: IConfig) => {
         handleMessageFailed({
           message,
           roomJID: activeRoomJID,
-          error: new Error('Send timed out (no server echo)'),
+          error,
           messageType: 'text',
         });
+      };
+
+      const markFailed = (error: Error) => {
+        if (!isStillPending()) {
+          clearTimeout(watchdogTimer);
+          return;
+        }
+        failNow(error);
       };
       const runWatchdog = () => {
         if (!isStillPending()) {return;}
         const liveClient: any = getGlobalXmppClient();
 
-        const streamOnline = liveClient?.status === 'online';
-        if (!streamOnline && !watchdogExtended) {
-          watchdogExtended = true;
-          console.warn(
-            `Send watchdog — ${optimisticId} still pending but the stream is not online; extending one window`
-          );
-          watchdogTimer = setTimeout(runWatchdog, PENDING_WATCHDOG_MS);
+        if (liveClient?.status !== 'online') {
+          if (!watchdogExtended) {
+            watchdogExtended = true;
+            console.warn(
+              `Send watchdog — ${optimisticId} still pending but the stream is not online; extending one window`
+            );
+            watchdogTimer = setTimeout(runWatchdog, PENDING_WATCHDOG_MS);
+            return;
+          }
+          markFailed(new Error('Send failed: no live connection'));
           return;
         }
 
-        if (
-          streamOnline &&
-          typeof liveClient.verifyStreamAlive === 'function' &&
-          Date.now() - sentAt < PENDING_MAX_WAIT_MS
-        ) {
-          Promise.resolve(liveClient.verifyStreamAlive(BUSY_STREAM_PING_TIMEOUT_MS))
-            .then((alive: boolean) => {
-              if (!isStillPending()) {return;}
-              if (alive) {
-                watchdogTimer = setTimeout(runWatchdog, PENDING_WATCHDOG_MS);
-                return;
-              }
-              markFailed();
-              try {
-                liveClient.forceReconnect?.();
-              } catch {}
-            })
-            .catch(markFailed);
+        if (Date.now() - sentAt >= PENDING_MAX_WAIT_MS) {
+          markFailed(new Error('Send timed out: no answer to resends'));
+          try {
+            liveClient.forceReconnect?.();
+          } catch {}
           return;
         }
 
-        markFailed();
+        try {
+          replaySend(liveClient);
+        } catch (error) {
+          markFailed(error as Error);
+          return;
+        }
+        watchdogTimer = setTimeout(runWatchdog, PENDING_WATCHDOG_MS);
       };
 
       let watchdogTimer = setTimeout(runWatchdog, PENDING_WATCHDOG_MS);
 
       try {
-        // The single send closure, used both for the immediate send and for
-        // the buffered replay. Passing the optimistic id as the stanza id
-        // means the server echoes it back with the same value, so the
-        // reducer's dedupe matches and the bubble flips pending → delivered
-        // in-place (rather than rendering a second copy).
-        // Translations off → plain send without `<translate source>`, so the
-        // server neither translates nor stores translations for it.
-        const replaySend = (c: any) =>
-          tagTranslateSource
-            ? c.sendTextMessageWithTranslateTagStanza(
-                activeRoomJID,
-                user.firstName,
-                user.lastName,
-                '',
-                user.walletAddress,
-                message,
-                '',
-                isReply || false,
-                isChecked || false,
-                mainMessage || '',
-                (langSource as any) || 'en',
-                optimisticId
-              )
-            : c.sendMessage(
-                activeRoomJID,
-                user.firstName,
-                user.lastName,
-                '',
-                user.walletAddress,
-                message,
-                '',
-                isReply || false,
-                isChecked || false,
-                mainMessage || '',
-                optimisticId
-              );
 
         // Always buffer a copy BEFORE attempting the live send. The WebSocket
         // can still read `status: 'online'` for a beat after the network
@@ -419,6 +394,12 @@ export const useSendMessage = (_configOverride?: IConfig) => {
           roomJID: activeRoomJID,
           enqueuedAt: Date.now(),
           send: replaySend,
+        });
+        onSendRejected(optimisticId, (error) => {
+          if (reduxStore.getState().roomHeapSlice?.failedMessages?.[optimisticId]) {
+            return;
+          }
+          failNow(error);
         });
 
         // Only treat a client as usable if its underlying stream is actually
@@ -445,9 +426,6 @@ export const useSendMessage = (_configOverride?: IConfig) => {
         }
 
         replaySend(effectiveClient);
-        try {
-          effectiveClient.ensureStreamAlive?.();
-        } catch {}
         await handleMessageSent({
           message,
           roomJID: activeRoomJID,
@@ -455,27 +433,7 @@ export const useSendMessage = (_configOverride?: IConfig) => {
           messageType: 'text',
         });
       } catch (error) {
-        clearTimeout(watchdogTimer);
-        // Same reasoning as the watchdog: once the bubble shows failed,
-        // only an explicit tap-to-retry should resend it.
-        removeOutboundSend(optimisticId);
-        dispatch(
-          markMessageFailed({
-            kind: 'text',
-            id: optimisticId,
-            roomJID: activeRoomJID,
-            body: message,
-            isReply,
-            isChecked,
-            mainMessage,
-          })
-        );
-        handleMessageFailed({
-          message,
-          roomJID: activeRoomJID,
-          error: error as Error,
-          messageType: 'text',
-        });
+        failNow(error as Error);
       }
     },
     [editAction, client, user, config, langSource, dispatch, handleMessageSent, handleMessageEdited, handleMessageFailed, reduxStore]

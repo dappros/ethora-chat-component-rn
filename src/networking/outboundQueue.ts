@@ -59,7 +59,8 @@ let queue: QueuedSend[] = [];
 const awaitingEcho = new Map<string, number>();
 
 export const AWAITING_ECHO_MAX_AGE_MS = 60_000;
-export const BUSY_STREAM_PING_TIMEOUT_MS = 15_000;
+
+const rejectionHandlers = new Map<string, (error: Error) => void>();
 
 export function hasSendsAwaitingEcho(now: number = Date.now()): boolean {
   for (const [id, sentAt] of awaitingEcho) {
@@ -121,6 +122,7 @@ export function flushOutboundSends(
 export function removeOutboundSend(optimisticId: string): void {
   if (!optimisticId) {return;}
   awaitingEcho.delete(optimisticId);
+  rejectionHandlers.delete(optimisticId);
   const idx = queue.findIndex((q) => q.optimisticId === optimisticId);
   if (idx >= 0) {queue.splice(idx, 1);}
 }
@@ -129,6 +131,23 @@ export function removeOutboundSend(optimisticId: string): void {
 export function clearOutboundSends(): void {
   queue = [];
   awaitingEcho.clear();
+  rejectionHandlers.clear();
+}
+
+export function onSendRejected(
+  optimisticId: string,
+  handler: (error: Error) => void
+): void {
+  if (!optimisticId) {return;}
+  rejectionHandlers.set(optimisticId, handler);
+}
+
+export function rejectPendingSend(optimisticId: string, error: Error): boolean {
+  const handler = rejectionHandlers.get(optimisticId);
+  if (!handler) {return false;}
+  rejectionHandlers.delete(optimisticId);
+  handler(error);
+  return true;
 }
 
 /** Current depth — for tests and diagnostics. */

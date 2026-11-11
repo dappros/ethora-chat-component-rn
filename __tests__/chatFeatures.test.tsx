@@ -182,6 +182,8 @@ import {
 import { logout, setConfig, setUser } from '../src/roomStore/chatSettingsSlice';
 import { useSendMessage } from '../src/hooks/useSendMessage';
 import { setGlobalXmppClient } from '../src/utils/clientRegistry';
+import { handleStanza } from '../src/networking/xmpp/handleStanzas.xmpp';
+import { parse as parseXml } from 'ltx';
 import { useComposing } from '../src/hooks/useComposing';
 import { useUnreadMessagesCounter } from '../src/hooks/useUnreadMessagesCounter';
 
@@ -458,80 +460,143 @@ describe('useSendMessage — send watchdog', () => {
     expect(onMessageFailed).not.toHaveBeenCalled();
   });
 
-  it('fails it on the next window once the stream is back and still no echo', async () => {
-    // The grace is one window, not forever: a genuinely lost send still
-    // has to surface as "tap to retry".
+  // A test client for the watchdog's resends.
+  const liveClient = (extra: Record<string, any> = {}) => ({
+    status: 'online',
+    sendMessage: jest.fn(),
+    sendTextMessageWithTranslateTagStanza: jest.fn(),
+    forceReconnect: jest.fn(),
+    ...extra,
+  });
+  const resendsOf = (c: any) =>
+    c.sendMessage.mock.calls.length +
+    c.sendTextMessageWithTranslateTagStanza.mock.calls.length;
+  const lastResendId = (c: any) => {
+    const calls = [
+      ...c.sendMessage.mock.calls,
+      ...c.sendTextMessageWithTranslateTagStanza.mock.calls,
+    ];
+    return calls[calls.length - 1]?.slice(-1)[0];
+  };
+  const pendingId = () =>
+    (store.getState().rooms.rooms[ROOM]?.messages || []).find(
+      (m: any) => m.pending
+    )?.id as string;
+  const advance = async (ms: number) => {
+    await act(async () => {
+      jest.advanceTimersByTime(ms);
+    });
+  };
+  const serverError = (id: string, condition: string) =>
+    parseXml(
+      `<message xmlns="jabber:client" type="error" id="${id}" from="${ROOM}" to="u@h/r">` +
+        `<error type="cancel"><${condition} xmlns="urn:ietf:params:xml:ns:xmpp-stanzas"/></error></message>`
+    ) as any;
+
+  it('resends under the same id once the stream is back, instead of failing', async () => {
+    jest.useFakeTimers();
+    const onMessageFailed = jest.fn();
+    await sendAndWait(onMessageFailed);
+    const id = pendingId();
+
+    setGlobalXmppClient({ status: 'connecting' } as any);
+    await advance(10_000);
+    expect(onMessageFailed).not.toHaveBeenCalled();
+
+    const c = liveClient();
+    setGlobalXmppClient(c as any);
+    await advance(10_000);
+
+    expect(onMessageFailed).not.toHaveBeenCalled();
+    expect(resendsOf(c)).toBe(1);
+    expect(lastResendId(c)).toBe(id);
+  });
+
+  it('fails it when the stream stays down for a second window', async () => {
     jest.useFakeTimers();
     const onMessageFailed = jest.fn();
     await sendAndWait(onMessageFailed);
 
     setGlobalXmppClient({ status: 'connecting' } as any);
-    await act(async () => {
-      jest.advanceTimersByTime(10_000);
-    });
-    expect(onMessageFailed).not.toHaveBeenCalled();
+    await advance(20_000);
 
-    setGlobalXmppClient({ status: 'online' } as any);
-    await act(async () => {
-      jest.advanceTimersByTime(10_000);
-    });
-
+    expect(onMessageFailed).toHaveBeenCalledTimes(1);
     expect(onMessageFailed).toHaveBeenCalledWith(
       expect.objectContaining({ messageType: 'text', roomJID: ROOM })
     );
   });
 
-  it('fails immediately when the stream is online the whole time', async () => {
+  // A slow server-side translation holds the sender's session: no echo and
+  // no ping reply for a while, on a perfectly good connection.
+  it('does not fail or reconnect while the server is still busy with it', async () => {
     jest.useFakeTimers();
     const onMessageFailed = jest.fn();
-    setGlobalXmppClient({ status: 'online' } as any);
+    const c = liveClient();
+    setGlobalXmppClient(c as any);
     await sendAndWait(onMessageFailed);
 
-    await act(async () => {
-      jest.advanceTimersByTime(10_000);
-    });
+    await advance(30_000);
 
-    expect(onMessageFailed).toHaveBeenCalledTimes(1);
-  });
-
-  // A slow server-side translation holds the sender's session, so the echo
-  // can take longer than one window while the connection is perfectly fine.
-  it('keeps waiting while the session still answers, up to the cap', async () => {
-    jest.useFakeTimers();
-    const onMessageFailed = jest.fn();
-    const verifyStreamAlive = jest.fn().mockResolvedValue(true);
-    setGlobalXmppClient({ status: 'online', verifyStreamAlive } as any);
-    await sendAndWait(onMessageFailed);
-
-    for (let i = 0; i < 5; i++) {
-      await act(async () => {
-        jest.advanceTimersByTime(10_000);
-      });
-    }
-    expect(verifyStreamAlive).toHaveBeenCalledTimes(5);
     expect(onMessageFailed).not.toHaveBeenCalled();
-
-    // 60s with no echo: give up even though the session answers.
-    await act(async () => {
-      jest.advanceTimersByTime(10_000);
-    });
-    expect(onMessageFailed).toHaveBeenCalledTimes(1);
+    expect(c.forceReconnect).not.toHaveBeenCalled();
+    expect(resendsOf(c)).toBe(3);
   });
 
-  it('fails and reconnects when the session does not answer', async () => {
+  it('a conflict answer to the resend marks it delivered and stops resending', async () => {
     jest.useFakeTimers();
     const onMessageFailed = jest.fn();
-    const forceReconnect = jest.fn();
-    const verifyStreamAlive = jest.fn().mockResolvedValue(false);
-    setGlobalXmppClient({ status: 'online', verifyStreamAlive, forceReconnect } as any);
+    const c = liveClient();
+    setGlobalXmppClient(c as any);
     await sendAndWait(onMessageFailed);
+    const id = pendingId();
+
+    await advance(10_000);
+    expect(resendsOf(c)).toBe(1);
 
     await act(async () => {
-      jest.advanceTimersByTime(10_000);
+      handleStanza(serverError(id, 'conflict'), { username: 'u', client: {} } as any);
+    });
+    expect(pendingId()).toBeUndefined();
+
+    await advance(60_000);
+    expect(resendsOf(c)).toBe(1);
+    expect(onMessageFailed).not.toHaveBeenCalled();
+  });
+
+  it('fails it on a server error other than conflict', async () => {
+    jest.useFakeTimers();
+    const onMessageFailed = jest.fn();
+    const c = liveClient();
+    setGlobalXmppClient(c as any);
+    await sendAndWait(onMessageFailed);
+    const id = pendingId();
+
+    await act(async () => {
+      handleStanza(serverError(id, 'forbidden'), { username: 'u', client: {} } as any);
     });
 
     expect(onMessageFailed).toHaveBeenCalledTimes(1);
-    expect(forceReconnect).toHaveBeenCalledTimes(1);
+    expect(onMessageFailed.mock.calls[0][0].error.message).toMatch(/forbidden/);
+    expect(store.getState().roomHeapSlice.failedMessages[id]).toBeTruthy();
+
+    await advance(20_000);
+    expect(resendsOf(c)).toBe(0);
+  });
+
+  it('gives up and reconnects when no resend gets any answer (half-open socket)', async () => {
+    jest.useFakeTimers();
+    const onMessageFailed = jest.fn();
+    const c = liveClient();
+    setGlobalXmppClient(c as any);
+    await sendAndWait(onMessageFailed);
+
+    await advance(50_000);
+    expect(onMessageFailed).not.toHaveBeenCalled();
+    expect(resendsOf(c)).toBe(5);
+
+    await advance(10_000);
+    expect(onMessageFailed).toHaveBeenCalledTimes(1);
+    expect(c.forceReconnect).toHaveBeenCalledTimes(1);
   });
 });
 
