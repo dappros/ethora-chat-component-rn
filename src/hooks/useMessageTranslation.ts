@@ -1,10 +1,27 @@
+import { useEffect, useReducer } from 'react';
 import { IMessage } from '../types/types';
 import { toBaseLanguage } from '../i18n/strings';
+import { msgSortableMs } from '../helpers/msgSortableMs';
+
+/**
+ * How long after a message (or its edit) "Translating…" may show for it.
+ * The server sends the translation, or word that it failed, within its own
+ * cap (90s by default); past this the update was missed (the app was offline
+ * then), and the translation comes from the archive with the next history
+ * load.
+ */
+export const TRANSLATION_PENDING_MAX_AGE_MS = 3 * 60_000;
 
 export interface MessageTranslationState {
   /** False when the message is already in the reader's language, or no
    * translation is available — render the plain body, no quote. */
   hasTranslation: boolean;
+  /** The server is still translating the message into the reader's
+   * language: show "Translating…". Never true with hasTranslation. */
+  isPending: boolean;
+  /** When isPending stops being true by itself (epoch ms), 0 if never: hand
+   * it to useRerenderAt so the label does not outlive it. */
+  pendingUntil: number;
   originalText: string;
   /** Translation when hasTranslation, else the original — always safe to
    * render directly. */
@@ -29,7 +46,16 @@ const hasNoLetters = (text: string): boolean => !/\p{L}/u.test(text);
  * reachable, and nothing to await.
  */
 export const useMessageTranslation = (
-  message: Pick<IMessage, 'body' | 'langSource' | 'translations'>,
+  message: Pick<
+    IMessage,
+    | 'body'
+    | 'langSource'
+    | 'translations'
+    | 'translationPending'
+    | 'translationPendingSince'
+    | 'id'
+    | 'date'
+  >,
   readerLocale?: string,
   enabled = true
 ): MessageTranslationState => {
@@ -62,9 +88,37 @@ export const useMessageTranslation = (
   const isRealTranslation =
     !!result && result.trim() !== originalText.trim();
 
+  // A message the server is still translating (async mode marks the live
+  // copy, see getDataFromXml, and an edit, see editRoomMessage): pending
+  // until the translation lands, the server says it failed, or the request
+  // is too old for it to come live.
+  const sentAt = message?.translationPending
+    ? message.translationPendingSince || msgSortableMs(message)
+    : 0;
+  const pendingUntil =
+    needsTranslation && !isRealTranslation && sentAt
+      ? sentAt + TRANSLATION_PENDING_MAX_AGE_MS
+      : 0;
+
   return {
     hasTranslation: isRealTranslation,
+    isPending: pendingUntil > Date.now(),
+    pendingUntil,
     originalText,
     displayText: isRealTranslation ? (result as string) : originalText,
   };
+};
+
+/**
+ * Re-renders the calling component once `at` (epoch ms) has passed; 0 or a
+ * past time does nothing. For useMessageTranslation's `pendingUntil`.
+ */
+export const useRerenderAt = (at: number): void => {
+  const [, tick] = useReducer((n: number) => n + 1, 0);
+  useEffect(() => {
+    const left = at - Date.now();
+    if (!at || left <= 0) {return;}
+    const timer = setTimeout(tick, left);
+    return () => clearTimeout(timer);
+  }, [at]);
 };

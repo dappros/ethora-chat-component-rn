@@ -38,7 +38,10 @@ import MediaMessage from '../MainComponents/MediaMessage';
 import MessageTranslate from './MessageTranslate';
 import { isUnresolvedSenderId } from '../../helpers/isUnresolvedSenderId';
 import TranslatedMessageBody from './TranslatedMessageBody';
-import { useMessageTranslation } from '../../hooks/useMessageTranslation';
+import {
+  useMessageTranslation,
+  useRerenderAt,
+} from '../../hooks/useMessageTranslation';
 import { resolveTranslateMode } from '../../utils/translateModePolicy';
 import { useChatSettingState } from '../../hooks/useChatSettingState';
 import { parseMessageBody } from '../../helpers/parseMessageBody';
@@ -237,6 +240,7 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
     readerLocale,
     isAutoTranslate
   );
+  useRerenderAt(translationDisplay.pendingUntil);
 
   // `usersSet` is the canonical, continuously-updated identity store; the
   // copy riding on a message is a snapshot of whoever sent it, whenever
@@ -534,6 +538,14 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
   const bodyToRender = showInlineTranslation
     ? translationDisplay.displayText
     : message.body;
+  // Auto mode, while the server is still translating the message: the
+  // original shows now, with a "Translating…" line that the translation
+  // replaces as soon as it lands.
+  const showPendingTranslation =
+    isAutoTranslate &&
+    translationDisplay.isPending &&
+    !isUser &&
+    !isUndecryptable;
   const textFilter = config?.messageTextFilter;
   const messageText = useMemo(
     () =>
@@ -674,26 +686,36 @@ const Message: React.FC<MessageProps> = ({ message, isUser, isReply }) => {
               </Text>
             </View>
           ) : (
-            <CustomMessageText
-              isUser={isUser}
-              fontSize={config?.typography?.messageText?.fontSize}
-              fontWeight={config?.typography?.messageText?.fontWeight as any}
-            >
-              {/* Auto mode: the parsed body IS the translation; wrap it
-                  so the original shows as a dimmed accent-bar quote
-                  above it. Plain body otherwise. */}
-              {showInlineTranslation ? (
-                <TranslatedMessageBody
-                  isUser={isUser}
-                  originalText={translationDisplay.originalText}
-                  accentColor={theme.primary}
-                >
+            <>
+              <CustomMessageText
+                isUser={isUser}
+                fontSize={config?.typography?.messageText?.fontSize}
+                fontWeight={config?.typography?.messageText?.fontWeight as any}
+              >
+                {/* Auto mode: the parsed body IS the translation; wrap it
+                    so the original shows as a dimmed accent-bar quote
+                    above it. Plain body otherwise. */}
+                {showInlineTranslation ? (
+                  <TranslatedMessageBody
+                    isUser={isUser}
+                    originalText={translationDisplay.originalText}
+                    accentColor={theme.primary}
+                  >
+                    <Text>{messageText}</Text>
+                  </TranslatedMessageBody>
+                ) : (
                   <Text>{messageText}</Text>
-                </TranslatedMessageBody>
-              ) : (
-                <Text>{messageText}</Text>
+                )}
+              </CustomMessageText>
+              {showPendingTranslation && (
+                <Text
+                  testID="message-translating"
+                  style={[styles.translatingText, themedStyles.muted]}
+                >
+                  {t('translation.translating')}
+                </Text>
               )}
-            </CustomMessageText>
+            </>
           )}
         </>
       )}
@@ -996,6 +1018,12 @@ const styles = StyleSheet.create({
   },
   undecryptableText: {
     flexShrink: 1,
+    fontStyle: 'italic',
+  },
+  translatingText: {
+    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 16,
     fontStyle: 'italic',
   },
   timestampText: {

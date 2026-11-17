@@ -23,6 +23,7 @@ import {
 import XmppClient from '../xmppClient';
 import { onCallTokenMessage } from '../callTokenStanza';
 import { onEthoraEvent } from '../ethoraEvents';
+import { onTranslationUpdate } from '../translationUpdate';
 import { accountDomain, isE2eeEnabled } from '../../e2ee';
 import {
   decryptStanzaInPlace,
@@ -103,6 +104,8 @@ function dispatchStanza(stanza: Element, xmppWs: XmppClient) {
   // headline early return; never throws.
   if (stanza?.name === 'message') {
     onEthoraEvent(stanza, xmppWs as any);
+    // A translation sent after its message (mod_translate, async mode).
+    onTranslationUpdate(stanza);
   }
 
   if (stanza?.attrs?.type === 'headline') {return;}

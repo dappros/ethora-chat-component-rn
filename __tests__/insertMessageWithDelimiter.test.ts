@@ -124,10 +124,11 @@ describe('insertMessageWithDelimiter — merge does not drop translations', () =
     // read `source.translations === undefined` and overwrite the
     // existing value with it, silently erasing a translation the row
     // already had (e.g. a MAM catch-up echo, or a live update that only
-    // carries a reaction/edit) — a message flipping from translated back
-    // to the original for no reason.
+    // carries a reaction) — a message flipping from translated back to the
+    // original for no reason.
     const list: IMessage[] = [
       makeMsg('a', '2026-05-01T10:00:00Z', {
+        body: 'hi',
         langSource: 'en',
         translations: {
           es: {
@@ -140,15 +141,37 @@ describe('insertMessageWithDelimiter — merge does not drop translations', () =
     ];
 
     const incoming = makeMsg('a', '2026-05-01T10:00:00Z', {
-      body: 'hi (edited)',
+      body: 'hi',
     }) as any;
     incoming.translations = undefined; // explicit key, not simply omitted
 
     insertMessageWithDelimiter(list, incoming, null);
 
     expect(list).toHaveLength(1);
-    expect(list[0].body).toBe('hi (edited)');
+    expect(list[0].body).toBe('hi');
     expect((list[0] as any).translations?.es?.translatedText).toBe('hola');
+  });
+
+  it('drops the translation of the old text when the body changed (edited meanwhile)', () => {
+    const list: IMessage[] = [
+      makeMsg('a', '2026-05-01T10:00:00Z', {
+        body: 'hi',
+        langSource: 'en',
+        translations: {
+          es: { translatedText: 'hola', language: 'es', languageName: 'Spanish' },
+        },
+      } as any),
+    ];
+
+    const incoming = makeMsg('a', '2026-05-01T10:00:00Z', {
+      body: 'hi (edited)',
+    }) as any;
+    incoming.translations = undefined;
+
+    insertMessageWithDelimiter(list, incoming, null);
+
+    expect(list[0].body).toBe('hi (edited)');
+    expect((list[0] as any).translations).toBeUndefined();
   });
 
   it('still lets a real translations payload overwrite the old one', () => {

@@ -29,6 +29,10 @@ import { adjustUsersCnt, isRoomMembersTruncated } from '../helpers/roomUserCount
 import { requestSendersOf } from '../helpers/userResolver';
 import { createMessageFromXml } from '../helpers/createMessageFromXml';
 import { getDataFromXml } from '../helpers/getDataFromXml';
+import {
+  parseTranslationsValue,
+  TRANSLATE_NS,
+} from '../helpers/transformTranslatations';
 import { setDeleteModal } from '../roomStore/chatSettingsSlice';
 import { messageNotificationManager } from '../utils/messageNotificationManager';
 import { isOwnIncomingMessage } from '../helpers/notificationPolicy';
@@ -274,11 +278,24 @@ const onEditMessage = async (stanza: Element) => {
       return;
     }
 
+    // What became of the translations: those of the old text are gone in
+    // any case. mod_edit sends those of the new text with the edit (sync
+    // mode), or marks it <translation-pending/> when they follow as a
+    // <translation-update/> (async mode, see networking/translationUpdate).
+    const translations = parseTranslationsValue(
+      stanza.getChild('translations')?.attrs?.value
+    );
+    const translationPending =
+      !translations && !!stanza.getChild('translation-pending', TRANSLATE_NS);
+
     store.dispatch(
       editRoomMessage({
         roomJID: stanzaId?.attrs.by,
         messageId: replace?.attrs.id,
         text: replace?.attrs.text,
+        translations,
+        translationPending,
+        receivedAt: Date.now(),
       })
     );
   }

@@ -5,7 +5,10 @@ import { CustomDivider } from './CustomDivider';
 import { CustomMessageText } from '../styled/StyledComponents';
 import { useT } from '../../i18n/useT';
 import { toBaseLanguage } from '../../i18n/strings';
-import { useMessageTranslation } from '../../hooks/useMessageTranslation';
+import {
+  useMessageTranslation,
+  useRerenderAt,
+} from '../../hooks/useMessageTranslation';
 
 interface MessageTranslateProps {
   message: IMessage;
@@ -42,7 +45,9 @@ type HostPhase = 'idle' | 'loading' | 'done' | 'error';
  *     the right locale a never-translated message showed a dead link.
  *
  * The link now appears only when there is something to reveal, which makes
- * the failure state unreachable on this path.
+ * the failure state unreachable on this path. Or something about to be: a
+ * message the server is still translating (async mode) offers the link
+ * too, and a tap shows "Translating…" until the translation lands.
  *
  * A host-supplied `config.translates.onTranslate` is the one asynchronous
  * case: it can produce a translation nothing on the stanza predicts, so
@@ -66,6 +71,7 @@ const MessageTranslate: FC<MessageTranslateProps> = ({
 
   // The exact call auto mode makes, with the exact same locale.
   const attached = useMessageTranslation(message, targetLocale, true);
+  useRerenderAt(attached.pendingUntil);
 
   const [revealed, setRevealed] = useState(false);
   const [hostPhase, setHostPhase] = useState<HostPhase>('idle');
@@ -92,8 +98,9 @@ const MessageTranslate: FC<MessageTranslateProps> = ({
     if (hasHostTranslator) {
       return languagesDiffer;
     }
-    // Stanza-attached: only offer what we can actually deliver.
-    return attached.hasTranslation;
+    // Stanza-attached: only offer what we can actually deliver, or what
+    // the server is translating right now.
+    return attached.hasTranslation || attached.isPending;
   })();
 
   const runHostTranslate = useCallback(async () => {
@@ -169,9 +176,21 @@ const MessageTranslate: FC<MessageTranslateProps> = ({
     );
   }
 
-  // Stanza-attached: nothing to await, nothing to fail.
+  // Stanza-attached: nothing to fail. A translation the server is still
+  // working on shows as "Translating…" once asked for, and replaces it when
+  // it lands.
   if (!revealed) {
     return renderLink(t('action.translate'), () => setRevealed(true));
+  }
+  if (!attached.hasTranslation) {
+    return (
+      <Text
+        testID="message-translate-pending"
+        style={[styles.link, { color: linkColor }]}
+      >
+        {t('translation.translating')}
+      </Text>
+    );
   }
   return renderRevealed(attached.displayText, () => setRevealed(false));
 };

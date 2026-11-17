@@ -154,6 +154,7 @@ const insertRoomMessage = (
   }
 
   takePendingReactions(state, roomJID, message);
+  takePendingTranslation(state, roomJID, message);
   const lengthBefore = roomMessages.length;
   const tailBefore = roomMessages[lengthBefore - 1];
 
@@ -366,6 +367,16 @@ type PendingReaction = {
   ts?: string;
 };
 
+// A translation that reached us before its message (see
+// applyTranslationUpdate), kept this long for the message to arrive.
+const PENDING_TRANSLATION_TTL_MS = 5 * 60_000;
+const PENDING_TRANSLATIONS_PER_ROOM = 200;
+
+type PendingTranslation = {
+  translations: TranslationObject;
+  at: number;
+};
+
 /** Reactions whose message is not loaded yet — applied when it arrives. */
 const takePendingReactions = (
   state: WritableDraft<RoomMessagesState>,
@@ -381,6 +392,23 @@ const takePendingReactions = (
     for (const r of list) {
       applyReactionToMessage(message, r.from, r.reactions, r.data, r.ts);
     }
+    delete byMessage[key];
+  }
+};
+
+const takePendingTranslation = (
+  state: WritableDraft<RoomMessagesState>,
+  roomJID: string,
+  message: IMessage
+): void => {
+  const byMessage = state.pendingTranslations?.[roomJID];
+  if (!byMessage) {return;}
+  const keys = [String(message.id), message.xmppId ? String(message.xmppId) : ''];
+  for (const key of keys) {
+    const entry = key ? byMessage[key] : undefined;
+    if (!entry) {continue;}
+    message.translations = entry.translations;
+    message.translationPending = false;
     delete byMessage[key];
   }
 };
@@ -623,6 +651,11 @@ export interface RoomMessagesState {
   /** `{ roomJID: { messageId: reactions[] } }` — reactions that arrived
    * before their message (a newer history page), applied on insert. */
   pendingReactions?: Record<string, Record<string, PendingReaction[]>>;
+  /**
+   * Translations that arrived before their message, by room then message
+   * id (archive id and the sender's id both). Never persisted.
+   */
+  pendingTranslations?: Record<string, Record<string, PendingTranslation>>;
   // The single source of truth for "read up to here, but the user
   // hasn't reached the bottom yet" (`{ roomJID: boundaryMs }`).
   // Set by MessageList (via ChatRoom's `onReadBoundaryChange`) the
@@ -673,6 +706,7 @@ const initialState: RoomMessagesState = {
   jumpWindow: null,
   archivedMessage: null,
   pendingReactions: {},
+  pendingTranslations: {},
 };
 
 const isValidRoomJid = (jid: unknown): jid is string => {
@@ -899,9 +933,15 @@ const reducers = {
         roomJID: string;
         messageId: string;
         text: string;
+        /** The translations of the new text, when the edit carries them. */
+        translations?: TranslationObject;
+        /** They follow as a <translation-update/> (async mode). */
+        translationPending?: boolean;
+        receivedAt?: number;
       }>
     ) {
-      const { roomJID, messageId, text } = action.payload;
+      const { roomJID, messageId, text, translations, translationPending, receivedAt } =
+        action.payload;
       if (!isSafeKey(roomJID)) {return;}
       // Edited in place on every copy (live list and jump window).
       forEachMessageCopy(state, roomJID, messageId, (message) => {
@@ -910,6 +950,20 @@ const reducers = {
         // Covers both the author's own edit and edits from other users -
         // every <replace> echo flows through here.
         message.isEdited = true;
+        // The translations the message had are of the old text: only what
+        // the edit brings counts. Without anything, the new text shows
+        // untranslated (an older server, or the translation failed).
+        if (translations) {
+          message.translations = translations;
+        } else {
+          delete message.translations;
+        }
+        message.translationPending = !translations && !!translationPending;
+        if (message.translationPending) {
+          message.translationPendingSince = receivedAt;
+        } else {
+          delete message.translationPendingSince;
+        }
       });
     },
     /**
@@ -954,6 +1008,51 @@ const reducers = {
         if (!message.translations) {message.translations = {};}
         message.translations[locale] = entry;
       });
+    },
+    /**
+     * The translation mod_translate (async mode) sends after the message,
+     * or word that none is coming (`translations` undefined: the
+     * translation failed). Matched by the archive id or the sender's own
+     * id, on the live list and the jump window. A translation for a
+     * message that is not loaded yet is kept for it (insertRoomMessage
+     * takes it) for a few minutes.
+     */
+    applyTranslationUpdate(
+      state: WritableDraft<RoomMessagesState>,
+      action: PayloadAction<{
+        roomJID: string;
+        ids: string[];
+        translations?: TranslationObject;
+        receivedAt: number;
+      }>
+    ) {
+      const { roomJID, ids, translations, receivedAt } = action.payload;
+      if (!isSafeKey(roomJID) || !Array.isArray(ids) || !ids.length) {return;}
+      let found = false;
+      forEachMessageCopy(
+        state,
+        roomJID,
+        (message) =>
+          ids.includes(String(message.id)) ||
+          (!!message.xmppId && ids.includes(String(message.xmppId))),
+        (message) => {
+          found = true;
+          if (translations) {message.translations = translations;}
+          message.translationPending = false;
+        }
+      );
+      if (found || !translations) {return;}
+      if (!state.pendingTranslations) {state.pendingTranslations = {};}
+      const byMessage = (state.pendingTranslations[roomJID] ||= {});
+      for (const key of Object.keys(byMessage)) {
+        if (receivedAt - byMessage[key].at > PENDING_TRANSLATION_TTL_MS) {
+          delete byMessage[key];
+        }
+      }
+      if (Object.keys(byMessage).length >= PENDING_TRANSLATIONS_PER_ROOM) {return;}
+      for (const id of ids) {
+        if (isSafeKey(id)) {byMessage[id] = { translations, at: receivedAt };}
+      }
     },
     /**
      * Local upload state of one file of an outgoing media message: its
@@ -1541,6 +1640,7 @@ const reducers = {
     setLogoutState: (state: WritableDraft<RoomMessagesState>) => {
       state.rooms = {};
       state.pendingReactions = {};
+      state.pendingTranslations = {};
       state.activeRoomJID = null;
       state.visibleRoomJID = null;
       state.isLoading = false;
@@ -1790,6 +1890,7 @@ export const {
   updateRoom,
   applyRoomsPreloadBatch,
   addRoomMessages,
+  applyTranslationUpdate,
   addRooms,
   setUnreadCounts,
   setPendingNotificationJid,

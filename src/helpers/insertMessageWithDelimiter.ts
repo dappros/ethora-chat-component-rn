@@ -84,7 +84,18 @@ export function insertMessageWithDelimiter(
     // original id so ownership (user.id === self) stays correct.
     const preservedUserId =
       (existing as any)?.user?.id || (message as any)?.user?.id;
-    const merged = deepMerge({ ...existing }, { ...message, pending: false });
+    // A new body (the message was edited meanwhile, e.g. while this
+    // client was offline) makes the translations the row had stale: only
+    // those that came with the new body count.
+    const base = { ...existing };
+    if (
+      typeof message.body === 'string' &&
+      typeof existing.body === 'string' &&
+      message.body !== existing.body
+    ) {
+      delete base.translations;
+    }
+    const merged = deepMerge(base, { ...message, pending: false });
     if (merged.user && preservedUserId) {
       merged.user.id = preservedUserId;
     }

@@ -33,6 +33,19 @@ export interface IMessage {
   reaction?: Record<string, ReactionMessage>;
   fileName?: string;
   translations?: TranslationObject;
+  /**
+   * The server is still translating this message (mod_translate in async
+   * mode marked the live copy with <translation-pending/>); the translation
+   * follows as a <translation-update/>, see networking/translationUpdate.
+   * Session-only: not persisted, so a cached message never shows a stale
+   * "Translating…" after a restart.
+   */
+  translationPending?: boolean;
+  /**
+   * When the pending translation was asked for, if not when the message was
+   * sent: an edit (epoch ms, when it arrived). Session-only too.
+   */
+  translationPendingSince?: number;
   langSource?: Iso639_1Codes;
   originalName?: string;
   size?: string;

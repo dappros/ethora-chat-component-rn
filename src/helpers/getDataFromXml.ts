@@ -1,6 +1,6 @@
 import { Element } from 'ltx';
 import { Iso639_1Codes, IUser } from '../types/types';
-import { transformArrayToObject } from './transformTranslatations';
+import { parseTranslationsValue, TRANSLATE_NS } from './transformTranslatations';
 import { normalizeXmppUsername } from './xmppUsername';
 import { normalizeMediaDataAttrs } from './mediaWireData';
 
@@ -9,38 +9,6 @@ const getLocalpartFromJid = (jid?: string): string | undefined => {
   if (!value) {return undefined;}
   return value.split('@')[0] || undefined;
 };
-
-// Tolerant JSON parse: a malformed `translations` attr must not reject the
-// whole stanza (which would silently drop the message). Mirrors the web
-// SDK's safeJsonParse.
-const safeJsonParse = <T,>(value: unknown, fallback: T): T => {
-  if (typeof value !== 'string' || !value) {return fallback;}
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    return fallback;
-  }
-};
-
-// Keep only well-formed translation entries (drops partial/garbage items),
-// same shape guard the web SDK applies before transformArrayToObject.
-const normalizeTranslations = (value: unknown) =>
-  Array.isArray(value)
-    ? value.filter(
-        (
-          item
-        ): item is {
-          translatedText: string;
-          language: string;
-          languageName: string;
-        } =>
-          !!item &&
-          typeof item === 'object' &&
-          typeof (item as any).translatedText === 'string' &&
-          typeof (item as any).language === 'string' &&
-          typeof (item as any).languageName === 'string'
-      )
-    : [];
 
 const extractTimestamp = (str: string, stanza?: any): string | null => {
   if (!str) {return null;}
@@ -60,6 +28,7 @@ interface DataXml {
   user: IUser;
   deleted?: boolean;
   translations?: any;
+  translationPending?: boolean;
   langSource?: Iso639_1Codes;
   xmppId?: string;
   xmppFrom?: string;
@@ -83,13 +52,14 @@ export const getDataFromXml = async (stanza: Element): Promise<DataXml | undefin
 
   const body = fullData?.getChild('body')?.getText() || undefined;
   const deleted = !!fullData?.getChild('deleted');
-  const translationPayload = safeJsonParse<{ translates?: unknown[] }>(
-    fullData?.getChild('translations')?.attrs?.value,
-    {}
+  const translations = parseTranslationsValue(
+    fullData?.getChild('translations')?.attrs?.value
   );
-  const translations = fullData?.getChild('translations')?.attrs?.value
-    ? transformArrayToObject(normalizeTranslations(translationPayload.translates))
-    : undefined;
+  // mod_translate in async mode delivers the message first and marks the
+  // live copy; the translation follows as a <translation-update/> (see
+  // networking/translationUpdate). The archived copy never has the mark.
+  const translationPending =
+    !translations && !!fullData?.getChild('translation-pending', TRANSLATE_NS);
   const langSource = fullData?.getChild('translate')?.attrs?.source as
     | Iso639_1Codes
     | undefined;
@@ -137,6 +107,7 @@ export const getDataFromXml = async (stanza: Element): Promise<DataXml | undefin
     user,
     deleted,
     translations,
+    ...(translationPending ? { translationPending: true } : {}),
     langSource,
     xmppId,
     xmppFrom,
