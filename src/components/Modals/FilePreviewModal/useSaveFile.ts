@@ -64,8 +64,8 @@ export const useSaveFile = () => {
         const hasPermission = await requestStoragePermission();
         if (!hasPermission) {
           Alert.alert(
-            "Permission Denied",
-            "Storage permission is required to save files to the gallery."
+            t("permission.deniedTitle"),
+            t("permission.saveToGallery")
           );
           return;
         }
@@ -83,10 +83,13 @@ export const useSaveFile = () => {
               type: "success",
             });
           } else {
-            Alert.alert("Error", "Failed to save the file.");
+            Alert.alert(t("toast.error"), t("toast.saveFailed"));
           }
         } catch (err) {
-          Alert.alert("Error", `Failed to save the file: ${displayFileName}`);
+          Alert.alert(
+            t("toast.error"),
+            t("toast.saveFailedNamed", { name: displayFileName })
+          );
         }
       };
 
@@ -122,7 +125,7 @@ export const useSaveFile = () => {
           const download = await fetchToCache(activeFile.fileURL, filePath);
 
           if (download.status !== 200) {
-            Alert.alert("Error", "Failed to save the file.");
+            Alert.alert(t("toast.error"), t("toast.saveFailed"));
             return;
           }
 
@@ -133,8 +136,8 @@ export const useSaveFile = () => {
               const perm = await saf.requestDirectoryPermissionsAsync();
               if (!perm.granted) {
                 Alert.alert(
-                  "Permission Denied",
-                  "Storage permission is required to save the file."
+                  t("permission.deniedTitle"),
+                  t("permission.saveFile")
                 );
                 return;
               }
@@ -185,7 +188,7 @@ export const useSaveFile = () => {
           });
         } catch (err) {
           console.error("Error saving file:", err);
-          Alert.alert("Error", "Failed to save the file.");
+          Alert.alert(t("toast.error"), t("toast.saveFailed"));
         }
       };
 

@@ -71,6 +71,12 @@ describe('i18n string table coverage', () => {
     'toast.failedToUploadImage',
     'toast.chatDeletedSuccess',
     'toast.failedToDeleteChat',
+    // The save button's alerts (useSaveFile), English literals before.
+    'permission.deniedTitle',
+    'permission.saveToGallery',
+    'permission.saveFile',
+    'toast.saveFailed',
+    'toast.saveFailedNamed',
   ];
 
   it.each(translationFixKeys)('key "%s" exists in every locale', (key) => {

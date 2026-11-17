@@ -107,10 +107,16 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
     [dispatch]
   );
 
-  // Fixed band height shared with the modal headers. Zero vertical padding
-  // here so `height` defines the band exactly (content centers via the
-  // styled `align-items: center`); the styled 12px vertical padding would
-  // otherwise add on top of it.
+  // Band height shared with the modal headers. Zero vertical padding here
+  // so the band is exactly that tall (content centers via the styled
+  // `align-items: center`); the styled 12px vertical padding would otherwise
+  // add on top of it.
+  // A minimum, not a fixed `height`: with a fixed height Yoga gave the
+  // title + subtitle column only the avatar's 40px, and the subtitle box
+  // (the part allowed to shrink) gave up the rest, so "N users" was cut off
+  // at the bottom. Android lines are taller than iOS ones, so a custom font
+  // or a larger headerTitle hit it there first. Now the column gets what it
+  // needs, and the band grows only past the minimum.
   const insets = useSafeAreaInsets();
   const topInset = config?.headerLayout?.safeAreaTop ? insets.top : 0;
   const headerHeight = resolveHeaderHeight(config?.headerLayout?.height) + topInset;
@@ -118,7 +124,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   return (
     <>
       <ChatContainerHeader
-        style={{ height: headerHeight, paddingTop: topInset, paddingBottom: 0 }}
+        style={{ minHeight: headerHeight, paddingTop: topInset, paddingBottom: 0 }}
       >
         {handleBackClick && !config?.headerChatMenu ? (
           <View style={styles.leftContainer}>
