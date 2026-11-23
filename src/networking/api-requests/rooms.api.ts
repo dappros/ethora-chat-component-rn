@@ -2,6 +2,8 @@ import { ApiRoom, DeleteRoomMember, PostAddRoomMember, PostReportRoom, PostRoom,
 import { uniqueMembers } from '../../helpers/uniqueMembers';
 import { store } from '../../roomStore';
 import { addRoom, mergeUsersSet, updateRoom } from '../../roomStore/roomsSlice';
+import { setBlockedUserIds } from '../../roomStore/chatSettingsSlice';
+import { blockedIdOf, isUserBlockEnabled } from '../../helpers/userBlock';
 import { IRoom } from '../../types/types';
 import http from '../apiClient';
 import {
@@ -357,6 +359,11 @@ export async function getRooms(): Promise<{ items: ApiRoom[] }> {
     dispatchRoomsFromRestItems(response.data?.items || [], {
       keepMuted: !current,
     });
+    // /chats/my lists the caller's blocked users next to the rooms
+    const blocked: BlockedUser[] | undefined = response.data?.blockedUsers;
+    if (current && Array.isArray(blocked) && isUserBlockEnabled(store.getState().chatSettingStore.config)) {
+      store.dispatch(setBlockedUserIds(blocked.map((u) => blockedIdOf(u.xmppUsername)).filter(Boolean)));
+    }
     return response.data;
   })();
 
@@ -456,6 +463,49 @@ export async function postReportRoom(data: PostReportRoom) {
   } catch (error) {
     throw new Error('Error reporting chat');
   }
+}
+
+export interface BlockedUser {
+  _id: string;
+  firstName?: string;
+  lastName?: string;
+  profileImage?: string;
+  xmppUsername?: string;
+  createdAt?: string;
+}
+
+// POST / DELETE /v1/chats/blocked - block / unblock another user (`user` is their
+// xmppUsername). Blocking hides the pair's private rooms from /chats/my and stops
+// the blocked user's live messages to the caller; the messages stay archived, so
+// unblocking restores the conversation. Idempotent. Opt-in: config.features.userBlock.
+export async function blockUser(peer: string): Promise<{ user: string; blocked: boolean } | undefined> {
+  const token = store.getState().chatSettingStore.user.token || '';
+  try {
+    const response = await http.post('/v1/chats/blocked', { user: peer }, { headers: { Authorization: token } });
+    return response.data?.result;
+  } finally {
+    // The 60s /chats/my cache would keep serving the pair's private room
+    invalidateRoomsCache();
+  }
+}
+
+export async function unblockUser(peer: string): Promise<{ user: string; blocked: boolean } | undefined> {
+  const token = store.getState().chatSettingStore.user.token || '';
+  try {
+    const response = await http.delete(`/v1/chats/blocked/${encodeURIComponent(peer)}`, {
+      headers: { Authorization: token },
+    });
+    return response.data?.result;
+  } finally {
+    invalidateRoomsCache();
+  }
+}
+
+// GET /v1/chats/blocked - the caller's blocked users (Settings → Blocked users)
+export async function getBlockedUsers(): Promise<BlockedUser[]> {
+  const token = store.getState().chatSettingStore.user.token || '';
+  const response = await http.get('/v1/chats/blocked', { headers: { Authorization: token } });
+  return response.data?.items || [];
 }
 
 export async function postAddRoomMember(

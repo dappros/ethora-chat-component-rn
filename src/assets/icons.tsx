@@ -284,6 +284,13 @@ export const NoMessages = ({
   </Svg>
 );
 
+export const BlockIcon = ({ color = '#E53935', ...props }) => (
+  <Svg width="24" height="24" viewBox="0 0 24 24" fill="none" {...props}>
+    <Circle cx="12" cy="12" r="9.25" stroke={color} strokeWidth="1.5" />
+    <Path d="M5.5 5.5L18.5 18.5" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+  </Svg>
+);
+
 export const ReportIcon = ({ color = '#E53935', ...props }) => (
   <Svg width="24" height="24" viewBox="0 0 24 24" fill="none" {...props}>
     <Path

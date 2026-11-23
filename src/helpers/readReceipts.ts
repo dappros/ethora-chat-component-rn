@@ -24,6 +24,23 @@ export const isReceiptMarkerId = (id: unknown): boolean => {
   return value.startsWith('message-received') || value.startsWith('message-displayed');
 };
 
+/**
+ * Whether a message a history (MAM) page brought in still gets a delivery
+ * receipt: only when it is newer than the room's read mark
+ * (`lastViewedTimestamp`, ms). One at or before the mark was already shown
+ * to this reader, and its sender learns that from the read marker; acking it
+ * again would send a receipt for every history message on every login. A
+ * room with no read mark (0) acks as before.
+ */
+export const isUnreadArchivedMessage = (
+  message: Pick<IMessage, 'id' | 'date'>,
+  lastViewedTimestamp: number | null | undefined
+): boolean => {
+  const mark = Number(lastViewedTimestamp) || 0;
+  if (mark <= 0) return true;
+  return msgSortableMs(message) > mark;
+};
+
 // A message the reader can be shown as displayed: not an optimistic send,
 // not the "New messages" divider, not a client-only call-log row.
 const isDisplayableForReceipts = (message: IMessage | undefined | null): boolean => {

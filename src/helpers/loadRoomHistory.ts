@@ -1,4 +1,5 @@
-import type { IRoom } from '../types/types';
+import type { IMessage, IRoom } from '../types/types';
+import type { HistoryPage } from '../networking/xmpp/getHistory.xmpp';
 
 /** The slice of the XMPP client the history loader needs. */
 export interface HistoryPageClient {
@@ -80,4 +81,54 @@ export async function loadRoomHistory({
     inFlight.delete(chatJID);
     onBusyChange?.(inFlight.size > 0);
   }
+}
+
+/** Rows read per older page while the room being opened has no message yet. */
+export const INITIAL_HISTORY_SKIP_PAGE_SIZE = 100;
+/** Older pages read that way at most before the room is shown empty. */
+export const MAX_INITIAL_HISTORY_SKIP_PAGES = 20;
+
+/** The slice of the XMPP client the room-opening load needs. */
+export interface InitialHistoryClient {
+  getHistoryPage: (
+    chatJID: string,
+    max: number,
+    cursor?: { before?: number }
+  ) => Promise<HistoryPage>;
+}
+
+/**
+ * The history of a room being opened: its latest page, then older pages for
+ * as long as a page brings no message. A page can hold only receipts, read
+ * markers or reactions (archive rows that are no message), and while the
+ * room has no message the chat shows "no messages" and nothing pages further
+ * (MessageList, which would, is not mounted): the room looked empty until a
+ * new message arrived. Stops at the first page with a message, at the start
+ * of the archive, at a failed page, or after `maxSkipPages` older pages.
+ * Returns the messages of the last page read.
+ */
+export async function loadInitialRoomHistory(
+  client: InitialHistoryClient,
+  chatJID: string,
+  firstPageSize: number,
+  {
+    skipPageSize = INITIAL_HISTORY_SKIP_PAGE_SIZE,
+    maxSkipPages = MAX_INITIAL_HISTORY_SKIP_PAGES,
+  }: { skipPageSize?: number; maxSkipPages?: number } = {}
+): Promise<IMessage[]> {
+  let page = await client.getHistoryPage(chatJID, firstPageSize);
+  for (let skipped = 0; skipped < maxSkipPages; skipped++) {
+    const onlyNonMessages =
+      page.ok &&
+      page.finSeen &&
+      !page.complete &&
+      page.messages.length === 0 &&
+      page.received > 0 &&
+      page.first !== null;
+    if (!onlyNonMessages) {break;}
+    page = await client.getHistoryPage(chatJID, skipPageSize, {
+      before: page.first as number,
+    });
+  }
+  return page.messages;
 }

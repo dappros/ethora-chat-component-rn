@@ -1610,8 +1610,8 @@ export class XmppClient {
 
   /**
    * XEP-0184 delivery receipt for a message from someone else. Sent for live
-   * messages and for messages a MAM page brings in; a message already acked
-   * is skipped. When the stream is down (or `config.disableReadReceipts` is
+   * messages and for unread messages a MAM page brings in (see
+   * isUnreadArchivedMessage); a message already acked is skipped. When the stream is down (or `config.disableReadReceipts` is
    * on) nothing is recorded, so a later page can still ack it.
    */
   sendReceivedReceiptStanza(messageId: string, roomJid: string) {

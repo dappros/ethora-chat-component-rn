@@ -29,13 +29,14 @@ interface SwipeableRoomRowProps {
   muted?: boolean;
   /** Mute / unmute, as in the chat profile. No handler → no button. */
   onToggleMute?: (roomJid: string) => void;
-  onReport: (roomJid: string) => void;
+  /** Opens the report form (config.features.report). No handler → no button. */
+  onReport?: (roomJid: string) => void;
   onLeave?: (roomJid: string) => void;
   children: React.ReactNode;
 }
 
 /**
- * A room-list row that slides left to show Mute, Report and Leave behind it,
+ * A room-list row that slides left to show Mute, Report (when on) and Leave behind it,
  * the way chats do in the big messengers. A tap on an action folds the
  * row back first, so the list is tidy under whatever the action opens.
  */
@@ -49,7 +50,7 @@ const SwipeableRoomRow: React.FC<SwipeableRoomRowProps> = ({
 }) => {
   const theme = useTheme();
   const t = useT();
-  const actionCount = 1 + (onToggleMute ? 1 : 0) + (onLeave ? 1 : 0);
+  const actionCount = (onToggleMute ? 1 : 0) + (onReport ? 1 : 0) + (onLeave ? 1 : 0);
   const styles = useMemo(
     () => createStyles(theme, actionCount),
     [theme, actionCount]
@@ -98,17 +99,19 @@ const SwipeableRoomRow: React.FC<SwipeableRoomRowProps> = ({
             </Text>
           </TouchableOpacity>
         ) : null}
-        <TouchableOpacity
-          testID={`room-action-report-${roomJid.split('@')[0]}`}
-          accessibilityRole="button"
-          accessibilityLabel={t('action.report')}
-          activeOpacity={0.8}
-          style={[styles.action, { backgroundColor: theme.textSecondary }]}
-          onPress={() => act(onReport)}
-        >
-          <ReportIcon color={theme.textOnPrimary} width={22} height={22} />
-          <Text style={styles.label}>{t('action.report')}</Text>
-        </TouchableOpacity>
+        {onReport ? (
+          <TouchableOpacity
+            testID={`room-action-report-${roomJid.split('@')[0]}`}
+            accessibilityRole="button"
+            accessibilityLabel={t('action.report')}
+            activeOpacity={0.8}
+            style={[styles.action, { backgroundColor: theme.textSecondary }]}
+            onPress={() => act(onReport)}
+          >
+            <ReportIcon color={theme.textOnPrimary} width={22} height={22} />
+            <Text style={styles.label}>{t('action.report')}</Text>
+          </TouchableOpacity>
+        ) : null}
         {onLeave ? (
           <TouchableOpacity
             testID={`room-action-leave-${roomJid.split('@')[0]}`}
@@ -126,6 +129,9 @@ const SwipeableRoomRow: React.FC<SwipeableRoomRowProps> = ({
     ),
     [act, muted, onLeave, onReport, onToggleMute, roomJid, styles, t, theme]
   );
+
+  // No action to show: a plain row that doesn't slide
+  if (actionCount === 0) {return <>{children}</>;}
 
   return (
     <ReanimatedSwipeable

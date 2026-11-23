@@ -9,6 +9,7 @@ import {
   getReadWatermarkMessageId,
   getReceiptStatus,
   isReceiptMarkerId,
+  isUnreadArchivedMessage,
   receiptNameFor,
   RECEIPT_NAME_LIMIT,
   selectSeenBy,
@@ -272,5 +273,21 @@ describe('computeReadWatermark gates', () => {
   it('respects a scroll boundary', () => {
     const s = store({ rooms: { readBoundaries: { [ROOM]: 1700000000001 } } });
     expect(computeReadWatermark(s as any, ROOM)).toBe(id(1));
+  });
+});
+
+describe('isUnreadArchivedMessage', () => {
+  // Archive ids start with the 13-digit millisecond time.
+  const at = (id: string) => ({ id, date: '' }) as Pick<IMessage, 'id' | 'date'>;
+
+  it('is true only for a message newer than the read mark', () => {
+    expect(isUnreadArchivedMessage(at('1700000000300123'), 1700000000200)).toBe(true);
+    expect(isUnreadArchivedMessage(at('1700000000200999'), 1700000000200)).toBe(false);
+    expect(isUnreadArchivedMessage(at('1700000000100000'), 1700000000200)).toBe(false);
+  });
+
+  it('is true for every message when the room has no read mark', () => {
+    expect(isUnreadArchivedMessage(at('1700000000100000'), 0)).toBe(true);
+    expect(isUnreadArchivedMessage(at('1700000000100000'), undefined)).toBe(true);
   });
 });

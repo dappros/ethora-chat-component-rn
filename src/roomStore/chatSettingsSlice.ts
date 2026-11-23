@@ -52,6 +52,12 @@ export interface ChatState {
    * nothing is trying (logged out).
    */
   connection?: ConnectionState;
+  /**
+   * Local parts of the xmppUsernames this user blocked (config.features.userBlock).
+   * Their private chats leave the list, their messages in group chats show as
+   * "Blocked user" and don't count as unread.
+   */
+  blockedUserIds?: string[];
 }
 
 export type ConnectionState = 'connecting' | 'syncing' | 'online' | 'offline';
@@ -237,7 +243,18 @@ const reducers = {
     state.deleteModal = undefined;
     state.selectedUser = undefined;
     state.activeFile = undefined;
+    state.blockedUserIds = undefined;
     secureUserStorage().remove();
+  },
+  setBlockedUserIds: (state: WritableDraft<ChatState>, action: PayloadAction<string[]>) => {
+    state.blockedUserIds = action.payload;
+  },
+  addBlockedUserId: (state: WritableDraft<ChatState>, action: PayloadAction<string>) => {
+    const ids = state.blockedUserIds || [];
+    if (!ids.includes(action.payload)) {state.blockedUserIds = [...ids, action.payload];}
+  },
+  removeBlockedUserId: (state: WritableDraft<ChatState>, action: PayloadAction<string>) => {
+    state.blockedUserIds = (state.blockedUserIds || []).filter((id) => id !== action.payload);
   },
   setLangSource: (
     state: WritableDraft<ChatState>,
@@ -289,6 +306,9 @@ export const {
   setPushEnabled,
   setUiLocale,
   setConnectionState,
+  setBlockedUserIds,
+  addBlockedUserId,
+  removeBlockedUserId,
 } = chatSlice.actions;
 
 export default chatSlice.reducer;

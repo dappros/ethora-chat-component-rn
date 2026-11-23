@@ -9,6 +9,7 @@ import { IConfig, IMessage, IRoom } from '../types/types';
 import { useDispatch, useSelector, useStore } from 'react-redux';
 import useGetNewArchRoom from './useGetNewArchRoom';
 import type { RootState } from '../roomStore';
+import { loadInitialRoomHistory } from '../helpers/loadRoomHistory';
 
 const countUndefinedText = (arr: IMessage[]) =>
   (Array.isArray(arr) ? arr : []).filter(
@@ -92,7 +93,9 @@ export const useRoomInitialization = (
       }
       dispatch(setIsLoading({ loading: true, chatJID: activeRoomJID }));
       try {
-        const res = await client.getHistoryStanza(activeRoomJID, 30);
+        // Pages on past history pages that hold no message (receipts, read
+        // markers), so the room does not open empty.
+        const res = await loadInitialRoomHistory(client, activeRoomJID, 30);
         if (!res?.length) {
           client.prioritizeRoomPresence?.(activeRoomJID).catch(() => {});
         }

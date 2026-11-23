@@ -60,7 +60,12 @@ export const CenterContainer = styled.View<{
 `;
 
 export const ChatContainerHeaderBoxInfo = styled.TouchableOpacity`
-  flex: 1;
+  /* No flex:1. In CenterContainer's column it would mean flex-basis 0, and
+   * Yoga would size this row to CenterContainer's 40px minimum instead of
+   * its content: overflow:hidden then cut off the bottom of the subtitle
+   * ("N users") wherever title + subtitle are taller than 40px, which is
+   * Android (taller text lines), not iOS. width:100% still fills the
+   * width; the height is the avatar's or the text's, whichever is taller. */
   flex-direction: row;
   align-items: center;
   /* Left-aligned: the avatar + chat-name row now hugs the left edge of

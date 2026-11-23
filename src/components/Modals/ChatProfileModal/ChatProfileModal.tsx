@@ -2,7 +2,10 @@
 
 import { composeName } from '../../../helpers/displayName';
 import { uniqueMembers } from '../../../helpers/uniqueMembers';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useBlockUser } from '../../../hooks/useBlockUser';
+import { isUserBlockEnabled, privateRoomPeer } from '../../../helpers/userBlock';
+import { isReportEnabled } from '../../../helpers/reportRoom';
 import {
   Alert,
   Animated,
@@ -30,6 +33,7 @@ import {
   AddNewIcon,
   BellIcon,
   BellOffIcon,
+  BlockIcon,
   DeleteIcon,
   EditIcon,
   LeaveIcon,
@@ -420,6 +424,19 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
     }
   };
 
+  // Block the other user of a private chat (config.features.userBlock)
+  const { confirmBlock } = useBlockUser();
+  const blockPeer = useMemo(
+    () => (isUserBlockEnabled(config) ? privateRoomPeer(activeRoom as any, stateUser?.xmppUsername) : undefined),
+    [config, activeRoom?.type, activeRoom?.members, stateUser?.xmppUsername] // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const handleBlockPeer = useCallback(async () => {
+    if (!blockPeer) {return;}
+    const blocked = await confirmBlock({ ...blockPeer, roomJid: activeRoom?.jid });
+    if (blocked) {handleCloseModal();}
+  }, [blockPeer, confirmBlock, activeRoom?.jid, handleCloseModal]);
+  const showReport = isReportEnabled(config);
+
   const heroActions: HeroAction[] = useMemo(
     () => [
       {
@@ -443,14 +460,18 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
         icon: (color: string) => <LeaveIcon color={color} />,
         onPress: handleLeave,
       },
-      {
-        key: 'report',
-        label: t('action.report'),
-        icon: (color: string) => <ReportIcon color={color} />,
-        onPress: () => setIsReportOpen(true),
-      },
+      ...(showReport
+        ? [
+            {
+              key: 'report',
+              label: t('action.report'),
+              icon: (color: string) => <ReportIcon color={color} />,
+              onPress: () => setIsReportOpen(true),
+            },
+          ]
+        : []),
     ],
-    [t, activeRoom?.jid, activeRoom?.muted] // eslint-disable-line react-hooks/exhaustive-deps
+    [t, activeRoom?.jid, activeRoom?.muted, showReport] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   // "…" menu. Edit is the chat picture — the only chat detail this SDK can
@@ -484,12 +505,23 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
         onPress: openSearch,
       });
     }
-    items.push({
-      key: 'report',
-      label: t('action.report'),
-      icon: <ReportIcon color={theme.text} width={18} height={18} />,
-      onPress: () => setIsReportOpen(true),
-    });
+    if (showReport) {
+      items.push({
+        key: 'report',
+        label: t('action.report'),
+        icon: <ReportIcon color={theme.text} width={18} height={18} />,
+        onPress: () => setIsReportOpen(true),
+      });
+    }
+    if (blockPeer) {
+      items.push({
+        key: 'block',
+        label: t('action.block'),
+        icon: <BlockIcon color={theme.danger} width={18} height={18} />,
+        destructive: true,
+        onPress: () => void handleBlockPeer(),
+      });
+    }
     if (canDeleteChat) {
       items.push({
         key: 'delete-and-leave',
@@ -500,7 +532,7 @@ const ChatProfileModal: React.FC<ChatProfileModalProps> = ({
       });
     }
     return items;
-  }, [canEditIcon, canDeleteChat, hasIcon, isCollapsed, t, theme.text]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [canEditIcon, canDeleteChat, hasIcon, isCollapsed, t, theme.text, blockPeer, handleBlockPeer, showReport]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!activeRoom) {
     return null;

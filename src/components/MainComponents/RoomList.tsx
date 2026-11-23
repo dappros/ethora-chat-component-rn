@@ -20,6 +20,7 @@ import {
 } from 'react-native';
 import SwipeableRoomRow, { closeOpenRoomRow } from '../RoomComponents/SwipeableRoomRow';
 import ReportChatModal from '../Modals/ChatProfileModal/ReportChatModal';
+import { isReportEnabled } from '../../helpers/reportRoom';
 import { IRoom } from '../../types/types';
 import { SearchInput } from '../InputComponents/Search';
 import { BurgerMenuIcon, SearchIcon } from '../../assets/icons';
@@ -37,6 +38,8 @@ import { isMessageSearchEnabled } from '../../helpers/isMessageSearchEnabled';
 import { useMessageSearch } from '../Modals/MessageSearchModal/useMessageSearch';
 import type { MessageSearchHit } from '../../networking/api-requests/messageSearch.api';
 import { canLeaveRoom } from '../../helpers/canLeaveRoom';
+import { isPrivateRoomWithBlockedPeer } from '../../helpers/userBlock';
+import { useBlockedUserIds } from '../../hooks/useBlockedUserIds';
 import {
   MessageHitList,
   SecondaryPillButton,
@@ -91,7 +94,9 @@ const RoomList: React.FC<RoomListProps> = ({
   burgerMenu = false,
   onRoomClick,
 }) => {
-  const { config } = useChatSettingState();
+  const { config, user } = useChatSettingState();
+  const blockedUserIds = useBlockedUserIds();
+  const ownXmppUsername = user?.xmppUsername || '';
   const t = useT();
   const theme = useTheme();
 
@@ -143,6 +148,7 @@ const RoomList: React.FC<RoomListProps> = ({
   // Behind a row swiped left. Leaving is the chat profile's flow: the
   // server takes us out of the members, then the MUC and the store.
   const swipeActions = !config?.disableRoomSwipeActions;
+  const showReport = isReportEnabled(config);
   const handleLeaveRoom = useCallback((jid: string) => setLeaveJid(jid), []);
   const handleReportRoom = useCallback((jid: string) => setReportJid(jid), []);
   const toggleRoomMuted = useRoomMute();
@@ -195,6 +201,8 @@ const RoomList: React.FC<RoomListProps> = ({
     if (!chatsMap.has(lowerCaseSearchTerm)) {
       const result = chats
         .filter((chat) => {
+          // A private chat with a blocked user leaves the list at once
+          if (isPrivateRoomWithBlockedPeer(chat, blockedUserIds, ownXmppUsername)) {return false;}
           const hay = `${chat?.title || ''} ${chat?.name || ''}`.toLowerCase();
           return hay.includes(lowerCaseSearchTerm);
         })
@@ -204,7 +212,7 @@ const RoomList: React.FC<RoomListProps> = ({
     }
 
     return chatsMap.get(lowerCaseSearchTerm) || [];
-  }, [chats, searchTerm, activityOf]);
+  }, [chats, searchTerm, activityOf, blockedUserIds, ownXmppUsername]);
 
   useEffect(() => {
     if (burgerMenu) {
@@ -352,7 +360,7 @@ const RoomList: React.FC<RoomListProps> = ({
           roomJid={item.jid}
           muted={!!item.muted}
           onToggleMute={handleToggleMute}
-          onReport={handleReportRoom}
+          onReport={showReport ? handleReportRoom : undefined}
           onLeave={
             canLeaveRoom(item.jid, config?.defaultRooms)
               ? handleLeaveRoom
@@ -369,6 +377,7 @@ const RoomList: React.FC<RoomListProps> = ({
       handlePressOut,
       config,
       swipeActions,
+      showReport,
       handleReportRoom,
       handleLeaveRoom,
       handleToggleMute,

@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { ModalContainerFullScreen } from '../styledModalComponents';
 import {
+  BlockIcon,
   ChatIcon,
   EditIcon,
   IconDoc,
@@ -21,6 +22,9 @@ import {
   ProfileIcon,
   ShareIcon,
 } from '../../../assets/icons';
+import { useBlockUser } from '../../../hooks/useBlockUser';
+import { useBlockedUserIds } from '../../../hooks/useBlockedUserIds';
+import { blockedIdOf, isUserBlockEnabled } from '../../../helpers/userBlock';
 import { useAppDispatch } from '../../../hooks/hooks';
 import { useChatSettingState } from '../../../hooks/useChatSettingState';
 import { useXmppClient } from '../../../context/xmppProvider';
@@ -442,6 +446,26 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const canStartEncrypted =
     config?.e2ee?.enabled === true && !!config?.newArch;
 
+  // Block / unblock another user (config.features.userBlock)
+  const { confirmBlock, unblock } = useBlockUser();
+  const blockedUserIds = useBlockedUserIds();
+  const activeRoomJID = useSelector((state: RootState) => state.rooms.activeRoomJID);
+  const peerXmppUsername = String(selectedUser?.userJID ?? (selectedUser?.id || '')).split('@')[0];
+  const canBlock = !isOwnProfile && !!peerXmppUsername && isUserBlockEnabled(config);
+  const isPeerBlocked = canBlock && blockedUserIds.includes(blockedIdOf(peerXmppUsername));
+  const handleBlockToggle = useCallback(async () => {
+    if (isPeerBlocked) {
+      await unblock(peerXmppUsername);
+      return;
+    }
+    const blocked = await confirmBlock({
+      xmppUsername: peerXmppUsername,
+      name: nameOrNothing(selectedUser?.name) || undefined,
+      roomJid: activeRoomJID || undefined,
+    });
+    if (blocked) {handleCloseModal();}
+  }, [isPeerBlocked, unblock, confirmBlock, peerXmppUsername, selectedUser?.name, activeRoomJID, handleCloseModal]);
+
   const openFile = (file: UserFile) => {
     dispatch(
       setActiveFile({
@@ -529,8 +553,18 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
               icon: (color: string) => <ShareIcon color={color} />,
               onPress: handleShare,
             },
+            ...(canBlock
+              ? [
+                  {
+                    key: 'block',
+                    label: isPeerBlocked ? t('action.unblock') : t('action.block'),
+                    icon: (color: string) => <BlockIcon color={color} />,
+                    onPress: () => void handleBlockToggle(),
+                  },
+                ]
+              : []),
           ],
-    [isOwnProfile, t, handleShare, handlePrivateMessage, handleEncryptedPrivateMessage, canStartEncrypted, handleLogout, canCall, isCallBusy, isAudioCallsEnabled, handleCall] // eslint-disable-line react-hooks/exhaustive-deps
+    [isOwnProfile, t, handleShare, handlePrivateMessage, handleEncryptedPrivateMessage, canStartEncrypted, handleLogout, canCall, isCallBusy, isAudioCallsEnabled, handleCall, canBlock, isPeerBlocked, handleBlockToggle] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   // Collapsed, the hero's round buttons are gone — the "…" menu carries
@@ -542,7 +576,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
             key: action.key,
             label: action.label,
             icon: action.icon(theme.text),
-            destructive: action.key === 'logout',
+            destructive: action.key === 'logout' || action.key === 'block',
             onPress: action.onPress,
           }))
         : [],

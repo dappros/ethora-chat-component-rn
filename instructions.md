@@ -17,6 +17,7 @@ The canonical TypeScript surface is [`src/types/types.ts → IConfig`](src/types
   - [Room list](#room-list)
   - [Chat info panel](#chat-info-panel)
   - [Messaging and interactions](#messaging-and-interactions)
+  - [Reporting and blocking](#reporting-and-blocking)
   - [Audio and video calls](#audio-and-video-calls)
   - [Typing and sending control](#typing-and-sending-control)
   - [Notifications](#notifications)
@@ -216,6 +217,16 @@ Pick **one** auth mode. Mixing is undefined behavior.
 | `secondarySendButton` | `{ enabled; messageEdit; buttonText?; label?; buttonStyles?; hideInputSendButton?; overwriteEnterClick? }` | A second send action (e.g. "Send & post") next to the input. |
 | `whitelistSystemMessage` | `string[]` | Render only the listed `isSystemMessage` types. |
 | `customSystemMessage` | `React.ComponentType<MessageProps>` | Replace the default system-message bubble. |
+
+### Reporting and blocking
+
+| Option | Type | Description |
+| --- | --- | --- |
+| `features.report` | `boolean` | **Off by default.** "Report" in the chat header menu, the chat profile and the room-list swipe actions; sends `POST /v1/chats/reports/:chatName`. |
+| `features.userBlock` | `boolean` | **Off by default.** "Block user" on private chats and member profiles, Settings → Blocked Users; `GET / POST / DELETE /v1/chats/blocked`. A block also sends the moderators a report. |
+| `disableUserBlock` | `boolean` | Hide blocking even with `features.userBlock`. |
+
+Details in the README, [Reporting and blocking](README.md#reporting-and-blocking).
 
 ### Settings screen
 

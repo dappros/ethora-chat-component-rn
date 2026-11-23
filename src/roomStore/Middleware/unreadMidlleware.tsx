@@ -2,6 +2,7 @@ import { Middleware } from '@reduxjs/toolkit';
 import { setUnreadCounts, msgSortableMs } from '../roomsSlice';
 import { IMessage } from '../../types/types';
 import { getTimestampFromUnknown } from '../../helpers/timestamp';
+import { blockedIdOf } from '../../helpers/userBlock';
 
 // Per-room cache so we only recompute when something that affects the
 // count actually changed. The fingerprint is `<messages.length>|<lastViewed>`
@@ -151,6 +152,7 @@ export const unreadMiddleware: Middleware =
     const selfUser = state.chatSettingStore?.user;
     const selfXmpp = selfUser?.xmppUsername || '';
     const selfWallet = selfUser?.walletAddress || '';
+    const blockedIds: string[] = state.chatSettingStore?.blockedUserIds || [];
 
     const touched = touchedRooms(action);
     const jids = touched === 'all' ? Object.keys(rooms) : touched;
@@ -197,11 +199,19 @@ export const unreadMiddleware: Middleware =
       // own messages so MAM-replayed sends on re-login don't bump
       // the user's own badge.
       const since = room.lastViewedTimestamp || 0;
+      // A blocked sender's messages are hidden in the transcript, so they
+      // don't drive the badge either.
+      const isFromBlocked = (msg: IMessage) =>
+        blockedIds.length > 0 &&
+        [(msg as any)?.user?.id, (msg as any)?.user?.userJID, (msg as any)?.user?.xmppUsername].some(
+          (id) => !!id && blockedIds.includes(blockedIdOf(id))
+        );
       const isCountable = (msg: IMessage) =>
         msg.id !== 'delimiter-new' &&
         !msg.pending &&
         String((msg as any)?.isSystemMessage || '') !== 'true' &&
-        !isOwnMessage(msg, selfXmpp, selfWallet);
+        !isOwnMessage(msg, selfXmpp, selfWallet) &&
+        !isFromBlocked(msg);
       // Without a baseline (only reachable here via the API count) nothing
       // can be counted locally: the whole history would read as unread.
       let unreadMessagesCount = 0;

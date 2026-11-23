@@ -9,6 +9,7 @@ import { logoutMiddleware } from './Middleware/logoutMiddleware';
 import { newMessageMidlleware } from './Middleware/newMessageMidlleware';
 import { reactionsMiddleware } from './Middleware/reactionsMiddleware';
 import { jumpThreadMiddleware } from './Middleware/jumpThreadMiddleware';
+import { blockedHydrationMiddleware } from './Middleware/blockedHydrationMiddleware';
 import { isPerfProfilingEnabled, perfMiddleware } from './Middleware/perfMiddleware';
 import {
   persistenceMiddleware,
@@ -51,6 +52,7 @@ const createChatStore = () =>
         jumpThreadMiddleware,
         logoutMiddleware,
         persistenceMiddleware,
+        blockedHydrationMiddleware,
       ];
       return isPerfProfilingEnabled()
         ? base.concat(perfMiddleware, ...chain)

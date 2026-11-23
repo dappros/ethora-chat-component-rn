@@ -41,7 +41,7 @@ import { translateKey } from '../i18n/strings';
 import { isWindowQueryId } from './xmpp/mamQueryIds';
 import { loadRoomMembers } from './api-requests/rooms.api';
 import { subscribeRoomForPush } from '../services/pushSubscriptionService';
-import { isReceiptMarkerId } from '../helpers/readReceipts';
+import { isReceiptMarkerId, isUnreadArchivedMessage } from '../helpers/readReceipts';
 
 const RECEIPTS_NS = 'urn:xmpp:receipts';
 const CHAT_MARKERS_NS = 'urn:xmpp:chat-markers:0';
@@ -448,19 +448,20 @@ const onMessageHistory = async (stanza: any, xmppWs?: XmppClient) => {
     }
   }
   if (message) {
-    // A message fetched by catch-up never reaches the live ack, so it is
-    // acked here (the client remembers which ones it already acked).
-    const innerFrom = stanza
-      .getChild('result')
-      ?.getChild('forwarded')
-      ?.getChild('message')?.attrs?.from;
-    ackReceivedMessage(
-      message,
-      String(stanza.attrs?.from || '').split('/')[0],
-      innerFrom,
-      undefined,
-      xmppWs
-    );
+    // A message fetched by catch-up (missed while the app was in the
+    // background) never reaches the live ack, so it is acked here; the
+    // client remembers which ones it already acked this session. Only what
+    // the reader has not seen yet: older history is not acked again on
+    // every login (see isUnreadArchivedMessage).
+    const roomJID = String(stanza.attrs?.from || '').split('/')[0];
+    const lastViewed = store.getState().rooms.rooms?.[roomJID]?.lastViewedTimestamp;
+    if (isUnreadArchivedMessage(message, lastViewed)) {
+      const innerFrom = stanza
+        .getChild('result')
+        ?.getChild('forwarded')
+        ?.getChild('message')?.attrs?.from;
+      ackReceivedMessage(message, roomJID, innerFrom, undefined, xmppWs);
+    }
   }
   if (!claimed && message) {
     store.dispatch(

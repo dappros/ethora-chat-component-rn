@@ -3,7 +3,9 @@
 import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -100,81 +102,90 @@ const ReportChatModal: React.FC<ReportChatModalProps> = ({
       animationType="fade"
       onRequestClose={close}
     >
-      <View style={styles.backdrop}>
-        <TouchableOpacity
-          testID="report-backdrop"
-          style={StyleSheet.absoluteFill}
-          activeOpacity={1}
-          onPress={close}
-        />
-        <View style={styles.card}>
-          <Text style={styles.title}>{t('modal.report.chatTitle')}</Text>
-          <View style={styles.categories}>
-            {CATEGORIES.map(({ id, labelKey }) => {
-              const selected = category === id;
-              return (
-                <TouchableOpacity
-                  key={id}
-                  testID={`report-category-${id}`}
-                  activeOpacity={0.7}
-                  onPress={() => setCategory(id)}
-                  style={[
-                    styles.category,
-                    selected && { borderColor: primary, backgroundColor: primary + '14' },
-                  ]}
-                >
-                  <Text
-                    style={[styles.categoryLabel, selected && { color: primary }]}
+      {/* The details field opens the keyboard: keep Send above it */}
+      <KeyboardAvoidingView
+        style={styles.keyboard}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <View style={styles.backdrop}>
+          <TouchableOpacity
+            testID="report-backdrop"
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={close}
+          />
+          <View style={styles.card}>
+            <Text style={styles.title}>{t('modal.report.chatTitle')}</Text>
+            <View style={styles.categories}>
+              {CATEGORIES.map(({ id, labelKey }) => {
+                const selected = category === id;
+                return (
+                  <TouchableOpacity
+                    key={id}
+                    testID={`report-category-${id}`}
+                    activeOpacity={0.7}
+                    onPress={() => setCategory(id)}
+                    style={[
+                      styles.category,
+                      selected && { borderColor: primary, backgroundColor: primary + '14' },
+                    ]}
                   >
-                    {t(labelKey)}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-          {category === OTHER_REPORT_CATEGORY.id && (
-            <TextInput
-              testID="report-details"
-              style={styles.input}
-              placeholder={t('modal.report.otherDetails')}
-              placeholderTextColor={theme.textMuted}
-              value={details}
-              onChangeText={setDetails}
-              multiline
-            />
-          )}
-          <View style={styles.buttons}>
-            <TouchableOpacity
-              activeOpacity={0.7}
-              style={[styles.button, styles.cancel]}
-              onPress={close}
-            >
-              <Text style={styles.cancelLabel}>{t('action.cancel')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              testID="report-submit"
-              activeOpacity={0.7}
-              disabled={!category || sending}
-              style={[
-                styles.button,
-                { backgroundColor: primary, opacity: !category || sending ? 0.5 : 1 },
-              ]}
-              onPress={submit}
-            >
-              {sending ? (
-                <ActivityIndicator color={theme.textOnPrimary} />
-              ) : (
-                <Text style={styles.submitLabel}>{t('action.send')}</Text>
-              )}
-            </TouchableOpacity>
+                    <Text
+                      style={[styles.categoryLabel, selected && { color: primary }]}
+                    >
+                      {t(labelKey)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            {category === OTHER_REPORT_CATEGORY.id && (
+              <TextInput
+                testID="report-details"
+                style={styles.input}
+                placeholder={t('modal.report.otherDetails')}
+                placeholderTextColor={theme.textMuted}
+                value={details}
+                onChangeText={setDetails}
+                multiline
+              />
+            )}
+            <View style={styles.buttons}>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                style={[styles.button, styles.cancel]}
+                onPress={close}
+              >
+                <Text style={styles.cancelLabel}>{t('action.cancel')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                testID="report-submit"
+                activeOpacity={0.7}
+                disabled={!category || sending}
+                style={[
+                  styles.button,
+                  { backgroundColor: primary, opacity: !category || sending ? 0.5 : 1 },
+                ]}
+                onPress={submit}
+              >
+                {sending ? (
+                  <ActivityIndicator color={theme.textOnPrimary} />
+                ) : (
+                  <Text style={styles.submitLabel}>{t('action.send')}</Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };
 
 const createStyles = (theme: ChatTheme) => StyleSheet.create({
+  keyboard: {
+    flex: 1,
+  },
   backdrop: {
     flex: 1,
     backgroundColor: theme.overlay,

@@ -2,7 +2,8 @@
  * Receipt stanzas on the wire: incoming receipts and markers update the
  * store (and never become messages), a live message from someone else is
  * acked, our own echo and system messages are not, and a MAM page acks what
- * it brings in (windowed queries excluded).
+ * it brings in that is newer than the room's read mark (windowed queries
+ * excluded).
  */
 
 jest.mock('../src/roomStore', () => {
@@ -25,6 +26,7 @@ import { store } from '../src/roomStore';
 import {
   addRoom,
   deleteAllRooms,
+  setLastViewedTimestamp,
   setRoomMessages,
 } from '../src/roomStore/roomsSlice';
 import { setUser } from '../src/roomStore/chatSettingsSlice';
@@ -236,6 +238,23 @@ describe('acknowledging messages fetched by MAM catch-up', () => {
     await onMessageHistory(mamRow('window:abc', '1700000000102', THEM, 'window row') as any, client as any);
     expect(client.sendReceivedReceiptStanza).not.toHaveBeenCalled();
     expect(bodies()).not.toContain('window row');
+  });
+
+  it('does not ack a fetched message at or before the room read mark', async () => {
+    const client = makeClient();
+    store.dispatch(setLastViewedTimestamp({ chatJID: ROOM, timestamp: 1700000000200 }));
+    await onMessageHistory(mamRow('get-history:4', '1700000000150', THEM, 'already read') as any, client as any);
+    await onMessageHistory(mamRow('get-history:4', '1700000000200', THEM, 'read up to here') as any, client as any);
+    expect(bodies()).toEqual(expect.arrayContaining(['already read', 'read up to here']));
+    expect(client.sendReceivedReceiptStanza).not.toHaveBeenCalled();
+  });
+
+  it('acks a fetched message newer than the room read mark (missed in the background)', async () => {
+    const client = makeClient();
+    store.dispatch(setLastViewedTimestamp({ chatJID: ROOM, timestamp: 1700000000200 }));
+    await onMessageHistory(mamRow('get-history:5', '1700000000300', THEM, 'unread') as any, client as any);
+    expect(client.sendReceivedReceiptStanza).toHaveBeenCalledTimes(1);
+    expect(client.sendReceivedReceiptStanza).toHaveBeenCalledWith('1700000000300', ROOM);
   });
 
   it('a MAM page of only archived markers adds no message and acks nothing', async () => {

@@ -1,4 +1,9 @@
 import type { PostReportRoom } from '../types/models/room.model';
+import type { IConfig } from '../types/types';
+
+/** Reporting chats is opt-in (config.features.report), like blocking users. */
+export const isReportEnabled = (config?: IConfig): boolean =>
+  config?.features?.report === true;
 
 // Report categories as the reader sees them (`labelKey`) and as the backend
 // accepts them (`apiCategory`). POST /v1/chats/reports/:chatName validates

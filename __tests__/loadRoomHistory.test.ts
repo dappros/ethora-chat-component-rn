@@ -1,4 +1,5 @@
 import {
+  loadInitialRoomHistory,
   loadRoomHistory,
   resolveHistoryBefore,
 } from '../src/helpers/loadRoomHistory';
@@ -106,5 +107,84 @@ describe('loadRoomHistory', () => {
       max: 50,
     });
     expect(client.getHistoryStanza.mock.calls[0][2]).toBe(400);
+  });
+});
+
+describe('loadInitialRoomHistory', () => {
+  // An archive page as the client reports it: `received` rows, of which
+  // `messages` are messages (the rest receipts, markers, reactions).
+  const page = (over: Record<string, unknown> = {}) => ({
+    ok: true,
+    messages: [] as any[],
+    complete: false,
+    first: null as number | null,
+    last: null as number | null,
+    count: null,
+    received: 0,
+    finSeen: true,
+    roomJid: ROOM,
+    ...over,
+  });
+  const receiptsOnly = (first: number, received = 100) => page({ first, received });
+
+  it('reads one page when it brings a message', async () => {
+    const client = {
+      getHistoryPage: jest.fn().mockResolvedValueOnce(
+        page({ messages: [msg('900')], first: 800, received: 30 })
+      ),
+    };
+    const res = await loadInitialRoomHistory(client, ROOM, 30);
+    expect(client.getHistoryPage).toHaveBeenCalledTimes(1);
+    expect(client.getHistoryPage).toHaveBeenCalledWith(ROOM, 30);
+    expect(res.map((m) => m.id)).toEqual(['900']);
+  });
+
+  it('pages back past pages of receipts only until one brings a message', async () => {
+    const client = {
+      getHistoryPage: jest
+        .fn()
+        .mockResolvedValueOnce(receiptsOnly(700, 30))
+        .mockResolvedValueOnce(receiptsOnly(600))
+        .mockResolvedValueOnce(page({ messages: [msg('550')], first: 500, received: 100 })),
+    };
+    const res = await loadInitialRoomHistory(client, ROOM, 30);
+    expect(client.getHistoryPage.mock.calls).toEqual([
+      [ROOM, 30],
+      [ROOM, 100, { before: 700 }],
+      [ROOM, 100, { before: 600 }],
+    ]);
+    expect(res.map((m) => m.id)).toEqual(['550']);
+  });
+
+  it('stops at the start of the archive', async () => {
+    const client = {
+      getHistoryPage: jest
+        .fn()
+        .mockResolvedValueOnce(receiptsOnly(700, 30))
+        .mockResolvedValueOnce(page({ first: 650, received: 12, complete: true })),
+    };
+    const res = await loadInitialRoomHistory(client, ROOM, 30);
+    expect(client.getHistoryPage).toHaveBeenCalledTimes(2);
+    expect(res).toEqual([]);
+  });
+
+  it('stops on a failed page or an empty archive', async () => {
+    const failed = { getHistoryPage: jest.fn().mockResolvedValue(page({ ok: false, finSeen: false })) };
+    await loadInitialRoomHistory(failed, ROOM, 30);
+    expect(failed.getHistoryPage).toHaveBeenCalledTimes(1);
+
+    const empty = { getHistoryPage: jest.fn().mockResolvedValue(page({ received: 0 })) };
+    await loadInitialRoomHistory(empty, ROOM, 30);
+    expect(empty.getHistoryPage).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives up after the page cap', async () => {
+    let first = 10_000;
+    const client = {
+      getHistoryPage: jest.fn().mockImplementation(async () => receiptsOnly((first -= 100))),
+    };
+    const res = await loadInitialRoomHistory(client, ROOM, 30, { maxSkipPages: 3 });
+    expect(client.getHistoryPage).toHaveBeenCalledTimes(4);
+    expect(res).toEqual([]);
   });
 });

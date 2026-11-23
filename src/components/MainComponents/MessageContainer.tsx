@@ -7,8 +7,11 @@ import NewMessageLabel from '../styled/NewMessageLabel';
 import {
   Message,
 } from '../styled/StyledComponents';
-import { View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useT } from '../../i18n/useT';
+import { useTheme } from '../../hooks/useTheme';
+import { useBlockedUserIds } from '../../hooks/useBlockedUserIds';
+import { blockedIdOf } from '../../helpers/userBlock';
 import { formatCallLogLabel } from '../../helpers/callLogMessage';
 import { isScheduledCallMessage } from '../../booking/scheduledCall';
 import ScheduledCallMessage from '../Booking/ScheduledCallMessage';
@@ -53,6 +56,14 @@ const MessageContainerImpl: FC<MessageContainerProps> = ({
   // from other users as our own. isOwnMessage() never does that.
   const isUser = isOwnMessage(message, walletAddress);
   const t = useT();
+  const theme = useTheme();
+  const blockedUserIds = useBlockedUserIds();
+  const isSenderBlocked =
+    !isUser &&
+    blockedUserIds.length > 0 &&
+    [message.user?.id, (message.user as any)?.userJID, (message.user as any)?.xmppUsername].some(
+      (id) => !!id && blockedUserIds.includes(blockedIdOf(id))
+    );
 
   const messageDate = new Date(message.date);
 
@@ -110,6 +121,16 @@ const MessageContainerImpl: FC<MessageContainerProps> = ({
     );
   }
 
+  if (isSenderBlocked) {
+    return (
+      <View key={message.id} style={styles.blockedRow}>
+        <Text style={[styles.blockedText, { color: theme.textSecondary }]}>
+          {`${t('message.blockedUserName')}: ${t('message.blockedUser')}`}
+        </Text>
+      </View>
+    );
+  }
+
   const MessageComponent = CustomMessage || Message;
 
   return (
@@ -144,5 +165,10 @@ const MessageContainerImpl: FC<MessageContainerProps> = ({
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  blockedRow: { paddingHorizontal: 16, paddingVertical: 6 },
+  blockedText: { fontSize: 13, fontStyle: 'italic' },
+});
 
 export const MessageContainer = memo(MessageContainerImpl);

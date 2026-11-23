@@ -106,7 +106,7 @@ const seedRoom = async (updates: any = {}) => {
       })
     );
     store.dispatch(setUser({ xmppUsername: 'me' } as any));
-    store.dispatch(setConfig({} as any));
+    store.dispatch(setConfig({ features: { report: true } } as any));
   });
 };
 
@@ -241,6 +241,20 @@ describe('Chat profile screen', () => {
     expect(Array.from(new Set(order))).toEqual(['mute', 'search', 'leave', 'report']);
     // The members card used to carry a second magnifier of its own.
     expect(texts().filter((label) => label === 'Search')).toHaveLength(1);
+  });
+
+  it('leaves Report out without features.report', async () => {
+    await seedRoom();
+    await act(async () => {
+      store.dispatch(setConfig({} as any));
+    });
+    const { tree, has } = await renderProfile();
+    expect(has('chat-profile-action-report')).toBe(false);
+    await act(async () => {
+      tree.root.find((n) => n.props?.testID === 'chat-profile-menu').props.onPress();
+    });
+    expect(has('chat-profile-menu-report')).toBe(false);
+    expect(has('chat-profile-menu-edit')).toBe(true);
   });
 
   it('mute button offers the action for room.muted and toggles it through the REST API', async () => {

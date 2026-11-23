@@ -7,6 +7,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this pr
 
 ### Added
 
+- **Blocking users (port of the web SDK's block).** `config.features.userBlock: true` adds "Block user" to a private chat's menu (⋮), a private chat's profile and a member's profile, and a Blocked Users screen in Settings to unblock (`GET / POST / DELETE /v1/chats/blocked`). A block removes the private chats with that user from the list at once, hides their messages in group chats ("Blocked user") and sends the moderators a report. Off by default; `disableUserBlock: true` still hides it. README, "Reporting and blocking".
+
 - **Languages from the install's get-config.** New `config.translates.languages`: pass `translateLanguages` from `GET /v1/apps/get-config` as-is (e.g. `["en-CA", "fr-CA", "es-US"]`). The globe picker, the profile's Language tab and the Settings chat-language list offer those languages instead of the built-in list; the interface-language list offers the ones the component has captions for. An empty array (no translation server) hides the chat-language lists and the globe. Omitted, the built-in list stays. `settings.languages.chatLanguages` / `appLanguages` still win.
 
 - **Push language.** The push token is registered with `language` (`config.translates.readerLocale`, else `config.i18n.locale`, else the language picked in the chat; the full tag is sent, the server reduces fr-CA / es-US to fr / es). When it changes the token is re-registered by itself (a plain re-POST, no release first), so hosts never call `registerPushToken` again for it. A backend that predates the field gets the registration again without it. The legacy gateway (`pushNotifications.apiUrl`) gets no language.
@@ -63,6 +65,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this pr
 
 ### Changed
 
+- **Report is off unless the host turns it on.** "Report" in the chat header menu, the chat profile and the room-list swipe actions now needs `config.features.report: true`, like blocking needs `features.userBlock`. A host that relied on Report being always there must add the flag. Without it a room-list row swiped to the left shows Mute and Leave only, and the chat header has no ⋮ menu when there is nothing to put in it. README, "Reporting and blocking".
 - `npm run build` no longer runs `expo prebuild` first. The npm hook was named `prebuild`; the script is now `prebuild:native` (`npm run prebuild:native`).
 - `pushNotifications.onClick` / `onNotificationPress` are marked deprecated: they were never called. The tapped notification's data goes to `handlePushPayload`, which opens the room. The push section of `instructions.md` now shows the whole host side in one place and states the rule the SDK cannot enforce: sign-out must go through the SDK (`useLogout()` / the built-in item), or the device stays registered.
 

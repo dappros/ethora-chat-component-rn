@@ -755,6 +755,28 @@ export interface IConfig {
    */
   enableMessageSearch?: boolean;
   /**
+   * Opt-in backend features. Each flag turns on client code that calls a route
+   * not every backend deployment serves yet, so the default keeps the control
+   * hidden rather than showing an action that fails.
+   */
+  features?: {
+    /**
+     * Blocking other users (POST/DELETE/GET /v1/chats/blocked): "Block user" on
+     * profiles, hidden private chats and messages of blocked users, and the
+     * Blocked users screen in Settings. Default false. `disableUserBlock` still
+     * hides it when this is true.
+     */
+    userBlock?: boolean;
+    /**
+     * Reporting a chat (POST /v1/chats/reports/:chatName): "Report" in the chat
+     * header menu, the chat profile and the room-list swipe actions. Default
+     * false. Blocking still notifies the moderators without it.
+     */
+    report?: boolean;
+  };
+  /** Hide blocking outright, even with `features.userBlock`. */
+  disableUserBlock?: boolean;
+  /**
    * @deprecated Search is off unless `enableMessageSearch` is set. Kept as a
    * hard off: when `true` message search stays disabled even if
    * `enableMessageSearch` is set.

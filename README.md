@@ -18,6 +18,7 @@ React Native chat UI + chat core for iOS and Android, powered by the Ethora plat
 - [Unread tracking in tab-based hosts](#unread-tracking-in-tab-based-hosts)
 - [Logging out](#logging-out)
 - [Languages and push language](#languages-and-push-language)
+- [Reporting and blocking](#reporting-and-blocking)
 - [Customization flags worth knowing](#customization-flags-worth-knowing)
 - [Server events](#server-events)
 - [Audio and video calls](#audio-and-video-calls)
@@ -383,6 +384,33 @@ useEffect(() => {
 - **Push language** needs no code: the push token is registered with `language` = `translates.readerLocale`, else `i18n.locale`, else what the user picked in the chat, and is registered again by itself whenever that changes.
 - **App icon badge:** in the foreground it follows the unread total (0 once everything is read), since the server sets it only with a push. Needs `expo-notifications`; `pushNotifications.syncAppBadge: false` turns it off.
 
+## Reporting and blocking
+
+Both are **off by default**, because they call backend routes that not every deployment serves yet. Turn them on in `config.features`:
+
+```ts
+config = {
+  features: {
+    // "Report" in the chat header menu (⋮), in the chat profile and behind a
+    // room-list row swiped to the left. The form takes a reason and an optional
+    // note and sends POST /v1/chats/reports/:chatName; the server e-mails the moderators.
+    report: true,
+    // "Block user" in a private chat's menu (⋮), in a private chat's profile and
+    // on a member's profile, plus Settings → Blocked Users to unblock.
+    // Uses GET / POST / DELETE /v1/chats/blocked.
+    userBlock: true,
+  },
+};
+```
+
+| Flag | Default | What it does |
+| --- | --- | --- |
+| `features.report` | `false` | Shows Report in the three places above. Off: no Report entry anywhere. |
+| `features.userBlock` | `false` | Shows Block user and the Blocked Users screen in Settings. Blocking removes the private chats with that user from the list at once and hides their messages in group chats. It also sends the moderators a report ("Blocked user: …"), whether `features.report` is on or off. |
+| `disableUserBlock` | `false` | Hides blocking even when `features.userBlock` is `true`. |
+
+An App Store app with chats between users needs both: App Review guideline 1.2 asks for a way to report objectionable content and to block abusive users. The terms the user accepts before signing in are the host app's job, not the component's.
+
 ## Customization flags worth knowing
 
 | Flag | What it does |
@@ -397,7 +425,7 @@ useEffect(() => {
 | `disableChatInfo.disableMemberTap` | Disables the tap on a member row in the chat-info list — the user-profile popup never opens. Set when no per-member interaction is appropriate (e.g. patient-facing apps). |
 | `hideMemberSendMessageAction` | Hides only the "Message" button, keeps everything else. |
 | `hideMemberCopyIdAction` | Hides only the "Copy User Id" button, keeps everything else. |
-| `disableRoomSwipeActions` | Turns off the Report / Leave buttons a room-list row shows when swiped to the left (on by default; needs `react-native-gesture-handler` + `react-native-reanimated`, as the rest of the navigation does). |
+| `disableRoomSwipeActions` | Turns off the Mute / Report / Leave buttons a room-list row shows when swiped to the left (Report only with `features.report`, see [Reporting and blocking](#reporting-and-blocking); on by default; needs `react-native-gesture-handler` + `react-native-reanimated`, as the rest of the navigation does). |
 | `disableConnectionErrorOverlay` | Replaces the full-screen "Connection error" overlay with a small, non-blocking `ConnectionBanner`. Set this when a transient reconnect shouldn't take over the whole screen. Independently of it, the room list's title and the room header's subtitle read "Connecting…" while the stream is down or being set up and "Updating…" while rooms are re-joined and the archive caught up afterwards (`useChatSettingState().connection`: `'connecting' \| 'syncing' \| 'online' \| 'offline'`). |
 | `eventHandlers.onMessageRetry` | `(event) => void` fired when the user taps the "Failed — tap to retry" indicator on a stuck send. Use for telemetry / surfacing a retry banner. |
 | `enableMessageSearch` | Opt-in message search, **off by default**. Set `true` to show the "Search messages" button in the chat header and the chat profile, and the search screen behind it. The screen searches the platform's message archive (`GET /v2/apps/{appId}/messages/search`) for the current chat or all chats, with an optional sender and date filter, and a tapped hit opens its chat and scrolls to the message (paging older history when needed, or saying so when the message is too far back to load). It needs `appId`; without one search stays off. Without this flag there is no search UI and no search request. |

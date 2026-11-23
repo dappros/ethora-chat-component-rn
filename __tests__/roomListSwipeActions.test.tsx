@@ -3,7 +3,7 @@
  * Mute toggles the chat's notifications (as in the chat profile).
  * Leave asks first (LeaveChatModal), takes the user out of the chat on the server, then sends
  * the unavailable presence and drops the room (a refusal keeps it);
- * Report opens the report form for that room. `disableRoomSwipeActions`
+ * Report (config.features.report) opens the report form for that room. `disableRoomSwipeActions`
  * turns the whole thing off.
  */
 import React from 'react';
@@ -73,7 +73,6 @@ beforeEach(() => {
 describe('room-list swipe actions', () => {
   it('leaves the room after a confirmation', async () => {
     const { tree, find } = await render();
-    expect(find('room-action-report-one').length).toBeGreaterThan(0);
     expect(find('room-action-leave-one').length).toBeGreaterThan(0);
     expect(find('leave-confirm').length).toBe(0);
 
@@ -122,8 +121,19 @@ describe('room-list swipe actions', () => {
     await act(async () => tree.unmount());
   });
 
+  it('offers Report only with features.report', async () => {
+    const off = await render();
+    expect(off.find('room-action-mute-one').length).toBeGreaterThan(0);
+    expect(off.find('room-action-report-one').length).toBe(0);
+    await act(async () => off.tree.unmount());
+
+    const on = await render({ features: { report: true } });
+    expect(on.find('room-action-report-one').length).toBeGreaterThan(0);
+    await act(async () => on.tree.unmount());
+  });
+
   it('opens the report form for that room', async () => {
-    const { tree, find } = await render();
+    const { tree, find } = await render({ features: { report: true } });
     const forms = () => tree.root.findAll((n) => n.props?.visible === true && n.props?.roomJid);
     expect(forms().length).toBe(0);
     await act(async () => {

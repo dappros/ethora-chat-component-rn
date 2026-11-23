@@ -1,6 +1,7 @@
 /**
  * XEP-0184 receipt and XEP-0333 displayed-marker builders: exact XML, the
- * room-directed groupchat shape, and the store hint that keeps them in MAM.
+ * room-directed groupchat shape, and the hint that keeps them out of MAM
+ * (archived receipts filled whole history pages, so a room opened empty).
  */
 import { sendReceivedReceipt } from '../src/networking/xmpp/sendReceivedReceipt.xmpp';
 import { sendDisplayedMarker } from '../src/networking/xmpp/sendDisplayedMarker.xmpp';
@@ -34,7 +35,7 @@ describe('sendReceivedReceipt', () => {
         `from="${ME_JID}" to="${ROOM}">` +
         '<received xmlns="urn:xmpp:receipts" id="arch-42" from="' +
         `${ME_JID}"/>` +
-        '<store xmlns="urn:xmpp:hints"/>' +
+        '<no-permanent-store xmlns="urn:xmpp:hints"/>' +
         '</message>'
     );
   });
@@ -63,7 +64,7 @@ describe('sendDisplayedMarker', () => {
         `from="${ME_JID}" to="${ROOM}">` +
         '<displayed xmlns="urn:xmpp:chat-markers:0" id="arch-99" from="' +
         `${ME_JID}"/>` +
-        '<store xmlns="urn:xmpp:hints"/>' +
+        '<no-permanent-store xmlns="urn:xmpp:hints"/>' +
         '</message>'
     );
   });

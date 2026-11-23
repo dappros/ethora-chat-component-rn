@@ -24,7 +24,10 @@ export function sendReceivedReceipt(
       id: messageId,
       from: client.jid?.toString(),
     }),
-    xml('store', { xmlns: 'urn:xmpp:hints' })
+    // Live only: never archived (MAM). No client reads receipts or markers
+    // back from history, and archived ones filled whole history pages, so
+    // a room could open with no messages (see useRoomInitialization).
+    xml('no-permanent-store', { xmlns: 'urn:xmpp:hints' })
   );
 
   client.send(message);

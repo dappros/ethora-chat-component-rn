@@ -27,6 +27,7 @@ import { savePreferences } from '../../../helpers/preferencesStorage';
 import { useT } from '../../../i18n/useT';
 import { useTheme } from '../../../hooks/useTheme';
 import type { ChatTheme, ThemePreference } from '../../../theme/theme';
+import { isUserBlockEnabled } from '../../../helpers/userBlock';
 
 interface UserSettingsModalProps {
   handleCloseModal: any;
@@ -66,6 +67,7 @@ const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   );
 
   const showPassword = config?.settings?.changePassword === true;
+  const showBlockedUsers = isUserBlockEnabled(config);
   const options = useMemo(
     () => [
       { label: t('settings.manageData.title'), key: MODAL_TYPES.MANAGE_DATA },
@@ -74,8 +76,11 @@ const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
       ...(showPassword
         ? [{ label: t('settings.password.title'), key: MODAL_TYPES.CHANGE_PASSWORD }]
         : []),
+      ...(showBlockedUsers
+        ? [{ label: t('settings.blockedUsers.title'), key: MODAL_TYPES.BLOCKED_USERS }]
+        : []),
     ],
-    [t, showPassword]
+    [t, showPassword, showBlockedUsers]
   );
 
   const handleClick = useCallback(
@@ -157,7 +162,13 @@ const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
           <View style={styles.card} testID="settings-notifications">
             <View style={styles.switchText}>
               <Text style={styles.label}>{t('settings.notifications.push')}</Text>
-              <Text style={styles.hint}>{t('settings.notifications.pushHint')}</Text>
+              <Text style={styles.hint}>
+                {t(
+                  config?.videoCalls?.enabled === true
+                    ? 'settings.notifications.pushHint'
+                    : 'settings.notifications.pushHintNoCalls'
+                )}
+              </Text>
             </View>
             <Switch
               testID="settings-push-switch"
