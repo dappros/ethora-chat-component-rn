@@ -74,11 +74,11 @@ const ReportChatModal: React.FC<ReportChatModalProps> = ({
     if (!payload) {return;}
     setSending(true);
     try {
-      await postReportRoom(payload);
+      const { alreadyReported } = await postReportRoom(payload);
       showToast({
         id: Date.now().toString(),
         title: t('toast.successTitle'),
-        message: t('toast.reportSent'),
+        message: t(alreadyReported ? 'toast.reportAlreadySent' : 'toast.reportSent'),
         type: 'success',
       });
       close();

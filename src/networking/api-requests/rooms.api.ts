@@ -445,7 +445,15 @@ export async function setRoomMuted(chatName: string, muted: boolean): Promise<bo
   }
 }
 
-export async function postReportRoom(data: PostReportRoom) {
+/**
+ * `alreadyReported`: the server already holds this user's report of the chat.
+ * Newer servers answer 200 with it inside their e-mail throttle window; older
+ * ones take one report per user and chat and refuse the next one with 422
+ * ALREADY_REPORTED (blocking someone files a report too).
+ */
+export async function postReportRoom(
+  data: PostReportRoom
+): Promise<{ alreadyReported: boolean }> {
   const { chatName, category, text } = data;
   const token = store.getState().chatSettingStore.user.token || '';
 
@@ -459,8 +467,11 @@ export async function postReportRoom(data: PostReportRoom) {
         },
       }
     );
-    return response.data.result;
-  } catch (error) {
+    return { alreadyReported: response.data?.alreadyReported === true };
+  } catch (error: any) {
+    if (error?.response?.data?.code === 'ALREADY_REPORTED') {
+      return { alreadyReported: true };
+    }
     throw new Error('Error reporting chat');
   }
 }

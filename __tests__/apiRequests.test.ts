@@ -71,6 +71,7 @@ import {
   clearRoomsRestCache,
   setRoomMuted,
   leaveRoom,
+  postReportRoom,
 } from '../src/networking/api-requests/rooms.api';
 import {
   getUserByXmppUsername,
@@ -512,6 +513,35 @@ describe('rooms.api.getRooms', () => {
       await expect(leaveRoom('app_room')).resolves.toBeUndefined();
       mockHttp.put.mockRejectedValueOnce({ response: { status: 500 } });
       await expect(leaveRoom('app_room')).rejects.toEqual({ response: { status: 500 } });
+    });
+  });
+
+  describe('postReportRoom', () => {
+    const report = { chatName: 'app_room', category: 'spam', text: 'Spam' };
+
+    it('POSTs the report and passes on the server\'s alreadyReported', async () => {
+      store.dispatch(setUser({ token: 'tok' } as any));
+      mockHttp.post.mockResolvedValueOnce({ data: { ok: true } });
+      await expect(postReportRoom(report)).resolves.toEqual({ alreadyReported: false });
+      expect(mockHttp.post).toHaveBeenCalledWith(
+        '/v1/chats/reports/app_room',
+        { category: 'spam', text: 'Spam' },
+        { headers: { Authorization: 'tok' } }
+      );
+      mockHttp.post.mockResolvedValueOnce({ data: { ok: true, alreadyReported: true } });
+      await expect(postReportRoom(report)).resolves.toEqual({ alreadyReported: true });
+    });
+
+    it('takes an older server\'s ALREADY_REPORTED as already reported, rethrows anything else', async () => {
+      store.dispatch(setUser({ token: 'tok' } as any));
+      mockHttp.post.mockRejectedValueOnce({
+        response: { status: 422, data: { code: 'ALREADY_REPORTED' } },
+      });
+      await expect(postReportRoom(report)).resolves.toEqual({ alreadyReported: true });
+      mockHttp.post.mockRejectedValueOnce({
+        response: { status: 422, data: { code: 'VALIDATION_ERROR' } },
+      });
+      await expect(postReportRoom(report)).rejects.toThrow('Error reporting chat');
     });
   });
 

@@ -79,13 +79,22 @@ export {
   unregisterPushToken,
   getRegisteredPushToken,
   getRegisteredPushTokens,
+  getPushDiagnostics,
 } from './services/pushRegistration';
 export type {
   RegisterPushTokenOptions,
   RegisterPushTokenOutcome,
   UnregisterPushTokenOutcome,
   RegisteredPushToken,
+  PushDiagnostics,
 } from './services/pushRegistration';
+// The install's id for push registrations (`deviceId`): one install holds
+// one token on the backend. For hosts that register tokens themselves.
+export {
+  getPushDeviceId,
+  PUSH_INSTALL_KEYCHAIN_SERVICE,
+  PUSH_DEVICE_ID_ITEM,
+} from './push/pushInstallStore';
 export {
   detectPushTokenType,
   PushRegistrationError,

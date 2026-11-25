@@ -81,6 +81,19 @@ describe('ReportChatModal', () => {
     });
   });
 
+  it('says so and closes when this chat was already reported', async () => {
+    mockPostReportRoom.mockResolvedValueOnce({ alreadyReported: true });
+    const { tree, press, onClose } = await render();
+    await press('report-category-spam');
+    await press('report-submit');
+    expect(onClose).toHaveBeenCalled();
+    const texts = tree.root
+      .findAll((n) => typeof n.props?.children === 'string')
+      .map((n) => n.props.children);
+    expect(texts).toContain('You have already reported this chat. Our moderators will review it.');
+    expect(texts).not.toContain('Could not send the report. Please try again.');
+  });
+
   it('stays open when the server refuses', async () => {
     mockPostReportRoom.mockRejectedValueOnce(new Error('Error reporting chat'));
     jest.spyOn(console, 'error').mockImplementation(() => {});
