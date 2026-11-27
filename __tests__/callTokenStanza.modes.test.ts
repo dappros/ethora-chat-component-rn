@@ -121,6 +121,17 @@ describe('call-token handling: livekit, p2p and group', () => {
     expect(call()).toMatchObject({ phase: 'ringing-incoming', livekitUrl: null });
   });
 
+  it('uses a server deadline for the ring only when the XMPP sender is trusted', () => {
+    const now = Date.now();
+    const attrs = { room: DM_ROOM, token: 'jwt', callId: 'c-exp', expiresAt: String(now + 10_000) };
+    onCallTokenMessage(tokenStanza(attrs));
+    expect(call().answerDeadline).toBe(now + 5_000);
+
+    store.dispatch(resetCall());
+    onCallTokenMessage(tokenStanza(attrs, 'app_b@xmpp.example.com/client'));
+    expect(call().answerDeadline).toBeGreaterThanOrEqual(now + 55_000);
+  });
+
   it('a group livekit token carries the URL too', () => {
     onCallTokenMessage(
       tokenStanza({ room: GROUP_ROOM, token: 'jwt', callId: 'c-g', group: 'true', livekitUrl: 'wss://lk.example.com' })

@@ -320,9 +320,6 @@ describe('useMessageLoaderQueue', () => {
 // ---- useSendMessage -------------------------------------------------
 
 const sendMessageMock = jest.fn();
-// useSendMessage sends every text message through the translate-tag path now
-// (mirrors the web SDK: outgoing messages declare their source language so
-// the backend can translate them). This is the method the hook actually calls.
 const sendTranslateMock = jest.fn();
 const editMessageStanzaMock = jest.fn();
 const onCriticalSendMock = jest.fn();
@@ -385,7 +382,7 @@ const seedUser = (store: ReturnType<typeof makeStore>) => {
 };
 
 describe('useSendMessage', () => {
-  it('normal send: drops an optimistic pending bubble and forwards (room, names, wallet, text, …, optimisticId) to sendMessage', async () => {
+  it('sends plain text with the optimistic bubble ID when translations are disabled', async () => {
     const store = makeStore();
     seedUser(store);
     let api!: ReturnType<typeof useSendMessage>;
@@ -409,19 +406,21 @@ describe('useSendMessage', () => {
     // QoS critical-send hint fires.
     expect(onCriticalSendMock).toHaveBeenCalledWith('r@h');
 
-    // The send id from the optimistic bubble flows through as the LAST arg
-    // (the correlation id / customId) of the translate-tag send. The plain
-    // sendMessage is no longer used for text sends.
-    expect(sendMessageMock).not.toHaveBeenCalled();
-    const args = sendTranslateMock.mock.calls[0];
-    expect(args[0]).toBe('r@h');
-    expect(args[1]).toBe('Alice');
-    expect(args[2]).toBe('Anderson');
-    expect(args[4]).toBe('0xabc');
-    expect(args[5]).toBe('hello');
-    // langSource defaults to 'en' when the reader hasn't picked a language.
-    expect(args[10]).toBe('en');
-    expect(args[args.length - 1]).toBe((msgs[0] as any).id);
+    expect(msgs[0]).not.toHaveProperty('langSource');
+    expect(sendTranslateMock).not.toHaveBeenCalled();
+    expect(sendMessageMock).toHaveBeenCalledWith(
+      'r@h',
+      'Alice',
+      'Anderson',
+      '',
+      '0xabc',
+      'hello',
+      '',
+      false,
+      false,
+      '',
+      msgs[0].id
+    );
   });
 
   it('edit path: calls editMessageStanza, fires onMessageEdited, clears editAction, no optimistic bubble', async () => {
@@ -533,6 +532,7 @@ describe('useSendMessage', () => {
     });
 
     expect(store.getState().rooms.rooms['r@h'].messages).toHaveLength(0);
-    expect(sendTranslateMock).toHaveBeenCalled();
+    expect(sendMessageMock).toHaveBeenCalledTimes(1);
+    expect(sendTranslateMock).not.toHaveBeenCalled();
   });
 });

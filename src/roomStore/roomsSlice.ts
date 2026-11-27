@@ -71,8 +71,10 @@ const mergeCallLogEntries = (a: IMessage, b: IMessage): IMessage => {
   const aLocal = isLocalCallLogEntry(a);
   const bLocal = isLocalCallLogEntry(b);
   const identity = aLocal === bLocal ? a : aLocal ? b : a;
-  const display =
-    (a.callLog?.durationMs || 0) >= (b.callLog?.durationMs || 0) ? a : b;
+  const aDuration = a.callLog?.durationMs || 0;
+  const bDuration = b.callLog?.durationMs || 0;
+  // A zero-duration fallback may predate the server's missed/declined flags.
+  const display = aDuration === bDuration ? identity : aDuration > bDuration ? a : b;
   if (identity === display) {return identity;}
   return {
     ...display,

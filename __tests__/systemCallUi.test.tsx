@@ -144,6 +144,28 @@ describe('CallKit (iOS)', () => {
     expect(mockCallKeep.endCall).toHaveBeenCalledWith(uuid);
   });
 
+  it('uses a new native UUID on redial in the same room and ignores the previous end event', async () => {
+    const tree = await render(<CallKeepProbe />);
+    const roomJid = '646cc8dc96d4a4dc8f7b2f2d_very-long-room@conference.example.com';
+    const now = jest.spyOn(Date, 'now');
+    try {
+      now.mockReturnValue(180_000);
+      await act(async () => store.dispatch(startOutgoingCall({ roomJid })));
+      const [firstUuid] = mockCallKeep.startCall.mock.lastCall!;
+      await act(async () => store.dispatch(resetCall()));
+      now.mockReturnValue(180_100);
+      await act(async () => store.dispatch(startOutgoingCall({ roomJid })));
+      const [redialUuid] = mockCallKeep.startCall.mock.lastCall!;
+
+      expect(redialUuid).not.toBe(firstUuid);
+      mockCallKeep.listeners.endCall({ callUUID: firstUuid });
+      expect(mockTerminate).not.toHaveBeenCalled();
+    } finally {
+      now.mockRestore();
+      await act(async () => tree.unmount());
+    }
+  });
+
   it('routes the system mute and end buttons into the call', async () => {
     await render(<CallKeepProbe />);
     await act(async () => {

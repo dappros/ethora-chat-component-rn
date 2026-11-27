@@ -6,15 +6,18 @@ import { reportCallDeclined, reportCallEnded } from '../networking/api-requests/
 import { sendCallStateSignal } from '../networking/callTokenStanza';
 import { decideIncomingWhileBusy } from '../calls/callMode';
 import { busySnapshot } from '../calls/callBusy';
+import { decodeCallToken } from '../calls/decodeCallToken';
+import { incomingCallDeadline } from '../calls/ringTiming';
 import { isCallPush, parseCallPush } from './callPush';
 import { normalizeRoomJid } from './normalizeRoomJid';
 
-const PENDING_CALL_PUSH_TTL_MS = 60_000;
-
-
 export type CallPushIntent = 'ring' | 'answer' | 'decline';
 
-let pendingPush: { data: Record<string, any>; intent: CallPushIntent; at: number } | null = null;
+let pendingPush: {
+  call: ReturnType<typeof parseCallPush>;
+  intent: CallPushIntent;
+  answerDeadline: number;
+} | null = null;
 let unwatch: (() => void) | null = null;
 
 const trace = (...args: unknown[]) => {
@@ -24,8 +27,23 @@ const trace = (...args: unknown[]) => {
 const callsConfigured = (): boolean =>
   store.getState().chatSettingStore.config?.videoCalls !== undefined;
 
-const holdUntilConfigured = (data: Record<string, any>, intent: CallPushIntent): void => {
-  pendingPush = { data, intent, at: Date.now() };
+const holdUntilConfigured = (
+  call: ReturnType<typeof parseCallPush>,
+  intent: CallPushIntent,
+  answerDeadline: number
+): void => {
+  const queued = pendingPush;
+  if (queued && call.callId && queued.call.callId === call.callId) {
+    // A repeated ring after the notification's Answer event must not wipe
+    // the user's action while the app is still restoring the chat config.
+    pendingPush = {
+      call,
+      intent: intent === 'ring' ? queued.intent : intent,
+      answerDeadline: Math.min(queued.answerDeadline, answerDeadline),
+    };
+  } else {
+    pendingPush = { call, intent, answerDeadline };
+  }
   if (unwatch) {return;}
   unwatch = store.subscribe(() => {
     if (!callsConfigured()) {return;}
@@ -34,12 +52,7 @@ const holdUntilConfigured = (data: Record<string, any>, intent: CallPushIntent):
     const held = pendingPush;
     pendingPush = null;
     if (!held) {return;}
-    if (Date.now() - held.at > PENDING_CALL_PUSH_TTL_MS) {
-      trace('held call push expired');
-      endSystemIncomingCall(parseCallPush(held.data).callId);
-      return;
-    }
-    ringFromPush(held.data, held.intent);
+    ringFromPush(held.call, held.intent, held.answerDeadline);
   });
 };
 
@@ -50,8 +63,16 @@ const applyIntent = (intent: CallPushIntent): void => {
   if (intent === 'decline') {declineActiveCallWhenOnline();}
 };
 
-const ringFromPush = (data: Record<string, any>, intent: CallPushIntent): boolean => {
-  const parsed = parseCallPush(data);
+const ringFromPush = (
+  parsed: ReturnType<typeof parseCallPush>,
+  intent: CallPushIntent,
+  answerDeadline: number
+): boolean => {
+  if (Date.now() >= answerDeadline) {
+    trace('call push expired', parsed.callId);
+    endSystemIncomingCall(parsed.callId);
+    return false;
+  }
   const state = store.getState();
 
   // Calls off in this deployment: swallow the push rather than ringing a
@@ -109,9 +130,9 @@ const ringFromPush = (data: Record<string, any>, intent: CallPushIntent): boolea
   // the ring, so leave the existing call alone.
   const current = state.call;
   if (!isP2P && current.phase !== 'idle') {
-    const sameCall =
-      (!!parsed.callId && parsed.callId === current.callId) ||
-      (!!parsed.roomBareName && parsed.roomBareName === current.roomBareName);
+    const sameCall = parsed.callId && current.callId
+      ? parsed.callId === current.callId
+      : !!parsed.roomBareName && parsed.roomBareName === current.roomBareName;
     if (sameCall) {
       applyIntent(intent);
       return true;
@@ -174,6 +195,7 @@ const ringFromPush = (data: Record<string, any>, intent: CallPushIntent): boolea
       isGroup: parsed.isGroup,
       callerName: parsed.callerName,
       callerXmppUsername: parsed.callerXmppUsername,
+      answerDeadline,
     })
   );
   trace('ringing', parsed.callId, intent);
@@ -188,12 +210,18 @@ export const handleCallPush = (
   if (!isCallPush(data)) {
     return false;
   }
-  if (!callsConfigured()) {
+  const call = parseCallPush(data);
+  const answerDeadline = incomingCallDeadline(
+    Date.now(),
+    data?.expiresAt,
+    decodeCallToken(call.token || '')?.exp
+  );
+  if (!callsConfigured() && answerDeadline > Date.now()) {
     trace('holding call push until the chat is configured');
-    holdUntilConfigured(data as Record<string, any>, intent);
+    holdUntilConfigured(call, intent, answerDeadline);
     return true;
   }
-  ringFromPush(data as Record<string, any>, intent);
+  ringFromPush(call, intent, answerDeadline);
   return true;
 };
 

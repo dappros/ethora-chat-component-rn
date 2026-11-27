@@ -21,6 +21,7 @@ import {
   reportCallRinging,
 } from '../../networking/api-requests/callState.api';
 import { translateCallString } from './callActions';
+import { CALL_RING_WINDOW_MS } from '../../calls/ringTiming';
 import {
   bindP2PSession,
   localizeP2PMessage,
@@ -44,7 +45,11 @@ import {
 // (longer than on web) because a cold-started callee may need several seconds
 // to bring the XMPP socket up.
 
-const RN_OFFER_RESEND_MS = [4_000, 10_000, 18_000, 26_000];
+const OFFER_RESEND_INTERVAL_MS = 4_000;
+const RN_OFFER_RESEND_MS = Array.from(
+  { length: Math.ceil(CALL_RING_WINDOW_MS / OFFER_RESEND_INTERVAL_MS) - 1 },
+  (_, index) => (index + 1) * OFFER_RESEND_INTERVAL_MS
+);
 
 const isCurrentCall = (callId: string): boolean => {
   const current = store.getState().call;
@@ -122,7 +127,7 @@ export const P2PCallRunner: React.FC = () => {
         },
         createNativeP2PDeps({ callId, peerXmppUsername: peer }),
         {
-          onNegotiated: () => {
+          onRemoteAnswer: () => {
             if (
               role === 'caller' &&
               isCurrentCall(callId) &&

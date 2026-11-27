@@ -153,6 +153,35 @@ describe('a p2p call push', () => {
     });
   });
 
+  it('preserves a cold-start Answer when a duplicate ring arrives before config', () => {
+    store.dispatch(setConfig(undefined));
+    answerCallFromPush(p2pPush);
+    handleCallPush(p2pPush);
+    configure();
+    expect(store.getState().call).toMatchObject({ phase: 'connecting', callId: 'c-p2p' });
+  });
+
+  it('rejects a push Answer once there is less than five seconds to connect', () => {
+    answerCallFromPush({ ...p2pPush, expiresAt: String(Date.now() + 4_000) });
+    expect(store.getState().call.phase).toBe('idle');
+    expect(endSystemIncomingCall).toHaveBeenCalledWith('c-p2p');
+  });
+
+  it('does not grant held push actions a new window when the app finishes loading', () => {
+    const now = jest.spyOn(Date, 'now');
+    try {
+      now.mockReturnValue(100_000);
+      store.dispatch(setConfig(undefined));
+      answerCallFromPush({ ...p2pPush, expiresAt: '160000' });
+      now.mockReturnValue(155_000);
+      configure();
+      expect(store.getState().call.phase).toBe('idle');
+      expect(endSystemIncomingCall).toHaveBeenCalledWith('c-p2p');
+    } finally {
+      now.mockRestore();
+    }
+  });
+
   it('a second push for the same call does not restart the ring', () => {
     handleCallPush(p2pPush);
     const startedAt = store.getState().call.startedAt;

@@ -14,6 +14,7 @@ export interface CallLogMeta {
   direction: 'outgoing' | 'incoming';
   durationMs: number;
   missed: boolean;
+  declined?: boolean;
   kind: 'audio' | 'video';
 }
 
@@ -26,6 +27,9 @@ export const isCallLogMessage = (message: unknown): boolean => {
 // duration) is worth rendering. Bare client-side signaling frames
 // (state=cancelled/declined/ended with no caller/duration) must NOT become
 // chat entries, they're real-time teardown only.
+const isCallLogFlag = (value: unknown): boolean =>
+  ['true', '1'].includes(String(value ?? '').trim().toLowerCase());
+
 export const callStateHasLogData = (attrs: Record<string, any>): boolean => {
   if (!attrs) {return false;}
   const hasCaller = !!String(attrs.callerXmppUsername || '').trim();
@@ -33,7 +37,9 @@ export const callStateHasLogData = (attrs: Record<string, any>): boolean => {
     attrs.durationMs !== undefined &&
     attrs.durationMs !== null &&
     attrs.durationMs !== '';
-  return hasCaller || hasDuration;
+  const hasCallId = !!String(attrs.callId || attrs.callid || '').trim();
+  return hasCaller || hasDuration ||
+    (hasCallId && (isCallLogFlag(attrs.missed) || isCallLogFlag(attrs.declined)));
 };
 
 export const formatCallDuration = (ms: number): string => {
@@ -59,22 +65,28 @@ export const transformCallLogMessage = (
   // When we know the caller, "outgoing" means we started it. With no
   // caller info, default to incoming (safer label than claiming we dialed).
   const isOutgoing = !!callerLocal && callerLocal === selfLocal;
-  const durationMs = Number(raw.durationMs || 0);
+  const durationMs = Math.max(0, Number(raw.durationMs) || 0);
+  const declined = isCallLogFlag(raw.declined);
+  const missed = !declined && (isCallLogFlag(raw.missed) ||
+    (raw.missed == null && durationMs === 0));
   const kind: 'audio' | 'video' =
     String(raw.kind || '').toLowerCase() === 'audio' ? 'audio' : 'video';
 
   let body: string;
-  if (durationMs > 0) {
-    body = `${isOutgoing ? 'Outgoing' : 'Incoming'} call · ${formatCallDuration(durationMs)}`;
-  } else {
+  if (declined) {
+    body = 'Declined';
+  } else if (missed) {
     body = isOutgoing ? 'No answer' : 'Missed call';
+  } else {
+    body = `${isOutgoing ? 'Outgoing' : 'Incoming'} call · ${formatCallDuration(durationMs)}`;
   }
 
   const callLog: CallLogMeta = {
     callId: String(raw.callId || raw.callid || '').trim(),
     direction: isOutgoing ? 'outgoing' : 'incoming',
     durationMs,
-    missed: durationMs === 0,
+    missed,
+    ...(declined ? { declined } : {}),
     kind,
   };
 
@@ -151,7 +163,9 @@ export const formatCallLogLabel = (
 ): string => {
   if (!callLog) {return fallbackBody;}
 
-  if (!callLog.durationMs || callLog.durationMs <= 0) {
+  if (callLog.declined) {return t('call.declined');}
+
+  if (callLog.missed) {
     return callLog.direction === 'outgoing'
       ? t('call.noAnswer')
       : t('call.missed');

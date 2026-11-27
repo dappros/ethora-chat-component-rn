@@ -81,6 +81,7 @@ export interface IMessage {
     direction: 'outgoing' | 'incoming';
     durationMs: number;
     missed: boolean;
+    declined?: boolean;
     kind: 'audio' | 'video';
   };
 }

@@ -148,6 +148,8 @@ describe('call log messages', () => {
     expect(callStateHasLogData({ state: 'cancelled' })).toBe(false);
     expect(callStateHasLogData({ durationMs: 0 })).toBe(true);
     expect(callStateHasLogData({ callerXmppUsername: 'bo' })).toBe(true);
+    expect(callStateHasLogData({ missed: 'true' })).toBe(false);
+    expect(callStateHasLogData({ callId: 'c1', missed: 'true' })).toBe(true);
   });
 
   it('derives direction from the caller and marks a zero duration missed', () => {
@@ -177,6 +179,21 @@ describe('call log messages', () => {
     );
     expect(outgoing.callLog?.direction).toBe('outgoing');
     expect(outgoing.callLog?.missed).toBe(false);
+  });
+
+  it('renders explicit decline and missed flags in preference to the duration heuristic', () => {
+    const raw = { id: 'flags', type: 'call-state', callerXmppUsername: 'me', durationMs: 0 };
+    const t = (key: string) => key;
+    const declined = transformCallLogMessage({ ...raw, declined: 'true' } as any, 'me');
+    expect(declined.callLog).toMatchObject({ declined: true, missed: false });
+    expect(formatCallLogLabel(declined.callLog, t)).toBe('call.declined');
+
+    const missed = transformCallLogMessage({ ...raw, missed: '1', durationMs: 1 } as any, 'me');
+    expect(formatCallLogLabel(missed.callLog, t)).toBe('call.noAnswer');
+
+    const completed = transformCallLogMessage({ ...raw, missed: 'false' } as any, 'me');
+    expect(completed.callLog?.missed).toBe(false);
+    expect(formatCallLogLabel(completed.callLog, t)).toContain('call.durationSec');
   });
 
   it('leaves non-call messages untouched', () => {
