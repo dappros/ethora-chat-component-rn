@@ -122,8 +122,7 @@ jest.mock('../src/networking/xmpp/getHistory.xmpp', () => ({
 // test via `Object.assign(mockSpyClient, {...})` if needed.
 const mockSpyClient: any = {
   sendMessage: jest.fn(),
-  // Text sends now go through the translate-tag path (declares the source
-  // language so the backend can translate the message for other readers).
+  // With translations enabled, text sends declare the source language.
   sendTextMessageWithTranslateTagStanza: jest.fn(),
   sendMediaMessageStanza: jest.fn(),
   prioritizeRoomPresence: jest.fn().mockResolvedValue(true),
@@ -285,13 +284,16 @@ describe('single-room mode', () => {
 // 3. useSendMessage — text + critical-send hint + onMessageSent
 // =====================================================================
 describe('useSendMessage — text', () => {
-  it('emits XmppClient.sendMessage with the right args + fires onMessageSent + onCriticalSend', async () => {
+  it('sends translation-tagged text and fires onMessageSent and onCriticalSend', async () => {
     mockResetSpyClient();
     const onMessageSent = jest.fn();
     const onMessageFailed = jest.fn();
     store.dispatch(setUser(LIVE_USER as any));
     store.dispatch(
-      setConfig({ eventHandlers: { onMessageSent, onMessageFailed } } as any)
+      setConfig({
+        translates: { enabled: true },
+        eventHandlers: { onMessageSent, onMessageFailed },
+      } as any)
     );
 
     let api: any;
@@ -314,10 +316,8 @@ describe('useSendMessage — text', () => {
     });
 
     expect(mockSpyClient.onCriticalSend).toHaveBeenCalledWith(ROOM);
-    // Text sends go through the translate-tag path: same args as the old
-    // sendMessage plus the source language ('en' by default) before the
-    // trailing correlation id (`send-text-message-<timestamp>`). Asserted
-    // with a regex so the timestamp doesn't make the test time-dependent.
+    // The translate-tag stanza carries the default source language and correlation ID.
+    expect(mockSpyClient.sendMessage).not.toHaveBeenCalled();
     expect(mockSpyClient.sendTextMessageWithTranslateTagStanza).toHaveBeenCalledWith(
       ROOM,
       LIVE_USER.firstName,
