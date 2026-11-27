@@ -189,7 +189,7 @@ describe('P2PCallRunner', () => {
     });
     await tick();
     expect(mockInstances[0].timings.offerResendMs.length).toBeGreaterThan(2);
-    expect(Math.max(...mockInstances[0].timings.offerResendMs)).toBeGreaterThan(10_000);
+    expect(Math.max(...mockInstances[0].timings.offerResendMs)).toBe(56_000);
   });
 
   it('callee decline / ring ended: disposes without reporting an end', async () => {
@@ -266,7 +266,7 @@ describe('P2PCallRunner', () => {
     await tick();
     const c = mockInstances[0];
 
-    await act(async () => c.events.onNegotiated());
+    await act(async () => c.events.onRemoteAnswer());
     expect(call().phase).toBe('connecting');
 
     await act(async () => c.events.onConnected());

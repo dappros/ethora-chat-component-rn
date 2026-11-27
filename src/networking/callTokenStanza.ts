@@ -3,6 +3,7 @@ import { xml } from '@xmpp/client';
 import { store } from '../roomStore';
 import {
   endCall,
+  setCallError,
   setCallKind,
   setIncomingCallToken,
   setOutgoingCallToken,
@@ -24,6 +25,9 @@ import {
   reportCallEnded,
 } from './api-requests/callState.api';
 import { callStateHasLogData } from '../helpers/callLogMessage';
+import { decodeCallToken } from '../calls/decodeCallToken';
+import { incomingCallDeadline } from '../calls/ringTiming';
+import { translateKey } from '../i18n/strings';
 import { pushLog } from '../utils/devLogger';
 
 // Backend currently doesn't propagate `kind` on the broadcast call-token
@@ -105,65 +109,6 @@ const lookupUserName = (xmppUsername: string | null): string => {
 const callTrace = (message: string, extra?: Record<string, unknown>) => {
   if (typeof __DEV__ !== 'undefined' && __DEV__) {
     console.log(`[calls] ${message}`, extra ? JSON.stringify(extra) : '');
-  }
-};
-
-// Hermes has no global `atob` and RN ships no Buffer polyfill by default,
-// so the JWT payload is decoded here by hand. Only used on the ~500-byte
-// middle segment of a call token, so a table-driven loop is plenty fast
-// and saves pulling a base64 dependency into the SDK.
-const B64_ALPHABET =
-  'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-
-const decodeBase64 = (input: string): string => {
-  const clean = input.replace(/[^A-Za-z0-9+/]/g, '');
-  let out = '';
-  let buffer = 0;
-  let bits = 0;
-  for (let i = 0; i < clean.length; i++) {
-    const idx = B64_ALPHABET.indexOf(clean[i]);
-    if (idx === -1) {continue;}
-    buffer = (buffer << 6) | idx;
-    bits += 6;
-    if (bits >= 8) {
-      bits -= 8;
-      out += String.fromCharCode((buffer >> bits) & 0xff);
-    }
-  }
-  return out;
-};
-
-// A JWT payload is UTF-8, and decodeBase64 hands back one char per byte.
-// Re-interpret those bytes as UTF-8 so non-ASCII caller names (accents,
-// Cyrillic) survive instead of turning into mojibake on the ring screen.
-const bytesToUtf8 = (binary: string): string => {
-  try {
-    return decodeURIComponent(
-      binary
-        .split('')
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
-    );
-  } catch {
-    return binary;
-  }
-};
-
-// Pull the JWT payload out of the call-token. We only read non-sensitive
-// claims (`sub` = caller display name; `metadata.callId`, `video.room`),
-// no signature verification, which is fine because the server has already
-// vetted the token and LiveKit will reject anything tampered with on
-// connect. Returns null when the token isn't a parseable JWT.
-const decodeJwtPayload = (token: string): Record<string, any> | null => {
-  if (!token || typeof token !== 'string') {return null;}
-  const parts = token.split('.');
-  if (parts.length < 2) {return null;}
-  try {
-    const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4);
-    return JSON.parse(bytesToUtf8(decodeBase64(padded))) as Record<string, any>;
-  } catch {
-    return null;
   }
 };
 
@@ -340,6 +285,13 @@ const handleCallStateData = (
   const currentCall = store.getState().call;
 
   if (currentCall.phase === 'idle') {return;}
+  // While create is pending, a terminal event from the previous call in
+  // this room cannot be tied to the new outgoing dial.
+  if (
+    currentCall.phase === 'requesting' &&
+    currentCall.direction === 'outgoing' &&
+    !currentCall.callId
+  ) {return;}
 
   const roomMatches =
     !!stanzaRoomAttr &&
@@ -357,7 +309,11 @@ const handleCallStateData = (
   const callIdConflicts =
     !!stanzaCallId && !!currentCall.callId && currentCall.callId !== stanzaCallId;
 
+  const missed = isTrueishAttr(data.attrs?.missed) ||
+    String(data.attrs?.reason || '').trim().toLowerCase() === 'missed';
   const isTerminalState =
+    missed ||
+    isTrueishAttr(data.attrs?.declined) ||
     state === 'ended' ||
     state === 'declined' ||
     state === 'cancelled' ||
@@ -373,7 +329,16 @@ const handleCallStateData = (
     (callIdMatches || (roomMatches && !callIdConflicts)) &&
     (isTerminalState || isServerCallLog)
   ) {
-    store.dispatch(endCall());
+    if (missed && currentCall.direction === 'outgoing') {
+      const settings = store.getState().chatSettingStore;
+      store.dispatch(setCallError(translateKey(
+        'call.noAnswer',
+        settings.uiLocale || settings.config?.i18n?.locale || settings.langSource,
+        settings.config?.i18n?.strings
+      )));
+    } else {
+      store.dispatch(endCall());
+    }
   }
 };
 
@@ -492,7 +457,7 @@ export const onCallTokenMessage = (stanza: Element): boolean => {
       // Server relay of a callee's decline. In a group call one member
       // declining must not end the call for everybody, so it is ignored there.
       // For 1:1 it is a terminal state, same as the client-sent `declined`.
-      if (isTrueishAttr(data.attrs?.group)) {
+      if (isTrueishAttr(data.attrs?.group) && data.attrs?.reason !== 'missed') {
         callTrace('group member declined', {
           by: data.attrs?.by,
           callId: data.attrs?.callId,
@@ -527,6 +492,7 @@ export const onCallTokenMessage = (stanza: Element): boolean => {
       // Old servers send neither `mode` nor `group`: parseCallTokenAttrs maps
       // that to a plain LiveKit 1:1 call, exactly the legacy behaviour.
       const attrs = parseCallTokenAttrs(data.attrs);
+      const fromSystem = isSystemAccountSender(inner.attrs?.from, sessionXmppDomain());
       // livekitUrl and ice decide where the media goes, and callerName /
       // caller decide who the ring screen says is calling, so they are
       // honoured only from the app's system account (see calls/senderTrust).
@@ -538,7 +504,7 @@ export const onCallTokenMessage = (stanza: Element): boolean => {
           attrs.iceServers ||
           attrs.callerName ||
           attrs.caller) &&
-        !isSystemAccountSender(inner.attrs?.from, sessionXmppDomain())
+        !fromSystem
       ) {
         callTrace(
           'ignoring livekitUrl/ice/callerName/caller on a call-token not sent by the system account',
@@ -615,7 +581,7 @@ export const onCallTokenMessage = (stanza: Element): boolean => {
       // ("Roman Test") which is far more useful than the resolved room
       // title (which for stale / deleted-peer chats reads "deleted").
       // A p2p token has no JWT, and in a group the ring should name the room.
-      const jwtPayload = isP2P ? null : decodeJwtPayload(token);
+      const jwtPayload = isP2P ? null : decodeCallToken(token);
       const jwtName = group
         ? ''
         : safeCallName(extractCallerDisplayName(jwtPayload)) || '';
@@ -753,6 +719,11 @@ export const onCallTokenMessage = (stanza: Element): boolean => {
           livekitUrl: attrs.livekitUrl,
           callerName: attrs.callerName || null,
           callerXmppUsername: attrs.caller,
+          answerDeadline: incomingCallDeadline(
+            traceTs ?? Date.now(),
+            fromSystem ? data.attrs?.expiresAt : undefined,
+            jwtPayload?.exp
+          ),
         })
       );
       return true;

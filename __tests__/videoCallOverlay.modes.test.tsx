@@ -75,6 +75,7 @@ import {
   resetCall,
   setCallPhase,
   setIncomingCallToken,
+  startOutgoingCall,
 } from '../src/roomStore/callSlice';
 import { VideoCallOverlay } from '../src/components/VideoCalls/VideoCallOverlay';
 import { reportCallDeclined } from '../src/networking/api-requests/callState.api';
@@ -181,6 +182,34 @@ describe('ring card', () => {
     expect(texts(t)).toEqual(
       expect.arrayContaining(['Incoming group video call', 'Group video call'])
     );
+  });
+});
+
+describe('ring deadline', () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  it('keeps the caller ringing through the server window without sending a cancel', async () => {
+    await mount();
+    await act(async () => {
+      store.dispatch(startOutgoingCall({ roomJid: 'a-b@conference.x' }));
+    });
+    act(() => jest.advanceTimersByTime(60_000));
+    expect(store.getState().call.phase).toBe('requesting');
+    act(() => jest.advanceTimersByTime(5_000));
+    expect(store.getState().call.phase).toBe('error');
+    expect(sendCallStateSignal).not.toHaveBeenCalled();
+  });
+
+  it('dismisses the incoming ring at 55 seconds without declining on the server', async () => {
+    await mount();
+    await ring();
+    act(() => jest.advanceTimersByTime(54_999));
+    expect(store.getState().call.phase).toBe('ringing-incoming');
+    act(() => jest.advanceTimersByTime(1));
+    expect(store.getState().call.phase).toBe('idle');
+    expect(reportCallDeclined).not.toHaveBeenCalled();
+    expect(sendCallStateSignal).not.toHaveBeenCalled();
   });
 });
 

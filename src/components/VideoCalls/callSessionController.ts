@@ -363,6 +363,7 @@ export const startCallSession = ({
         // to WebRTC), so our own activation is refused. Not a reason to
         // fail the call.
       }
+      if (current.disposed) {return;}
       await room.connect(livekitUrl, token);
     } catch (error: any) {
       if (current.disposed) {return;}

@@ -333,9 +333,9 @@ export const useCallKeep = (): void => {
     // iOS: an outgoing call is a CallKit call from the first ring, so it
     // shows in the Dynamic Island even before the peer answers.
     if (isIOS && isOutgoing && !activeUuidRef.current && callKeep.startCall) {
-      // Unique per call: CallKit refuses a UUID it has seen before, and
-      // the callId only arrives with the token.
-      const uuid = callKitUuid(`${call.roomJid || ''}|${call.startedAt || Date.now()}`);
+      // Put the timestamp first so it survives the UUID routine truncating
+      // the room JID.
+      const uuid = callKitUuid(`${call.startedAt ?? Date.now()}|${call.roomJid || ''}`);
       activeUuidRef.current = uuid;
       outgoingReportedRef.current = 'none';
       trace('startCall', uuid);

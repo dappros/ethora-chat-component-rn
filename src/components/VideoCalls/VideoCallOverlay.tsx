@@ -23,7 +23,7 @@ import {
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { RootState } from '../../roomStore';
+import { RootState, store } from '../../roomStore';
 import {
   acceptIncomingCall,
   declineIncomingCall,
@@ -31,7 +31,7 @@ import {
   setCallError,
 } from '../../roomStore/callSlice';
 import { useChatSettingState } from '../../hooks/useChatSettingState';
-import { sendCallStateSignal } from '../../networking/callTokenStanza';
+import { OUTGOING_RING_FALLBACK_MS } from '../../calls/ringTiming';
 import { useTheme } from '../../hooks/useTheme';
 import type { ChatTheme } from '../../theme/theme';
 import { VideoCallSession } from './VideoCallSession';
@@ -61,17 +61,6 @@ import { useOngoingCallNotification } from './useOngoingCallNotification';
 const DEFAULT_PRIMARY = '#0052CD';
 const DANGER = '#E53935';
 const ACCEPT = '#10B981';
-
-// Stop the dial UI sitting forever when the server never broadcasts a
-// call-token (offline peer, backend error, etc). 30s matches the typical
-// PSTN ring window.
-const OUTGOING_CALL_TIMEOUT_MS = 30000;
-
-// Stop ringing an incoming call nobody cancelled. The caller gives up after
-// OUTGOING_CALL_TIMEOUT_MS and says so, but that signal is lost when the
-// call came in by push and the socket never came up (the system call
-// screen of a VoIP push would otherwise ring on).
-const INCOMING_CALL_TIMEOUT_MS = 45000;
 
 // Ring pattern for an incoming call: wait, buzz, pause, buzz... Android
 // loops this from index 0, iOS ignores the pattern and just vibrates.
@@ -524,28 +513,32 @@ const VideoCallOverlayInner: FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, isP2P, canRenderSession, call.token, livekitUrl, call.kind, call.isGroup]);
 
-  // Give up on an unanswered outgoing dial. Unlike web (which only shows
   useEffect(() => {
-    if (call.phase !== 'requesting' || call.direction !== 'outgoing') {
-      return;
-    }
+    if (call.phase !== 'requesting' || call.direction !== 'outgoing') {return;}
     const timer = setTimeout(() => {
-      sendCallStateSignal('cancelled');
-      dispatch(setCallError(t('call.error.noAnswerTimeout')));
-    }, OUTGOING_CALL_TIMEOUT_MS);
+      const current = store.getState().call;
+      if (current.phase === 'requesting' &&
+          current.direction === 'outgoing' &&
+          current.startedAt === call.startedAt &&
+          current.callId === call.callId) {
+        dispatch(setCallError(t('call.error.noAnswerTimeout')));
+      }
+    }, OUTGOING_RING_FALLBACK_MS);
     return () => clearTimeout(timer);
-  }, [call.phase, call.direction, call.startedAt, dispatch, t]);
+  }, [call.phase, call.direction, call.startedAt, call.callId, dispatch, t]);
 
   useEffect(() => {
-    if (call.phase !== 'ringing-incoming' || call.direction !== 'incoming') {
-      return;
-    }
-    const elapsed = Date.now() - (call.startedAt || Date.now());
+    if (call.phase !== 'ringing-incoming' || call.direction !== 'incoming' ||
+        call.answerDeadline == null) {return;}
     const timer = setTimeout(() => {
-      dispatch(declineIncomingCall());
-    }, Math.max(0, INCOMING_CALL_TIMEOUT_MS - elapsed));
+      const current = store.getState().call;
+      if (current.phase === 'ringing-incoming' && current.startedAt === call.startedAt &&
+          current.callId === call.callId) {
+        dispatch(declineIncomingCall());
+      }
+    }, Math.max(0, call.answerDeadline - Date.now()));
     return () => clearTimeout(timer);
-  }, [call.phase, call.direction, call.startedAt, dispatch]);
+  }, [call.phase, call.direction, call.startedAt, call.callId, call.answerDeadline, dispatch]);
 
   // Buzz while an incoming call is ringing. The ring screen is already on
   // top, so this is the only alert needed when the app is in the

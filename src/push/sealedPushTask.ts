@@ -1,6 +1,8 @@
 import { AppState, Platform } from 'react-native';
 import { pushLog } from '../utils/devLogger';
-import { isCallPush } from '../helpers/callPush';
+import { isCallPush, parseCallPush } from '../helpers/callPush';
+import { decodeCallToken } from '../calls/decodeCallToken';
+import { CALL_RING_WINDOW_MS, incomingCallDeadline } from '../calls/ringTiming';
 import { loadPushSecretKey } from './pushKeyStore';
 import {
   isReactionPush,
@@ -222,8 +224,18 @@ export function registerSealedPushTask(options: SealedPushTaskOptions = {}): boo
     if (call) {
       if (AppState.currentState === 'active' || !options.onCallPush) {return;}
       try {
+        const receivedAt = Date.now();
+        const token = parseCallPush(call).token;
+        if (incomingCallDeadline(receivedAt, call.expiresAt, decodeCallToken(token || '')?.exp) <= receivedAt) {
+          return;
+        }
         console.log(`[push] incoming call push ${String(call.callId ?? '')}`);
-        await options.onCallPush(call);
+        // Keep the original window when Android opens the app through an
+        // action on the already displayed notification.
+        await options.onCallPush({
+          ...call,
+          expiresAt: call.expiresAt ?? String(receivedAt + CALL_RING_WINDOW_MS),
+        });
       } catch (e) {
         pushLog('warn', 'push: showing an incoming call failed', e);
       }

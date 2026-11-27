@@ -62,6 +62,8 @@ export interface P2PCallDeps {
 }
 
 export interface P2PCallEvents {
+  /** A valid peer answer arrived; the caller can stop ringing. */
+  onRemoteAnswer?: () => void;
   /** The offer/answer exchange completed: media is now negotiating. */
   onNegotiated?: () => void;
   /** Media is flowing for the first time. */
@@ -314,6 +316,9 @@ export class P2PCallController {
     if (end && end.type === 'remote-end') {
       this.handleRemoteEnd(end.reason);
       return;
+    }
+    if (!this.negotiated && commands.some((command) => command.type === 'apply-answer')) {
+      this.events.onRemoteAnswer?.();
     }
     if (commands.length > 0) this.enqueue(() => this.runCommands(commands));
   }

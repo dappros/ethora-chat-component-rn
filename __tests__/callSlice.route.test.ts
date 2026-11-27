@@ -1,5 +1,6 @@
 import reducer, {
   setIncomingCallToken,
+  setOutgoingCallToken,
   setOutgoingCallRoute,
   startOutgoingCall,
   endCall,
@@ -96,6 +97,23 @@ describe('call slice transport routing', () => {
         setOutgoingCallRoute({ startedAt: s.startedAt, callId: 'c3', mode: 'p2p', iceServers: [] })
       ).mode
     ).toBe('livekit');
+  });
+
+  it('a late create response preserves the LiveKit URL already used by the stanza', () => {
+    const state = dial(true);
+    const connecting = reducer(state, setOutgoingCallToken({
+      roomJid: 'room@conference.x',
+      token: 'jwt',
+      callId: 'group',
+      livekitUrl: 'wss://stanza.example.com',
+    }));
+    const routed = reducer(connecting, setOutgoingCallRoute({
+      startedAt: state.startedAt,
+      callId: 'group',
+      mode: 'livekit',
+      livekitUrl: null,
+    }));
+    expect(routed.livekitUrl).toBe('wss://stanza.example.com');
   });
 
   it('never keeps a raw chat name as the call name', () => {

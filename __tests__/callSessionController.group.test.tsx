@@ -23,6 +23,8 @@ const mockRoomEvent = {
   MediaDevicesError: 'mediaDevicesError',
 };
 
+const mockStartAudioSession = jest.fn().mockResolvedValue(undefined);
+
 const mockTrack = { Source: { Camera: 'camera', Microphone: 'microphone' } };
 
 function makeParticipant(identity: string, over: Record<string, unknown> = {}) {
@@ -66,7 +68,7 @@ jest.mock('../src/components/VideoCalls/livekitRuntime', () => ({
     ConnectionState: {},
     VideoTrack: () => null,
     AudioSession: {
-      startAudioSession: jest.fn().mockResolvedValue(undefined),
+      startAudioSession: mockStartAudioSession,
       stopAudioSession: jest.fn().mockResolvedValue(undefined),
       setAppleAudioConfiguration: jest.fn().mockResolvedValue(undefined),
     },
@@ -87,6 +89,7 @@ let mockFakeRoomRef: { current: any };
 import { store } from '../src/roomStore';
 import {
   acceptIncomingCall,
+  endCall,
   resetCall,
   setIncomingCallToken,
 } from '../src/roomStore/callSlice';
@@ -158,6 +161,21 @@ describe('callSessionController: group call', () => {
     await act(async () => {
       probe = renderer.create(<Probe />);
     });
+  });
+
+  it('does not connect a session cancelled while native audio focus is pending', async () => {
+    let audioReady!: () => void;
+    mockStartAudioSession.mockImplementationOnce(() => new Promise<void>((resolve) => {
+      audioReady = resolve;
+    }));
+    await enterConnecting(true);
+    await start(true);
+    await act(async () => store.dispatch(endCall()));
+    audioReady();
+    await flush();
+
+    expect(mockFakeRoomRef.current.disconnect).toHaveBeenCalledTimes(1);
+    expect(mockFakeRoomRef.current.connect).not.toHaveBeenCalled();
   });
 
   it('lists everyone in the room, us first, flagging the speaker and muted mics', async () => {

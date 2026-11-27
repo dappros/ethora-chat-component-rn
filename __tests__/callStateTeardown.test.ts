@@ -94,6 +94,33 @@ describe('call teardown from call-state stanzas', () => {
     expect(store.getState().call.phase).toBe('idle');
   });
 
+  it('shows No answer when the server missed event reaches the caller', () => {
+    dialOutgoing();
+    const missed = parse(
+      `<message from='system@xmpp.example.com'><data type='call-state-declined' reason='missed' callId='${CALL_ID}'/></message>`
+    );
+    expect(onCallTokenMessage(missed)).toBe(true);
+    expect(store.getState().call).toMatchObject({ phase: 'error', error: 'No answer' });
+  });
+
+  it('dismisses the incoming screen and keeps the missed event for chat history', () => {
+    ringIncoming();
+    const missed = parse(
+      `<message type='groupchat' from='${ROOM_JID}/system'><data type='call-state' state='missed' missed='true' callId='${CALL_ID}'/></message>`
+    );
+    expect(onCallTokenMessage(missed)).toBe(false);
+    expect(store.getState().call.phase).toBe('idle');
+  });
+
+  it('ignores a delayed room log while a redial is still waiting for its call ID', () => {
+    store.dispatch(startOutgoingCall({ roomJid: ROOM_JID, roomBareName: ROOM }));
+    const oldLog = parse(
+      `<message type='groupchat' from='${ROOM_JID}/system'><data type='call-state' missed='true' callId='old-call'/></message>`
+    );
+    expect(onCallTokenMessage(oldLog)).toBe(false);
+    expect(store.getState().call).toMatchObject({ phase: 'requesting', callId: null });
+  });
+
   it('leaves another call alone', () => {
     ringIncoming();
     onCallTokenMessage(

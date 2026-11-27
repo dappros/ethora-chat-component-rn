@@ -1,6 +1,8 @@
 import { PayloadAction, createSlice } from '@reduxjs/toolkit';
 import type { CallMode, IceServerConfig } from '../calls/callMode';
 import { safeCallName } from '../calls/callDisplay';
+import { decodeCallToken } from '../calls/decodeCallToken';
+import { incomingCallDeadline } from '../calls/ringTiming';
 
 export type CallPhase =
   | 'idle'
@@ -32,6 +34,7 @@ export interface CallState {
   token: string | null;
   error: string | null;
   startedAt: number | null;
+  answerDeadline: number | null;
   // When the call actually connected (phase -> 'in-call'). Null until then.
   // Used to compute a duration for the local "call ended" log fallback.
   connectedAt: number | null;
@@ -66,6 +69,7 @@ const initialState: CallState = {
   token: null,
   error: null,
   startedAt: null,
+  answerDeadline: null,
   connectedAt: null,
   mode: 'livekit',
   isGroup: false,
@@ -108,6 +112,7 @@ const callSlice = createSlice({
       state.token = null;
       state.error = null;
       state.startedAt = Date.now();
+      state.answerDeadline = null;
       state.connectedAt = null;
       state.mode = 'livekit';
       state.isGroup = action.payload.isGroup === true;
@@ -145,7 +150,8 @@ const callSlice = createSlice({
       if (typeof action.payload.group === 'boolean') {
         state.isGroup = action.payload.group;
       }
-      state.livekitUrl = action.payload.livekitUrl || null;
+      // Call-token can already have started the Room before this response.
+      state.livekitUrl = state.livekitUrl || action.payload.livekitUrl || null;
       state.iceServers =
         action.payload.mode === 'p2p' ? action.payload.iceServers || [] : null;
     },
@@ -166,8 +172,16 @@ const callSlice = createSlice({
         livekitUrl?: string | null;
         callerName?: string | null;
         callerXmppUsername?: string | null;
+        answerDeadline?: number;
       }>
     ) {
+      const now = Date.now();
+      const answerDeadline = action.payload.answerDeadline ?? incomingCallDeadline(
+        now,
+        undefined,
+        decodeCallToken(action.payload.token)?.exp
+      );
+      if (answerDeadline <= now) {return;}
       state.phase = 'ringing-incoming';
       state.direction = 'incoming';
       state.kind = action.payload.kind || 'video';
@@ -181,7 +195,8 @@ const callSlice = createSlice({
       state.peerXmppUsername = action.payload.peerXmppUsername || null;
       state.token = action.payload.token;
       state.error = null;
-      state.startedAt = Date.now();
+      state.startedAt = now;
+      state.answerDeadline = answerDeadline;
       state.connectedAt = null;
       state.mode = action.payload.mode || 'livekit';
       state.isGroup = action.payload.isGroup === true;
@@ -214,7 +229,10 @@ const callSlice = createSlice({
       state.startedAt = state.startedAt || Date.now();
     },
     acceptIncomingCall(state) {
-      if (state.direction !== 'incoming') {return;}
+      if (state.direction !== 'incoming' || state.phase !== 'ringing-incoming') {return;}
+      if (state.answerDeadline !== null && Date.now() >= state.answerDeadline) {
+        return resetState();
+      }
       state.phase = 'connecting';
       state.error = null;
       state.startedAt = state.startedAt || Date.now();
